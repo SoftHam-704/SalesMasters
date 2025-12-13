@@ -18,7 +18,7 @@ const Sidebar = () => {
     {
       title: '',
       items: [
-        { icon: <Home size={18} />, label: 'DASHBOARD', path: '/', active: true }
+        { icon: <Home size={18} />, label: 'DASHBOARD', path: '/' }
       ]
     },
     {
@@ -32,6 +32,7 @@ const Sidebar = () => {
     {
       title: 'CADASTROS',
       items: [
+        { icon: <Building2 size={18} />, label: 'Fornecedores', path: '/fornecedores', active: true },
         { icon: <Users size={18} />, label: 'Clientes', path: '/cadastros/clientes' },
         { icon: <Building2 size={18} />, label: 'Indústrias', path: '/cadastros/industrias' },
         { icon: <UserCircle size={18} />, label: 'Funcionários', path: '/cadastros/funcionarios' },
