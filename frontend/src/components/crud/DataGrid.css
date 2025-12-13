@@ -1,0 +1,169 @@
+/* DataGrid Component Styles */
+
+.data-grid-container {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.data-grid {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-grid thead {
+    background: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.data-grid th {
+    padding: 1rem 1.25rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.data-grid td {
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-grid tbody tr {
+    transition: all 0.15s ease;
+}
+
+.data-grid tbody tr:hover {
+    background: var(--bg-secondary);
+}
+
+.data-grid tbody tr.clickable {
+    cursor: pointer;
+}
+
+.data-grid tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Zebra stripes */
+.data-grid tbody tr:nth-child(even) {
+    background: hsl(var(--background));
+}
+
+.data-grid tbody tr:nth-child(even):hover {
+    background: var(--bg-secondary);
+}
+
+/* Actions cell */
+.actions-cell {
+    position: relative;
+    text-align: center;
+}
+
+.btn-menu {
+    padding: 0.375rem;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-menu:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.popup-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    min-width: 160px;
+    z-index: 1000;
+    overflow: hidden;
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.popup-menu button {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.popup-menu button:hover {
+    background: var(--bg-secondary);
+}
+
+.popup-menu button.delete-option {
+    color: var(--danger-color);
+}
+
+.popup-menu button.delete-option:hover {
+    background: hsl(0, 72%, 51%, 0.1);
+}
+
+.popup-menu .menu-icon {
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+}
+
+/* Empty state */
+.data-grid-empty {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+
+    .data-grid th,
+    .data-grid td {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.8125rem;
+    }
+
+    .data-grid th {
+        font-size: 0.6875rem;
+    }
+}

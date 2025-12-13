@@ -1,0 +1,19 @@
+import React from 'react';
+import Sidebar from './components/Sidebar';
+import Dashboard from './pages/Dashboard';
+import Suppliers from './pages/Suppliers';
+import './styles/global.css';
+import './App.css';
+
+function App() {
+  return (
+    <div className="app">
+      <Sidebar />
+      <main className="main-content">
+        <Suppliers />
+      </main>
+    </div>
+  );
+}
+
+export default App;

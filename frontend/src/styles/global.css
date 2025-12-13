@@ -1,0 +1,225 @@
+/* SalesMasters - Global Styles with Theme Support */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Light Theme - Clean & Professional */
+  --background: 210 20% 98%;
+  --foreground: 220 20% 10%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+
+  --primary-color: hsl(160, 84%, 35%);
+  --primary-hover: hsl(160, 84%, 30%);
+  --secondary-color: hsl(210, 20%, 93%);
+  --success-color: hsl(160, 84%, 35%);
+  --warning-color: hsl(38, 92%, 50%);
+  --danger-color: hsl(0, 72%, 51%);
+
+  /* Cores de fundo */
+  --bg-primary: hsl(0, 0%, 100%);
+  --bg-secondary: hsl(210, 20%, 98%);
+  --bg-sidebar: hsl(220, 18%, 7%);
+  --bg-card: hsl(0, 0%, 100%);
+
+  /* Cores de texto */
+  --text-primary: hsl(220, 20%, 10%);
+  --text-secondary: hsl(220, 10%, 45%);
+  --text-light: hsl(220, 10%, 55%);
+  --text-white: hsl(0, 0%, 100%);
+
+  /* Bordas e sombras */
+  --border-color: hsl(210, 20%, 88%);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 60px hsl(160 84% 35% / 0.15);
+
+  /* Gradientes */
+  --gradient-primary: linear-gradient(135deg, hsl(160 84% 35%) 0%, hsl(180 70% 32%) 100%);
+  --gradient-glow: radial-gradient(ellipse at 50% 0%, hsl(160 84% 35% / 0.08) 0%, transparent 60%);
+
+  /* Espaçamentos */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  /* Bordas arredondadas */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+.dark {
+  /* Dark Theme */
+  --background: 220 20% 4%;
+  --foreground: 0 0% 98%;
+
+  --card: 220 18% 7%;
+  --card-foreground: 0 0% 98%;
+
+  --primary-color: hsl(160, 84%, 39%);
+  --primary-hover: hsl(160, 84%, 45%);
+  --secondary-color: hsl(220, 16%, 12%);
+  --success-color: hsl(160, 84%, 39%);
+  --warning-color: hsl(38, 92%, 50%);
+  --danger-color: hsl(0, 72%, 51%);
+
+  /* Cores de fundo */
+  --bg-primary: hsl(220, 20%, 4%);
+  --bg-secondary: hsl(220, 18%, 7%);
+  --bg-sidebar: hsl(220, 18%, 6%);
+  --bg-card: hsl(220, 18%, 7%);
+
+  /* Cores de texto */
+  --text-primary: hsl(0, 0%, 98%);
+  --text-secondary: hsl(220, 10%, 55%);
+  --text-light: hsl(220, 10%, 45%);
+  --text-white: hsl(0, 0%, 100%);
+
+  /* Bordas e sombras */
+  --border-color: hsl(220, 16%, 15%);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 60px hsl(160 84% 39% / 0.3);
+
+  /* Gradientes */
+  --gradient-primary: linear-gradient(135deg, hsl(160 84% 39%) 0%, hsl(180 70% 35%) 100%);
+  --gradient-glow: radial-gradient(ellipse at 50% 0%, hsl(160 84% 39% / 0.15) 0%, transparent 60%);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-image: var(--gradient-glow);
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--secondary-color);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Utilitários */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: var(--text-white);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.text-muted {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.text-success {
+  color: var(--success-color);
+}
+
+.text-warning {
+  color: var(--warning-color);
+}
+
+.text-danger {
+  color: var(--danger-color);
+}
+
+/* Animações */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px hsl(160 84% 39% / 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 40px hsl(160 84% 39% / 0.5);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
