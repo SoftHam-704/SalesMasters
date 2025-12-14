@@ -1,0 +1,93 @@
+/* TabControl Component */
+
+.tab-control {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.tab-headers {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+    padding: 0 1.5rem;
+}
+
+.tab-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    position: relative;
+    top: 2px;
+}
+
+.tab-header:hover {
+    color: var(--text-primary);
+    background: var(--bg-card);
+}
+
+.tab-header.active {
+    color: var(--primary-color);
+    background: var(--bg-card);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.tab-icon {
+    display: flex;
+    align-items: center;
+}
+
+.tab-label {
+    white-space: nowrap;
+}
+
+.tab-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg-card);
+}
+
+.tab-pane {
+    padding: 2rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .tab-headers {
+        overflow-x: auto;
+        padding: 0 1rem;
+    }
+
+    .tab-header {
+        padding: 0.875rem 1rem;
+        font-size: 0.8125rem;
+    }
+
+    .tab-pane {
+        padding: 1rem;
+    }
+}

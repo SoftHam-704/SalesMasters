@@ -102,27 +102,26 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                     {activeTab === 'principal' && (
                         <div className="tab-panel">
                             <div className="form-row">
-                                <div className="form-group">
+                                <div className="form-group" style={{ flex: '0 0 200px' }}>
                                     <label>CNPJ <small>(Somente números)</small></label>
                                     <input
                                         type="text"
                                         value={formData.cnpj}
                                         onChange={(e) => handleChange('cnpj', e.target.value)}
                                         className="highlight"
+                                        maxLength="14"
                                     />
                                 </div>
-                                <div className="form-group">
+                                <div className="form-group" style={{ flex: '0 0 180px' }}>
                                     <label>Inscrição</label>
                                     <input
                                         type="text"
                                         value={formData.inscricao}
                                         onChange={(e) => handleChange('inscricao', e.target.value)}
+                                        maxLength="12"
                                     />
                                 </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-group flex-2">
+                                <div className="form-group flex-3">
                                     <label>Razão social</label>
                                     <input
                                         type="text"
@@ -130,7 +129,7 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                                         onChange={(e) => handleChange('razao', e.target.value)}
                                     />
                                 </div>
-                                <div className="form-group">
+                                <div className="form-group" style={{ flex: '0 0 150px' }}>
                                     <label>Situação</label>
                                     <select
                                         value={formData.situacao}
@@ -159,9 +158,6 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                                         onChange={(e) => handleChange('bairro', e.target.value)}
                                     />
                                 </div>
-                            </div>
-
-                            <div className="form-row">
                                 <div className="form-group flex-2">
                                     <label>Cidade</label>
                                     <input
@@ -170,26 +166,27 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                                         onChange={(e) => handleChange('cidade', e.target.value)}
                                     />
                                 </div>
-                                <div className="form-group small">
+                                <div className="form-group" style={{ flex: '0 0 80px' }}>
                                     <label>UF</label>
                                     <input
                                         type="text"
                                         value={formData.uf}
                                         onChange={(e) => handleChange('uf', e.target.value)}
                                         maxLength="2"
+                                        style={{ textTransform: 'uppercase' }}
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Cep</label>
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group" style={{ flex: '0 0 150px' }}>
+                                    <label>CEP</label>
                                     <input
                                         type="text"
                                         value={formData.cep}
                                         onChange={(e) => handleChange('cep', e.target.value)}
                                     />
                                 </div>
-                            </div>
-
-                            <div className="form-row">
                                 <div className="form-group">
                                     <label>Telefone</label>
                                     <input
@@ -217,7 +214,7 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                             </div>
 
                             <div className="form-row">
-                                <div className="form-group flex-2">
+                                <div className="form-group flex-3">
                                     <label>E-mail</label>
                                     <input
                                         type="email"

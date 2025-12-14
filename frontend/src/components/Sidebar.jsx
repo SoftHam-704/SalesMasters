@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Users, Building2, UserCircle, Tag, Layers,
   Package, TrendingUp, Settings, Sparkles, RefreshCw
@@ -7,14 +8,9 @@ import { ThemeToggle } from './ThemeToggle';
 import './Sidebar.css';
 
 const Sidebar = () => {
+  const location = useLocation();
+
   const menuSections = [
-    {
-      title: 'RECENTES',
-      items: [
-        { icon: <Users size={18} />, label: 'Clientes', path: '/clientes' },
-        { icon: <Package size={18} />, label: 'Pedidos', path: '/pedidos' }
-      ]
-    },
     {
       title: '',
       items: [
@@ -32,9 +28,8 @@ const Sidebar = () => {
     {
       title: 'CADASTROS',
       items: [
-        { icon: <Building2 size={18} />, label: 'Fornecedores', path: '/fornecedores', active: true },
+
         { icon: <Users size={18} />, label: 'Clientes', path: '/cadastros/clientes' },
-        { icon: <Building2 size={18} />, label: 'Indústrias', path: '/cadastros/industrias' },
         { icon: <UserCircle size={18} />, label: 'Funcionários', path: '/cadastros/funcionarios' },
         { icon: <Tag size={18} />, label: 'Categorias', path: '/cadastros/categorias' },
         { icon: <Layers size={18} />, label: 'Grupos de Descontos', path: '/cadastros/grupos-descontos' },
@@ -76,14 +71,14 @@ const Sidebar = () => {
           <div key={idx} className="menu-section">
             {section.title && <div className="menu-section-title">{section.title}</div>}
             {section.items.map((item, itemIdx) => (
-              <a
+              <Link
                 key={itemIdx}
-                href={item.path}
-                className={`menu-item ${item.active ? 'active' : ''}`}
+                to={item.path}
+                className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
               >
                 <span className="menu-icon">{item.icon}</span>
                 <span className="menu-label">{item.label}</span>
-              </a>
+              </Link>
             ))}
           </div>
         ))}

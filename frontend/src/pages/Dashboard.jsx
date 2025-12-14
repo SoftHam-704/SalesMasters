@@ -1,126 +1,254 @@
 import React from 'react';
-import { Users, ShoppingCart, FileText, DollarSign, TrendingUp, Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { MetricCard } from '../components/dashboard/MetricCard';
+import { ProgressRing } from '../components/dashboard/ProgressRing';
+import { ActivityItem } from '../components/dashboard/ActivityItem';
+import {
+    DollarSign,
+    Users,
+    Target,
+    TrendingUp,
+    ArrowRight,
+    Flame,
+    Sparkles
+} from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 
+const chartData = [
+    { name: "Jan", value: 4000 },
+    { name: "Fev", value: 3000 },
+    { name: "Mar", value: 5000 },
+    { name: "Abr", value: 4500 },
+    { name: "Mai", value: 6000 },
+    { name: "Jun", value: 5500 },
+    { name: "Jul", value: 7000 },
+];
+
+const activities = [
+    { type: "deal", title: "Negócio fechado!", description: "TechCorp - R$ 45.000", time: "2 min" },
+    { type: "call", title: "Ligação com cliente", description: "StartupXYZ - Follow-up", time: "15 min" },
+    { type: "meeting", title: "Reunião agendada", description: "Demo produto - Empresa ABC", time: "1h" },
+    { type: "goal", title: "Meta atingida!", description: "100% da meta semanal", time: "3h" },
+    { type: "email", title: "Proposta enviada", description: "InnovateTech - R$ 28.000", time: "5h" },
+];
+
 const Dashboard = () => {
-    const metrics = [
-        {
-            title: 'TOTAL DE CLIENTES',
-            value: '0',
-            subtitle: '0 inativos',
-            icon: <Users size={24} />,
-            trend: '+12%',
-            trendUp: true
-        },
-        {
-            title: 'PEDIDOS HOJE',
-            value: '0',
-            subtitle: 'Aguardando processamento',
-            icon: <ShoppingCart size={24} />,
-            trend: '+8%',
-            trendUp: true
-        },
-        {
-            title: 'PRODUTOS CADASTRADOS',
-            value: '81',
-            subtitle: '1 fora de estoque',
-            icon: <FileText size={24} />,
-            trend: '+3%',
-            trendUp: true
-        },
-        {
-            title: 'FATURAMENTO MÊS',
-            value: 'R$ 0,00',
-            subtitle: 'VS mês anterior',
-            icon: <DollarSign size={24} />,
-            trend: '+18%',
-            trendUp: true
-        }
-    ];
-
-    const quickActions = [
-        { icon: <Users size={20} />, label: 'Novo Cliente', subtitle: 'Cadastrar novo cliente' },
-        { icon: <ShoppingCart size={20} />, label: 'Novo Pedido', subtitle: 'Criar novo pedido' },
-        { icon: <FileText size={20} />, label: 'Novo Produto', subtitle: 'Cadastrar produto' }
-    ];
-
-    const systemStatus = [
-        { module: 'Módulo de Clientes', status: 'Ativo', color: 'success' },
-        { module: 'Módulo de Pedidos', status: 'Em Desenvolvimento', color: 'warning' },
-        { module: 'Módulo de Produtos', status: 'Em Desenvolvimento', color: 'warning' },
-        { module: 'Módulo de Relatórios', status: 'Em Desenvolvimento', color: 'warning' }
-    ];
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Bom dia';
+        if (hour < 18) return 'Boa tarde';
+        return 'Boa noite';
+    };
 
     return (
-        <div className="dashboard">
-            <div className="dashboard-header">
-                <div>
-                    <h1>Dashboard</h1>
-                    <p className="text-muted">Visão geral do sistema de representação comercial</p>
+        <div className="dashboard-lovable-page">
+            {/* Welcome Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="welcome-section"
+            >
+                <div className="welcome-header">
+                    <h1 className="welcome-title">
+                        {getGreeting()}, João!
+                    </h1>
+                    <motion.span
+                        animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                        className="wave-emoji"
+                    >
+                        👋
+                    </motion.span>
                 </div>
-            </div>
+                <div className="welcome-subtitle">
+                    <Flame className="flame-icon" />
+                    <span className="streak-text">12 dias de sequência!</span>
+                    <span className="separator">·</span>
+                    <span>Você está no top 5% dos vendedores esta semana</span>
+                    <Sparkles className="sparkles-icon" />
+                </div>
+            </motion.div>
 
-            {/* Metric Cards */}
+            {/* Metrics Grid */}
             <div className="metrics-grid">
-                {metrics.map((metric, idx) => (
-                    <div key={idx} className="metric-card card">
-                        <div className="metric-header">
-                            <div className="metric-icon">{metric.icon}</div>
-                            <span className={`metric-trend ${metric.trendUp ? 'trend-up' : 'trend-down'}`}>
-                                <TrendingUp size={16} />
-                                {metric.trend}
-                            </span>
-                        </div>
-                        <div className="metric-body">
-                            <p className="metric-title">{metric.title}</p>
-                            <h2 className="metric-value">{metric.value}</h2>
-                            <p className="metric-subtitle text-muted">{metric.subtitle}</p>
-                        </div>
-                    </div>
-                ))}
+                <MetricCard
+                    title="Vendas do Mês"
+                    value="R$ 127.450"
+                    change={23.5}
+                    icon={DollarSign}
+                    delay={0.1}
+                />
+                <MetricCard
+                    title="Novos Clientes"
+                    value="48"
+                    change={12.3}
+                    icon={Users}
+                    delay={0.2}
+                />
+                <MetricCard
+                    title="Taxa de Conversão"
+                    value="34.2%"
+                    change={8.1}
+                    icon={Target}
+                    delay={0.3}
+                />
+                <MetricCard
+                    title="Ticket Médio"
+                    value="R$ 2.655"
+                    change={-2.4}
+                    icon={TrendingUp}
+                    delay={0.4}
+                />
             </div>
 
-            <div className="dashboard-content">
-                {/* Recent Orders */}
-                <div className="recent-orders card">
-                    <h3>Pedidos Recentes</h3>
-                    <div className="empty-state">
-                        <ShoppingCart size={48} className="empty-icon" />
-                        <p>Nenhum pedido recente</p>
-                        <p className="text-muted">Os pedidos aparecerão aqui</p>
+            {/* Main Content Grid */}
+            <div className="content-grid">
+                {/* Chart */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="chart-card"
+                >
+                    <div className="card-header">
+                        <h3 className="card-title">Performance de Vendas</h3>
+                        <button className="btn-link">
+                            Ver relatório <ArrowRight className="arrow-icon" />
+                        </button>
                     </div>
-                </div>
+                    <div className="chart-container">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.4} />
+                                        <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <XAxis
+                                    dataKey="name"
+                                    stroke="var(--text-secondary)"
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                />
+                                <YAxis
+                                    stroke="var(--text-secondary)"
+                                    fontSize={12}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickFormatter={(value) => `R$${value / 1000}k`}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: "var(--bg-card)",
+                                        border: "1px solid var(--border-color)",
+                                        borderRadius: "12px",
+                                        boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+                                    }}
+                                    labelStyle={{ color: "var(--text-primary)" }}
+                                    formatter={(value) => [`R$ ${value.toLocaleString()}`, "Vendas"]}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="value"
+                                    stroke="hsl(160, 84%, 39%)"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorValue)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
 
-                {/* Quick Actions */}
-                <div className="quick-actions card">
-                    <h3>Ações Rápidas</h3>
-                    <div className="actions-list">
-                        {quickActions.map((action, idx) => (
-                            <button key={idx} className="action-item">
-                                <div className="action-icon">{action.icon}</div>
-                                <div className="action-text">
-                                    <p className="action-label">{action.label}</p>
-                                    <p className="action-subtitle text-muted">{action.subtitle}</p>
-                                </div>
-                            </button>
+                {/* Goal Progress */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="goal-card"
+                >
+                    <div className="card-header">
+                        <h3 className="card-title">
+                            <Target className="title-icon" />
+                            Meta Mensal
+                        </h3>
+                    </div>
+                    <div className="goal-content">
+                        <ProgressRing
+                            progress={78}
+                            label="da meta"
+                            sublabel="R$ 127.450 / R$ 163.500"
+                        />
+                        <div className="goal-details">
+                            <div className="goal-detail-item">
+                                <span>Faltam</span>
+                                <strong>R$ 36.050</strong>
+                            </div>
+                            <div className="goal-detail-item">
+                                <span>Dias restantes</span>
+                                <strong>8 dias</strong>
+                            </div>
+                        </div>
+                        <button className="btn-primary-full">Ver Oportunidades</button>
+                    </div>
+                </motion.div>
+
+                {/* Activity Feed */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="activity-card"
+                >
+                    <div className="card-header">
+                        <h3 className="card-title">Atividade Recente</h3>
+                        <button className="btn-link-small">Ver tudo</button>
+                    </div>
+                    <div className="activity-list">
+                        {activities.map((activity, index) => (
+                            <ActivityItem
+                                key={index}
+                                {...activity}
+                                delay={0.1 * index}
+                            />
                         ))}
                     </div>
-                </div>
-            </div>
+                </motion.div>
 
-            {/* System Status */}
-            <div className="system-status card">
-                <h3>Status do Sistema</h3>
-                <div className="status-grid">
-                    {systemStatus.map((item, idx) => (
-                        <div key={idx} className="status-item">
-                            <p className="status-module">{item.module}</p>
-                            <span className={`status-badge status-${item.color}`}>
-                                {item.status}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+                {/* Quick Actions */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="quick-actions-card"
+                >
+                    <div className="card-header">
+                        <h3 className="card-title">Ações Rápidas</h3>
+                    </div>
+                    <div className="quick-actions-list">
+                        <button className="quick-action-btn">
+                            <div className="quick-action-icon users">
+                                <Users size={16} />
+                            </div>
+                            Adicionar Cliente
+                        </button>
+                        <button className="quick-action-btn">
+                            <div className="quick-action-icon sales">
+                                <DollarSign size={16} />
+                            </div>
+                            Registrar Venda
+                        </button>
+                        <button className="quick-action-btn">
+                            <div className="quick-action-icon target">
+                                <Target size={16} />
+                            </div>
+                            Criar Oportunidade
+                        </button>
+                    </div>
+                </motion.div>
             </div>
         </div>
     );
