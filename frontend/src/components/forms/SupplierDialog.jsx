@@ -365,9 +365,9 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                                 />
                                             </div>
                                             <div>
-                                                <Label className="text-xs text-muted-foreground">Nome reduzido</Label>
+                                                <Label className="text-xs text-muted-foreground font-semibold">Nome reduzido</Label>
                                                 <Input
-                                                    className="border-red-400 focus:ring-red-200 bg-red-50/10"
+                                                    className="border-red-500 focus:ring-red-300 bg-red-50/20 font-bold text-base text-red-900"
                                                     value={formData.nomeReduzido || ''}
                                                     onChange={(e) => handleChange('nomeReduzido', e.target.value)}
                                                 />
