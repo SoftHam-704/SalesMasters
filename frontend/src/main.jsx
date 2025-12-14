@@ -6,9 +6,10 @@ import { Toaster } from './components/ui/sonner'
 import './index.css'
 import './styles/global.css'
 import './App.css'
-import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
+import FrmIndustria from './pages/frmIndustria'
 import Settings from './pages/Settings'
+import Sidebar from './components/Sidebar'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/industrias" element={<FrmIndustria />} />
           <Route path="/clientes" element={<div className="page-placeholder">Página de Clientes em desenvolvimento</div>} />
           <Route path="/cadastros/*" element={<div className="page-placeholder">Cadastros em desenvolvimento</div>} />
           <Route path="/configuracoes" element={<Settings />} />
