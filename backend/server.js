@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Firebird = require('node-firebird');
@@ -8,11 +9,21 @@ const XLSX = require('xlsx');
 const path = require('path');
 
 const app = express();
-const PORT = 3001;
+const PORT = 3005;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Root Route
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'SalesMasters Backend running',
+        version: '1.0.0'
+    });
+});
 
 // Logging Middleware
 app.use((req, res, next) => {
@@ -24,13 +35,802 @@ app.use((req, res, next) => {
 });
 
 // PostgreSQL Pool
+// PostgreSQL Pool
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'basesales',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '@12Pilabo',
 });
+
+// ==================== V2 ENDPOINTS (Top Priority) ====================
+
+// --- PRODUCT GROUPS (V2) ---
+app.get('/api/v2/product-groups', async (req, res) => {
+    console.log('🔍 HIT TOP /api/v2/product-groups');
+    try {
+        const query = 'SELECT * FROM grupos ORDER BY gru_nome';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/v2/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM grupos WHERE gru_codigo = $1', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Grupo não encontrado' });
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/v2/product-groups', async (req, res) => {
+    try {
+        const { gru_nome, gru_percomiss } = req.body;
+        if (!gru_nome) return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+
+        const query = 'INSERT INTO grupos (gru_nome, gru_percomiss) VALUES ($1, $2) RETURNING *';
+        const result = await pool.query(query, [gru_nome, gru_percomiss || 0]);
+        res.json({ success: true, data: result.rows[0], message: 'Grupo criado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.put('/api/v2/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { gru_nome, gru_percomiss } = req.body;
+        const result = await pool.query('UPDATE grupos SET gru_nome = $1, gru_percomiss = $2 WHERE gru_codigo = $3 RETURNING *', [gru_nome, gru_percomiss, id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Grupo não encontrado' });
+        res.json({ success: true, data: result.rows[0], message: 'Grupo atualizado!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.delete('/api/v2/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM grupos WHERE gru_codigo = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Grupo não encontrado' });
+        res.json({ success: true, message: 'Grupo excluído!' });
+    } catch (error) {
+        if (error.code === '23503') return res.status(400).json({ success: false, message: 'Grupo em uso.' });
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// --- DISCOUNT GROUPS (V2) ---
+
+
+// GET - Listar todos os grupos de descontos
+app.get('/api/v2/discount-groups', async (req, res) => {
+    console.log('🔍 HIT TOP /api/v2/discount-groups');
+    try {
+        const query = `
+            SELECT 
+                gde_id,
+                gid,
+                gde_nome,
+                gde_desc1,
+                gde_desc2,
+                gde_desc3,
+                gde_desc4,
+                gde_desc5,
+                gde_desc6,
+                gde_desc7,
+                gde_desc8,
+                gde_desc9
+            FROM grupo_desc
+            ORDER BY gid::integer
+        `;
+
+        const result = await pool.query(query);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar grupos de descontos: ${error.message}`
+        });
+    }
+});
+
+// GET - Buscar grupo de desconto por ID
+app.get('/api/v2/discount-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            'SELECT * FROM grupo_desc WHERE gde_id = $1',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo de desconto não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar grupo de desconto: ${error.message}`
+        });
+    }
+});
+
+// POST - Criar novo grupo de desconto
+app.post('/api/v2/discount-groups', async (req, res) => {
+    try {
+        const {
+            gid,
+            gde_nome,
+            gde_desc1, gde_desc2, gde_desc3,
+            gde_desc4, gde_desc5, gde_desc6,
+            gde_desc7, gde_desc8, gde_desc9
+        } = req.body;
+
+        const checkGid = await pool.query('SELECT gde_id FROM grupo_desc WHERE gid = $1', [gid]);
+        if (checkGid.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Já existe um grupo com este ID'
+            });
+        }
+
+        const query = `
+            INSERT INTO grupo_desc (
+                gid, gde_nome,
+                gde_desc1, gde_desc2, gde_desc3,
+                gde_desc4, gde_desc5, gde_desc6,
+                gde_desc7, gde_desc8, gde_desc9
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            gid || '0',
+            gde_nome || '',
+            gde_desc1 || 0, gde_desc2 || 0, gde_desc3 || 0,
+            gde_desc4 || 0, gde_desc5 || 0, gde_desc6 || 0,
+            gde_desc7 || 0, gde_desc8 || 0, gde_desc9 || 0
+        ]);
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Grupo de desconto criado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar grupo de desconto: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar grupo de desconto
+app.put('/api/v2/discount-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            gid,
+            gde_nome,
+            gde_desc1, gde_desc2, gde_desc3,
+            gde_desc4, gde_desc5, gde_desc6,
+            gde_desc7, gde_desc8, gde_desc9
+        } = req.body;
+
+        const query = `
+            UPDATE grupo_desc
+            SET gid = $1,
+                gde_nome = $2,
+                gde_desc1 = $3,
+                gde_desc2 = $4,
+                gde_desc3 = $5,
+                gde_desc4 = $6,
+                gde_desc5 = $7,
+                gde_desc6 = $8,
+                gde_desc7 = $9,
+                gde_desc8 = $10,
+                gde_desc9 = $11
+            WHERE gde_id = $12
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            gid,
+            gde_nome,
+            gde_desc1 || 0, gde_desc2 || 0, gde_desc3 || 0,
+            gde_desc4 || 0, gde_desc5 || 0, gde_desc6 || 0,
+            gde_desc7 || 0, gde_desc8 || 0, gde_desc9 || 0,
+            id
+        ]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo de desconto não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Grupo de desconto atualizado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar grupo de desconto: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Excluir grupo de desconto
+app.delete('/api/v2/discount-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM grupo_desc WHERE gde_id = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo de desconto não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Grupo de desconto excluído com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao excluir grupo de desconto: ${error.message}`
+        });
+    }
+});
+
+
+// --- REGIONS (V2) ---
+
+// GET - List all regions
+app.get('/api/v2/regions', async (req, res) => {
+    try {
+        const query = 'SELECT * FROM regioes ORDER BY reg_descricao';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Get region by ID
+app.get('/api/v2/regions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM regioes WHERE reg_codigo = $1', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Região não encontrada' });
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create new region
+app.post('/api/v2/regions', async (req, res) => {
+    try {
+        const { reg_descricao } = req.body;
+        if (!reg_descricao) return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+
+        const query = 'INSERT INTO regioes (reg_descricao) VALUES ($1) RETURNING *';
+        const result = await pool.query(query, [reg_descricao]);
+        res.json({ success: true, data: result.rows[0], message: 'Região criada com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Update region
+app.put('/api/v2/regions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reg_descricao } = req.body;
+        const result = await pool.query('UPDATE regioes SET reg_descricao = $1 WHERE reg_codigo = $2 RETURNING *', [reg_descricao, id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Região não encontrada' });
+        res.json({ success: true, data: result.rows[0], message: 'Região atualizada!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Delete region
+app.delete('/api/v2/regions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM regioes WHERE reg_codigo = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Região não encontrada' });
+        res.json({ success: true, message: 'Região excluída!' });
+    } catch (error) {
+        if (error.code === '23503') return res.status(400).json({ success: false, message: 'Região em uso.' });
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// --- CITIES (V2) ---
+
+// GET - List all cities (for combobox)
+app.get('/api/v2/cities', async (req, res) => {
+    try {
+        const query = 'SELECT cid_codigo, cid_nome, cid_uf FROM cidades WHERE cid_ativo = true ORDER BY cid_nome';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - List cities of a specific region
+app.get('/api/v2/regions/:id/cities', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const query = `
+            SELECT c.cid_codigo, c.cid_nome, c.cid_uf 
+            FROM cidades c
+            INNER JOIN cidades_regioes cr ON c.cid_codigo = cr.cid_id
+            WHERE cr.reg_id = $1
+            ORDER BY c.cid_nome
+        `;
+        const result = await pool.query(query, [id]);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Add city to region
+app.post('/api/v2/regions/:id/cities', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { cid_id } = req.body;
+
+        // Check if association already exists
+        const checkQuery = 'SELECT * FROM cidades_regioes WHERE reg_id = $1 AND cid_id = $2';
+        const checkResult = await pool.query(checkQuery, [id, cid_id]);
+
+        if (checkResult.rows.length > 0) {
+            return res.status(400).json({ success: false, message: 'Cidade já está nesta região' });
+        }
+
+        const query = 'INSERT INTO cidades_regioes (reg_id, cid_id) VALUES ($1, $2)';
+        await pool.query(query, [id, cid_id]);
+        res.json({ success: true, message: 'Cidade adicionada à região!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Remove city from region
+app.delete('/api/v2/regions/:regionId/cities/:cityId', async (req, res) => {
+    try {
+        const { regionId, cityId } = req.params;
+        const result = await pool.query(
+            'DELETE FROM cidades_regioes WHERE reg_id = $1 AND cid_id = $2 RETURNING *',
+            [regionId, cityId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Associação não encontrada' });
+        }
+
+        res.json({ success: true, message: 'Cidade removida da região!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// --- ACTIVITY AREAS (V2) ---
+
+// GET - List all activity areas
+app.get('/api/v2/activity-areas', async (req, res) => {
+    try {
+        const query = 'SELECT * FROM area_atuacao ORDER BY atu_descricao';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Get activity area by ID
+app.get('/api/v2/activity-areas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM area_atuacao WHERE atu_id = $1', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create new activity area
+app.post('/api/v2/activity-areas', async (req, res) => {
+    try {
+        const { atu_descricao, atu_sel, gid } = req.body;
+        if (!atu_descricao) return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+
+        const query = 'INSERT INTO area_atuacao (atu_descricao, atu_sel, gid) VALUES ($1, $2, $3) RETURNING *';
+        const result = await pool.query(query, [atu_descricao, atu_sel || '', gid || '']);
+        res.json({ success: true, data: result.rows[0], message: 'Área de atuação criada com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Update activity area
+app.put('/api/v2/activity-areas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { atu_descricao, atu_sel, gid } = req.body;
+        const result = await pool.query(
+            'UPDATE area_atuacao SET atu_descricao = $1, atu_sel = $2, gid = $3 WHERE atu_id = $4 RETURNING *',
+            [atu_descricao, atu_sel, gid, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
+        res.json({ success: true, data: result.rows[0], message: 'Área de atuação atualizada!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Delete activity area
+app.delete('/api/v2/activity-areas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM area_atuacao WHERE atu_id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
+        res.json({ success: true, message: 'Área de atuação excluída!' });
+    } catch (error) {
+        if (error.code === '23503') return res.status(400).json({ success: false, message: 'Área de atuação em uso.' });
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// --- CARRIERS (TRANSPORTADORAS) (V2) ---
+// Adicionar estas linhas ANTES de "// Test Firebird Connection" (linha 522)
+
+// GET - List all carriers
+app.get('/api/v2/carriers', async (req, res) => {
+    try {
+        const query = 'SELECT * FROM transportadora ORDER BY tra_nome';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Get carrier by ID
+app.get('/api/v2/carriers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM transportadora WHERE tra_codigo = $1', [id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Transportadora não encontrada' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Fetch carrier data from CNPJ (ReceitaWS)
+app.get('/api/v2/carriers/cnpj/:cnpj', async (req, res) => {
+    try {
+        const { cnpj } = req.params;
+        const cleanCNPJ = cnpj.replace(/[^\d]/g, '');
+
+        const response = await fetch(`https://www.receitaws.com.br/v1/cnpj/${cleanCNPJ}`);
+        const data = await response.json();
+
+        if (data.status === 'ERROR') {
+            return res.status(404).json({ success: false, message: data.message || 'CNPJ não encontrado' });
+        }
+
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create new carrier
+app.post('/api/v2/carriers', async (req, res) => {
+    try {
+        const {
+            tra_nome, tra_cgc, tra_endereco, tra_bairro, tra_cidade,
+            tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
+            tra_inscricao, tra_obs
+        } = req.body;
+
+        // Check if CNPJ already exists
+        if (tra_cgc) {
+            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cgc = $1';
+            const checkResult = await pool.query(checkQuery, [tra_cgc]);
+            if (checkResult.rows.length > 0) {
+                return res.status(400).json({ success: false, message: 'CNPJ já cadastrado' });
+            }
+        }
+
+        const query = `
+            INSERT INTO transportadora (
+                tra_nome, tra_cgc, tra_endereco, tra_bairro, tra_cidade,
+                tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
+                tra_inscricao, tra_obs
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            tra_nome, tra_cgc, tra_endereco, tra_bairro, tra_cidade,
+            tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
+            tra_inscricao, tra_obs
+        ]);
+
+        res.json({ success: true, message: 'Transportadora criada!', data: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(400).json({ success: false, message: 'CNPJ já cadastrado' });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Update carrier
+app.put('/api/v2/carriers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            tra_nome, tra_cgc, tra_endereco, tra_bairro, tra_cidade,
+            tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
+            tra_inscricao, tra_obs
+        } = req.body;
+
+        // Check if CNPJ already exists for another carrier
+        if (tra_cgc) {
+            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cgc = $1 AND tra_codigo != $2';
+            const checkResult = await pool.query(checkQuery, [tra_cgc, id]);
+            if (checkResult.rows.length > 0) {
+                return res.status(400).json({ success: false, message: 'CNPJ já cadastrado para outra transportadora' });
+            }
+        }
+
+        const query = `
+            UPDATE transportadora SET
+                tra_nome = $1, tra_cgc = $2, tra_endereco = $3, tra_bairro = $4,
+                tra_cidade = $5, tra_uf = $6, tra_cep = $7, tra_fone = $8,
+                tra_contato = $9, tra_email = $10,
+                tra_inscricao = $11, tra_obs = $12
+            WHERE tra_codigo = $13
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            tra_nome, tra_cgc, tra_endereco, tra_bairro, tra_cidade,
+            tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
+            tra_inscricao, tra_obs, id
+        ]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Transportadora não encontrada' });
+        }
+
+        res.json({ success: true, message: 'Transportadora atualizada!', data: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(400).json({ success: false, message: 'CNPJ já cadastrado' });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Delete carrier
+app.delete('/api/v2/carriers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM transportadora WHERE tra_codigo = $1 RETURNING *', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Transportadora não encontrada' });
+        }
+
+        res.json({ success: true, message: 'Transportadora excluída!' });
+    } catch (error) {
+        if (error.code === '23503') {
+            return res.status(400).json({ success: false, message: 'Transportadora em uso, não pode ser excluída' });
+        }
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ==================== PRICE TABLES ENDPOINTS ====================
+// Import price tables routes
+const priceTablesRouter = require('./price_tables_endpoints')(pool);
+app.use('/api', priceTablesRouter);
+
+// ==================== DATABASE CONFIGURATION ENDPOINTS ====================
+
+// GET current database configuration
+app.get('/api/config/database', (req, res) => {
+    res.json({
+        success: true,
+        config: {
+            host: process.env.DB_HOST || 'localhost',
+            port: parseInt(process.env.DB_PORT) || 5432,
+            database: process.env.DB_NAME || 'basesales',
+            user: process.env.DB_USER || 'postgres',
+            ssl: process.env.DB_SSL === 'true'
+        }
+    });
+});
+
+// POST test database connection
+app.post('/api/config/database/test', async (req, res) => {
+    const { host, port, database, user, password, ssl } = req.body;
+
+    const testPool = new Pool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        ssl: ssl ? { rejectUnauthorized: false } : false
+    });
+
+    try {
+        const client = await testPool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        await testPool.end();
+
+        res.json({
+            success: true,
+            message: '✅ Conexão testada com sucesso!'
+        });
+    } catch (error) {
+        await testPool.end();
+        res.json({
+            success: false,
+            message: `❌ Erro ao conectar: ${error.message}`
+        });
+    }
+});
+
+// POST save database configuration
+app.post('/api/config/database/save', async (req, res) => {
+    const { host, port, database, user, password, ssl } = req.body;
+
+    try {
+        // Ler arquivo .env atual
+        const envPath = path.join(__dirname, '.env');
+        let envContent = '';
+
+        if (fs.existsSync(envPath)) {
+            envContent = fs.readFileSync(envPath, 'utf8');
+        }
+
+        // Atualizar variáveis
+        const updateEnv = (key, value) => {
+            const regex = new RegExp(`^${key}=.*$`, 'm');
+            if (regex.test(envContent)) {
+                envContent = envContent.replace(regex, `${key}=${value}`);
+            } else {
+                envContent += `\n${key}=${value}`;
+            }
+        };
+
+        updateEnv('DB_HOST', host);
+        updateEnv('DB_PORT', port);
+        updateEnv('DB_NAME', database);
+        updateEnv('DB_USER', user);
+        updateEnv('DB_PASSWORD', password);
+        updateEnv('DB_SSL', ssl);
+
+        // Salvar arquivo
+        fs.writeFileSync(envPath, envContent.trim() + '\n');
+
+        res.json({
+            success: true,
+            message: '✅ Configuração salva com sucesso! Reinicie o servidor para aplicar as mudanças.'
+        });
+    } catch (error) {
+        res.json({
+            success: false,
+            message: `❌ Erro ao salvar configuração: ${error.message}`
+        });
+    }
+});
+
+// ==================== DASHBOARD ENDPOINTS ====================
+// GET /api/dashboard/sales-comparison - Comparação de vendas mensais
+app.get('/api/dashboard/sales-comparison', async (req, res) => {
+    try {
+        const { anoAtual, anoAnterior } = req.query;
+
+        console.log(`📊 [DASHBOARD] Buscando comparação de vendas: ${anoAtual || 2025} vs ${anoAnterior || 2024}`);
+
+        const result = await pool.query(
+            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2)',
+            [anoAtual || 2025, anoAnterior || 2024]
+        );
+
+        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} meses`);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Erro ao buscar comparação:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar comparação de vendas: ${error.message}`
+        });
+    }
+});
+
+// GET /api/dashboard/quantities-comparison - Comparação de quantidades mensais
+app.get('/api/dashboard/quantities-comparison', async (req, res) => {
+    try {
+        const { anoAtual, anoAnterior } = req.query;
+
+        console.log(`📊 [DASHBOARD] Buscando comparação de quantidades: ${anoAtual || 2025} vs ${anoAnterior || 2024}`);
+
+        const result = await pool.query(
+            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2)',
+            [anoAtual || 2025, anoAnterior || 2024]
+        );
+
+        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} meses`);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Erro ao buscar comparação de quantidades:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar comparação de quantidades: ${error.message}`
+        });
+    }
+});
+
+// ==================== PRODUCTS ENDPOINTS ====================
+// Import products routes
+const productsRouter = require('./products_endpoints')(pool);
+app.use('/api', productsRouter);
 
 // Test Firebird Connection
 app.post('/api/firebird/test', async (req, res) => {
@@ -788,6 +1588,398 @@ app.delete('/api/suppliers/:supplierId/contacts/:contactId', async (req, res) =>
     }
 });
 
+// ==================== CLIENT CONTACTS ENDPOINTS (cli_aniv) ====================
+
+// GET - Listar contatos de um cliente
+app.get('/api/clients/:clientId/contacts', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const result = await pool.query(
+            'SELECT * FROM cli_aniv WHERE ani_cliente = $1 ORDER BY ani_nome',
+            [clientId]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar contatos do cliente: ${error.message}`
+        });
+    }
+});
+
+// POST - Criar novo contato de cliente
+app.post('/api/clients/:clientId/contacts', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const contact = req.body;
+
+        // Generate next ani_lancto manually
+        const maxResult = await pool.query('SELECT MAX(ani_lancto) as max_id FROM cli_aniv');
+        const nextId = (maxResult.rows[0].max_id || 0) + 1;
+
+        const query = `
+            INSERT INTO cli_aniv (
+                ani_lancto, ani_cliente, ani_nome, ani_funcao, 
+                ani_fone, ani_email, ani_diaaniv, ani_mes, 
+                ani_niver, ani_obs, gid,
+                ani_timequetorce, ani_esportepreferido, ani_hobby
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING *
+        `;
+
+        const values = [
+            nextId,
+            clientId,
+            contact.ani_nome,
+            contact.ani_funcao || '',
+            contact.ani_fone || '',
+            contact.ani_email || '',
+            contact.ani_diaaniv || null,
+            contact.ani_mes || null,
+            contact.ani_niver || null,
+            contact.ani_obs || '',
+            contact.gid || '',
+            contact.ani_timequetorce || '',
+            contact.ani_esportepreferido || '',
+            contact.ani_hobby || ''
+        ];
+
+        const result = await pool.query(query, values);
+
+        res.json({
+            success: true,
+            message: 'Contato criado com sucesso!',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar contato: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar contato de cliente
+app.put('/api/clients/:clientId/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const contact = req.body;
+
+        // Update using ani_lancto as it is unique per row usually
+        const query = `
+            UPDATE cli_aniv SET
+                ani_nome = $1, ani_funcao = $2,
+                ani_fone = $3, ani_email = $4,
+                ani_diaaniv = $5, ani_mes = $6,
+                ani_niver = $7, ani_obs = $8,
+                ani_timequetorce = $9, ani_esportepreferido = $10, ani_hobby = $11
+            WHERE ani_lancto = $12
+            RETURNING *
+        `;
+
+        const values = [
+            contact.ani_nome,
+            contact.ani_funcao || '',
+            contact.ani_fone || '',
+            contact.ani_email || '',
+            contact.ani_diaaniv || null,
+            contact.ani_mes || null,
+            contact.ani_niver || null,
+            contact.ani_obs || '',
+            contact.ani_timequetorce || '',
+            contact.ani_esportepreferido || '',
+            contact.ani_hobby || '',
+            contactId
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Contato não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Contato atualizado com sucesso!',
+            data: result.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar contato: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Excluir contato de cliente
+app.delete('/api/clients/:clientId/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const result = await pool.query(
+            'DELETE FROM cli_aniv WHERE ani_lancto = $1 RETURNING *',
+            [contactId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Contato não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Contato excluído com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao excluir contato: ${error.message}`
+        });
+    }
+});
+
+// ==================== CRUD CLIENTES ====================
+
+// GET - Listar todos os clientes
+app.get('/api/clients', async (req, res) => {
+    try {
+        const { search, active, page = 1, limit = 10 } = req.query;
+
+        let query = 'SELECT * FROM clientes WHERE 1=1';
+        const params = [];
+        let paramCount = 1;
+
+        // Filtro de busca
+        if (search) {
+            query += ` AND (cli_nome ILIKE $${paramCount} OR cli_fantasia ILIKE $${paramCount} OR cli_cnpj ILIKE $${paramCount})`;
+            params.push(`%${search}%`);
+            paramCount++;
+        }
+
+        // Filtro ativo/inativo (CLI_TIPOPES: 'A' = Ativo, 'I' = Inativo)
+        // Note: The user mentioned CLI_TIPOPES stores A/I.
+        if (active !== undefined) {
+            query += ` AND cli_tipopes = $${paramCount}`;
+            params.push(active === 'true' ? 'A' : 'I');
+            paramCount++;
+        }
+
+        // Ordenação
+        query += ' ORDER BY cli_nome';
+
+        // Paginação
+        const offset = (page - 1) * limit;
+        query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        params.push(limit, offset);
+
+        const result = await pool.query(query, params);
+
+        // Contar total
+        let countQuery = 'SELECT COUNT(*) FROM clientes WHERE 1=1';
+        const countParams = [];
+        let countParamCount = 1;
+
+        if (search) {
+            countQuery += ` AND (cli_nome ILIKE $${countParamCount} OR cli_fantasia ILIKE $${countParamCount} OR cli_cnpj ILIKE $${countParamCount})`;
+            countParams.push(`%${search}%`);
+            countParamCount++;
+        }
+
+        if (active !== undefined) {
+            countQuery += ` AND cli_tipopes = $${countParamCount}`;
+            countParams.push(active === 'true' ? 'A' : 'I');
+        }
+
+        const countResult = await pool.query(countQuery, countParams);
+        const total = parseInt(countResult.rows[0].count);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar clientes: ${error.message}`
+        });
+    }
+});
+
+// GET - Buscar cliente por ID
+app.get('/api/clients/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM clientes WHERE cli_codigo = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Criar novo cliente
+app.post('/api/clients', async (req, res) => {
+    try {
+        const client = req.body;
+        // Basic fields for now, can expand
+        const query = `
+            INSERT INTO clientes (
+                cli_cnpj, cli_inscricao, cli_tipopes, cli_atuacaoprincipal,
+                cli_nome, cli_fantasia, cli_dtabertura,
+                cli_endereco, cli_complemento, cli_bairro, cli_idcidade, cli_cidade, cli_uf, cli_cep,
+                cli_fone1, cli_fone3, cli_fone2,
+                cli_email, cli_nomred, cli_redeloja,
+                cli_vendedor, cli_skype, cli_regiao2, cli_regimeemp,
+                cli_emailnfe, cli_cxpostal, cli_emailfinanc, cli_suframa, cli_vencsuf,
+                cli_obspedido, cli_obs, cli_refcom,
+                cli_endcob, cli_baicob, cli_cidcob, cli_cepcob, cli_ufcob,
+                cli_datacad, cli_usuario
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39
+            ) RETURNING *
+        `;
+        const values = [
+            client.cli_cnpj, client.cli_inscricao, client.cli_tipopes, client.cli_atuacaoprincipal,
+            client.cli_nome, client.cli_fantasia, client.cli_dtabertura || null,
+            client.cli_endereco, client.cli_complemento, client.cli_bairro, client.cli_idcidade || null, client.cli_cidade, client.cli_uf, client.cli_cep,
+            client.cli_fone1, client.cli_fone3, client.cli_fone2,
+            client.cli_email, client.cli_nomred, client.cli_redeloja,
+            client.cli_vendedor || null, client.cli_skype, client.cli_regiao2 || null, client.cli_regimeemp,
+            client.cli_emailnfe, client.cli_cxpostal, client.cli_emailfinanc, client.cli_suframa, client.cli_vencsuf || null,
+            client.cli_obspedido, client.cli_obs, client.cli_refcom,
+            client.cli_endcob, client.cli_baicob, client.cli_cidcob, client.cli_cepcob, client.cli_ufcob,
+            client.cli_datacad || new Date(), client.cli_usuario
+        ];
+
+        const result = await pool.query(query, values);
+        res.status(201).json({ success: true, data: result.rows[0], message: 'Cliente criado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Atualizar cliente
+app.put('/api/clients/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const client = req.body;
+
+        const query = `
+            UPDATE clientes SET
+                cli_cnpj=$1, cli_inscricao=$2, cli_tipopes=$3, cli_atuacaoprincipal=$4,
+                cli_nome=$5, cli_fantasia=$6, cli_dtabertura=$7,
+                cli_endereco=$8, cli_complemento=$9, cli_bairro=$10, cli_idcidade=$11, cli_cidade=$12, cli_uf=$13, cli_cep=$14,
+                cli_fone1=$15, cli_fone3=$16, cli_fone2=$17,
+                cli_email=$18, cli_nomred=$19, cli_redeloja=$20,
+                cli_vendedor=$21, cli_skype=$22, cli_regiao2=$23, cli_regimeemp=$24,
+                cli_emailnfe=$25, cli_cxpostal=$26, cli_emailfinanc=$27, cli_suframa=$28, cli_vencsuf=$29,
+                cli_obspedido=$30, cli_obs=$31, cli_refcom=$32,
+                cli_endcob=$33, cli_baicob=$34, cli_cidcob=$35, cli_cepcob=$36, cli_ufcob=$37,
+                cli_dataalt=NOW()
+            WHERE cli_codigo = $38
+            RETURNING *
+        `;
+        const values = [
+            client.cli_cnpj, client.cli_inscricao, client.cli_tipopes, client.cli_atuacaoprincipal,
+            client.cli_nome, client.cli_fantasia, client.cli_dtabertura || null,
+            client.cli_endereco, client.cli_complemento, client.cli_bairro, client.cli_idcidade || null, client.cli_cidade, client.cli_uf, client.cli_cep,
+            client.cli_fone1, client.cli_fone3, client.cli_fone2,
+            client.cli_email, client.cli_nomred, client.cli_redeloja,
+            client.cli_vendedor || null, client.cli_skype, client.cli_regiao2 || null, client.cli_regimeemp,
+            client.cli_emailnfe, client.cli_cxpostal, client.cli_emailfinanc, client.cli_suframa, client.cli_vencsuf || null,
+            client.cli_obspedido, client.cli_obs, client.cli_refcom,
+            client.cli_endcob, client.cli_baicob, client.cli_cidcob, client.cli_cepcob, client.cli_ufcob,
+            id
+        ];
+
+        const result = await pool.query(query, values);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+
+        res.json({ success: true, data: result.rows[0], message: 'Cliente atualizado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Excluir cliente
+app.delete('/api/clients/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM clientes WHERE cli_codigo = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        res.json({ success: true, message: 'Cliente excluído com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/aux/cidades', async (req, res) => {
+    try {
+        const { search, id } = req.query;
+
+        let query = 'SELECT cid_codigo, cid_nome, cid_uf FROM cidades';
+        const params = [];
+        let paramCount = 1;
+
+        if (id) {
+            // ID Lookup - Exact Match (Indexed)
+            query += ` WHERE cid_codigo = $${paramCount}`;
+            params.push(id);
+        } else if (search) {
+            // Search Mode - Text Match
+            query += ` WHERE cid_nome ILIKE $${paramCount}`;
+            params.push(`%${search}%`);
+            query += ' ORDER BY cid_nome ASC LIMIT 50';
+        } else {
+            // Default - Return empty or very limited set to prevent full table load
+            // Returning top 10 just for initial population if needed, or empty
+            query += ' ORDER BY cid_nome ASC LIMIT 10';
+        }
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/aux/regioes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT reg_codigo, reg_descricao FROM regioes ORDER BY reg_descricao');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/aux/areas', async (req, res) => {
+    try {
+        const query = 'SELECT atu_id, atu_descricao FROM area_atuacao ORDER BY atu_descricao';
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==================== ANNUAL GOALS ENDPOINTS ====================
 
 // GET - Buscar metas de um fornecedor por ano
@@ -886,12 +2078,1183 @@ app.put('/api/suppliers/:supplierId/goals/:year', async (req, res) => {
 });
 
 
+
+// ============================================
+// Listar todas as transportadoras
+app.get('/api/transportadoras', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT tra_codigo, tra_nome FROM transportadora ORDER BY tra_nome ASC');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Adicionar indústria ao cliente
+app.post('/api/clients/:clientId/industries', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const data = req.body;
+
+        const query = `
+            INSERT INTO cli_ind (
+                cli_codigo, cli_forcodigo, 
+                cli_desc1, cli_desc2, cli_desc3, cli_desc4, cli_desc5, 
+                cli_desc6, cli_desc7, cli_desc8, cli_desc9, cli_desc10, 
+                cli_transportadora, cli_prazopg, cli_ipi, cli_tabela, 
+                cli_codcliind, cli_obsparticular, cli_comprador, 
+                cli_frete, cli_emailcomprador, cli_desc11
+            ) VALUES (
+                $1, $2, 
+                $3, $4, $5, $6, $7, 
+                $8, $9, $10, $11, $12, 
+                $13, $14, $15, $16, 
+                $17, $18, $19, 
+                $20, $21, $22
+            ) RETURNING *
+        `;
+
+        const values = [
+            clientId, data.cli_forcodigo,
+            data.cli_desc1 || 0, data.cli_desc2 || 0, data.cli_desc3 || 0,
+            data.cli_desc4 || 0, data.cli_desc5 || 0, data.cli_desc6 || 0,
+            data.cli_desc7 || 0, data.cli_desc8 || 0, data.cli_desc9 || 0,
+            data.cli_desc10 || 0,
+            data.cli_transportadora || null,
+            data.cli_prazopg || '',
+            data.cli_ipi || '',
+            data.cli_tabela || '',
+            data.cli_codcliind || '',
+            data.cli_obsparticular || '',
+            data.cli_comprador || '',
+            data.cli_frete || '',
+            data.cli_emailcomprador || '',
+            data.cli_desc11 || 0
+        ];
+
+        const result = await pool.query(query, values);
+        res.json({ success: true, data: result.rows[0] });
+
+    } catch (error) {
+        console.error("Erro ao salvar indústria:", error);
+        res.status(500).json({ success: false, message: `Erro ao salvar: ${error.message}` });
+    }
+});
+
+// Atualizar dados da indústria
+app.put('/api/clients/:clientId/industries/:industryId', async (req, res) => {
+    try {
+        const { industryId } = req.params;
+        const data = req.body;
+
+        const query = `
+            UPDATE cli_ind SET
+                cli_desc1 = $1, cli_desc2 = $2, cli_desc3 = $3, 
+                cli_desc4 = $4, cli_desc5 = $5, cli_desc6 = $6, 
+                cli_desc7 = $7, cli_desc8 = $8, cli_desc9 = $9, 
+                cli_desc10 = $10, cli_transportadora = $11, 
+                cli_prazopg = $12, cli_ipi = $13, cli_tabela = $14, 
+                cli_codcliind = $15, cli_obsparticular = $16, 
+                cli_comprador = $17, cli_frete = $18, 
+                cli_emailcomprador = $19, cli_desc11 = $20
+            WHERE cli_lancamento = $21
+            RETURNING *
+        `;
+
+        const values = [
+            data.cli_desc1 || 0, data.cli_desc2 || 0, data.cli_desc3 || 0,
+            data.cli_desc4 || 0, data.cli_desc5 || 0, data.cli_desc6 || 0,
+            data.cli_desc7 || 0, data.cli_desc8 || 0, data.cli_desc9 || 0,
+            data.cli_desc10 || 0, data.cli_transportadora || null,
+            data.cli_prazopg || '', data.cli_ipi || '', data.cli_tabela || '',
+            data.cli_codcliind || '', data.cli_obsparticular || '',
+            data.cli_comprador || '', data.cli_frete || '',
+            data.cli_emailcomprador || '', data.cli_desc11 || 0,
+            industryId
+        ];
+
+        const result = await pool.query(query, values);
+        res.json({ success: true, data: result.rows[0] });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: `Erro ao atualizar: ${error.message}` });
+    }
+});
+
+// Excluir indústria
+app.delete('/api/clients/:clientId/industries/:industryId', async (req, res) => {
+    try {
+        const { industryId } = req.params;
+        await pool.query('DELETE FROM cli_ind WHERE cli_lancamento = $1', [industryId]);
+        res.json({ success: true, message: 'Registro excluído com sucesso' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: `Erro ao excluir: ${error.message}` });
+    }
+});
+
+
+// AUX - Listar Vendedores (Combobox)
+app.get('/api/aux/vendedores', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT ven_codigo, ven_nome FROM vendedores ORDER BY ven_nome');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Backend rodando!' });
 });
 
+// --- AREAS OF ACTIVITY ENDPOINTS ---
+
+// Get all available areas (for combobox)
+app.get('/api/areas', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM area_atu ORDER BY atu_descricao');
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao buscar áreas de atuação' });
+    }
+});
+
+// Get areas for a specific client
+app.get('/api/clients/:id/areas', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT 
+                ac.atu_idcli, 
+                ac.atu_atuaid, 
+                aa.atu_descricao 
+            FROM atua_cli ac
+            JOIN area_atu aa ON ac.atu_atuaid = aa.atu_id
+            WHERE ac.atu_idcli = $1
+            ORDER BY aa.atu_descricao
+        `, [id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao buscar áreas do cliente' });
+    }
+});
+
+// Add area to client
+app.post('/api/clients/:id/areas', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { areaId } = req.body; // Expects atu_atuaid
+
+        if (!areaId) return res.status(400).json({ error: 'Area ID is required' });
+
+        // Check availability
+        const check = await pool.query(
+            'SELECT 1 FROM atua_cli WHERE atu_idcli = $1 AND atu_atuaid = $2',
+            [id, areaId]
+        );
+        if (check.rowCount > 0) {
+            return res.status(409).json({ error: 'Cliente já possui esta área vinculada' });
+        }
+
+        await pool.query(
+            'INSERT INTO atua_cli (atu_idcli, atu_atuaid) VALUES ($1, $2)',
+            [id, areaId]
+        );
+        res.status(201).json({ message: 'Área adicionada com sucesso' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao adicionar área' });
+    }
+});
+
+// Remove area from client
+app.delete('/api/clients/:id/areas/:areaId', async (req, res) => {
+    try {
+        const { id, areaId } = req.params;
+        await pool.query(
+            'DELETE FROM atua_cli WHERE atu_idcli = $1 AND atu_atuaid = $2',
+            [id, areaId]
+        );
+        res.json({ message: 'Área removida com sucesso' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao remover área' });
+    }
+});
+
+
+// GET - List all discount groups (for combobox) - MUST BE BEFORE PARAMETERIZED ROUTES
+app.get('/api/discount-groups', async (req, res) => {
+    try {
+        console.log('📋 Fetching discount groups...');
+        const result = await pool.query('SELECT gru_codigo, gru_nome FROM grupos ORDER BY gru_nome');
+        console.log(`✅ Found ${result.rows.length} groups:`, result.rows.slice(0, 3));
+        res.json(result.rows);
+    } catch (err) {
+        console.error('❌ Error fetching groups:', err.message);
+        res.status(500).json({ error: 'Erro ao buscar grupos de desconto' });
+    }
+});
+
+// Get client discount groups
+app.get('/api/clients/:id/discounts', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT 
+                cd.cli_codigo,
+                cd.cli_forcodigo,
+                cd.cli_grupo,
+                f.for_nomered as industria,
+                g.gru_nome as grupo_nome,
+                cd.cli_desc1,
+                cd.cli_desc2,
+                cd.cli_desc3,
+                cd.cli_desc4,
+                cd.cli_desc5,
+                cd.cli_desc6,
+                cd.cli_desc7,
+                cd.cli_desc8,
+                cd.cli_desc9
+            FROM cli_descpro cd
+            LEFT JOIN fornecedores f ON f.for_codigo = cd.cli_forcodigo
+            LEFT JOIN grupos g ON g.gru_codigo = cd.cli_grupo
+            WHERE cd.cli_codigo = $1
+            ORDER BY f.for_nomered, g.gru_nome
+        `, [id]);
+
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao buscar grupos de desconto' });
+    }
+});
+
+// POST - Create new discount group for client
+app.post('/api/clients/:id/discounts', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        const query = `
+            INSERT INTO cli_descpro (
+                cli_codigo, cli_forcodigo, cli_grupo,
+                cli_desc1, cli_desc2, cli_desc3, cli_desc4, cli_desc5,
+                cli_desc6, cli_desc7, cli_desc8, cli_desc9
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *
+        `;
+
+        const values = [
+            id,
+            data.cli_forcodigo,
+            data.cli_grupo,
+            data.cli_desc1 || 0,
+            data.cli_desc2 || 0,
+            data.cli_desc3 || 0,
+            data.cli_desc4 || 0,
+            data.cli_desc5 || 0,
+            data.cli_desc6 || 0,
+            data.cli_desc7 || 0,
+            data.cli_desc8 || 0,
+            data.cli_desc9 || 0
+        ];
+
+        const result = await pool.query(query, values);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao criar grupo de desconto' });
+    }
+});
+
+// PUT - Update discount group
+app.put('/api/clients/:clientId/discounts/:forcodigo/:grupo', async (req, res) => {
+    try {
+        const { clientId, forcodigo, grupo } = req.params;
+        const data = req.body;
+
+        const query = `
+            UPDATE cli_descpro SET
+                cli_desc1 = $1,
+                cli_desc2 = $2,
+                cli_desc3 = $3,
+                cli_desc4 = $4,
+                cli_desc5 = $5,
+                cli_desc6 = $6,
+                cli_desc7 = $7,
+                cli_desc8 = $8,
+                cli_desc9 = $9
+            WHERE cli_codigo = $10 AND cli_forcodigo = $11 AND cli_grupo = $12
+            RETURNING *
+        `;
+
+        const values = [
+            data.cli_desc1 || 0,
+            data.cli_desc2 || 0,
+            data.cli_desc3 || 0,
+            data.cli_desc4 || 0,
+            data.cli_desc5 || 0,
+            data.cli_desc6 || 0,
+            data.cli_desc7 || 0,
+            data.cli_desc8 || 0,
+            data.cli_desc9 || 0,
+            clientId,
+            forcodigo,
+            grupo
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Grupo de desconto não encontrado' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao atualizar grupo de desconto' });
+    }
+});
+
+// DELETE - Remove discount group
+app.delete('/api/clients/:clientId/discounts/:forcodigo/:grupo', async (req, res) => {
+    try {
+        const { clientId, forcodigo, grupo } = req.params;
+        const result = await pool.query(
+            'DELETE FROM cli_descpro WHERE cli_codigo = $1 AND cli_forcodigo = $2 AND cli_grupo = $3 RETURNING *',
+            [clientId, forcodigo, grupo]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Grupo de desconto não encontrado' });
+        }
+
+        res.json({ success: true, message: 'Grupo de desconto excluído com sucesso' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao excluir grupo de desconto' });
+    }
+});
+
+
+
+// ==================== CLIENT INDUSTRIES (PROSPECÇÃO) ====================
+
+// GET - List industries for a client
+app.get('/api/clients/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT 
+                ci.cli_lancamento,
+                ci.cli_codigo,
+                ci.cli_forcodigo,
+                ci.cli_desc1,
+                ci.cli_desc2,
+                ci.cli_desc3,
+                ci.cli_desc4,
+                ci.cli_desc5,
+                ci.cli_desc6,
+                ci.cli_desc7,
+                ci.cli_desc8,
+                ci.cli_prazopg,
+                ci.cli_transportadora,
+                f.for_nomered as fornecedor_nome,
+                t.for_nomered as transportadora_nome
+            FROM cli_ind ci
+            LEFT JOIN fornecedores f ON f.for_codigo = ci.cli_forcodigo
+            LEFT JOIN fornecedores t ON t.for_codigo = ci.cli_transportadora
+            WHERE ci.cli_codigo = $1
+            ORDER BY f.for_nomered
+        `, [id]);
+
+        res.json({ success: true, data: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Erro ao buscar indústrias' });
+    }
+});
+
+// POST - Add industry to client
+app.post('/api/clients/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { cli_forcodigo } = req.body;
+
+        const result = await pool.query(`
+            INSERT INTO cli_ind (cli_codigo, cli_forcodigo)
+            VALUES ($1, $2)
+            RETURNING *
+        `, [id, cli_forcodigo]);
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao adicionar indústria' });
+    }
+});
+
+// DELETE - Remove industry from client
+app.delete('/api/clients/:id/industries/:forcodigo', async (req, res) => {
+    try {
+        const { id, forcodigo } = req.params;
+        await pool.query(
+            'DELETE FROM cli_ind WHERE cli_codigo = $1 AND cli_forcodigo = $2',
+            [id, forcodigo]
+        );
+        res.json({ success: true, message: 'Indústria removida com sucesso' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao remover indústria' });
+    }
+});
+
+// ==================== CRUD VENDEDORES (SELLERS) ====================
+
+// GET - Listar todos os vendedores
+app.get('/api/sellers', async (req, res) => {
+    try {
+        const { search, page = 1, limit = 10 } = req.query;
+
+        let query = 'SELECT * FROM vendedores WHERE 1=1';
+        const params = [];
+        let paramCount = 1;
+
+        // Filtro de busca
+        if (search) {
+            query += ` AND (ven_nome ILIKE $${paramCount} OR ven_cpf ILIKE $${paramCount} OR ven_email ILIKE $${paramCount})`;
+            params.push(`%${search}%`);
+            paramCount++;
+        }
+
+        // Ordenação
+        query += ' ORDER BY ven_nome';
+
+        // Paginação
+        const offset = (page - 1) * limit;
+        query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        params.push(limit, offset);
+
+        const result = await pool.query(query, params);
+
+        // Contar total
+        let countQuery = 'SELECT COUNT(*) FROM vendedores WHERE 1=1';
+        const countParams = [];
+        let countParamCount = 1;
+
+        if (search) {
+            countQuery += ` AND (ven_nome ILIKE $${countParamCount} OR ven_cpf ILIKE $${countParamCount} OR ven_email ILIKE $${countParamCount})`;
+            countParams.push(`%${search}%`);
+        }
+
+        const countResult = await pool.query(countQuery, countParams);
+        const total = parseInt(countResult.rows[0].count);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar vendedores: ${error.message}`
+        });
+    }
+});
+
+// GET - Buscar vendedor por ID
+app.get('/api/sellers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM vendedores WHERE ven_codigo = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Vendedor não encontrado' });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Criar novo vendedor
+app.post('/api/sellers', async (req, res) => {
+    try {
+        const seller = req.body;
+
+        // Validação: nome é obrigatório
+        if (!seller.ven_nome || seller.ven_nome.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'O nome do vendedor é obrigatório'
+            });
+        }
+
+        const query = `
+            INSERT INTO vendedores (
+                ven_nome, ven_endereco, ven_bairro, ven_cidade, ven_cep, ven_uf,
+                ven_fone1, ven_fone2, ven_obs, ven_cpf, ven_comissao, ven_email,
+                ven_nomeusu, ven_aniversario, ven_rg, ven_ctps, ven_filiacao,
+                ven_pis, ven_filhos, ven_codusu, ven_imagem, gid
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+            ) RETURNING *
+        `;
+
+        const values = [
+            seller.ven_nome,
+            seller.ven_endereco || '',
+            seller.ven_bairro || '',
+            seller.ven_cidade || '',
+            seller.ven_cep || '',
+            seller.ven_uf || '',
+            seller.ven_fone1 || '',
+            seller.ven_fone2 || '',
+            seller.ven_obs || '',
+            seller.ven_cpf || '',
+            seller.ven_comissao || null,
+            seller.ven_email || '',
+            seller.ven_nomeusu || '',
+            seller.ven_aniversario || '',
+            seller.ven_rg || '',
+            seller.ven_ctps || '',
+            seller.ven_filiacao || '',
+            seller.ven_pis || '',
+            seller.ven_filhos || null,
+            seller.ven_codusu || null,
+            seller.ven_imagem || '',
+            seller.gid || ''
+        ];
+
+        const result = await pool.query(query, values);
+        res.status(201).json({
+            success: true,
+            data: result.rows[0],
+            message: 'Vendedor criado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar vendedor: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar vendedor
+app.put('/api/sellers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.body;
+
+        // Validação: nome é obrigatório
+        if (!seller.ven_nome || seller.ven_nome.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'O nome do vendedor é obrigatório'
+            });
+        }
+
+        const query = `
+            UPDATE vendedores SET
+                ven_nome = $1, ven_endereco = $2, ven_bairro = $3, ven_cidade = $4,
+                ven_cep = $5, ven_uf = $6, ven_fone1 = $7, ven_fone2 = $8,
+                ven_obs = $9, ven_cpf = $10, ven_comissao = $11, ven_email = $12,
+                ven_nomeusu = $13, ven_aniversario = $14, ven_rg = $15, ven_ctps = $16,
+                ven_filiacao = $17, ven_pis = $18, ven_filhos = $19, ven_codusu = $20,
+                ven_imagem = $21
+            WHERE ven_codigo = $22
+            RETURNING *
+        `;
+
+        const values = [
+            seller.ven_nome,
+            seller.ven_endereco || '',
+            seller.ven_bairro || '',
+            seller.ven_cidade || '',
+            seller.ven_cep || '',
+            seller.ven_uf || '',
+            seller.ven_fone1 || '',
+            seller.ven_fone2 || '',
+            seller.ven_obs || '',
+            seller.ven_cpf || '',
+            seller.ven_comissao || null,
+            seller.ven_email || '',
+            seller.ven_nomeusu || '',
+            seller.ven_aniversario || '',
+            seller.ven_rg || '',
+            seller.ven_ctps || '',
+            seller.ven_filiacao || '',
+            seller.ven_pis || '',
+            seller.ven_filhos || null,
+            seller.ven_codusu || null,
+            seller.ven_imagem || '',
+            id
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Vendedor não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Vendedor atualizado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar vendedor: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Excluir vendedor
+app.delete('/api/sellers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM vendedores WHERE ven_codigo = $1 RETURNING *', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Vendedor não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Vendedor excluído com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao excluir vendedor: ${error.message}`
+        });
+    }
+});
+
+// ==================== SELLER INDUSTRIES/COMMISSIONS ENDPOINTS ====================
+
+// GET - Listar indústrias e comissões de um vendedor
+app.get('/api/sellers/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const query = `
+            SELECT 
+                vi.vin_industria,
+                vi.vin_codigo,
+                vi.vin_percom,
+                f.for_nomered,
+                f.for_nome
+            FROM vendedor_ind vi
+            INNER JOIN fornecedores f ON vi.vin_industria = f.for_codigo
+            WHERE vi.vin_codigo = $1
+            ORDER BY f.for_nomered
+        `;
+
+        const result = await pool.query(query, [id]);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar indústrias do vendedor: ${error.message}`
+        });
+    }
+});
+
+// POST - Adicionar indústria/comissão ao vendedor
+app.post('/api/sellers/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { vin_industria, vin_percom } = req.body;
+
+        const query = `
+            INSERT INTO vendedor_ind (vin_codigo, vin_industria, vin_percom)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+
+        const values = [id, vin_industria, vin_percom || 0];
+
+        const result = await pool.query(query, values);
+
+        res.status(201).json({
+            success: true,
+            data: result.rows[0],
+            message: 'Indústria adicionada com sucesso!'
+        });
+    } catch (error) {
+        // Check for unique constraint violation
+        if (error.code === '23505') {
+            return res.status(400).json({
+                success: false,
+                message: 'Esta indústria já está cadastrada para este vendedor'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: `Erro ao adicionar indústria: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar comissão de uma indústria
+app.put('/api/sellers/:id/industries/:industryId', async (req, res) => {
+    try {
+        const { id, industryId } = req.params;
+        const { vin_percom } = req.body;
+
+        const query = `
+            UPDATE vendedor_ind
+            SET vin_percom = $1
+            WHERE vin_codigo = $2 AND vin_industria = $3
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [vin_percom || 0, id, industryId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Indústria não encontrada para este vendedor'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Comissão atualizada com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar comissão: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Remover indústria do vendedor
+app.delete('/api/sellers/:id/industries/:industryId', async (req, res) => {
+    try {
+        const { id, industryId } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM vendedor_ind WHERE vin_codigo = $1 AND vin_industria = $2 RETURNING *',
+            [id, industryId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Indústria não encontrada para este vendedor'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Indústria removida com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao remover indústria: ${error.message}`
+        });
+    }
+});
+
+// GET customers who have purchased from a specific supplier
+app.get('/api/suppliers/:id/customers', async (req, res) => {
+    try {
+        const supplierId = req.params.id;
+
+        const query = `
+            SELECT 
+                c.cli_codigo,
+                c.cli_nomred,
+                MAX(p.ped_data) as ultima_compra,
+                SUM(p.ped_totliq) as total_compras,
+                COUNT(p.ped_pedido) as qtd_pedidos
+            FROM clientes c
+            INNER JOIN pedidos p ON p.ped_cliente = c.cli_codigo
+            WHERE p.ped_industria = $1
+              AND p.ped_situacao IN ('P', 'F')
+            GROUP BY c.cli_codigo, c.cli_nomred
+            ORDER BY total_compras DESC
+        `;
+
+        const result = await pool.query(query, [supplierId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching supplier customers:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// GET industries purchased by a specific client
+app.get('/api/clients/:id/purchased-industries', async (req, res) => {
+    try {
+        const clientId = req.params.id;
+
+        const query = `
+            SELECT 
+                p.ped_pedido,
+                p.ped_data,
+                p.ped_totliq,
+                f.for_nomered,
+                p.ped_cliente,
+                p.ped_industria
+            FROM pedidos p
+            LEFT JOIN fornecedores f ON p.ped_industria = f.for_codigo
+            WHERE p.ped_cliente = $1 
+              AND p.ped_situacao IN ('P', 'F')
+            ORDER BY p.ped_data DESC, f.for_nomered
+        `;
+
+        const result = await pool.query(query, [clientId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching client purchased industries:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// ==================== SELLER REGIONS ENDPOINTS ====================
+
+// GET - Listar regiões do vendedor
+app.get('/api/sellers/:id/regions', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const query = `
+            SELECT 
+                vr.vin_codigo,
+                vr.vin_regiao,
+                r.reg_descricao,
+                r.reg_codigo
+            FROM vendedor_reg vr
+            INNER JOIN regioes r ON r.reg_codigo = vr.vin_regiao
+            WHERE vr.vin_codigo = $1
+            ORDER BY r.reg_descricao
+        `;
+
+        const result = await pool.query(query, [id]);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar regiões: ${error.message}`
+        });
+    }
+});
+
+// POST - Adicionar região ao vendedor
+app.post('/api/sellers/:id/regions', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { vin_regiao } = req.body;
+
+        if (!vin_regiao) {
+            return res.status(400).json({
+                success: false,
+                message: 'Região é obrigatória'
+            });
+        }
+
+        const query = `
+            INSERT INTO vendedor_reg (vin_codigo, vin_regiao, gid)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [id, vin_regiao, null]);
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Região adicionada com sucesso!'
+        });
+    } catch (error) {
+        // Check for unique constraint violation
+        if (error.code === '23505') {
+            return res.status(400).json({
+                success: false,
+                message: 'Esta região já está cadastrada para este vendedor'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: `Erro ao adicionar região: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Remover região do vendedor
+app.delete('/api/sellers/:id/regions/:regionId', async (req, res) => {
+    try {
+        const { id, regionId } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM vendedor_reg WHERE vin_codigo = $1 AND vin_regiao = $2 RETURNING *',
+            [id, regionId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Região não encontrada para este vendedor'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Região removida com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao remover região: ${error.message}`
+        });
+    }
+});
+
+// ==================== REGIONS ENDPOINTS ====================
+
+// GET - Listar todas as regiões disponíveis
+app.get('/api/regions', async (req, res) => {
+    console.log('📍 Endpoint /api/regions chamado!');
+    try {
+        const query = `
+            SELECT 
+                reg_codigo,
+                reg_descricao
+            FROM regioes
+            ORDER BY reg_descricao
+        `;
+
+        const result = await pool.query(query);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar regiões: ${error.message}`
+        });
+    }
+});
+
+// ==================== PRODUCT GROUPS ENDPOINTS ====================
+
+// GET - Listar todos os grupos de produtos
+app.get('/api/product-groups', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                gru_codigo,
+                gru_descricao,
+                gru_compreposto
+            FROM grupos
+            ORDER BY gru_descricao
+        `;
+
+        const result = await pool.query(query);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar grupos: ${error.message}`
+        });
+    }
+});
+
+// GET - Buscar grupo por ID
+app.get('/api/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            'SELECT * FROM grupos WHERE gru_codigo = $1',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar grupo: ${error.message}`
+        });
+    }
+});
+
+// POST - Criar novo grupo
+app.post('/api/product-groups', async (req, res) => {
+    try {
+        const { gru_descricao, gru_compreposto } = req.body;
+
+        if (!gru_descricao) {
+            return res.status(400).json({
+                success: false,
+                message: 'Descrição é obrigatória'
+            });
+        }
+
+        const query = `
+            INSERT INTO grupos (gru_descricao, gru_compreposto)
+            VALUES ($1, $2)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            gru_descricao,
+            gru_compreposto || 0
+        ]);
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Grupo criado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar grupo: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar grupo
+app.put('/api/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { gru_descricao, gru_compreposto } = req.body;
+
+        if (!gru_descricao) {
+            return res.status(400).json({
+                success: false,
+                message: 'Descrição é obrigatória'
+            });
+        }
+
+        const query = `
+            UPDATE grupos
+            SET gru_descricao = $1,
+                gru_compreposto = $2
+            WHERE gru_codigo = $3
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [
+            gru_descricao,
+            gru_compreposto || 0,
+            id
+        ]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0],
+            message: 'Grupo atualizado com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar grupo: ${error.message}`
+        });
+    }
+});
+
+// DELETE - Excluir grupo
+app.delete('/api/product-groups/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM grupos WHERE gru_codigo = $1 RETURNING *',
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Grupo não encontrado'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Grupo excluído com sucesso!'
+        });
+    } catch (error) {
+        // Check for foreign key constraint
+        if (error.code === '23503') {
+            return res.status(400).json({
+                success: false,
+                message: 'Não é possível excluir este grupo pois ele está sendo utilizado'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: `Erro ao excluir grupo: ${error.message}`
+        });
+    }
+});
+
+
+
+
 app.listen(PORT, () => {
-    console.log(`🚀 Backend rodando na porta ${PORT}`);
+
+    console.log(`🚀 Backend rodando na porta ${PORT} - UNIQUE CHECK 3002`);
     console.log(`📡 API disponível em http://localhost:${PORT}`);
 });
+

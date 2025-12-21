@@ -10,7 +10,8 @@ import {
     MoreVertical,
     Pencil,
     ShieldCheck,
-    ShieldAlert
+    ShieldAlert,
+    Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,8 +70,8 @@ const FrmIndustria = () => {
         try {
             const isNew = !data.id;
             const url = isNew
-                ? 'http://localhost:3001/api/suppliers'
-                : `http://localhost:3001/api/suppliers/${data.id}`;
+                ? 'http://localhost:3005/api/suppliers'
+                : `http://localhost:3005/api/suppliers/${data.id}`;
 
             const method = isNew ? 'POST' : 'PUT';
 
@@ -113,7 +114,7 @@ const FrmIndustria = () => {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3001/api/suppliers');
+            const response = await fetch('http://localhost:3005/api/suppliers');
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const data = await response.json();
@@ -163,7 +164,7 @@ const FrmIndustria = () => {
 
     const toggleStatus = async (supplier) => {
         try {
-            const response = await fetch(`http://localhost:3001/api/suppliers/${supplier.id}/toggle-status`, {
+            const response = await fetch(`http://localhost:3005/api/suppliers/${supplier.id}/toggle-status`, {
                 method: 'PATCH'
             });
 
@@ -178,6 +179,26 @@ const FrmIndustria = () => {
             }
         } catch (error) {
             toast.error("Erro de conexão");
+        }
+    };
+
+    const handleDelete = async (supplier) => {
+        if (!window.confirm(`Tem certeza que deseja excluir o fornecedor ${supplier.razaoSocial}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:3005/api/suppliers/${supplier.id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) throw new Error('Erro ao excluir');
+
+            toast.success("Fornecedor excluído com sucesso!");
+            fetchSuppliers();
+        } catch (error) {
+            console.error(error);
+            toast.error(error.message);
         }
     };
 
@@ -307,7 +328,7 @@ const FrmIndustria = () => {
                                         <TableCell className="font-medium font-mono text-sm whitespace-nowrap">
                                             {formatCNPJ(supplier.cnpj)}
                                         </TableCell>
-                                        <TableCell className="font-semibold text-foreground/90">
+                                        <TableCell className="font-semibold text-orange-600">
                                             {supplier.nomeReduzido}
                                         </TableCell>
                                         <TableCell className="text-muted-foreground text-sm">
@@ -333,34 +354,26 @@ const FrmIndustria = () => {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                                    <DropdownMenuItem onClick={() => handleEdit(supplier)} className="cursor-pointer gap-2">
-                                                        <Pencil className="h-4 w-4" /> Editar
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={() => toggleStatus(supplier)}
-                                                        className="cursor-pointer gap-2"
-                                                    >
-                                                        {supplier.situacao === "Ativo" ? (
-                                                            <>
-                                                                <ShieldAlert className="h-4 w-4" /> Desativar
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <ShieldCheck className="h-4 w-4" /> Ativar
-                                                            </>
-                                                        )}
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleEdit(supplier)}
+                                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                    title="Editar"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDelete(supplier)}
+                                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    title="Excluir"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))

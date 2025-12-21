@@ -92,8 +92,8 @@ export function ContactDialog({ open, onOpenChange, contact, supplierId, onSave 
 
             const isNew = !contact?.con_codigo;
             const url = isNew
-                ? `http://localhost:3001/api/suppliers/${supplierId}/contacts`
-                : `http://localhost:3001/api/suppliers/${supplierId}/contacts/${contact.con_codigo}`;
+                ? `http://localhost:3005/api/suppliers/${supplierId}/contacts`
+                : `http://localhost:3005/api/suppliers/${supplierId}/contacts/${contact.con_codigo}`;
 
             const method = isNew ? 'POST' : 'PUT';
 
@@ -116,7 +116,7 @@ export function ContactDialog({ open, onOpenChange, contact, supplierId, onSave 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl z-[9999]">
                 <DialogHeader>
                     <DialogTitle>{contact ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
                 </DialogHeader>

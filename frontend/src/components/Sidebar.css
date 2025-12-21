@@ -24,17 +24,11 @@
     gap: var(--spacing-md);
 }
 
-.logo-icon {
+.logo-img {
     width: 48px;
     height: 48px;
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    object-fit: contain;
     border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: white;
     flex-shrink: 0;
 }
 
@@ -140,16 +134,11 @@
     gap: var(--spacing-md);
 }
 
-.footer-logo-icon {
-    width: 40px;
+.footer-logo-img {
     height: 40px;
-    background: rgba(255, 255, 255, 0.1);
+    width: 40px;
+    object-fit: contain;
     border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.875rem;
     flex-shrink: 0;
 }
 

@@ -28,7 +28,7 @@ const FormCadPadrao = ({
     children
 }) => {
     const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'principal');
-    const [activeRelatedTab, setActiveRelatedTab] = useState(relatedTabs[0]?.id || '');
+    const [activeRelatedTab, setActiveRelatedTab] = useState(Array.isArray(relatedTabs) && relatedTabs[0]?.id || '');
 
     const handleSave = () => {
         if (onSave) {

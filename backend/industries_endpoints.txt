@@ -1,0 +1,54 @@
+// ==================== CLIENT INDUSTRIES (PROSPECÇÃO) ====================
+
+// GET - List industries for a client
+app.get('/api/clients/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT ci.cli_codigo, ci.cli_forcodigo, f.for_nomered as industria
+            FROM cli_ind ci
+            LEFT JOIN fornecedores f ON f.for_codigo = ci.cli_forcodigo
+            WHERE ci.cli_codigo = $1
+            ORDER BY f.for_nomered
+        `, [id]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao buscar indústrias' });
+    }
+});
+
+// POST - Add industry to client
+app.post('/api/clients/:id/industries', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { cli_forcodigo } = req.body;
+        
+        const result = await pool.query(`
+            INSERT INTO cli_ind (cli_codigo, cli_forcodigo)
+            VALUES ($1, $2)
+            RETURNING *
+        `, [id, cli_forcodigo]);
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao adicionar indústria' });
+    }
+});
+
+// DELETE - Remove industry from client
+app.delete('/api/clients/:id/industries/:forcodigo', async (req, res) => {
+    try {
+        const { id, forcodigo } = req.params;
+        await pool.query(
+            'DELETE FROM cli_ind WHERE cli_codigo = $1 AND cli_forcodigo = $2',
+            [id, forcodigo]
+        );
+        res.json({ success: true, message: 'Indústria removida com sucesso' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Erro ao remover indústria' });
+    }
+});

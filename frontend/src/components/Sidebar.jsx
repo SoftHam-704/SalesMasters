@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Users, Building2, UserCircle, Tag, Layers,
@@ -7,11 +7,17 @@ import {
   ShoppingCart, DollarSign, PieChart, FileText, Wrench,
   ChevronDown, ChevronRight
 } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
+
 import './Sidebar.css';
+import { useTabs } from '../contexts/TabContext';
+
+import salesMastersLogo from '../assets/salesmasters_logo.png';
+import softHamLogo from '../assets/softham_logo.png';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { selectTab } = useTabs();
+  // Force recompile - regioes and area_atuacao added
 
   const [expandedSections, setExpandedSections] = useState({
     'CADASTROS': true,
@@ -41,9 +47,9 @@ const Sidebar = () => {
       title: 'CADASTROS',
       items: [
         { icon: <Building2 size={18} />, label: 'Indústrias', path: '/industrias' },
-        { icon: <Users size={18} />, label: 'Clientes', path: '/cadastros/clientes' },
-        { icon: <UserCircle size={18} />, label: 'Funcionários', path: '/cadastros/funcionarios' },
-        { icon: <Package size={18} />, label: 'Produtos', path: '/cadastros/produtos' },
+        { icon: <Users size={18} />, label: 'Clientes', path: '/clientes' },
+        { icon: <UserCircle size={18} />, label: 'Vendedores', path: '/vendedores' },
+        { icon: <Package size={18} />, label: 'Produtos', path: '/produtos' },
         { icon: <Tag size={18} />, label: 'Categorias', path: '/cadastros/categorias' },
         { icon: <Layers size={18} />, label: 'Grupo de Produtos', path: '/cadastros/grupos-produtos' },
         { icon: <Layers size={18} />, label: 'Grupos de Descontos', path: '/cadastros/grupos-descontos' },
@@ -55,7 +61,6 @@ const Sidebar = () => {
     {
       title: 'MOVIMENTAÇÕES',
       items: [
-        { icon: <ShoppingCart size={18} />, label: 'Pedidos', path: '/movimentacoes/pedidos' },
         { icon: <DollarSign size={18} />, label: 'Vendas', path: '/movimentacoes/vendas' }
       ]
     },
@@ -75,9 +80,10 @@ const Sidebar = () => {
     {
       title: 'UTILITÁRIOS',
       items: [
+        { icon: <Package size={18} />, label: 'Catálogo de Produtos', path: '/utilitarios/catalogo-produtos' },
         { icon: <Sparkles size={18} />, label: 'Assistente IA', path: '/assistente' },
         { icon: <RefreshCw size={18} />, label: 'Sincronização', path: '/sincronizacao' },
-        { icon: <Settings size={18} />, label: 'Configurações', path: '/configuracoes' },
+        { icon: <Settings size={18} />, label: 'Configurações', path: '/utilitarios/configuracoes' },
         { icon: <Wrench size={18} />, label: 'Ferramentas', path: '/utilitarios/ferramentas' }
       ]
     },
@@ -93,13 +99,12 @@ const Sidebar = () => {
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-logo">
-          <div className="logo-icon">SM</div>
+          <img src={salesMastersLogo} alt="Sales Masters" className="logo-img" />
           <div className="logo-text">
             <h3>Sales Masters</h3>
             <p>Sistema para Representantes Comerciais</p>
           </div>
         </div>
-        <ThemeToggle />
       </div>
 
       <div className="sidebar-search">
@@ -123,28 +128,20 @@ const Sidebar = () => {
                 </div>
               )}
 
-              <AnimatePresence initial={false}>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    {section.items.map((item, itemIdx) => (
-                      <Link
-                        key={itemIdx}
-                        to={item.path}
-                        className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
-                      >
-                        <span className="menu-icon">{item.icon}</span>
-                        <span className="menu-label">{item.label}</span>
-                      </Link>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {isExpanded && (
+                <div>
+                  {section.items.map((item, itemIdx) => (
+                    <div
+                      key={itemIdx}
+                      onClick={() => selectTab(item.path)}
+                      className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
+                    >
+                      <span className="menu-icon">{item.icon}</span>
+                      <span className="menu-label">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -152,7 +149,7 @@ const Sidebar = () => {
 
       <div className="sidebar-footer">
         <div className="footer-logo">
-          <div className="footer-logo-icon">SH</div>
+          <img src={softHamLogo} alt="SoftHam Sistemas" className="footer-logo-img" />
           <div className="footer-logo-text">
             <p>SoftHam Sistemas</p>
             <small>(37) 9 9207-3885</small>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ProgressRing } from '../components/dashboard/ProgressRing';
@@ -12,18 +12,11 @@ import {
     Flame,
     Sparkles
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
+import { ThemeToggle } from '../components/ThemeToggle';
 import './Dashboard.css';
 
-const chartData = [
-    { name: "Jan", value: 4000 },
-    { name: "Fev", value: 3000 },
-    { name: "Mar", value: 5000 },
-    { name: "Abr", value: 4500 },
-    { name: "Mai", value: 6000 },
-    { name: "Jun", value: 5500 },
-    { name: "Jul", value: 7000 },
-];
+
 
 const activities = [
     { type: "deal", title: "Negócio fechado!", description: "TechCorp - R$ 45.000", time: "2 min" },
@@ -34,6 +27,56 @@ const activities = [
 ];
 
 const Dashboard = () => {
+    const [salesComparison, setSalesComparison] = useState([]);
+    const [quantitiesComparison, setQuantitiesComparison] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingQuantities, setLoadingQuantities] = useState(true);
+
+    useEffect(() => {
+        fetchSalesComparison();
+        fetchQuantitiesComparison();
+    }, []);
+
+    const fetchSalesComparison = async () => {
+        try {
+            const response = await fetch('http://localhost:3005/api/dashboard/sales-comparison?anoAtual=2025&anoAnterior=2024');
+            const data = await response.json();
+            if (data.success) {
+                // Transform data for chart
+                const chartData = data.data.map(item => ({
+                    mes: item.mes_nome.substring(0, 3), // Jan, Fev, etc
+                    '2025': parseFloat(item.vendas_ano_atual) / 1000, // Convert to thousands
+                    '2024': parseFloat(item.vendas_ano_anterior) / 1000
+                }));
+                setSalesComparison(chartData);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar comparação de vendas:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchQuantitiesComparison = async () => {
+        try {
+            const response = await fetch('http://localhost:3005/api/dashboard/quantities-comparison?anoAtual=2025&anoAnterior=2024');
+            const data = await response.json();
+            if (data.success) {
+                // Transform data for chart
+                const chartData = data.data.map(item => ({
+                    mes: item.mes_nome.substring(0, 3),
+                    '2025': parseFloat(item.quantidade_ano_atual),
+                    '2024': parseFloat(item.quantidade_ano_anterior)
+                }));
+                setQuantitiesComparison(chartData);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar comparação de quantidades:', error);
+        } finally {
+            setLoadingQuantities(false);
+        }
+    };
+
     const getGreeting = () => {
         const hour = new Date().getHours();
         if (hour < 12) return 'Bom dia';
@@ -50,16 +93,19 @@ const Dashboard = () => {
                 className="welcome-section"
             >
                 <div className="welcome-header">
-                    <h1 className="welcome-title">
-                        {getGreeting()}, João!
-                    </h1>
-                    <motion.span
-                        animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                        className="wave-emoji"
-                    >
-                        👋
-                    </motion.span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h1 className="welcome-title">
+                            {getGreeting()}, João!
+                        </h1>
+                        <motion.span
+                            animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
+                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                            className="wave-emoji"
+                        >
+                            👋
+                        </motion.span>
+                        <ThemeToggle />
+                    </div>
                 </div>
                 <div className="welcome-subtitle">
                     <Flame className="flame-icon" />
@@ -112,54 +158,79 @@ const Dashboard = () => {
                     className="chart-card"
                 >
                     <div className="card-header">
-                        <h3 className="card-title">Performance de Vendas</h3>
+                        <h3 className="card-title">Quantidades Vendidas (2024 vs 2025)</h3>
                         <button className="btn-link">
                             Ver relatório <ArrowRight className="arrow-icon" />
                         </button>
                     </div>
                     <div className="chart-container">
-                        <ResponsiveContainer width="100%" height={300}>
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.4} />
-                                        <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <XAxis
-                                    dataKey="name"
-                                    stroke="var(--text-secondary)"
-                                    fontSize={12}
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <YAxis
-                                    stroke="var(--text-secondary)"
-                                    fontSize={12}
-                                    tickLine={false}
-                                    axisLine={false}
-                                    tickFormatter={(value) => `R$${value / 1000}k`}
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: "var(--bg-card)",
-                                        border: "1px solid var(--border-color)",
-                                        borderRadius: "12px",
-                                        boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-                                    }}
-                                    labelStyle={{ color: "var(--text-primary)" }}
-                                    formatter={(value) => [`R$ ${value.toLocaleString()}`, "Vendas"]}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="value"
-                                    stroke="hsl(160, 84%, 39%)"
-                                    strokeWidth={3}
-                                    fillOpacity={1}
-                                    fill="url(#colorValue)"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        {loadingQuantities ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
+                                <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height={200}>
+                                <AreaChart data={quantitiesComparison}>
+                                    <defs>
+                                        <linearGradient id="colorQty2025" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0.4} />
+                                            <stop offset="95%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorQty2024" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0.4} />
+                                            <stop offset="95%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis
+                                        dataKey="mes"
+                                        stroke="var(--text-secondary)"
+                                        fontSize={12}
+                                        tickLine={false}
+                                        axisLine={false}
+                                    />
+                                    <YAxis
+                                        stroke="var(--text-secondary)"
+                                        fontSize={12}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickFormatter={(value) => value.toLocaleString()}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: "var(--bg-card)",
+                                            border: "1px solid var(--border-color)",
+                                            borderRadius: "12px",
+                                            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+                                        }}
+                                        labelStyle={{ color: "var(--text-primary)" }}
+                                        formatter={(value) => [`${value.toLocaleString()} unidades`, ""]}
+                                    />
+                                    <Legend
+                                        wrapperStyle={{ paddingTop: '10px' }}
+                                        iconType="line"
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="2025"
+                                        stroke="hsl(280, 70%, 55%)"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorQty2025)"
+                                        name="2025"
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="2024"
+                                        stroke="hsl(30, 90%, 55%)"
+                                        strokeWidth={2}
+                                        strokeDasharray="5 5"
+                                        fillOpacity={1}
+                                        fill="url(#colorQty2024)"
+                                        name="2024"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
                 </motion.div>
 
@@ -196,7 +267,7 @@ const Dashboard = () => {
                     </div>
                 </motion.div>
 
-                {/* Activity Feed */}
+                {/* Sales Comparison Chart */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -204,17 +275,77 @@ const Dashboard = () => {
                     className="activity-card"
                 >
                     <div className="card-header">
-                        <h3 className="card-title">Atividade Recente</h3>
-                        <button className="btn-link-small">Ver tudo</button>
+                        <h3 className="card-title">Comparação de Vendas (2024 vs 2025)</h3>
+                        <button className="btn-link-small">Ver detalhes</button>
                     </div>
-                    <div className="activity-list">
-                        {activities.map((activity, index) => (
-                            <ActivityItem
-                                key={index}
-                                {...activity}
-                                delay={0.1 * index}
-                            />
-                        ))}
+                    <div className="chart-container" style={{ height: '280px', padding: '20px 10px' }}>
+                        {loading ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={salesComparison}>
+                                    <defs>
+                                        <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.4} />
+                                            <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="color2024" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0.4} />
+                                            <stop offset="95%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis
+                                        dataKey="mes"
+                                        stroke="var(--text-secondary)"
+                                        fontSize={12}
+                                        tickLine={false}
+                                        axisLine={false}
+                                    />
+                                    <YAxis
+                                        stroke="var(--text-secondary)"
+                                        fontSize={12}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickFormatter={(value) => `R$${value}k`}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: "var(--bg-card)",
+                                            border: "1px solid var(--border-color)",
+                                            borderRadius: "12px",
+                                            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+                                        }}
+                                        labelStyle={{ color: "var(--text-primary)", fontWeight: 600 }}
+                                        formatter={(value) => [`R$ ${(value * 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                                    />
+                                    <Legend
+                                        wrapperStyle={{ paddingTop: '10px' }}
+                                        iconType="line"
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="2025"
+                                        stroke="hsl(160, 84%, 39%)"
+                                        strokeWidth={2}
+                                        fill="url(#color2025)"
+                                        fillOpacity={1}
+                                        name="2025"
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="2024"
+                                        stroke="hsl(220, 70%, 50%)"
+                                        strokeWidth={2}
+                                        strokeDasharray="5 5"
+                                        fill="url(#color2024)"
+                                        fillOpacity={1}
+                                        name="2024"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
                 </motion.div>
 

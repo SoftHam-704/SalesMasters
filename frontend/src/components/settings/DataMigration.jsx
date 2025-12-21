@@ -6,11 +6,10 @@ import './DataMigration.css';
 const mockTables = [
     { name: 'CLIENTES', records: 1250, hasMapping: false },
     { name: 'PRODUTOS', records: 850, hasMapping: false },
-    { name: 'PEDIDOS', records: 3420, hasMapping: false },
-    { name: 'ITENS_PEDIDO', records: 12580, hasMapping: false },
     { name: 'FORNECEDORES', records: 180, hasMapping: false },
     { name: 'CATEGORIAS', records: 45, hasMapping: false },
 ];
+
 
 export const DataMigration = () => {
     const [selectedTables, setSelectedTables] = useState([]);
@@ -70,7 +69,7 @@ export const DataMigration = () => {
         setLogs([{ type: 'info', message: 'Iniciando importação de fornecedores...' }]);
 
         try {
-            const response = await fetch('http://localhost:3001/api/import/suppliers', {
+            const response = await fetch('http://localhost:3005/api/import/suppliers', {
                 method: 'POST'
             });
 
@@ -99,7 +98,7 @@ export const DataMigration = () => {
         setLogs([{ type: 'info', message: 'Iniciando importação de fornecedores (XLSX)...' }]);
 
         try {
-            const response = await fetch('http://localhost:3001/api/import/suppliers-xlsx', {
+            const response = await fetch('http://localhost:3005/api/import/suppliers-xlsx', {
                 method: 'POST'
             });
 

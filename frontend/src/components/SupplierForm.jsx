@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Save, Search, Plus, Trash2, Edit } from 'lucide-react';
 import './SupplierForm.css';
+import { SupplierCustomersTab } from './tabs/SupplierCustomersTab';
 
 const SupplierForm = ({ supplier, onClose, onSave }) => {
     const [activeTab, setActiveTab] = useState('principal');
@@ -346,6 +347,12 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                     >
                         Meta anual
                     </button>
+                    <button
+                        className={`tab ${activeRelatedTab === 'clientes-compraram' ? 'active' : ''}`}
+                        onClick={() => setActiveRelatedTab('clientes-compraram')}
+                    >
+                        Clientes que já compraram
+                    </button>
                 </div>
 
                 {/* Related Content */}
@@ -400,6 +407,10 @@ const SupplierForm = ({ supplier, onClose, onSave }) => {
                         <div className="grid-container">
                             <p className="info-text">Metas anuais por mês</p>
                         </div>
+                    )}
+
+                    {activeRelatedTab === 'clientes-compraram' && (
+                        <SupplierCustomersTab supplierId={supplier?.for_codigo} />
                     )}
                 </div>
 

@@ -214,3 +214,25 @@
         white-space: nowrap;
     }
 }
+
+/* Global Compact Overrides for Form Content */
+.form-content label {
+    font-size: 10px !important;
+    color: var(--text-secondary);
+}
+
+.form-content input:not([type="checkbox"]):not([type="radio"]),
+.form-content select,
+.form-content button[role="combobox"] {
+    height: 1.75rem !important;
+    /* h-7 = 28px */
+    font-size: 0.75rem !important;
+    /* text-xs = 12px */
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.form-content .grid {
+    gap: 0.5rem !important;
+    /* gap-2 */
+}
