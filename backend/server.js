@@ -681,23 +681,30 @@ app.use('/api', priceTablesRouter);
 
 // ==================== AUXILIARY DATA ENDPOINTS ====================
 
-// GET - Clientes por indústria
+// GET - Listar clientes (opcionalmente filtrados por status 'A' ou indústria)
 app.get('/api/aux/clientes', async (req, res) => {
     try {
-        const { for_codigo } = req.query;
-        let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_cidade, cli_uf, cli_comprador FROM clientes';
+        const { status, for_codigo } = req.query;
+
+        // Colunas essenciais para busca e exibição
+        let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_cnpj, cli_tipopes, cli_cidade, cli_uf FROM clientes WHERE 1=1';
         const params = [];
 
-        if (for_codigo) {
-            // Se houver filtro por indústria, assume-se que há uma tabela de vínculo ou filtro direto
-            // Para simplificar e garantir dados, retornaremos todos se o filtro for genérico
-            // query += ' WHERE ...'
+        if (status === 'A') {
+            query += " AND cli_tipopes = 'A'";
         }
 
-        query += ' ORDER BY cli_nome LIMIT 100';
+        // Se quiser manter o suporte para filtro por indústria futuramente
+        if (for_codigo) {
+            // Por enquanto mantendo simples como solicitado, apenas retornando ativos
+        }
+
+        query += ' ORDER BY cli_nomred, cli_nome';
+
         const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (error) {
+        console.error('Erro ao buscar clientes:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -705,7 +712,7 @@ app.get('/api/aux/clientes', async (req, res) => {
 // GET - Vendedores
 app.get('/api/aux/vendedores', async (req, res) => {
     try {
-        const query = 'SELECT ven_codigo, ven_nome FROM vendedor ORDER BY ven_nome';
+        const query = 'SELECT ven_codigo, ven_nome FROM vendedores ORDER BY ven_nome';
         const result = await pool.query(query);
         res.json({ success: true, data: result.rows });
     } catch (error) {
@@ -992,26 +999,7 @@ app.use('/api', productsRouter);
 // ==================== AUXILIARY ENDPOINTS ====================
 // These endpoints provide data for form dropdowns
 
-// GET - Listar clientes ativos
-app.get('/api/aux/clientes', async (req, res) => {
-    try {
-        const { status } = req.query;
-        let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_tipopes, cli_cnpj FROM clientes';
 
-        if (status === 'A') {
-            // Revert or relax filter if tipopes is not 'A' for all active clients
-            // For now, let's include all to see if data appears
-            // query += " WHERE cli_tipopes = 'A'";
-        }
-
-        query += ' ORDER BY cli_nomred, cli_nome';
-
-        const result = await pool.query(query);
-        res.json({ success: true, data: result.rows });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // GET - Listar vendedores
 app.get('/api/aux/vendedores', async (req, res) => {

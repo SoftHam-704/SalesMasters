@@ -3,7 +3,7 @@ import React from 'react';
 import {
     Home, Users, Building2, UserCircle, Tag, Layers,
     Package, Settings, Sparkles, RefreshCw,
-    ShoppingCart, DollarSign, PieChart, FileText, Wrench, Upload
+    ShoppingCart, DollarSign, PieChart, FileText, Wrench, Upload, Gamepad
 } from 'lucide-react';
 
 export const routeConfig = {
@@ -28,6 +28,7 @@ export const routeConfig = {
     '/sincronizacao': { label: 'Sincronização', icon: <RefreshCw size={16} /> },
     '/configuracoes': { label: 'Configurações', icon: <Settings size={16} /> },
     '/utilitarios/ferramentas': { label: 'Ferramentas', icon: <Wrench size={16} /> },
+    '/utilitarios/jogo-dados': { label: 'Jogo de Dados', icon: <Gamepad size={16} /> },
     '/relatorios/geral': { label: 'Relatórios Gerais', icon: <FileText size={16} /> }
 };
 

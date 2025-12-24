@@ -223,9 +223,18 @@ const ClientForm = ({ data, onClose, onSave }) => {
                 fetch('http://localhost:3005/api/aux/regioes')
             ]);
 
-            if (areasRes.ok) setAreas(await areasRes.json());
-            if (sellersRes.ok) setSellers(await sellersRes.json());
-            if (regionsRes.ok) setRegions(await regionsRes.json());
+            if (areasRes.ok) {
+                const json = await areasRes.json();
+                setAreas(Array.isArray(json) ? json : json.data || []);
+            }
+            if (sellersRes.ok) {
+                const json = await sellersRes.json();
+                setSellers(Array.isArray(json) ? json : json.data || []);
+            }
+            if (regionsRes.ok) {
+                const json = await regionsRes.json();
+                setRegions(Array.isArray(json) ? json : json.data || []);
+            }
         } catch (error) {
             console.error("Erro ao carregar dados auxiliares", error);
         } finally {

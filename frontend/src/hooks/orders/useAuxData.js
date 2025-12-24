@@ -17,49 +17,70 @@ export function useAuxData(industryCode = null) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        loadAll();
+        // Inicializa dados básicos que não dependem da indústria (apenas uma vez)
+        loadBaseData();
+    }, []);
+
+    useEffect(() => {
+        // Carrega tabelas de preço apenas se a indústria mudar
+        if (industryCode) {
+            loadPriceTables();
+        } else {
+            setPriceTables([]);
+        }
     }, [industryCode]);
 
-    const loadAll = async () => {
-        console.log('🔄 [useAuxData] Starting to load data, industryCode:', industryCode);
+    const loadBaseData = async () => {
+        console.log('🔄 [useAuxData] Loading base data (clients, carriers, sellers)...');
         setLoading(true);
-        setError(null);
-
         try {
-            const promises = [
+            const [clientsRes, carriersRes, sellersRes] = await Promise.all([
                 auxDataService.getClients('A'),
                 auxDataService.getCarriers(),
                 auxDataService.getSellers(),
-            ];
+            ]);
 
-            // Adiciona busca de tabelas se indústria fornecida
-            if (industryCode) {
-                promises.push(priceTableService.getByIndustry(industryCode));
-            }
+            // Handle both response formats: direct array or { success: true, data: [...] }
+            const getProcessedData = (res) => {
+                if (Array.isArray(res)) {
+                    return res;
+                }
+                return res?.success ? (res.data || []) : [];
+            };
 
-            const results = await Promise.all(promises);
-            console.log('✅ [useAuxData] Results received:', {
-                clients: results[0]?.data?.length || 0,
-                carriers: results[1]?.data?.length || 0,
-                sellers: results[2]?.data?.length || 0,
-                priceTables: results[3]?.data?.length || 0
+            setClients(getProcessedData(clientsRes));
+            setCarriers(getProcessedData(carriersRes));
+            setSellers(getProcessedData(sellersRes));
+
+            console.log('✅ [useAuxData] Base data loaded:', {
+                clients: getProcessedData(clientsRes)?.length || 0,
+                carriers: getProcessedData(carriersRes)?.length || 0,
+                sellers: getProcessedData(sellersRes)?.length || 0
             });
-
-            setClients(results[0].success ? results[0].data : []);
-            setCarriers(results[1].success ? results[1].data : []);
-            setSellers(results[2].success ? results[2].data : []);
-
-            if (results[3]) {
-                setPriceTables(results[3].success ? (results[3].data || []) : []);
-            }
         } catch (err) {
-            console.error('❌ [useAuxData] Error loading auxiliary data:', err);
-            setError(err.message);
-            toast.error('Erro ao carregar dados auxiliares');
+            console.error('❌ [useAuxData] Error loading base data:', err);
+            toast.error('Erro ao carregar dados básicos');
         } finally {
             setLoading(false);
         }
     };
+
+    const loadPriceTables = async () => {
+        console.log('🔄 [useAuxData] Loading price tables for industry:', industryCode);
+        try {
+            const res = await priceTableService.getByIndustry(industryCode);
+            setPriceTables(res.success ? (res.data || []) : []);
+            console.log('✅ [useAuxData] Price tables loaded:', res.data?.length || 0);
+        } catch (err) {
+            console.error('❌ [useAuxData] Error loading price tables:', err);
+        }
+    };
+
+    const loadAll = async () => {
+        await Promise.all([loadBaseData(), loadPriceTables()]);
+    };
+
+
 
     return {
         clients,

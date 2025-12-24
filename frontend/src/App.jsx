@@ -15,6 +15,7 @@ import FrmImportacaoPrecos from './pages/frmImportacaoPrecos';
 import FrmCadastroProdutos from './pages/frmCadastroProdutos';
 import DatabaseConfig from './pages/DatabaseConfig';
 import OrdersPage from './components/orders/OrdersPage';
+import DiceGame from './components/utilities/DiceGame';
 import './styles/global.css';
 import './App.css';
 
@@ -63,6 +64,7 @@ function App() {
             <Route path="/utilitarios/importacao-precos" element={<FrmImportacaoPrecos />} />
             <Route path="/utilitarios/catalogo-produtos" element={<FrmCadastroProdutos />} />
             <Route path="/utilitarios/configuracoes" element={<DatabaseConfig />} />
+            <Route path="/utilitarios/jogo-dados" element={<DiceGame />} />
           </Routes>
         </div>
       </main>

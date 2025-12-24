@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, Users, Building2, UserCircle, Tag, Layers,
   Package, Settings, Sparkles, RefreshCw,
-  ShoppingCart, DollarSign, PieChart, FileText, Wrench,
+  ShoppingCart, DollarSign, PieChart, FileText, Wrench, Gamepad,
   ChevronDown, ChevronRight
 } from 'lucide-react';
 
@@ -87,6 +87,7 @@ const Sidebar = () => {
         { icon: <Sparkles size={18} />, label: 'Assistente IA', path: '/assistente' },
         { icon: <RefreshCw size={18} />, label: 'Sincronização', path: '/sincronizacao' },
         { icon: <Settings size={18} />, label: 'Configurações', path: '/utilitarios/configuracoes' },
+        { icon: <Gamepad size={18} />, label: 'Jogo de Dados', path: '/utilitarios/jogo-dados' },
         { icon: <Wrench size={18} />, label: 'Ferramentas', path: '/utilitarios/ferramentas' }
       ]
     },

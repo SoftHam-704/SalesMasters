@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
     Save, X, Loader2, Search, Plus, Trash2, RefreshCw, Package, Check,
     ChevronsUpDown, Edit2, LayoutDashboard, ShoppingCart, CreditCard,
-    ClipboardCheck, FileCheck, FileUp, FileJson, FileCode
+    ClipboardCheck, FileCheck, FileUp, FileJson, FileCode, ArrowLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OrderItemEntry from './OrderItemEntry';
@@ -33,6 +33,51 @@ import { orderService } from '@/services/orders';
 import { usePriceTable, useAuxData } from '@/hooks/orders';
 import { formatCurrency } from '@/utils/orders';
 
+
+
+const DiscountInput = ({ value, onChange, label }) => {
+    const [isFocused, setIsFocused] = useState(false);
+    const [localValue, setLocalValue] = useState("");
+
+    useEffect(() => {
+        if (!isFocused) {
+            if (!value || value === 0) {
+                setLocalValue("");
+            } else {
+                setLocalValue(parseFloat(value).toFixed(2).replace('.', ',') + "%");
+            }
+        }
+    }, [value, isFocused]);
+
+    return (
+        <div className="flex flex-col items-center">
+            <span className="text-[9px] text-gray-400 font-bold mb-0.5">{label}</span>
+            <Input
+                type="text"
+                placeholder="0,00%"
+                value={isFocused ? localValue : (!value || value === 0 ? "" : parseFloat(value).toFixed(2).replace('.', ',') + '%')}
+                onFocus={(e) => {
+                    setIsFocused(true);
+                    let val = String(value || "").replace('%', '').replace('.', ',');
+                    if (val === "0") val = "";
+                    setLocalValue(val);
+                    e.target.select();
+                }}
+                onChange={(e) => {
+                    setLocalValue(e.target.value);
+                }}
+                onBlur={() => {
+                    setIsFocused(false);
+                    let val = localValue.replace('%', '').replace(',', '.');
+                    const num = parseFloat(val) || 0;
+                    onChange(num);
+                }}
+                className="h-6 text-center text-[10px] font-bold p-0 border-emerald-100 placeholder:text-gray-300 text-black"
+            />
+        </div>
+    )
+}
+
 const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     // Display state
     const [displayNumber, setDisplayNumber] = useState('(Novo)');
@@ -41,11 +86,19 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     // Search state for comboboxes
     const [clienteSearch, setClienteSearch] = useState("");
     const [transpSearch, setTranspSearch] = useState("");
+    const [vendedorSearch, setVendedorSearch] = useState("");
+    const [tabelaSearch, setTabelaSearch] = useState("");
+
+    // Popover states
     const [openCliente, setOpenCliente] = useState(false);
     const [openTransp, setOpenTransp] = useState(false);
+    const [openVendedor, setOpenVendedor] = useState(false);
+    const [openTabela, setOpenTabela] = useState(false);
+    const [openSituacao, setOpenSituacao] = useState(false);
+    const [openFrete, setOpenFrete] = useState(false);
 
-    // Form state
-    const [formData, setFormData] = useState({
+    // Initial Form State
+    const initialFormState = {
         ped_pedido: '',
         ped_data: new Date().toISOString().split('T')[0],
         ped_situacao: 'P',
@@ -66,19 +119,16 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         ped_totalipi: 0,
         ped_permiterepe: false,
         ped_obs: '',
-    });
+    };
+
+    // Form state
+    const [formData, setFormData] = useState(initialFormState);
 
     // UI state
     const [allowDuplicates, setAllowDuplicates] = useState(false);
     const [loading, setLoading] = useState(false);
     const [summaryItems, setSummaryItems] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
-
-    // Popover states
-    const [openSituacao, setOpenSituacao] = useState(false);
-    const [openVendedor, setOpenVendedor] = useState(false);
-    const [openFrete, setOpenFrete] = useState(false);
-    const [openTabela, setOpenTabela] = useState(false);
 
     // Use custom hooks for data management
     const auxData = useAuxData(selectedIndustry?.for_codigo);
@@ -110,6 +160,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 loadSummaryItems(existingOrder.ped_pedido);
             }
         } else {
+            setFormData(initialFormState);
+            setSummaryItems([]);
+            setDisplayNumber('(Novo)');
+            setAllowDuplicates(false);
             loadNextNumber();
         }
     }, [existingOrder]);
@@ -151,6 +205,18 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     }, [activeTab, formData.ped_pedido, isSaving]);
 
+    // Reset relevant form fields when industry changes in Insert mode
+    useEffect(() => {
+        if (!existingOrder && selectedIndustry) {
+            setFormData(prev => ({
+                ...prev,
+                ped_tabela: '',
+                ped_pedindu: '',
+                // Reset other industry-specific fields if needed
+            }));
+        }
+    }, [selectedIndustry, existingOrder]);
+
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -165,6 +231,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 return;
             }
 
+            if (e.key === 'F10') {
+                e.preventDefault();
+                handleSave();
+                return;
+            }
+
             if (keys[e.key]) {
                 e.preventDefault();
                 handleTabChange(keys[e.key]);
@@ -174,6 +246,13 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [formData, selectedIndustry]);
+
+    // Debug: Monitor client loading
+    useEffect(() => {
+        if (auxData.clients?.length > 0) {
+            console.log(`📦 [OrderForm] ${auxData.clients.length} clientes ativos carregados e prontos para busca.`);
+        }
+    }, [auxData.clients]);
 
     // Handle save
     const handleSave = async () => {
@@ -245,7 +324,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         { value: 'F', label: 'FOB' },
     ];
 
-    const inputClasses = "h-7 text-xs border-emerald-100 focus:border-emerald-500 bg-white placeholder:text-emerald-300 shadow-sm";
+    const inputClasses = "h-7 text-xs font-bold border-emerald-100 focus:border-emerald-500 bg-white placeholder:text-emerald-300 shadow-sm text-black";
     const labelClasses = "text-[10px] text-teal-700 font-bold uppercase tracking-wide mb-0.5 block";
 
     return (
@@ -306,49 +385,97 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     </div>
 
                                     {/* Row 2: Client */}
-                                    <div className="flex flex-col gap-0.5">
-                                        <Label className={labelClasses}>Cliente (F8-Pesquisar)</Label>
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <Label className={labelClasses}>Cliente (F8-Pesquisar)</Label>
+                                            {formData.ped_cliente && (
+                                                <span className="text-[9px] text-teal-600 font-bold bg-teal-50 px-1.5 rounded">ID: {formData.ped_cliente}</span>
+                                            )}
+                                        </div>
                                         <Popover open={openCliente} onOpenChange={setOpenCliente}>
                                             <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    aria-expanded={openCliente}
+                                                <button
                                                     className={cn(
-                                                        "w-full justify-between font-normal",
-                                                        inputClasses,
-                                                        !formData.ped_cliente && "text-muted-foreground"
+                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
+                                                        "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
+
                                                     )}
                                                 >
-                                                    {formData.ped_cliente
-                                                        ? (auxData.clients || []).find((c) => c.cli_codigo === formData.ped_cliente)?.cli_nomered || formData.ped_cliente
-                                                        : "Localizar cliente (F8-Pesquisar)"}
-                                                    <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                                                </Button>
+                                                    <span className="truncate">
+                                                        {formData.ped_cliente
+                                                            ? (auxData.clients || []).find((c) => String(c.cli_codigo) === String(formData.ped_cliente))?.cli_nome ||
+                                                            (auxData.clients || []).find((c) => String(c.cli_codigo) === String(formData.ped_cliente))?.cli_nomred ||
+                                                            `ID: ${formData.ped_cliente}`
+                                                            : "Selecione o cliente..."}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        {auxData.loading && <div className="h-3 w-3 border-2 border-teal-600/30 border-t-teal-600 rounded-full animate-spin" />}
+                                                        <Search className="h-4 w-4 text-teal-600 hover:scale-110 transition-transform cursor-pointer" />
+                                                    </div>
+                                                </button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[600px] p-0 z-[10000]" align="start" sideOffset={4}>
-                                                <Command className="pointer-events-auto">
-                                                    <CommandInput placeholder="Buscar cliente..." value={clienteSearch} onValueChange={setClienteSearch} className="pointer-events-auto" />
-                                                    <CommandList>
-                                                        <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                            <PopoverContent className="w-[600px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
+                                                <Command className="pointer-events-auto" shouldFilter={false}>
+                                                    <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
+                                                        <CommandInput
+                                                            placeholder="Digite nome, CPF/CNPJ ou código... (ESC para fechar)"
+                                                            value={clienteSearch}
+                                                            onValueChange={setClienteSearch}
+                                                            className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                    <CommandList className="max-h-[300px] overflow-y-auto">
+                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
+                                                            {auxData.loading ? "Carregando clientes..." : "Nenhum cliente encontrado."}
+                                                        </CommandEmpty>
                                                         <CommandGroup>
-                                                            {(auxData.clients || []).map((client) => (
-                                                                <CommandItem
-                                                                    key={client.cli_codigo}
-                                                                    value={client.cli_nomered}
-                                                                    onSelect={() => {
-                                                                        handleFieldChange('ped_cliente', client.cli_codigo || client.codigo);
-                                                                        handleFieldChange('ped_comprador', client.cli_comprador || client.comprador || '');
-                                                                        setOpenCliente(false);
-                                                                    }}
-                                                                >
-                                                                    <Check className={cn("mr-2 h-4 w-4", formData.ped_cliente === client.cli_codigo ? "opacity-100" : "opacity-0")} />
-                                                                    <div className="flex flex-col">
-                                                                        <span className="font-bold">{client.cli_nomered}</span>
-                                                                        <span className="text-xs text-muted-foreground">{client.cli_cidade}/{client.cli_uf}</span>
-                                                                    </div>
-                                                                </CommandItem>
-                                                            ))}
+                                                            {(() => {
+                                                                const filtered = (auxData.clients || []).filter(c =>
+                                                                    !clienteSearch ||
+                                                                    c.cli_nomred?.toLowerCase().includes(clienteSearch.toLowerCase()) ||
+                                                                    c.cli_nome?.toLowerCase().includes(clienteSearch.toLowerCase()) ||
+                                                                    c.cli_cnpj?.includes(clienteSearch) ||
+                                                                    c.cli_codigo?.toString().includes(clienteSearch)
+                                                                );
+
+                                                                if (filtered.length === 0 && !auxData.loading) return null;
+
+                                                                return filtered.slice(0, 80).map((client, index) => (
+                                                                    <CommandItem
+                                                                        key={`${client.cli_codigo}-${index}`}
+                                                                        value={String(client.cli_codigo)}
+                                                                        onSelect={() => {
+                                                                            handleFieldChange('ped_cliente', client.cli_codigo);
+                                                                            handleFieldChange('ped_comprador', client.cli_comprador || '');
+                                                                            setOpenCliente(false);
+                                                                            setClienteSearch('');
+                                                                        }}
+                                                                        className="flex items-center gap-3 p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
+                                                                    >
+                                                                        <div className={cn(
+                                                                            "w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0",
+                                                                            String(formData.ped_cliente) === String(client.cli_codigo) ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-500"
+                                                                        )}>
+                                                                            {(client.cli_nomred || client.cli_nome || "?").charAt(0)}
+                                                                        </div>
+                                                                        <div className="flex flex-col flex-1 overflow-hidden">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className="font-bold text-slate-700 truncate text-xs">{client.cli_nomred || client.cli_nome}</span>
+                                                                                <span className="text-[10px] text-teal-600 font-mono font-bold bg-teal-50 px-1 rounded whitespace-nowrap">ID: {client.cli_codigo}</span>
+                                                                            </div>
+                                                                            <span className="text-[10px] text-slate-500 truncate">{client.cli_nome}</span>
+                                                                            <div className="flex items-center gap-2 text-[9px] text-slate-400 mt-0.5">
+                                                                                <span className="font-mono">{client.cli_cnpj || 'Sem CNPJ'}</span>
+                                                                                <span className="truncate">• {client.cli_cidade}/{client.cli_uf}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                        {String(formData.ped_cliente) === String(client.cli_codigo) && (
+                                                                            <Check className="h-4 w-4 text-teal-600 shrink-0" />
+                                                                        )}
+                                                                    </CommandItem>
+                                                                ));
+                                                            })()}
                                                         </CommandGroup>
                                                     </CommandList>
                                                 </Command>
@@ -357,51 +484,68 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     </div>
 
                                     {/* Row 3: Transporter */}
-                                    <div className="flex flex-col gap-0.5">
+                                    <div className="flex flex-col gap-1.5">
                                         <Label className={labelClasses}>Transportadora</Label>
                                         <Popover open={openTransp} onOpenChange={setOpenTransp}>
                                             <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    role="combobox"
-                                                    aria-expanded={openTransp}
+                                                <button
                                                     className={cn(
-                                                        "w-full justify-between font-normal",
-                                                        inputClasses,
-                                                        !formData.ped_transp && "text-muted-foreground"
+                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
+                                                        "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
+                                                        !formData.ped_transp && "text-muted-foreground italic"
                                                     )}
                                                 >
-                                                    {formData.ped_transp
-                                                        ? (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.tra_nome ||
-                                                        (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.nome ||
-                                                        formData.ped_transp
-                                                        : "Selecione a transportadora..."}
-                                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-                                                </Button>
+                                                    <span className="truncate">
+                                                        {formData.ped_transp
+                                                            ? (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.tra_nome ||
+                                                            (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.nome ||
+                                                            formData.ped_transp
+                                                            : "Selecione a transportadora..."}
+                                                    </span>
+                                                    <Search className="h-3.5 w-3.5 opacity-50 text-teal-600" />
+                                                </button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[600px] p-0 z-[10000]" align="start" sideOffset={4}>
-                                                <Command>
-                                                    <CommandInput placeholder="Buscar transportadora..." value={transpSearch} onValueChange={setTranspSearch} className="pointer-events-auto" />
-                                                    <CommandList>
-                                                        <CommandEmpty>Nenhuma transportadora encontrada.</CommandEmpty>
+                                            <PopoverContent className="w-[500px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
+                                                <Command className="pointer-events-auto">
+                                                    <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
+                                                        <CommandInput
+                                                            placeholder="Buscar transportadora..."
+                                                            value={transpSearch}
+                                                            onValueChange={setTranspSearch}
+                                                            className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
+                                                        />
+                                                    </div>
+                                                    <CommandList className="max-h-[200px]">
+                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
+                                                            {auxData.loading ? "Carregando..." : "Nenhuma transportadora encontrada."}
+                                                        </CommandEmpty>
                                                         <CommandGroup>
-                                                            {(auxData.carriers || []).map((transp) => (
-                                                                <CommandItem
-                                                                    key={transp.tra_codigo}
-                                                                    value={transp.tra_nome}
-                                                                    onSelect={() => {
-                                                                        handleFieldChange('ped_transp', transp.tra_codigo || transp.codigo);
-                                                                        setOpenTransp(false);
-                                                                    }}
-                                                                    className="pointer-events-auto cursor-pointer"
-                                                                >
-                                                                    <Check className={cn("mr-2 h-4 w-4", formData.ped_transp === transp.tra_codigo ? "opacity-100" : "opacity-0")} />
-                                                                    <div className="flex flex-col">
-                                                                        <span>{transp.tra_nome || transp.nome}</span>
-                                                                        <span className="text-[10px] text-muted-foreground">{transp.tra_codigo || transp.codigo}</span>
-                                                                    </div>
-                                                                </CommandItem>
-                                                            ))}
+                                                            {(auxData.carriers || [])
+                                                                .filter(t =>
+                                                                    !transpSearch ||
+                                                                    (t.tra_nome || t.nome || "").toLowerCase().includes(transpSearch.toLowerCase()) ||
+                                                                    String(t.tra_codigo || t.codigo || "").includes(transpSearch)
+                                                                )
+                                                                .map((transp, index) => (
+                                                                    <CommandItem
+                                                                        key={`${transp.tra_codigo || transp.codigo}-${index}`}
+                                                                        value={String(transp.tra_codigo || transp.codigo)}
+                                                                        onSelect={() => {
+                                                                            handleFieldChange('ped_transp', transp.tra_codigo || transp.codigo);
+                                                                            setOpenTransp(false);
+                                                                            setTranspSearch('');
+                                                                        }}
+                                                                        className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
+                                                                    >
+                                                                        <div className="flex flex-col">
+                                                                            <span className="font-medium text-slate-700">{transp.tra_nome || transp.nome}</span>
+                                                                            <span className="text-[10px] text-slate-400 font-mono">ID: {transp.tra_codigo || transp.codigo}</span>
+                                                                        </div>
+                                                                        {String(formData.ped_transp) === String(transp.tra_codigo || transp.codigo) && (
+                                                                            <Check className="h-4 w-4 text-teal-600 shrink-0" />
+                                                                        )}
+                                                                    </CommandItem>
+                                                                ))}
                                                         </CommandGroup>
                                                     </CommandList>
                                                 </Command>
@@ -411,25 +555,75 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                                     {/* Row 4: Vendedor | Condições */}
                                     <div className="grid grid-cols-12 gap-2">
-                                        <div className="col-span-8">
+                                        <div className="col-span-8 flex flex-col gap-1.5">
                                             <Label className={labelClasses}>Vendedor</Label>
-                                            <Select
-                                                value={formData.ped_vendedor ? formData.ped_vendedor.toString() : ''}
-                                                onValueChange={(value) => handleFieldChange('ped_vendedor', parseInt(value))}
-                                            >
-                                                <SelectTrigger className={inputClasses}>
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent className="z-[9999]" position="popper">
-                                                    {(auxData.sellers || []).map((seller) => (
-                                                        <SelectItem key={seller.ven_codigo || seller.codigo} value={(seller.ven_codigo || seller.codigo).toString()}>
-                                                            {seller.ven_nome || seller.nome}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Popover open={openVendedor} onOpenChange={setOpenVendedor}>
+                                                <PopoverTrigger asChild>
+                                                    <button
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
+                                                            "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
+                                                            !formData.ped_vendedor && "text-muted-foreground italic"
+                                                        )}
+                                                    >
+                                                        <span className="truncate">
+                                                            {formData.ped_vendedor
+                                                                ? (auxData.sellers || []).find((s) => (s.ven_codigo === formData.ped_vendedor || s.codigo === formData.ped_vendedor))?.ven_nome ||
+                                                                (auxData.sellers || []).find((s) => (s.ven_codigo === formData.ped_vendedor || s.codigo === formData.ped_vendedor))?.nome ||
+                                                                formData.ped_vendedor
+                                                                : "Selecione o vendedor..."}
+                                                        </span>
+                                                        <Search className="h-3.5 w-3.5 opacity-50 text-teal-600" />
+                                                    </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[400px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
+                                                    <Command>
+                                                        <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
+                                                            <CommandInput
+                                                                placeholder="Buscar vendedor..."
+                                                                value={vendedorSearch}
+                                                                onValueChange={setVendedorSearch}
+                                                                className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
+                                                            />
+                                                        </div>
+                                                        <CommandList className="max-h-[200px]">
+                                                            <CommandEmpty className="p-4 text-center text-xs text-slate-400">
+                                                                {auxData.loading ? "Carregando..." : "Nenhum vendedor encontrado."}
+                                                            </CommandEmpty>
+                                                            <CommandGroup>
+                                                                {(auxData.sellers || [])
+                                                                    .filter(s =>
+                                                                        !vendedorSearch ||
+                                                                        (s.ven_nome || s.nome || "").toLowerCase().includes(vendedorSearch.toLowerCase()) ||
+                                                                        String(s.ven_codigo || s.codigo || "").includes(vendedorSearch)
+                                                                    )
+                                                                    .map((seller, index) => (
+                                                                        <CommandItem
+                                                                            key={`${seller.ven_codigo || seller.codigo}-${index}`}
+                                                                            value={String(seller.ven_codigo || seller.codigo)}
+                                                                            onSelect={() => {
+                                                                                handleFieldChange('ped_vendedor', seller.ven_codigo || seller.codigo);
+                                                                                setOpenVendedor(false);
+                                                                                setVendedorSearch('');
+                                                                            }}
+                                                                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
+                                                                        >
+                                                                            <div className="flex flex-col">
+                                                                                <span className="font-medium text-slate-700">{seller.ven_nome || seller.nome}</span>
+                                                                                <span className="text-[10px] text-slate-400 font-mono">ID: {seller.ven_codigo || seller.codigo}</span>
+                                                                            </div>
+                                                                            {String(formData.ped_vendedor) === String(seller.ven_codigo || seller.codigo) && (
+                                                                                <Check className="h-4 w-4 text-teal-600 shrink-0" />
+                                                                            )}
+                                                                        </CommandItem>
+                                                                    ))}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
                                         </div>
-                                        <div className="col-span-4">
+                                        <div className="col-span-4 flex flex-col gap-1.5">
                                             <Label className={labelClasses}>Condições</Label>
                                             <Input
                                                 value={formData.ped_conpgto || ''}
@@ -505,7 +699,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             onChange={(e) => handleFieldChange('ped_obs', e.target.value)}
                                             className={cn(
                                                 "w-full rounded-md border border-emerald-100 bg-white p-2 text-xs",
-                                                "focus:border-emerald-500 focus:outline-none shadow-sm min-h-[100px] resize-none",
+                                                "focus:border-emerald-500 focus:outline-none shadow-sm min-h-[100px] resize-none text-black text-xs font-bold",
                                                 "placeholder:text-emerald-300"
                                             )}
                                             placeholder="Observações do pedido..."
@@ -515,29 +709,83 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                                 {/* Right Column: Financials */}
                                 <div className="col-span-12 lg:col-span-4 flex flex-col gap-3 border-l border-dashed border-emerald-200 pl-3">
-                                    <div className="bg-amber-50/50 p-2 rounded border border-amber-100">
+                                    <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 shadow-sm">
                                         <Label className={labelClasses}>TABELA DE PREÇO</Label>
-                                        <Select
-                                            value={formData.ped_tabela}
-                                            onValueChange={(value) => handleFieldChange('ped_tabela', value)}
-                                        >
-                                            <SelectTrigger className={cn(inputClasses, "font-medium h-8")}>
-                                                <SelectValue placeholder="Selecione a tabela..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {(auxData.priceTables || []).map((table) => (
-                                                    <SelectItem key={table.tab_codigo || table.codigo} value={table.tab_codigo || table.codigo}>
-                                                        {table.tab_codigo || table.codigo} - {table.tab_descricao || table.descricao}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <div className="mt-1 flex justify-between text-[10px] text-gray-500 px-1">
-                                            <span>{priceTable.selectedTable ? priceTable.selectedTable.tab_descricao : '-'}</span>
-                                            <span className="font-bold text-teal-700 ml-2">
-                                                {priceTable.memtable?.length || 0} itens carregados
+                                        <Popover open={openTabela} onOpenChange={setOpenTabela}>
+                                            <PopoverTrigger asChild>
+                                                <button
+                                                    className={cn(
+                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 mt-1 text-black",
+                                                        "bg-white border-amber-200 hover:border-amber-400 focus:ring-2 focus:ring-amber-500/20",
+                                                        !formData.ped_tabela && "text-muted-foreground italic"
+                                                    )}
+                                                >
+                                                    <span className="truncate font-bold text-amber-900">
+                                                        {formData.ped_tabela
+                                                            ? (auxData.priceTables || []).find((t) => (t.itab_idtabela === formData.ped_tabela || t.nome_tabela === formData.ped_tabela || t.codigo === formData.ped_tabela))?.nome_tabela ||
+                                                            (auxData.priceTables || []).find((t) => (t.itab_idtabela === formData.ped_tabela || t.nome_tabela === formData.ped_tabela || t.codigo === formData.ped_tabela))?.itab_nome ||
+                                                            formData.ped_tabela
+                                                            : "Selecione a tabela..."}
+                                                    </span>
+                                                    <Search className="h-3.5 w-3.5 opacity-50 text-amber-600" />
+                                                </button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[400px] p-0 z-[10000] border-amber-200 shadow-xl" align="start" sideOffset={8}>
+                                                <Command>
+                                                    <div className="p-2 border-b border-amber-50 bg-amber-50/30">
+                                                        <CommandInput
+                                                            placeholder="Buscar tabela..."
+                                                            value={tabelaSearch}
+                                                            onValueChange={setTabelaSearch}
+                                                            className="h-8 border-amber-200 focus:ring-0 text-xs font-bold text-black"
+                                                        />
+                                                    </div>
+                                                    <CommandList className="max-h-[200px]">
+                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
+                                                            {priceTable.loading || auxData.loading ? "Carregando..." : "Nenhuma tabela encontrada."}
+                                                        </CommandEmpty>
+                                                        <CommandGroup>
+                                                            {(auxData.priceTables || [])
+                                                                .filter(t =>
+                                                                    !tabelaSearch ||
+                                                                    (t.nome_tabela || t.itab_nome || "").toLowerCase().includes(tabelaSearch.toLowerCase()) ||
+                                                                    String(t.itab_idtabela || "").includes(tabelaSearch)
+                                                                )
+                                                                .map((table, index) => {
+                                                                    const tableId = table.nome_tabela || table.itab_idtabela; // Use name as ID if needed
+                                                                    const tableName = table.nome_tabela || table.itab_nome || tableId;
+                                                                    return (
+                                                                        <CommandItem
+                                                                            key={`${tableId}-${index}`}
+                                                                            value={String(tableId)}
+                                                                            onSelect={() => {
+                                                                                handleFieldChange('ped_tabela', tableId);
+                                                                                setOpenTabela(false);
+                                                                                setTabelaSearch('');
+                                                                            }}
+                                                                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
+                                                                        >
+                                                                            <div className="flex flex-col">
+                                                                                <span className="font-medium text-slate-700">{tableName}</span>
+                                                                                <span className="text-[10px] text-slate-400 font-mono">ID: {tableId}</span>
+                                                                            </div>
+                                                                            {String(formData.ped_tabela) === String(tableId) && (
+                                                                                <Check className="h-4 w-4 text-teal-600 shrink-0" />
+                                                                            )}
+                                                                        </CommandItem>
+                                                                    );
+                                                                })}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <div className="mt-2 flex justify-between text-[10px] text-amber-600/70 font-medium px-1">
+                                            <span>Preços e impostos atualizados</span>
+                                            <span className="font-bold text-amber-700 bg-amber-100/50 px-1.5 rounded">
+                                                {priceTable.memtable?.length || 0} Ítens
                                             </span>
-                                            {priceTable.loading && <Loader2 className="h-3 w-3 animate-spin ml-2" />}
+                                            {priceTable.loading && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                                         </div>
                                     </div>
 
@@ -555,36 +803,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             { key: 'ped_qua', label: '4º' }, { key: 'ped_qui', label: '5º' }, { key: 'ped_sex', label: '6º' },
                                             { key: 'ped_set', label: '7º' }, { key: 'ped_oit', label: '8º' }, { key: 'ped_nov', label: '9º' }
                                         ].map((field) => (
-                                            <div key={field.key} className="flex flex-col items-center">
-                                                <span className="text-[9px] text-gray-400 font-bold mb-0.5">{field.label}</span>
-                                                <Input
-                                                    type="text"
-                                                    value={formData[field.key] === 0 ? "0,00%" : (String(formData[field.key]).includes('%') ? formData[field.key] : parseFloat(formData[field.key] || 0).toFixed(2) + '%')}
-                                                    onFocus={(e) => {
-                                                        // On focus, remove % and show number for editing
-                                                        const val = e.target.value.replace('%', '').replace(',', '.');
-                                                        e.target.value = val;
-                                                        e.target.select();
-                                                    }}
-                                                    onBlur={(e) => {
-                                                        let val = e.target.value.replace('%', '').replace(',', '.');
-                                                        const num = parseFloat(val) || 0;
-                                                        handleFieldChange(field.key, num);
-                                                    }}
-                                                    onChange={(e) => {
-                                                        // Allow typing, essentially just update local state if needed, or update parent
-                                                        // For simplicity with this controlled component approach:
-                                                        const val = e.target.value;
-                                                        // We don't update main state immediately with raw string to avoid type issues if it expects number
-                                                        // But we need to update the UI. 
-                                                        // Strategy: Update formData with the raw value? No, formData expects numbers likely.
-                                                        // Let's rely on onBlur for the commit to formData, but we need local state for the input if we want complex masking.
-                                                        // Simpler: Just rely on onBlur to format.
-                                                        handleFieldChange(field.key, val.replace('%', ''));
-                                                    }}
-                                                    className="h-6 text-center text-xs p-0 border-emerald-100"
-                                                />
-                                            </div>
+                                            <DiscountInput
+                                                key={field.key}
+                                                label={field.label}
+                                                value={formData[field.key]}
+                                                onChange={(val) => handleFieldChange(field.key, val)}
+                                            />
                                         ))}
                                     </div>
 
@@ -609,7 +833,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                                     {/* Totals */}
                                     <div className="grid grid-cols-1 gap-2 mt-auto">
-                                        <div className="flex justify-between items-center border-b border-gray-100 pb-1">
+                                        <div className="flex justify-between items-center border-b border-gray-100 pb-1 px-1">
                                             <span className="text-xs text-gray-500 uppercase">Total Bruto</span>
                                             <span className="font-bold text-gray-700">{formatCurrency(formData.ped_totbruto || 0)}</span>
                                         </div>
@@ -618,7 +842,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             <span className="font-bold text-orange-700">{formatCurrency(formData.ped_totliq || 0)}</span>
                                         </div>
                                         <div className="flex justify-between items-center border-b border-emerald-100 pb-1 bg-emerald-50/30 px-1 rounded">
-                                            <span className="text-xs text-emerald-600 uppercase font-bold">Total c/ IPI</span>
+                                            <span className="text-xs text-emerald-600 uppercase font-bold">TOTAL C/IMPOSTOS</span>
                                             <span className="font-bold text-emerald-700">{formatCurrency((formData.ped_totliq || 0) + (formData.ped_totalipi || 0))}</span>
                                         </div>
                                     </div>
@@ -783,26 +1007,39 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 {/* Bottom Toolbar - Absolute fixed at bottom of whole form */}
                 <div className="bg-slate-100 border-t border-slate-200 px-4 py-3 flex items-center justify-end gap-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] shrink-0 z-50">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="border-slate-300 text-slate-600 hover:bg-slate-50 font-bold h-10 px-6 uppercase tracking-wider"
-                    >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancelar (ESC)
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={loading || isSaving}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-8 shadow-md uppercase tracking-wider"
-                    >
-                        {loading || isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                            <Save className="h-4 w-4 mr-2" />
-                        )}
-                        Salvar (F10)
-                    </Button>
+                    {activeTab === 'F1' ? (
+                        <>
+                            <Button
+                                variant="outline"
+                                onClick={onClose}
+                                className="border-slate-300 text-slate-600 hover:bg-slate-50 font-bold h-10 px-6 uppercase tracking-wider transition-all duration-200"
+                            >
+                                <X className="h-4 w-4 mr-2" />
+                                Cancelar (ESC)
+                            </Button>
+                            <Button
+                                onClick={handleSave}
+                                disabled={loading || isSaving}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-8 shadow-md uppercase tracking-wider transition-all duration-200"
+                            >
+                                {loading || isSaving ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                    <Save className="h-4 w-4 mr-2" />
+                                )}
+                                Salvar (F10)
+                            </Button>
+                        </>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            onClick={() => setActiveTab('F1')}
+                            className="mr-auto border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold h-10 px-6 uppercase tracking-wider transition-all duration-200 bg-white"
+                        >
+                            <ArrowLeft className="h-4 w-4 mr-2 text-emerald-600" />
+                            {'<< '} Voltar
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

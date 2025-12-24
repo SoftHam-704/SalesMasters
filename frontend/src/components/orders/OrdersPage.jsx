@@ -130,6 +130,7 @@ export default function OrdersPage() {
             toast.error('Selecione uma indústria antes de criar um pedido');
             return;
         }
+        setSelectedOrderObj(null); // Clear previous selection for new order
         setOrderDialogOpen(true);
     };
 
@@ -470,13 +471,13 @@ export default function OrdersPage() {
                                                                             </Button>
                                                                         </div>
                                                                     </div>
-                                                                    
+
                                                                     {/* Discounts Row */}
                                                                     <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
                                                                         <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Descontos:</span>
                                                                         {[
-                                                                            order.ped_pri, order.ped_seg, order.ped_ter, 
-                                                                            order.ped_qua, order.ped_qui, order.ped_sex, 
+                                                                            order.ped_pri, order.ped_seg, order.ped_ter,
+                                                                            order.ped_qua, order.ped_qui, order.ped_sex,
                                                                             order.ped_set, order.ped_oit, order.ped_nov
                                                                         ].map((desc, i) => (
                                                                             <Badge key={i} variant="secondary" className="text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
@@ -567,8 +568,8 @@ export default function OrdersPage() {
                                     key={angle}
                                     className="absolute w-1.5 h-1.5 rounded-full"
                                     style={{
-                                        left: `calc(50% + ${Math.cos((angle * Math.PI) / 180) * 32}px - 3px`,
-                                        top: `calc(50% + ${Math.sin((angle * Math.PI) / 180) * 32}px - 3px`,
+                                        left: `calc(50% + ${Math.cos((angle * Math.PI) / 180) * 32}px - 3px)`,
+                                        top: `calc(50% + ${Math.sin((angle * Math.PI) / 180) * 32}px - 3px)`,
                                         background: `linear-gradient(135deg, hsl(${160 + i * 8} 80% 55%), hsl(${170 + i * 8} 70% 45%))`,
                                         boxShadow: `0 0 6px hsl(${160 + i * 8} 80% 55% / 0.6)`,
                                     }}
@@ -593,7 +594,7 @@ export default function OrdersPage() {
                         transition={{ type: "spring", stiffness: 200, damping: 15 }}
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={handleNewOrder}
+                        onClick={() => setIsOrderFormOpen(true)}
                         className="relative group"
                     >
                         {/* Circle shape with glass effect */}
@@ -669,12 +670,15 @@ export default function OrdersPage() {
                         </motion.div>
                     </motion.button>
                 </div>
-            </div >
+            </div>
 
             {/* Order Dialog */}
             <OrderDialog
                 open={orderDialogOpen}
-                onOpenChange={setOrderDialogOpen}
+                onOpenChange={(open) => {
+                    setOrderDialogOpen(open);
+                    if (!open) setSelectedOrderObj(null); // Clear on close
+                }}
                 selectedIndustry={selectedIndustry}
                 onOrderCreated={handleOrderCreated}
                 selectedOrder={selectedOrderObj}
