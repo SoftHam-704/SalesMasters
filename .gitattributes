@@ -1,5 +1,0 @@
-frontend/src/components/utilities/DiceGame.jsx filter=lfs diff=lfs merge=lfs -text
-backend/check_db.js filter=lfs diff=lfs merge=lfs -text
-backend/debug_clientes.js filter=lfs diff=lfs merge=lfs -text
-backend/debug_vendedor.js filter=lfs diff=lfs merge=lfs -text
-fab_history.txt filter=lfs diff=lfs merge=lfs -text
