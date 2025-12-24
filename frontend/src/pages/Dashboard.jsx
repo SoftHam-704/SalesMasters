@@ -3,6 +3,11 @@ import { motion } from 'framer-motion';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ProgressRing } from '../components/dashboard/ProgressRing';
 import { ActivityItem } from '../components/dashboard/ActivityItem';
+import { YearMonthFilter } from '../components/dashboard/YearMonthFilter';
+import { TopClientsCard } from '../components/dashboard/TopClientsCard';
+import { IndustryRevenueCard } from '../components/dashboard/IndustryRevenueCard';
+import { IndustryParetoCard } from '../components/dashboard/IndustryParetoCard';
+import { SalesPerformanceTable } from '../components/dashboard/SalesPerformanceTable';
 import {
     DollarSign,
     Users,
@@ -27,26 +32,38 @@ const activities = [
 ];
 
 const Dashboard = () => {
+    const currentYear = new Date().getFullYear();
+
+
+    const [selectedYear, setSelectedYear] = useState(currentYear);
+    const [selectedMonth, setSelectedMonth] = useState(null); // null = ano todo
     const [salesComparison, setSalesComparison] = useState([]);
     const [quantitiesComparison, setQuantitiesComparison] = useState([]);
+    const [topClients, setTopClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingQuantities, setLoadingQuantities] = useState(true);
+    const [loadingClients, setLoadingClients] = useState(true);
+    const [industryRevenue, setIndustryRevenue] = useState([]);
+    const [loadingIndustry, setLoadingIndustry] = useState(true);
 
     useEffect(() => {
         fetchSalesComparison();
         fetchQuantitiesComparison();
-    }, []);
+        fetchTopClients();
+        fetchIndustryRevenue();
+    }, [selectedYear, selectedMonth]);
 
     const fetchSalesComparison = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/dashboard/sales-comparison?anoAtual=2025&anoAnterior=2024');
+            const previousYear = selectedYear - 1;
+            const response = await fetch(`http://localhost:3005/api/dashboard/sales-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
             const data = await response.json();
             if (data.success) {
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
                     mes: item.mes_nome.substring(0, 3), // Jan, Fev, etc
-                    '2025': parseFloat(item.vendas_ano_atual) / 1000, // Convert to thousands
-                    '2024': parseFloat(item.vendas_ano_anterior) / 1000
+                    [selectedYear]: parseFloat(item.vendas_ano_atual) / 1000, // Convert to thousands
+                    [previousYear]: parseFloat(item.vendas_ano_anterior) / 1000
                 }));
                 setSalesComparison(chartData);
             }
@@ -59,14 +76,15 @@ const Dashboard = () => {
 
     const fetchQuantitiesComparison = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/dashboard/quantities-comparison?anoAtual=2025&anoAnterior=2024');
+            const previousYear = selectedYear - 1;
+            const response = await fetch(`http://localhost:3005/api/dashboard/quantities-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
             const data = await response.json();
             if (data.success) {
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
                     mes: item.mes_nome.substring(0, 3),
-                    '2025': parseFloat(item.quantidade_ano_atual),
-                    '2024': parseFloat(item.quantidade_ano_anterior)
+                    [selectedYear]: parseFloat(item.quantidade_ano_atual),
+                    [previousYear]: parseFloat(item.quantidade_ano_anterior)
                 }));
                 setQuantitiesComparison(chartData);
             }
@@ -74,6 +92,55 @@ const Dashboard = () => {
             console.error('Erro ao buscar comparação de quantidades:', error);
         } finally {
             setLoadingQuantities(false);
+        }
+    };
+
+    const fetchTopClients = async () => {
+        try {
+            setLoadingClients(true);
+            const params = new URLSearchParams({
+                ano: selectedYear,
+                limit: 15
+            });
+
+            if (selectedMonth) {
+                params.append('mes', selectedMonth);
+            }
+
+            const response = await fetch(`http://localhost:3005/api/dashboard/top-clients?${params}`);
+            const data = await response.json();
+
+            if (data.success) {
+                setTopClients(data.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar top clientes:', error);
+        } finally {
+            setLoadingClients(false);
+        }
+    };
+
+    const fetchIndustryRevenue = async () => {
+        try {
+            setLoadingIndustry(true);
+            const params = new URLSearchParams({
+                ano: selectedYear
+            });
+
+            if (selectedMonth) {
+                params.append('mes', selectedMonth);
+            }
+
+            const response = await fetch(`http://localhost:3005/api/dashboard/industry-revenue?${params}`);
+            const data = await response.json();
+
+            if (data.success) {
+                setIndustryRevenue(data.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar faturamento por indústria:', error);
+        } finally {
+            setLoadingIndustry(false);
         }
     };
 
@@ -116,6 +183,14 @@ const Dashboard = () => {
                 </div>
             </motion.div>
 
+            {/* Year/Month Filters */}
+            <YearMonthFilter
+                selectedYear={selectedYear}
+                selectedMonth={selectedMonth}
+                onYearChange={setSelectedYear}
+                onMonthChange={setSelectedMonth}
+            />
+
             {/* Metrics Grid */}
             <div className="metrics-grid">
                 <MetricCard
@@ -150,236 +225,209 @@ const Dashboard = () => {
 
             {/* Main Content Grid */}
             <div className="content-grid">
-                {/* Chart */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="chart-card"
-                >
-                    <div className="card-header">
-                        <h3 className="card-title">Quantidades Vendidas (2024 vs 2025)</h3>
-                        <button className="btn-link">
-                            Ver relatório <ArrowRight className="arrow-icon" />
-                        </button>
-                    </div>
-                    <div className="chart-container">
-                        {loadingQuantities ? (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }}>
-                                <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={200}>
-                                <AreaChart data={quantitiesComparison}>
-                                    <defs>
-                                        <linearGradient id="colorQty2025" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0.4} />
-                                            <stop offset="95%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorQty2024" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0.4} />
-                                            <stop offset="95%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis
-                                        dataKey="mes"
-                                        stroke="var(--text-secondary)"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                    />
-                                    <YAxis
-                                        stroke="var(--text-secondary)"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(value) => value.toLocaleString()}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "var(--bg-card)",
-                                            border: "1px solid var(--border-color)",
-                                            borderRadius: "12px",
-                                            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-                                        }}
-                                        labelStyle={{ color: "var(--text-primary)" }}
-                                        formatter={(value) => [`${value.toLocaleString()} unidades`, ""]}
-                                    />
-                                    <Legend
-                                        wrapperStyle={{ paddingTop: '10px' }}
-                                        iconType="line"
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="2025"
-                                        stroke="hsl(280, 70%, 55%)"
-                                        strokeWidth={2}
-                                        fillOpacity={1}
-                                        fill="url(#colorQty2025)"
-                                        name="2025"
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="2024"
-                                        stroke="hsl(30, 90%, 55%)"
-                                        strokeWidth={2}
-                                        strokeDasharray="5 5"
-                                        fillOpacity={1}
-                                        fill="url(#colorQty2024)"
-                                        name="2024"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
-                </motion.div>
-
-                {/* Goal Progress */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="goal-card"
-                >
-                    <div className="card-header">
-                        <h3 className="card-title">
-                            <Target className="title-icon" />
-                            Meta Mensal
-                        </h3>
-                    </div>
-                    <div className="goal-content">
-                        <ProgressRing
-                            progress={78}
-                            label="da meta"
-                            sublabel="R$ 127.450 / R$ 163.500"
-                        />
-                        <div className="goal-details">
-                            <div className="goal-detail-item">
-                                <span>Faltam</span>
-                                <strong>R$ 36.050</strong>
-                            </div>
-                            <div className="goal-detail-item">
-                                <span>Dias restantes</span>
-                                <strong>8 dias</strong>
-                            </div>
+                {/* Column 1: Both Line Charts Stacked */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {/* Quantities Chart */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-lg)',
+                            padding: '0.75rem',
+                            marginBottom: '0.5rem'
+                        }}
+                    >
+                        <div className="card-header">
+                            <h3 className="card-title">Quantidades Vendidas ({selectedYear - 1} vs {selectedYear})</h3>
+                            <button className="btn-link">
+                                Ver relatório <ArrowRight className="arrow-icon" />
+                            </button>
                         </div>
-                        <button className="btn-primary-full">Ver Oportunidades</button>
-                    </div>
-                </motion.div>
+                        <div className="chart-container">
+                            {loadingQuantities ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '180px' }}>
+                                    <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={180}>
+                                    <AreaChart data={quantitiesComparison}>
+                                        <defs>
+                                            <linearGradient id="colorQty2025" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0.4} />
+                                                <stop offset="95%" stopColor="hsl(280, 70%, 55%)" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="colorQty2024" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0.4} />
+                                                <stop offset="95%" stopColor="hsl(30, 90%, 55%)" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <XAxis
+                                            dataKey="mes"
+                                            stroke="var(--text-secondary)"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                        />
+                                        <YAxis
+                                            stroke="var(--text-secondary)"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickFormatter={(value) => value.toLocaleString()}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: "var(--bg-card)",
+                                                border: "1px solid var(--border-color)",
+                                                borderRadius: "12px",
+                                                boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+                                            }}
+                                            labelStyle={{ color: "var(--text-primary)" }}
+                                            formatter={(value) => [`${value.toLocaleString()} unidades`, ""]}
+                                        />
+                                        <Legend
+                                            wrapperStyle={{ paddingTop: '10px' }}
+                                            iconType="line"
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey={selectedYear}
+                                            stroke="hsl(280, 70%, 55%)"
+                                            strokeWidth={2}
+                                            fillOpacity={1}
+                                            fill="url(#colorQty2025)"
+                                            name={selectedYear.toString()}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey={selectedYear - 1}
+                                            stroke="hsl(30, 90%, 55%)"
+                                            strokeWidth={2}
+                                            strokeDasharray="5 5"
+                                            fillOpacity={1}
+                                            fill="url(#colorQty2024)"
+                                            name={(selectedYear - 1).toString()}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </motion.div>
 
-                {/* Sales Comparison Chart */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="activity-card"
-                >
-                    <div className="card-header">
-                        <h3 className="card-title">Comparação de Vendas (2024 vs 2025)</h3>
-                        <button className="btn-link-small">Ver detalhes</button>
-                    </div>
-                    <div className="chart-container" style={{ height: '280px', padding: '20px 10px' }}>
-                        {loading ? (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                                <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={salesComparison}>
-                                    <defs>
-                                        <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.4} />
-                                            <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="color2024" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0.4} />
-                                            <stop offset="95%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis
-                                        dataKey="mes"
-                                        stroke="var(--text-secondary)"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                    />
-                                    <YAxis
-                                        stroke="var(--text-secondary)"
-                                        fontSize={12}
-                                        tickLine={false}
-                                        axisLine={false}
-                                        tickFormatter={(value) => `R$${value}k`}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: "var(--bg-card)",
-                                            border: "1px solid var(--border-color)",
-                                            borderRadius: "12px",
-                                            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-                                        }}
-                                        labelStyle={{ color: "var(--text-primary)", fontWeight: 600 }}
-                                        formatter={(value) => [`R$ ${(value * 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
-                                    />
-                                    <Legend
-                                        wrapperStyle={{ paddingTop: '10px' }}
-                                        iconType="line"
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="2025"
-                                        stroke="hsl(160, 84%, 39%)"
-                                        strokeWidth={2}
-                                        fill="url(#color2025)"
-                                        fillOpacity={1}
-                                        name="2025"
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="2024"
-                                        stroke="hsl(220, 70%, 50%)"
-                                        strokeWidth={2}
-                                        strokeDasharray="5 5"
-                                        fill="url(#color2024)"
-                                        fillOpacity={1}
-                                        name="2024"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
-                </motion.div>
+                    {/* Sales Comparison Chart */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-lg)',
+                            padding: '0.75rem'
+                        }}
+                    >
+                        <div className="card-header">
+                            <h3 className="card-title">Comparação de Vendas ({selectedYear - 1} vs {selectedYear})</h3>
+                            <button className="btn-link-small">Ver detalhes</button>
+                        </div>
+                        <div className="chart-container" style={{ height: '180px', padding: '10px' }}>
+                            {loading ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                    <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={salesComparison}>
+                                        <defs>
+                                            <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.4} />
+                                                <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="color2024" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0.4} />
+                                                <stop offset="95%" stopColor="hsl(220, 70%, 50%)" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <XAxis
+                                            dataKey="mes"
+                                            stroke="var(--text-secondary)"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                        />
+                                        <YAxis
+                                            stroke="var(--text-secondary)"
+                                            fontSize={12}
+                                            tickLine={false}
+                                            axisLine={false}
+                                            tickFormatter={(value) => `R$${value}k`}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: "var(--bg-card)",
+                                                border: "1px solid var(--border-color)",
+                                                borderRadius: "12px",
+                                                boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+                                            }}
+                                            labelStyle={{ color: "var(--text-primary)", fontWeight: 600 }}
+                                            formatter={(value) => [`R$ ${(value * 1000).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                                        />
+                                        <Legend
+                                            wrapperStyle={{ paddingTop: '10px' }}
+                                            iconType="line"
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey={selectedYear}
+                                            stroke="hsl(160, 84%, 39%)"
+                                            strokeWidth={2}
+                                            fill="url(#color2025)"
+                                            fillOpacity={1}
+                                            name={selectedYear.toString()}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey={selectedYear - 1}
+                                            stroke="hsl(220, 70%, 50%)"
+                                            strokeWidth={2}
+                                            strokeDasharray="5 5"
+                                            fill="url(#color2024)"
+                                            fillOpacity={1}
+                                            name={(selectedYear - 1).toString()}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+                    </motion.div>
 
-                {/* Quick Actions */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="quick-actions-card"
-                >
-                    <div className="card-header">
-                        <h3 className="card-title">Ações Rápidas</h3>
-                    </div>
-                    <div className="quick-actions-list">
-                        <button className="quick-action-btn">
-                            <div className="quick-action-icon users">
-                                <Users size={16} />
-                            </div>
-                            Adicionar Cliente
-                        </button>
-                        <button className="quick-action-btn">
-                            <div className="quick-action-icon sales">
-                                <DollarSign size={16} />
-                            </div>
-                            Registrar Venda
-                        </button>
-                        <button className="quick-action-btn">
-                            <div className="quick-action-icon target">
-                                <Target size={16} />
-                            </div>
-                            Criar Oportunidade
-                        </button>
-                    </div>
-                </motion.div>
+                    {/* Sales Performance Table */}
+                    <SalesPerformanceTable
+                        selectedYear={selectedYear}
+                        selectedMonth={selectedMonth}
+                    />
+                </div>
+
+                {/* Column 2: Top 15 Clients */}
+                <TopClientsCard
+                    clients={topClients}
+                    loading={loadingClients}
+                />
+
+                {/* Column 3: Industry Revenue + Pareto */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <IndustryRevenueCard
+                        data={industryRevenue}
+                        loading={loadingIndustry}
+                    />
+                    <IndustryParetoCard
+                        data={industryRevenue}
+                        loading={loadingIndustry}
+                    />
+                </div>
             </div>
         </div>
     );

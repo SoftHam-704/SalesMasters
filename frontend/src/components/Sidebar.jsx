@@ -20,8 +20,8 @@ const Sidebar = () => {
   // Force recompile - regioes and area_atuacao added
 
   const [expandedSections, setExpandedSections] = useState({
-    'CADASTROS': true,
-    'MOVIMENTAÇÕES': false,
+    'CADASTROS': false,
+    'MOVIMENTAÇÕES': true,
     'FINANCEIRO': false,
     'ESTATÍSTICOS': false,
     'UTILITÁRIOS': false,
@@ -61,7 +61,10 @@ const Sidebar = () => {
     {
       title: 'MOVIMENTAÇÕES',
       items: [
-        { icon: <DollarSign size={18} />, label: 'Vendas', path: '/movimentacoes/vendas' }
+        { icon: <ShoppingCart size={18} />, label: 'Pedidos', path: '/pedidos' },
+        { icon: <FileText size={18} />, label: 'Baixa via XML', path: '/movimentacoes/baixa-xml' },
+        { icon: <PieChart size={18} />, label: 'SELL-OUT', path: '/movimentacoes/sell-out' },
+        { icon: <Users size={18} />, label: 'CRM', path: '/movimentacoes/crm' }
       ]
     },
     {

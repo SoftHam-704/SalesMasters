@@ -1,33 +1,24 @@
-const fetch = require('node-fetch');
+const axios = require('axios');
 
 async function testEndpoint() {
     try {
-        console.log('🧪 Testando endpoint set-discount-group...\n');
+        console.log('🧪 Testing /api/orders/stats endpoint...\n');
 
-        const response = await fetch(
-            'http://localhost:3005/api/products/set-discount-group/20/2M%20JAN%2F2026',
-            {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itab_grupodesconto: 1 })
-            }
-        );
+        const url = 'http://localhost:3005/api/orders/stats?dataInicio=2024-11-01&dataFim=2024-12-22';
+        console.log('URL:', url);
 
+        const response = await axios.get(url);
         console.log('Status:', response.status);
         console.log('Status Text:', response.statusText);
 
-        const text = await response.text();
-        console.log('\nResposta:', text);
-
-        try {
-            const json = JSON.parse(text);
-            console.log('\nJSON:', JSON.stringify(json, null, 2));
-        } catch (e) {
-            console.log('\nNão é JSON válido');
-        }
+        console.log('\nResponse:', JSON.stringify(response.data, null, 2));
 
     } catch (error) {
-        console.error('❌ Erro:', error.message);
+        console.error('❌ Error:', error.message);
+        if (error.response) {
+            console.error('Response status:', error.response.status);
+            console.error('Response data:', error.response.data);
+        }
     }
 }
 

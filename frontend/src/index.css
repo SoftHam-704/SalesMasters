@@ -64,6 +64,14 @@
     --sidebar-accent-foreground: 220 20% 10%;
     --sidebar-border: 210 20% 90%;
     --sidebar-ring: 160 84% 35%;
+
+    /* Text Colors */
+    --text-primary: hsl(var(--foreground));
+    --text-secondary: hsl(var(--muted-foreground));
+
+    /* Background Colors */
+    --bg-card: hsl(var(--card));
+    --bg-secondary: hsl(var(--secondary));
   }
 
   .dark {

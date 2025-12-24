@@ -1,0 +1,127 @@
+.orders-grid-container {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.orders-grid-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.orders-grid-container::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.orders-grid-container::-webkit-scrollbar-thumb {
+    background: var(--secondary-color);
+    border-radius: var(--radius-md);
+}
+
+.orders-grid-loading,
+.orders-grid-empty {
+    padding: var(--spacing-xl) var(--spacing-lg);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.orders-grid {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+}
+
+.orders-grid thead {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    z-index: 10;
+}
+
+.orders-grid th {
+    padding: 0.75rem 0.875rem;
+    text-align: left;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+}
+
+.orders-grid td {
+    padding: 0.75rem 0.875rem;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.orders-grid tbody tr {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bg-card);
+}
+
+.orders-grid tbody tr:hover {
+    background: var(--bg-secondary);
+}
+
+/* Coloração por situação - Seguindo padrão do sistema */
+.row-cotacao-pendente {
+    background: hsl(0, 72%, 51%, 0.08);
+    border-left: 3px solid var(--danger-color);
+}
+
+.row-cotacao-confirmada {
+    background: hsl(210, 100%, 50%, 0.08);
+    border-left: 3px solid hsl(210, 100%, 50%);
+}
+
+.row-faturado {
+    background: hsl(160, 84%, 35%, 0.08);
+    border-left: 3px solid var(--success-color);
+}
+
+.row-excluido {
+    background: hsl(38, 92%, 50%, 0.08);
+    border-left: 3px solid var(--warning-color);
+}
+
+.row-garantia {
+    background: hsl(38, 92%, 50%, 0.08);
+    border-left: 3px solid var(--warning-color);
+}
+
+.row-notificacao {
+    background: hsl(38, 92%, 50%, 0.08);
+    border-left: 3px solid var(--warning-color);
+}
+
+/* Células específicas */
+.cell-situacao {
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.875rem;
+}
+
+.cell-currency {
+    text-align: right;
+    font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.cell-cliente {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}

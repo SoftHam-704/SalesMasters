@@ -129,6 +129,41 @@ module.exports = (pool) => {
     });
 
     // ============================================================================
+    // GET /api/price-tables/:industria/:tabela/products-full - TODA a tabela para memtable
+    // ============================================================================
+    router.get('/price-tables/:industria/:tabela/products-full', async (req, res) => {
+        try {
+            const { industria, tabela } = req.params;
+
+            console.log(`📋 [MEMTABLE] Carregando tabela completa: Indústria=${industria}, Tabela=${tabela}`);
+
+            const query = `
+            SELECT * 
+            FROM vw_produtos_precos
+            WHERE pro_industria = $1 
+              AND itab_tabela = $2
+            ORDER BY pro_nome
+        `;
+
+            const result = await pool.query(query, [industria, tabela]);
+
+            console.log(`📋 [MEMTABLE] Carregados ${result.rows.length} produtos`);
+
+            res.json({
+                success: true,
+                data: result.rows,
+                total: result.rows.length
+            });
+        } catch (error) {
+            console.error('❌ [MEMTABLE] Erro ao carregar tabela completa:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao carregar tabela: ${error.message}`
+            });
+        }
+    });
+
+    // ============================================================================
     // POST /api/price-tables/import - Importar tabela de preço
     // ============================================================================
     router.post('/price-tables/import', async (req, res) => {

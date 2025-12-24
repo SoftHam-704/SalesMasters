@@ -36,5 +36,5 @@ export const getRouteInfo = (path) => {
     if (routeConfig[path]) return routeConfig[path];
 
     // Potential dynamic routes or fallbacks could be handled here
-    return { label: 'Página', icon: <FileText size={16} /> };
+    return { label: 'Pedidos', icon: <FileText size={16} /> };
 };

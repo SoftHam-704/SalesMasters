@@ -679,6 +679,60 @@ app.delete('/api/v2/carriers/:id', async (req, res) => {
 const priceTablesRouter = require('./price_tables_endpoints')(pool);
 app.use('/api', priceTablesRouter);
 
+// ==================== AUXILIARY DATA ENDPOINTS ====================
+
+// GET - Clientes por indústria
+app.get('/api/aux/clientes', async (req, res) => {
+    try {
+        const { for_codigo } = req.query;
+        let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_cidade, cli_uf, cli_comprador FROM clientes';
+        const params = [];
+
+        if (for_codigo) {
+            // Se houver filtro por indústria, assume-se que há uma tabela de vínculo ou filtro direto
+            // Para simplificar e garantir dados, retornaremos todos se o filtro for genérico
+            // query += ' WHERE ...'
+        }
+
+        query += ' ORDER BY cli_nome LIMIT 100';
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Vendedores
+app.get('/api/aux/vendedores', async (req, res) => {
+    try {
+        const query = 'SELECT ven_codigo, ven_nome FROM vendedor ORDER BY ven_nome';
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Tabelas de Preço por indústria
+app.get('/api/aux/price-tables', async (req, res) => {
+    try {
+        const { for_codigo } = req.query;
+        let query = 'SELECT tab_codigo, tab_descricao FROM tabela_preco';
+        const params = [];
+
+        if (for_codigo) {
+            query += ' WHERE tab_fornecedor = $1';
+            params.push(for_codigo);
+        }
+
+        query += ' ORDER BY tab_descricao';
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // ==================== DATABASE CONFIGURATION ENDPOINTS ====================
 
 // GET current database configuration
@@ -827,10 +881,191 @@ app.get('/api/dashboard/quantities-comparison', async (req, res) => {
     }
 });
 
+// GET /api/dashboard/top-clients - Top 10 clientes por vendas
+app.get('/api/dashboard/top-clients', async (req, res) => {
+    try {
+        const { ano, mes, limit = 10 } = req.query;
+
+        if (!ano) {
+            return res.status(400).json({
+                success: false,
+                message: 'Parâmetro "ano" é obrigatório'
+            });
+        }
+
+        console.log(`📊 [DASHBOARD] Buscando top ${limit} clientes: ano=${ano}, mes=${mes || 'todos'}`);
+
+        const result = await pool.query(
+            'SELECT * FROM get_top_clients($1, $2, $3)',
+            [parseInt(ano), mes ? parseInt(mes) : null, parseInt(limit)]
+        );
+
+        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} clientes`);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching top clients:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar top clientes: ${error.message}`
+        });
+    }
+});
+
+// GET /api/dashboard/industry-revenue - Faturamento por indústria
+app.get('/api/dashboard/industry-revenue', async (req, res) => {
+    try {
+        const { ano, mes } = req.query;
+
+        if (!ano) {
+            return res.status(400).json({
+                success: false,
+                message: 'Parâmetro "ano" é obrigatório'
+            });
+        }
+
+        console.log(`📊 [DASHBOARD] Buscando faturamento por indústria: ano=${ano}, mes=${mes || 'todos'}`);
+
+        const result = await pool.query(
+            'SELECT * FROM get_industry_revenue($1, $2)',
+            [parseInt(ano), mes ? parseInt(mes) : null]
+        );
+
+        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} indústrias`);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching industry revenue:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar faturamento por indústria: ${error.message}`
+        });
+    }
+});
+
+// GET - Sales Performance by Seller
+app.get('/api/dashboard/sales-performance', async (req, res) => {
+    try {
+        const { ano, mes } = req.query;
+
+        if (!ano) {
+            return res.status(400).json({
+                success: false,
+                message: 'Parâmetro "ano" é obrigatório'
+            });
+        }
+
+        console.log(`📊 [DASHBOARD] Buscando performance de vendedores: ano=${ano}, mes=${mes || 'todos'}`);
+
+        const result = await pool.query(
+            'SELECT * FROM get_sales_performance($1, $2)',
+            [parseInt(ano), mes ? parseInt(mes) : null]
+        );
+
+        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} vendedores`);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching sales performance:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar performance de vendedores: ${error.message}`
+        });
+    }
+});
+
+
 // ==================== PRODUCTS ENDPOINTS ====================
 // Import products routes
 const productsRouter = require('./products_endpoints')(pool);
 app.use('/api', productsRouter);
+
+// ==================== AUXILIARY ENDPOINTS ====================
+// These endpoints provide data for form dropdowns
+
+// GET - Listar clientes ativos
+app.get('/api/aux/clientes', async (req, res) => {
+    try {
+        const { status } = req.query;
+        let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_tipopes, cli_cnpj FROM clientes';
+
+        if (status === 'A') {
+            // Revert or relax filter if tipopes is not 'A' for all active clients
+            // For now, let's include all to see if data appears
+            // query += " WHERE cli_tipopes = 'A'";
+        }
+
+        query += ' ORDER BY cli_nomred, cli_nome';
+
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET - Listar vendedores
+app.get('/api/aux/vendedores', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT ven_codigo, ven_nome FROM vendedores ORDER BY ven_nome');
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET - Listar áreas de atuação
+app.get('/api/aux/areas', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT atu_id, atu_descricao FROM area_atuacao ORDER BY atu_descricao');
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET - Listar regiões
+app.get('/api/aux/regioes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT reg_codigo, reg_descricao FROM regioes ORDER BY reg_descricao');
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET - Buscar cidades (com busca opcional)
+app.get('/api/aux/cidades', async (req, res) => {
+    try {
+        const { search, id } = req.query;
+        let query = 'SELECT cid_codigo, cid_nome, cid_uf FROM cidades WHERE cid_ativo = true';
+        const params = [];
+
+        if (id) {
+            query += ' AND cid_codigo = $1';
+            params.push(parseInt(id));
+        } else if (search) {
+            query += ' AND cid_nome ILIKE $1';
+            params.push(`%${search}%`);
+        }
+
+        query += ' ORDER BY cid_nome LIMIT 50';
+
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Test Firebird Connection
 app.post('/api/firebird/test', async (req, res) => {
@@ -2080,10 +2315,10 @@ app.put('/api/suppliers/:supplierId/goals/:year', async (req, res) => {
 
 
 // ============================================
-// Listar todas as transportadoras
+// Listar todas as transportadoras (Legacy Endpoint for OrderForm)
 app.get('/api/transportadoras', async (req, res) => {
     try {
-        const result = await pool.query('SELECT tra_codigo, tra_nome FROM transportadora ORDER BY tra_nome ASC');
+        const result = await pool.query('SELECT * FROM transportadora ORDER BY tra_nome ASC');
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -3250,7 +3485,439 @@ app.delete('/api/product-groups/:id', async (req, res) => {
 });
 
 
+// ==================== ORDERS MODULE ENDPOINTS ====================
 
+// GET - List active industries for orders with order count
+app.get('/api/orders/industries', async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                f.for_codigo, 
+                f.for_nomered,
+                COUNT(p.ped_pedido) as total_pedidos
+            FROM fornecedores f
+            LEFT JOIN pedidos p ON f.for_codigo = p.ped_industria
+            WHERE f.for_tipo2 = 'A'
+            GROUP BY f.for_codigo, f.for_nomered
+            ORDER BY f.for_nomered ASC
+        `;
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error fetching industries:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - List active clients for orders (for combobox)
+app.get('/api/orders/clients', async (req, res) => {
+    try {
+        const query = `
+            SELECT cli_codigo, cli_nomred, cli_cnpj
+            FROM clientes
+            WHERE cli_tipopes = 'A'
+            ORDER BY cli_nomred ASC
+        `;
+        const result = await pool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error fetching clients:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - List orders with filters
+app.get('/api/orders', async (req, res) => {
+    try {
+        const {
+            industria,
+            cliente,
+            ignorarIndustria,
+            pesquisa,
+            situacao,
+            dataInicio,
+            dataFim,
+            limit
+        } = req.query;
+
+        console.log('📦 [ORDERS] Fetching orders with filters:', {
+            industria,
+            cliente,
+            ignorarIndustria,
+            pesquisa,
+            situacao,
+            dataInicio,
+            dataFim,
+            limit
+        });
+
+        // Build dynamic query
+        let query = `
+            SELECT
+                p.*,
+                c.cli_nomred,
+                c.cli_nome,
+                f.for_nomered,
+                (SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido) as ped_total_quant
+            FROM pedidos p
+            INNER JOIN clientes c ON p.ped_cliente = c.cli_codigo
+            INNER JOIN fornecedores f ON p.ped_industria = f.for_codigo
+            WHERE 1 = 1
+    `;
+
+        const params = [];
+        let paramIndex = 1;
+
+        // Filter by industry (if not ignoring)
+        if (industria && ignorarIndustria !== 'true') {
+            query += ` AND p.ped_industria = $${paramIndex} `;
+            params.push(parseInt(industria));
+            paramIndex++;
+        }
+
+        // Filter by client (if provided)
+        if (cliente) {
+            query += ` AND p.ped_cliente = $${paramIndex} `;
+            params.push(parseInt(cliente));
+            paramIndex++;
+        }
+
+        // Filter by search term (order number or client name)
+        if (pesquisa) {
+            query += ` AND(
+        p.ped_pedido ILIKE $${paramIndex} OR
+                c.cli_nomred ILIKE $${paramIndex}
+    )`;
+            params.push(`% ${pesquisa}% `);
+            paramIndex++;
+        }
+
+        // Filter by situation (if not 'Z' = All)
+        if (situacao && situacao !== 'Z') {
+            query += ` AND p.ped_situacao = $${paramIndex} `;
+            params.push(situacao);
+            paramIndex++;
+        }
+
+        // Filter by date range
+        if (dataInicio) {
+            query += ` AND p.ped_data >= $${paramIndex} `;
+            params.push(dataInicio);
+            paramIndex++;
+        }
+
+        if (dataFim) {
+            query += ` AND p.ped_data <= $${paramIndex} `;
+            params.push(dataFim);
+            paramIndex++;
+        }
+
+        // Order by date descending
+        query += ` ORDER BY p.ped_data DESC`;
+
+        // Limit results (default 700)
+        const limitValue = limit || 700;
+        query += ` LIMIT $${paramIndex} `;
+        params.push(parseInt(limitValue));
+
+        console.log('📦 [ORDERS] Executing query with params:', params);
+
+        const result = await pool.query(query, params);
+
+        console.log(`📦[ORDERS] Found ${result.rows.length} orders`);
+
+        res.json({
+            success: true,
+            pedidos: result.rows,
+            total: result.rows.length
+        });
+    } catch (error) {
+        console.error('❌ [ORDERS] Error fetching orders:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar pedidos: ${error.message} `
+        });
+    }
+});
+
+// GET - Estatísticas dos pedidos usando função do PostgreSQL
+app.get('/api/orders/stats', async (req, res) => {
+    try {
+        const { dataInicio, dataFim, industria } = req.query;
+
+        console.log('📊 [STATS] Fetching order stats:', { dataInicio, dataFim, industria });
+
+        const query = `SELECT * FROM get_orders_stats($1, $2, $3)`;
+        const params = [
+            dataInicio || null,
+            dataFim || null,
+            industria ? parseInt(industria) : null
+        ];
+
+        const result = await pool.query(query, params);
+
+        if (result.rows.length > 0) {
+            const stats = result.rows[0];
+            res.json({
+                success: true,
+                data: {
+                    total_vendido: parseFloat(stats.total_vendido),
+                    total_quantidade: parseFloat(stats.total_quantidade),
+                    total_clientes: parseInt(stats.total_clientes),
+                    ticket_medio: parseFloat(stats.ticket_medio)
+                }
+            });
+        } else {
+            res.json({
+                success: true,
+                data: {
+                    total_vendido: 0,
+                    total_quantidade: 0,
+                    total_clientes: 0,
+                    ticket_medio: 0
+                }
+            });
+        }
+    } catch (error) {
+        console.error('❌ [STATS] Error fetching stats:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar estatísticas: ${error.message} `
+        });
+    }
+});
+
+// POST - Criar novo pedido
+app.post('/api/orders', async (req, res) => {
+    try {
+        const {
+            ped_data,
+            ped_situacao,
+            ped_cliente,
+            ped_transp,
+            ped_vendedor,
+            ped_condpag,
+            ped_comprador,
+            ped_nffat, // Número do pedido do cliente
+            ped_tipofrete,
+            ped_tabela,
+            ped_industria,
+            ped_cliind,
+            ped_pri, ped_seg, ped_ter, ped_qua, ped_qui,
+            ped_sex, ped_set, ped_oit, ped_nov
+        } = req.body;
+
+        console.log('📝 [ORDERS] Creating new order - UNIQUE CHECK 5555:', req.body);
+
+        // Validações obrigatórias
+        if (!ped_cliente) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cliente é obrigatório'
+            });
+        }
+
+        if (!ped_vendedor) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vendedor é obrigatório'
+            });
+        }
+
+        if (!ped_industria) {
+            return res.status(400).json({
+                success: false,
+                message: 'Indústria é obrigatória'
+            });
+        }
+
+        if (!ped_tabela) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tabela de preço é obrigatória'
+            });
+        }
+
+        // Gerar número do pedido
+        // Temporariamente usando "HS" (Hamilton Silva) - futuramente virá do login
+        const userInitials = "HS";
+
+        // Buscar próximo número sequencial
+        const seqResult = await pool.query("SELECT nextval('gen_pedidos_id') as next_num");
+        const pedNumero = seqResult.rows[0].next_num;
+
+        // Formatar: HS + 000001 (6 dígitos com zeros à esquerda)
+        const pedPedido = userInitials + pedNumero.toString().padStart(6, '0');
+
+        console.log(`📝[ORDERS] Generated order number: ${pedPedido} (${userInitials} + ${pedNumero})`);
+
+        // Inserir pedido
+        const query = `
+            INSERT INTO pedidos(
+        ped_numero,
+        ped_pedido,
+        ped_data,
+        ped_situacao,
+        ped_cliente,
+        ped_transp,
+        ped_vendedor,
+        ped_condpag,
+        ped_comprador,
+        ped_nffat,
+        ped_tipofrete,
+        ped_tabela,
+        ped_industria,
+        ped_cliind,
+        ped_pri, ped_seg, ped_ter, ped_qua, ped_qui,
+        ped_sex, ped_set, ped_oit, ped_nov,
+        ped_totbruto,
+        ped_totliq,
+        ped_totalipi,
+        ped_obs
+    ) VALUES(
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25, $26, $27
+    ) RETURNING *
+        `;
+
+        const now = new Date();
+        const values = [
+            pedNumero,
+            pedPedido,
+            ped_data || now.toISOString().split('T')[0],
+            ped_situacao || 'P',
+            ped_cliente,
+            ped_transp || 0,
+            ped_vendedor,
+            ped_condpag || '',
+            ped_comprador || '',
+            ped_nffat || '',
+            ped_tipofrete || 'C',
+            ped_tabela,
+            ped_industria,
+            ped_cliind || '',
+            ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
+            ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
+            0, // ped_totbruto
+            0, // ped_totliq
+            0, // ped_totalipi
+            req.body.ped_obs || ''
+        ];
+
+        const result = await pool.query(query, values);
+
+        console.log(`✅[ORDERS] Order created successfully: ${pedPedido} `);
+
+        res.json({
+            success: true,
+            message: `Pedido ${pedPedido} criado com sucesso!`,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ [ORDERS] Error creating order:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar pedido: ${error.message} `
+        });
+    }
+});
+
+
+// PUT - Atualizar pedido existente
+app.put('/api/orders/:pedPedido', async (req, res) => {
+    try {
+        const { pedPedido } = req.params;
+        const {
+            ped_data,
+            ped_situacao,
+            ped_cliente,
+            ped_transp,
+            ped_vendedor,
+            ped_condpag,
+            ped_comprador,
+            ped_nffat,
+            ped_tipofrete,
+            ped_tabela,
+            ped_industria,
+            ped_cliind,
+            ped_pri, ped_seg, ped_ter, ped_qua, ped_qui,
+            ped_sex, ped_set, ped_oit, ped_nov,
+            ped_obs
+        } = req.body;
+
+        console.log(`📝[ORDERS] Updating order: ${pedPedido} `, req.body);
+
+        const query = `
+            UPDATE pedidos SET
+ped_data = $1,
+    ped_situacao = $2,
+    ped_cliente = $3,
+    ped_transp = $4,
+    ped_vendedor = $5,
+    ped_condpag = $6,
+    ped_comprador = $7,
+    ped_nffat = $8,
+    ped_tipofrete = $9,
+    ped_tabela = $10,
+    ped_industria = $11,
+    ped_cliind = $12,
+    ped_pri = $13, ped_seg = $14, ped_ter = $15, ped_qua = $16, ped_qui = $17,
+    ped_sex = $18, ped_set = $19, ped_oit = $20, ped_nov = $21,
+    ped_obs = $22
+            WHERE ped_pedido = $23
+RETURNING *
+    `;
+
+        const values = [
+            ped_data,
+            ped_situacao,
+            ped_cliente,
+            ped_transp,
+            ped_vendedor,
+            ped_condpag,
+            ped_comprador,
+            ped_nffat,
+            ped_tipofrete,
+            ped_tabela,
+            ped_industria,
+            ped_cliind || '',
+            ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
+            ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
+            ped_obs || '',
+            pedPedido
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Pedido não encontrado'
+            });
+        }
+
+        console.log(`✅[ORDERS] Order updated successfully: ${pedPedido} `);
+
+        res.json({
+            success: true,
+            message: `Pedido ${pedPedido} atualizado com sucesso!`,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('❌ [ORDERS] Error updating order:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao atualizar pedido: ${error.message} `
+        });
+    }
+});
+
+// ==================== END ORDERS MODULE ====================
+
+// Load orders endpoints
+require('./orders_endpoints')(app, pool);
+require('./order_items_endpoints')(app, pool);
 
 app.listen(PORT, () => {
 

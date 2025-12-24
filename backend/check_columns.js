@@ -1,32 +1,27 @@
+
 const { Pool } = require('pg');
+require('dotenv').config();
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo',
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
 });
 
 async function checkColumns() {
     try {
-        const result = await pool.query(`
-            SELECT column_name, data_type 
+        const res = await pool.query(`
+            SELECT column_name 
             FROM information_schema.columns 
-            WHERE table_name = 'cad_tabelaspre' 
-            ORDER BY ordinal_position
+            WHERE table_name = 'pedidos';
         `);
-
-        console.log('📋 Colunas da tabela cad_tabelaspre:');
-        console.log('=====================================');
-        result.rows.forEach(row => {
-            console.log(`${row.column_name} (${row.data_type})`);
-        });
-
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ Erro:', error.message);
-        process.exit(1);
+        console.log('Columns in pedidos table:', res.rows.map(r => r.column_name).sort());
+    } catch (err) {
+        console.error(err);
+    } finally {
+        pool.end();
     }
 }
 

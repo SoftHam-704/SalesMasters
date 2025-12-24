@@ -1,6 +1,10 @@
-/* SalesMasters - Global Styles with Theme Support */
-
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SalesMasters - Global Styles with Theme Support */
 
 :root {
   /* Light Theme - Clean & Professional */
@@ -197,7 +201,6 @@ body {
     opacity: 0;
     transform: translateY(20px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -205,12 +208,10 @@ body {
 }
 
 @keyframes pulse-glow {
-
   0%,
   100% {
     box-shadow: 0 0 20px hsl(160 84% 39% / 0.3);
   }
-
   50% {
     box-shadow: 0 0 40px hsl(160 84% 39% / 0.5);
   }

@@ -26,6 +26,7 @@ const ContextMenuItem = React.forwardRef(({ className, ...props }, ref) => (
         ref={ref}
         className={`
       relative flex cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm outline-none
+      text-gray-900
       hover:bg-blue-500 hover:text-white
       focus:bg-blue-500 focus:text-white
       data-[disabled]:pointer-events-none data-[disabled]:opacity-50

@@ -14,13 +14,34 @@ import FrmTransportadoras from './pages/frmTransportadoras';
 import FrmImportacaoPrecos from './pages/frmImportacaoPrecos';
 import FrmCadastroProdutos from './pages/frmCadastroProdutos';
 import DatabaseConfig from './pages/DatabaseConfig';
+import OrdersPage from './components/orders/OrdersPage';
 import './styles/global.css';
 import './App.css';
 
 import TabControl from './components/TabControl'
-// ... imports
 
 function App() {
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Se for Enter e não for um Textarea
+      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+        // Lista de seletores que podem receber foco
+        const focusableSelectors = 'input:not([disabled]):not([type="hidden"]), select:not([disabled]), button:not([disabled]):not([tabindex="-1"])';
+        const focusableElements = Array.from(document.querySelectorAll(focusableSelectors));
+
+        const currentIndex = focusableElements.indexOf(e.target);
+        if (currentIndex !== -1) {
+          e.preventDefault();
+          const nextIndex = (currentIndex + 1) % focusableElements.length;
+          focusableElements[nextIndex].focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="app">
       <Sidebar />
@@ -33,6 +54,7 @@ function App() {
             <Route path="/clientes" element={<FrmClientes />} />
             <Route path="/vendedores" element={<FrmVendedores />} />
             <Route path="/produtos" element={<FrmProdutos />} />
+            <Route path="/pedidos" element={<OrdersPage />} />
             <Route path="/cadastros/grupos-produtos" element={<FrmGrupoPro />} />
             <Route path="/cadastros/grupos-descontos" element={<FrmGrupoDesc />} />
             <Route path="/cadastros/transportadoras" element={<FrmTransportadoras />} />

@@ -1,12 +1,15 @@
 /* Dashboard Lovable - Design Premium Compacto */
 
 .dashboard-lovable-page {
-    padding: 0.5rem;
-    max-width: 1400px;
-    margin: 0 auto;
+    padding: 0.5rem 0.5rem 0.5rem 10px;
     height: calc(100vh - 120px);
-    /* Ajusta para caber na viewport */
     overflow-y: auto;
+    background-color: transparent;
+}
+
+:root[class~="dark"] .dashboard-lovable-page {
+    background-color: hsl(220, 20%, 4%);
+    /* Force dark background */
 }
 
 /* Welcome Section - Compacto */
@@ -157,10 +160,20 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
+    align-items: start;
 }
 
 .chart-card {
     grid-column: span 2;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.chart-card-single {
+    grid-column: span 1;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
@@ -178,7 +191,7 @@
 }
 
 .activity-card {
-    grid-column: span 2;
+    grid-column: span 1;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
