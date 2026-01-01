@@ -11,6 +11,8 @@ from services.measures import (
 )
 from services.analysis import analyze_pareto, analyze_industry_growth
 from services.insights import generate_insights
+from services.top_industries import fetch_top_industries
+from services.dashboard_summary import fetch_dashboard_summary
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
@@ -118,16 +120,14 @@ async def clear_dashboard_cache():
     return {"status": "Cache limpo com sucesso"}
 
 @router.get("/summary")
-async def get_summary():
+async def get_summary(ano: int = 2025, mes: str = 'Todos', industria: int = None):
     """
-    Retorna resumo geral do dashboard (placeholder).
+    Retorna KPIs do dashboard (Faturamento, Pedidos, Clientes, Ticket Médio, Quantidade Vendida).
+    Com comparativo M-1 ou A-1 dependendo do filtro.
     """
-    return {
-        "success": True,
-        "data": [],
-        "total": 0,
-        "message": "Endpoint de summary - aguardando implementação"
-    }
+    data = fetch_dashboard_summary(ano, mes, industria)
+    return {"success": True, "data": data}
+
 
 @router.get("/goals-scroller")
 async def get_goals_scroller(ano: int):
@@ -189,3 +189,16 @@ async def get_insights(ano: int = 2025, industryId: int = None):
     Retorna narrativas inteligentes sobre o desempenho do ano.
     """
     return generate_insights(ano, industryId)
+
+@router.get("/top-industries")
+async def get_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', limit: int = 6):
+    """
+    Retorna TOP N indústrias para o Bubble Chart.
+    Parâmetros:
+        - ano: Ano de referência
+        - mes: '01'-'12' ou 'Todos'
+        - metrica: 'valor' ou 'quantidade'
+        - limit: Limite de registros (default 6)
+    """
+    data = fetch_top_industries(ano, mes, metrica, limit)
+    return {"success": True, "data": data}

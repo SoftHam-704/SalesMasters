@@ -16,9 +16,9 @@ const createCustomNode = (maxValue, selectedId, metrica) => (props) => {
     const currentValue = parseFloat(payload[valueField] || payload.total_vendas || 0);
     const ratio = maxValue > 0 ? currentValue / maxValue : 1;
 
-    // Sizes: 55-170px
-    const minSize = 55;
-    const maxSize = 170;
+    // Sizes: 50-145px (reduced to fit better)
+    const minSize = 50;
+    const maxSize = 145;
     const size = minSize + (maxSize - minSize) * Math.pow(ratio, 0.4);
 
     const isSelected = selectedId === payload.codigo;
@@ -117,7 +117,7 @@ const CustomTooltip = ({ active, payload }) => {
                     {data.total_quantidade && (
                         <div className="flex justify-between">
                             <span className="text-slate-500">Quantidade:</span>
-                            <span className="font-bold text-slate-800">{formatNumber(data.total_quantidade)}</span>
+                            <h3 className="font-['Roboto'] text-cyan-400/90 text-[11px] font-bold uppercase tracking-[0.25em]">{formatNumber(data.total_quantidade)}</h3>
                         </div>
                     )}
                     <div className="flex justify-between">
@@ -156,18 +156,49 @@ const BubbleChart = ({ data, onIndustryClick, selectedIndustryId, metrica = 'Val
     );
     const maxValue = Math.max(...sortedData.map(d => parseFloat(d[valueField] || d.total_vendas || 0)));
 
-    // Better overlap - only about 15-20% overlap, not 50%
-    // First bubble at x=0.7, spacing ~0.95 gives subtle overlap
-    const chartData = sortedData.map((item, index) => ({
-        ...item,
-        x: 0.7 + (index * 0.95),
-        y: 50,
-        z: parseFloat(item[valueField] || item.total_vendas || 0),
-        ranking: index + 1
-    }));
+    // Calculate bubble sizes first (same logic as in createCustomNode)
+    // Reduced max size to fit better within panel with margins
+    const minSize = 50;
+    const maxSize = 145;  // Reduced from 170 to fit 6 bubbles with margins
+    const bubblesWithSizes = sortedData.map((item) => {
+        const currentValue = parseFloat(item[valueField] || item.total_vendas || 0);
+        const ratio = maxValue > 0 ? currentValue / maxValue : 1;
+        const size = minSize + (maxSize - minSize) * Math.pow(ratio, 0.4);
+        return { ...item, bubbleSize: size };
+    });
 
-    // Render smallest first (behind), largest last (in front)
-    const orderedData = [...chartData].sort((a, b) => b.ranking - a.ranking);
+    // Position bubbles adjacent (touching) without overlap
+    // Start with left margin - reduced for better centering
+    let currentX = 0.7; // Left margin (reduced from 1.0)
+
+    const chartData = bubblesWithSizes.map((item, index) => {
+        const xPos = currentX;
+
+        // Move to next position: current center + current radius + next radius
+        if (index < bubblesWithSizes.length - 1) {
+            const nextItem = bubblesWithSizes[index + 1];
+            const currentRadius = item.bubbleSize / 2;
+            const nextRadius = nextItem.bubbleSize / 2;
+            // Just touch - no overlap
+            const spacing = (currentRadius + nextRadius) / 90; // Scale for chart coordinates
+            currentX += spacing;
+        }
+
+        return {
+            ...item,
+            x: xPos,
+            y: 50,  // Centered vertically
+            z: parseFloat(item[valueField] || item.total_vendas || 0),
+            ranking: index + 1
+        };
+    });
+
+    // Z-index logic: selected bubble comes to front
+    const orderedData = [...chartData].sort((a, b) => {
+        if (a.codigo === selectedIndustryId) return 1;
+        if (b.codigo === selectedIndustryId) return -1;
+        return b.ranking - a.ranking;
+    });
 
     return (
         <div
@@ -188,8 +219,8 @@ const BubbleChart = ({ data, onIndustryClick, selectedIndustryId, metrica = 'Val
                 }
             `}</style>
             <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
-                    <XAxis type="number" dataKey="x" hide={true} domain={[0, 6.5]} />
+                <ScatterChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
+                    <XAxis type="number" dataKey="x" hide={true} domain={[0, 8]} />
                     <YAxis type="number" dataKey="y" hide={true} domain={[0, 100]} />
                     <ZAxis type="number" dataKey="z" range={[100, 3000]} />
                     <Tooltip content={<CustomTooltip />} cursor={false} />

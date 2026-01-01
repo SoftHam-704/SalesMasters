@@ -1,165 +1,173 @@
 import React from 'react';
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    LabelList
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LabelList
 } from 'recharts';
-import { formatNumber, formatCurrency } from '../../../utils/formatters';
+import { formatCurrency, formatNumber } from '../../../utils/formatters';
 
-// Custom dot that appears on all points or just active ones
 const CustomDot = (props) => {
-    const { cx, cy, stroke, payload, value } = props;
+    const { cx, cy, payload } = props;
+    if (!payload) return null;
 
-    // Logic to determine color based on trend
     const isPositive = payload.delta_percent >= 0;
-    const color = isPositive ? '#10B981' : '#EF4444'; // Green or Red
+    const color = isPositive ? '#10b981' : '#ef4444'; // emerald-500 : red-500
 
     return (
-        <svg x={cx - 6} y={cy - 6} width={12} height={12} fill="white" viewBox="0 0 12 12">
-            <circle cx="6" cy="6" r="5" stroke={color} strokeWidth="2" />
-        </svg>
+        <circle cx={cx} cy={cy} r={5} stroke={color} strokeWidth={2.5} fill="#fff" />
     );
 };
 
-// Custom Label to show Value AND Percentage
 const CustomLabel = (props) => {
-    const { x, y, value, index, data, metric } = props;
-    const item = data[index];
+    const { x, y, value, payload, index } = props;
 
-    if (!item) return null;
-
-    const isPositive = item.delta_percent >= 0;
-    const color = isPositive ? '#10B981' : '#EF4444';
-    const symbol = isPositive ? '▲' : '▼';
-
-    // Format value based on metric type
-    let displayValue = "";
-    if (metric === 'Quantidade' || metric === 'Quantidades') {
-        // Quantity: Thousand separator, no decimals (e.g. 61.583)
-        displayValue = formatNumber(value);
-    } else {
-        // Value: Currency with 2 decimals (e.g. R$ 3.003.022,50)
-        displayValue = formatCurrency(value);
+    // Check for missing props - value can be 0 (valid), so check for undefined/null specifically
+    if (!payload || value === undefined || value === null || x === undefined || y === undefined) {
+        return null;
     }
+
+    // delta_percent might be 0 (valid), only skip if truly missing
+    const deltaPercent = payload.delta_percent;
+    if (deltaPercent === undefined || deltaPercent === null) {
+        return null;
+    }
+
+    const isPositive = deltaPercent >= 0;
+    const color = isPositive ? '#10b981' : '#ef4444';
+
+    // Format value
+    const formattedValue = new Intl.NumberFormat('pt-BR', { notation: "compact", maximumFractionDigits: 0 }).format(value);
 
     return (
         <g>
-            {/* Main Value - Bold and Dark */}
-            <text
-                x={x}
-                y={y - 20}
-                fill="#334155"
-                fontSize={10} // Slightly reduced to fit full numbers
-                fontFamily="Verdana"
-                fontWeight="bold"
-                textAnchor="middle"
-            >
-                {displayValue}
+            {/* Value Label (Above) */}
+            <text x={x} y={y - 15} textAnchor="middle" fill="#1e293b" fontSize={12} fontWeight="700" fontFamily="Roboto">
+                {formattedValue}
             </text>
 
-            {/* Percentage Change - Smaller and Colored */}
-            {index > 0 && (
-                <text
-                    x={x}
-                    y={y - 8}
-                    fill={color}
-                    fontSize={9}
-                    fontFamily="Verdana"
-                    fontWeight="bold"
-                    textAnchor="middle"
-                >
-                    {symbol}{Math.abs(item.delta_percent)}%
-                </text>
-            )}
+            {/* Percentage Label (Below) */}
+            <text x={x} y={y + 22} textAnchor="middle" fill={color} fontSize={10} fontWeight="700" fontFamily="Roboto">
+                {isPositive ? '▲' : '▼'} {Math.abs(deltaPercent).toFixed(1)}%
+            </text>
         </g>
     );
 };
 
-const EvolutionChart = ({ data, metric }) => {
+
+const CustomTooltip = ({ active, payload, label, metrica }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        const isPositive = data.delta_percent >= 0;
+
+        return (
+            <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg font-['Roboto'] min-w-[150px] z-50">
+                <p className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">{label}</p>
+                <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center gap-4">
+                        <span className="text-slate-500">Valor Atual:</span>
+                        <span className="font-bold text-slate-800 text-sm">
+                            {metrica === 'Valor'
+                                ? formatCurrency(data.valor)
+                                : formatNumber(data.valor)}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-4">
+                        <span className="text-slate-500">Mês Anterior:</span>
+                        <span className="font-medium text-slate-600">
+                            {metrica === 'Valor'
+                                ? formatCurrency(data.valor_anterior)
+                                : formatNumber(data.valor_anterior)}
+                        </span>
+                    </div>
+                    <div className="pt-1 border-t border-slate-100 flex justify-between items-center mt-1">
+                        <span className="text-slate-500">Variação:</span>
+                        <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-red-500'} flex items-center gap-1`}>
+                            {isPositive ? <span className="text-[10px]">▲</span> : <span className="text-[10px]">▼</span>}
+                            {data.delta_percent}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
+const EvolutionChart = ({ data, metrica = 'Valor' }) => {
     if (!data || data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-gray-400 text-sm font-['Verdana']">
-                <p>Nenhum dado de evolução disponível para o período.</p>
+            <div className="flex items-center justify-center h-full text-slate-400 text-xs text-center p-4">
+                <p>Selecione um filtro ou aguarde o carregamento dos dados...</p>
             </div>
         );
     }
 
-    // Determine formatter based on metric - AXIS
-    const formatter = (value) => {
-        if (metric === 'Quantidade' || metric === 'Quantidades') {
-            return formatNumber(value);
-        }
-        // For axis ticks we can keep it compact or use full
-        // Let's use compact for axis to save space, but full for labels as requested
-        if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)} Mi`;
-        if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)} k`;
-        return value;
-    };
+    // Determine Y domain/padding
+    // We'll use 'auto' with padding for YAxis to let Recharts handle basic scaling,
+    // but the margins are critical for the labels.
 
-    const tooltipFormatter = (value) => {
-        if (metric === 'Quantidade' || metric === 'Quantidades') {
-            return [formatNumber(value), 'Quantidade'];
-        }
-        return [formatCurrency(value), 'Faturamento'];
+    // Delta Label Component
+    const DeltaLabel = (props) => {
+        const { x, y, value } = props;
+        if (value === undefined || value === null || x === undefined || y === undefined) return null;
+
+        const isPositive = value >= 0;
+        const color = isPositive ? '#10b981' : '#ef4444';
+
+        return (
+            <text x={x} y={y + 24} textAnchor="middle" fill={color} fontSize={10} fontWeight="700" fontFamily="Roboto">
+                {isPositive ? '▲' : '▼'} {Math.abs(value).toFixed(1)}%
+            </text>
+        );
     };
 
     return (
-        <div className="w-full h-full">
+        <div style={{ width: '100%', height: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                     data={data}
-                    margin={{
-                        top: 35,
-                        right: 50,
-                        left: 10,  // Reduced back to bring closer to edge
-                        bottom: 10,
-                    }}
+                    // Increase margins to allow CustomLabels to render outside the strictly plotted area
+                    margin={{ top: 40, right: 30, left: 10, bottom: 30 }}
                 >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis
                         dataKey="name"
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: '#64748B', fontSize: 11, fontWeight: 600, fontFamily: 'Verdana' }}
+                        tick={{ fill: '#64748b', fontSize: 11 }}
                         dy={10}
-                        padding={{ left: 30, right: 30 }} // Pushes first/last points away from edges
+                        padding={{ left: 30, right: 30 }}
                     />
                     <YAxis
+                        hide={false}
+                        domain={['auto', 'auto']}
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: '#94A3B8', fontSize: 10, fontFamily: 'Verdana' }}
-                        tickFormatter={formatter}
-                        width={80} // Increased from 60 to 80 to prevent overlap
-                        domain={['dataMin', 'auto']}
+                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                        tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)}
+                        width={35}
                     />
-                    <Tooltip
-                        cursor={{ stroke: '#CBD5E1', strokeWidth: 1, strokeDasharray: '4 4' }}
-                        contentStyle={{
-                            borderRadius: '12px',
-                            border: 'none',
-                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                            padding: '12px',
-                            fontFamily: 'Verdana'
-                        }}
-                        formatter={tooltipFormatter}
-                    />
+                    <Tooltip content={<CustomTooltip metrica={metrica} />} cursor={{ stroke: '#cbd5e1', strokeDasharray: '4 4' }} />
                     <Line
                         type="stepAfter"
                         dataKey="valor"
-                        stroke="#64748B"
-                        strokeWidth={1} // Thin line 1px
+                        stroke="#64748b"
+                        strokeWidth={1.5}
                         dot={<CustomDot />}
-                        activeDot={{ r: 6, strokeWidth: 0 }}
+                        activeDot={{ r: 6, stroke: '#334155', strokeWidth: 2, fill: '#fff' }}
                         animationDuration={1500}
+                        isAnimationActive={true}
                     >
+                        {/* Value Label (Top) */}
                         <LabelList
                             dataKey="valor"
-                            content={(props) => <CustomLabel {...props} data={data} metric={metric} />}
+                            position="top"
+                            offset={10}
+                            formatter={(value) => new Intl.NumberFormat('pt-BR', { notation: "compact", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}
+                            style={{ fill: '#1e293b', fontSize: 12, fontWeight: 700, fontFamily: 'Roboto' }}
+                        />
+                        {/* Delta Percent Label (Bottom) */}
+                        <LabelList
+                            dataKey="delta_percent"
+                            content={<DeltaLabel />}
                         />
                     </Line>
                 </LineChart>

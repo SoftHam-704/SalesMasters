@@ -3,8 +3,8 @@ from services.insights import (
     get_oportunidades,
     get_alertas_meta,
     get_top_clientes_mes,
-    get_clientes_inativos,
-    generate_resumo_executivo
+    get_riscos_sugestao,
+    generate_insights
 )
 
 router = APIRouter(prefix="/api/narratives", tags=["Narratives"])
@@ -33,13 +33,15 @@ async def read_highlights(industryId: int = Query(...)):
 @router.get("/risks")
 async def read_risks(industryId: int = Query(...)):
     """
-    Retorna riscos (clientes inativos).
+    Retorna riscos (clientes inativos -> sugestão).
     """
-    return {"success": True, "data": get_clientes_inativos(industryId)}
+    return {"success": True, "data": get_riscos_sugestao(industryId)}
 
 @router.get("/executive-summary")
 async def read_summary(industryId: int = Query(...)):
     """
     Retorna resumo executivo consolidado.
     """
-    return {"success": True, "data": generate_resumo_executivo(industryId)}
+    # Reutiliza a lógica geral
+    insights = generate_insights(2025, industryId)
+    return {"success": True, "data": insights.get("resumo_executivo", "")}

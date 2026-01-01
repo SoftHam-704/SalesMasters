@@ -1,126 +1,103 @@
-
 import React from 'react';
 import {
-    ComposedChart,
-    Line,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-    Rectangle,
-    Cell,
-    ReferenceLine
+    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LabelList, Cell
 } from 'recharts';
 import { formatCurrency, formatNumber } from '../../../utils/formatters';
 
-const ParetoChart = ({ data, metric }) => {
+const CustomTooltip = ({ active, payload, label, metrica }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg font-['Roboto'] min-w-[150px] z-50">
+                <p className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1 truncate max-w-[200px]">{data.name}</p>
+                <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center gap-4">
+                        <span className="text-slate-500">{metrica}:</span>
+                        <span className="font-bold text-slate-800">
+                            {metrica === 'Valor' ? formatCurrency(data.value) : formatNumber(data.value)}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-4">
+                        <span className="text-slate-500">% Acumulada:</span>
+                        <span className="font-bold text-emerald-600">
+                            {data.percent_acc}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
+};
+
+const ParetoChart = ({ data, metrica = 'Valor' }) => {
     if (!data || data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full text-gray-400 text-xs font-['Verdana']">
-                <p>Nenhum dado para análise Pareto.</p>
+            <div className="flex items-center justify-center h-full text-slate-400 text-xs text-center">
+                <p>Aguardando dados...</p>
             </div>
         );
     }
 
-    const formatter = (value) => {
-        if (metric === 'Quantidade' || metric === 'Quantidades') return formatNumber(value);
-        if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
-        if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
-        return value;
-    };
-
-    const CustomTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-lg font-['Verdana'] z-50">
-                    <p className="font-bold text-slate-700 text-xs mb-2">{label}</p>
-                    {payload.map((entry, index) => (
-                        <p key={index} className="text-[10px]" style={{ color: entry.color }}>
-                            {entry.name === 'Acumulado'
-                                ? `Acumulado: ${formatNumber(entry.value)}%`
-                                : `${entry.name}: ${metric === 'Valor' ? formatCurrency(entry.value) : formatNumber(entry.value)}`
-                            }
-                        </p>
-                    ))}
-                </div>
-            );
-        }
-        return null;
-    };
-
-    // Custom Bar Shape with Top Radius
-    const CustomBar = (props) => {
-        const { fill, x, y, width, height } = props;
-        return <Rectangle {...props} radius={[4, 4, 0, 0]} />;
-    };
-
     return (
-        <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-                data={data}
-                margin={{ top: 20, right: 20, bottom: 70, left: 10 }}
-            >
-                <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 9, fontFamily: 'Verdana', fill: '#334155', fontWeight: 600 }}
-                    interval={0}
-                    height={60}
-                    angle={-45}
-                    textAnchor="end"
-                    tickLine={false}
-                    axisLine={false}
-                />
-                <YAxis
-                    yAxisId="left"
-                    orientation="left"
-                    tickFormatter={formatter}
-                    tick={{ fontSize: 9, fontFamily: 'Verdana', fill: '#94A3B8' }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={60}
-                />
-                <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    unit="%"
-                    tick={{ fontSize: 9, fontFamily: 'Verdana', fill: '#F59E0B' }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={30}
-                    domain={[0, 100]}
-                />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
-
-                <Bar
-                    yAxisId="left"
-                    dataKey="value"
-                    name={metric}
-                    barSize={20}
-                    radius={[4, 4, 0, 0]}
-                    shape={<CustomBar />}
+        <div style={{ width: '100%', height: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                    data={data}
+                    margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                 >
-                    {data.map((entry, index) => (
-                        <Cell
-                            key={`cell-${index}`}
-                            fill={entry.percent_acc <= 80 ? '#3B82F6' : '#94A3B8'}
-                        />
-                    ))}
-                </Bar>
-                <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="percent_acc"
-                    name="Acumulado"
-                    stroke="#64748B"
-                    strokeWidth={1}
-                    dot={{ r: 2, fill: '#64748B', strokeWidth: 0 }}
-                />
-            </ComposedChart>
-        </ResponsiveContainer>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                        dataKey="name"
+                        scale="band"
+                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        interval={0}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                    />
+                    {/* Left Axis: Value */}
+                    <YAxis
+                        yAxisId="left"
+                        orientation="left"
+                        stroke="#94a3b8"
+                        fontSize={10}
+                        tickFormatter={(val) => new Intl.NumberFormat('pt-BR', { notation: "compact" }).format(val)}
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    {/* Right Axis: Percentage */}
+                    <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        stroke="#10b981"
+                        fontSize={10}
+                        unit="%"
+                        domain={[0, 100]}
+                        axisLine={false}
+                        tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip metrica={metrica} />} />
+
+                    {/* Bars for Value */}
+                    <Bar yAxisId="left" dataKey="value" barSize={30} radius={[4, 4, 0, 0]}>
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={index < 5 ? '#3b82f6' : '#94a3b8'} fillOpacity={index < 5 ? 1 : 0.6} />
+                        ))}
+                    </Bar>
+
+                    {/* Line for Cumulative Percentage */}
+                    <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="percent_acc"
+                        stroke="#10b981"
+                        strokeWidth={1}
+                        dot={{ r: 1, fill: '#10b981' }}
+                    />
+                </ComposedChart>
+            </ResponsiveContainer>
+        </div>
     );
 };
 

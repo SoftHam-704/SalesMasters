@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import './YearMonthFilter.css';
 
-const YEARS = [2023, 2024, 2025];
+const YEARS = [2023, 2024, 2025, 2026];
 const MONTHS = [
     { value: 1, label: 'Jan' },
     { value: 2, label: 'Fev' },

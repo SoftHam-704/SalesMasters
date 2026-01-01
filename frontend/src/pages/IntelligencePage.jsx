@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity, Loader2 } from 'lucide-react';
 import BubbleChart from './BI/charts/BubbleChart';
+import EvolutionChart from './BI/charts/EvolutionChart';
+import ParetoChart from './BI/charts/ParetoChart';
+import IndustryPerformanceChart from './BI/charts/IndustryPerformanceChart';
 
 // Formatters
 const formatCurrency = (value) => {
@@ -19,6 +22,11 @@ const IntelligencePage = () => {
     const [industries, setIndustries] = useState([]);
     const [selectedIndustry, setSelectedIndustry] = useState(null);
     const [hoveredIndustry, setHoveredIndustry] = useState(null);
+    const [goalScrollerData, setGoalScrollerData] = useState([]);
+    const [evolutionData, setEvolutionData] = useState([]);
+    const [paretoData, setParetoData] = useState([]);
+    const [industryPerformanceData, setIndustryPerformanceData] = useState([]);
+    const [user, setUser] = useState({ name: 'Usuário', avatar: null });
 
     // Filter states
     const [filters, setFilters] = useState({
@@ -62,7 +70,7 @@ const IntelligencePage = () => {
                     industria: selectedIndustry?.codigo || null
                 };
 
-                const response = await axios.get('/api/reports/dashboard-summary', { params });
+                const response = await axios.get('http://localhost:8000/api/dashboard/summary', { params });
 
                 if (response.data && response.data.success) {
                     setMetrics(response.data.data);
@@ -89,7 +97,7 @@ const IntelligencePage = () => {
                     metrica: filters.metrica
                 };
 
-                const response = await axios.get('/api/reports/top-industries', { params });
+                const response = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params });
 
                 if (response.data && response.data.success) {
                     setIndustries(response.data.data);
@@ -100,7 +108,58 @@ const IntelligencePage = () => {
         };
 
         fetchIndustries();
+        fetchIndustries();
     }, [filters.ano, filters.mes, filters.metrica, activePage]);
+
+    // Fetch Goals Scroller Data
+    useEffect(() => {
+        const fetchGoals = async () => {
+            if (activePage !== 'VISAO_GERAL') return;
+            try {
+                const response = await axios.get('http://localhost:8000/api/dashboard/goals-scroller', {
+                    params: { ano: filters.ano }
+                });
+                if (response.data) {
+                    setGoalScrollerData(response.data);
+                }
+            } catch (error) {
+                console.error('Erro ao buscar metas scroller:', error);
+            }
+        };
+
+        fetchGoals();
+    }, [filters.ano, activePage]);
+
+    // Fetch Evolution & Pareto Data
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            if (activePage !== 'VISAO_GERAL') return;
+            try {
+                const params = {
+                    ano: filters.ano,
+                    metrica: filters.metrica.toLowerCase()
+                };
+
+                // Evolution
+                const evolutionRes = await axios.get('http://localhost:8000/api/dashboard/evolution', { params });
+                if (evolutionRes.data) setEvolutionData(evolutionRes.data);
+
+                // Pareto
+                const paretoRes = await axios.get('http://localhost:8000/api/dashboard/pareto', { params });
+                if (paretoRes.data) setParetoData(paretoRes.data);
+
+                // Industry Performance (Top 50)
+                const industryParams = { ...params, limit: 50 };
+                const perfRes = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params: industryParams });
+                if (perfRes.data?.success) setIndustryPerformanceData(perfRes.data.data);
+
+            } catch (error) {
+                console.error('Erro ao buscar dados do dashboard:', error);
+            }
+        };
+
+        fetchDashboardData();
+    }, [filters.ano, filters.metrica, activePage]);
 
     // Calculate bubble sizes (proportional to max value)
     const getSize = (value, maxValue) => {
@@ -253,7 +312,7 @@ const IntelligencePage = () => {
             </div>
 
             {/* Central Panel - Fixed Height with Internal Scroll */}
-            <div className="bg-white h-[55vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
+            <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
                 {/* Scrollable Content */}
                 <div className="h-full overflow-y-auto p-5 scroll-smooth" id="central-panel-scroll">
 
@@ -261,20 +320,20 @@ const IntelligencePage = () => {
                     <div className="grid grid-cols-12 gap-4 mb-4">
 
                         {/* Left: Bubble Chart - Market Share */}
-                        <div className="col-span-5 bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl p-4 relative overflow-hidden min-h-[280px]">
+                        <div className="col-span-5 bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl relative overflow-hidden min-h-[280px] flex flex-col justify-center">
                             {/* Ambient glow effects */}
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none"></div>
                             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#082320]/80 pointer-events-none"></div>
 
-                            {/* Header - CENTERED */}
-                            <div className="relative z-10 text-center mb-2">
-                                <h3 className="font-['Roboto'] text-cyan-400/90 text-[10px] font-bold uppercase tracking-[0.25em]">
+                            {/* Header - ABSOLUTE positioning at top */}
+                            <div className="absolute top-4 left-0 right-0 z-10 text-center">
+                                <h3 className="font-['Roboto'] text-cyan-400/90 text-[11px] font-bold uppercase tracking-[0.25em]">
                                     Market Share: Top 6 Indústrias - Performance
                                 </h3>
                             </div>
 
-                            {/* BubbleChart Component */}
-                            <div className="relative z-10 h-[230px]">
+                            {/* BubbleChart Component - Centered in full height */}
+                            <div className="relative z-10 h-full w-full">
                                 <BubbleChart
                                     data={industries}
                                     selectedIndustryId={selectedIndustry?.codigo}
@@ -350,79 +409,124 @@ const IntelligencePage = () => {
                                 </div>
                             </div>
 
-                            {/* Metas Bar */}
-                            <div className="bg-gradient-to-r from-[#1a2e35] to-[#143228] rounded-lg p-2.5 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Target size={12} className="text-emerald-400" />
-                                    <span className="font-['Roboto'] text-[9px] font-bold text-white uppercase tracking-wide">
-                                        Metas atingidas (YTD) = Valor realizado vs Meta anual
-                                    </span>
+                            <div className="bg-gradient-to-r from-[#1a2e35] to-[#143228] rounded-lg py-2 px-3 flex flex-col items-center justify-center overflow-hidden shadow-inner border border-[#1a2e35] gap-1">
+                                {/* Centralized Title - In Flow */}
+                                <div className="bg-[#143228]/50 border border-[#1a2e35]/50 px-3 py-0.5 rounded-full shadow-sm backdrop-blur-sm">
+                                    <div className="flex items-center gap-1.5">
+                                        <Target size={10} className="text-emerald-400" />
+                                        <span className="font-['Roboto'] text-[9px] font-bold text-emerald-100 uppercase tracking-widest">
+                                            Metas atingidas (YTD) • Valor realizado vs Meta anual
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-4 text-[9px] font-mono">
-                                    <span className="text-white">FANIA: <b className="text-red-400">56,7%</b> ▼</span>
-                                    <span className="text-white">FUCHS: <b className="text-emerald-400">232,4%</b> ▲</span>
-                                    <span className="text-white">HENGST: <b className="text-red-400">99,1%</b> ▼</span>
-                                    <span className="text-white">HI TECH: <b className="text-emerald-400">125,9%</b> ▲</span>
+
+                                <div className="w-full overflow-hidden relative h-6">
+                                    <div className="flex items-center gap-12 animate-marquee whitespace-nowrap absolute top-0 left-0 hover:[animation-play-state:paused] w-max">
+                                        {[...goalScrollerData, ...goalScrollerData].map((item, idx) => {
+                                            const diff = item.total_sales - item.total_goal;
+                                            const isSurplus = diff >= 0;
+                                            const diffFormatted = new Intl.NumberFormat('pt-BR', {
+                                                style: 'currency',
+                                                currency: 'BRL',
+                                                maximumFractionDigits: 0
+                                            }).format(Math.abs(diff));
+
+                                            return (
+                                                <span key={`${item.industry}-${idx}`} className="font-['Roboto'] text-white flex items-center gap-2 select-none">
+                                                    <span className="font-['Roboto'] text-xs font-bold text-slate-300">{item.industry}</span>
+
+                                                    <span className={`font-['Roboto'] text-sm font-black ${isSurplus ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {item.percent.toFixed(1)}%
+                                                    </span>
+
+                                                    <span className={`font-['Roboto'] text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 ${isSurplus ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                        {isSurplus ? 'Superavit' : 'Falta'}
+                                                        <span className="font-['Roboto'] font-normal opacity-90">{diffFormatted}</span>
+                                                    </span>
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                    <style>{`
+                                        @keyframes marquee {
+                                            0% { transform: translateX(0); }
+                                            100% { transform: translateX(-50%); } 
+                                        }
+                                        .animate-marquee {
+                                            animation: marquee 60s linear infinite;
+                                        }
+                                    `}</style>
                                 </div>
                             </div>
 
                             {/* Evolution Chart */}
-                            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex-1 min-h-[140px]">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <p className="font-['Roboto'] text-[10px] font-bold text-slate-600 uppercase">Evolução do Faturamento</p>
-                                        <p className="text-[8px] text-slate-400">Análise de Tendência Mensal (MM) • Valor (R$)</p>
-                                    </div>
+                            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex-1 min-h-[280px] flex flex-col">
+                                <div className="text-center mb-3">
+                                    <p className="font-['Roboto'] text-xs font-bold text-slate-700 uppercase tracking-wide">Evolução do Volume de {filters.metrica === 'Valor' ? 'Vendas' : 'Peças'}</p>
+                                    <p className="font-['Roboto'] text-[10px] text-slate-500 mt-0.5">Análise de Tendência Mensal (MoM) • {filters.metrica} • {filters.ano}</p>
                                 </div>
-                                {/* Chart Placeholder */}
-                                <div className="h-[90px] flex items-end justify-between gap-1 px-2">
-                                    {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
-                                        <div key={m} className="flex flex-col items-center gap-1 flex-1">
-                                            <div
-                                                className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-sm transition-all hover:from-blue-600 hover:to-blue-500"
-                                                style={{ height: `${[30, 25, 35, 28, 45, 40, 38, 50, 55, 60, 75, 20][i]}px` }}
-                                            ></div>
-                                            <span className="text-[7px] text-slate-400 font-medium">{m}</span>
+
+                                <div className="flex-1 w-full min-h-0">
+                                    {loading ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
                                         </div>
-                                    ))}
+                                    ) : (
+                                        <EvolutionChart data={evolutionData} metrica={filters.metrica} />
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Row 2: Bottom Charts */}
-                    <div className="grid grid-cols-2 gap-4">
-                        {/* Análise em Quantidades */}
-                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[120px]">
-                            <div className="mb-2">
-                                <p className="font-['Roboto'] text-[11px] font-bold text-slate-700">Análise em Quantidades</p>
-                                <p className="text-[9px] text-slate-400">Curva 80/20</p>
+                    <div className="grid grid-cols-12 gap-4">
+                        {/* Pareto Chart - Aligned with Bubble Chart (col-span-5) */}
+                        <div className="col-span-5 bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[300px] flex flex-col">
+                            <div className="mb-1 text-center">
+                                <p className="font-['Roboto'] text-[11px] font-bold text-slate-700 uppercase">Curva ABC de Clientes (Pareto)</p>
+                                <p className="text-[9px] text-slate-400">Classificação 80/20 • {filters.metrica} • {filters.ano}</p>
                             </div>
-                            <div className="flex items-center justify-center h-[70px] text-slate-300 text-[10px]">
-                                Gráfico Curva 80/20 - Em desenvolvimento
+                            <div className="flex-1 w-full min-h-0">
+                                {loading ? (
+                                    <div className="h-full flex items-center justify-center">
+                                        <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
+                                    </div>
+                                ) : (
+                                    <ParetoChart data={paretoData} metrica={filters.metrica} />
+                                )}
                             </div>
                         </div>
 
-                        {/* Participação da Indústria */}
-                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[120px]">
-                            <div className="mb-2">
-                                <p className="font-['Roboto'] text-[11px] font-bold text-slate-700">Participação da Indústria</p>
-                                <p className="text-[9px] text-slate-400">Em relação ao faturamento total</p>
-                            </div>
-                            <div className="flex items-center justify-center h-[70px] text-slate-300 text-[10px]">
-                                Gráfico Pizza - Em desenvolvimento
+                        {/* Right column placeholder (col-span-7) */}
+                        <div className="col-span-7">
+                            {/* Participação da Indústria */}
+                            <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[300px] flex flex-col">
+                                <div className="mb-3 text-center">
+                                    <p className="font-['Roboto'] text-[11px] font-bold text-slate-700 uppercase">Ranking e Participação de Mercado</p>
+                                    <p className="text-[9px] text-slate-400">Desempenho por Indústria • {filters.metrica} • {filters.ano}</p>
+                                </div>
+                                <div className="flex-1 w-full min-h-0">
+                                    {loading ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
+                                        </div>
+                                    ) : (
+                                        <IndustryPerformanceChart data={industryPerformanceData} metrica={filters.metrica} />
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                </div >
-
-                {/* Scroll Indicator Arrow - Shows when there's more content */}
-                < div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce opacity-60 pointer-events-none" >
-                    <div className="w-5 h-5 border-b-2 border-r-2 border-slate-400 rotate-45 -mb-1"></div>
-                    <span className="text-[8px] text-slate-400 font-medium mt-1">Mais insights</span>
-                </div >
             </div >
+
+            {/* Scroll Indicator Arrow - Shows when there's more content */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce opacity-60 pointer-events-none z-40">
+                <div className="w-5 h-5 border-b-2 border-r-2 border-slate-400 rotate-45 -mb-1"></div>
+                <span className="text-[8px] text-slate-400 font-medium mt-1">Mais insights</span>
+            </div>
 
             {/* Bottom Menu - Dynamic PageControl */}
             < div className="fixed bottom-6 left-[calc(50%+9rem)] -translate-x-1/2 z-50" >
