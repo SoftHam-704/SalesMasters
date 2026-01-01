@@ -28,4 +28,5 @@ module.exports = function (app, pool) {
         }
     });
 
+    // Narratives are now handled by narratives_endpoints.js
 };

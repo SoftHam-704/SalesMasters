@@ -12,7 +12,8 @@ export const priceTableService = {
      * @returns {Promise<{success: boolean, data: Array}>}
      */
     async getByIndustry(industryCode) {
-        const response = await fetch(`${API_BASE_URL}/price-tables/${industryCode}`);
+        const encodedIndustry = encodeURIComponent(industryCode);
+        const response = await fetch(`${API_BASE_URL}/price-tables/${encodedIndustry}`);
         if (!response.ok) {
             throw new Error('Failed to fetch price tables');
         }
@@ -26,8 +27,10 @@ export const priceTableService = {
      * @returns {Promise<{success: boolean, data: Array}>}
      */
     async getProducts(industryCode, tableName) {
+        const encodedIndustry = encodeURIComponent(industryCode);
+        const encodedTable = encodeURIComponent(tableName);
         const response = await fetch(
-            `${API_BASE_URL}/products/${industryCode}/${tableName}`
+            `${API_BASE_URL}/products/${encodedIndustry}/${encodedTable}`
         );
         if (!response.ok) {
             throw new Error('Failed to fetch products');
@@ -42,8 +45,10 @@ export const priceTableService = {
      * @returns {Promise<{success: boolean, data: Array, total: number}>}
      */
     async getProductsFull(industryCode, tableName) {
+        const encodedIndustry = encodeURIComponent(industryCode);
+        const encodedTable = encodeURIComponent(tableName);
         const response = await fetch(
-            `${API_BASE_URL}/price-tables/${industryCode}/${tableName}/products-full`
+            `${API_BASE_URL}/price-tables/${encodedIndustry}/${encodedTable}/products-full`
         );
         if (!response.ok) {
             throw new Error('Failed to load price table memtable');
@@ -59,8 +64,11 @@ export const priceTableService = {
      * @returns {Promise<{success: boolean, data: Object}>}
      */
     async getProduct(industryCode, tableName, productCode) {
+        const encodedIndustry = encodeURIComponent(industryCode);
+        const encodedTable = encodeURIComponent(tableName);
+        const encodedProduct = encodeURIComponent(productCode);
         const response = await fetch(
-            `${API_BASE_URL}/price-tables/${industryCode}/${tableName}/products/${productCode}`
+            `${API_BASE_URL}/price-tables/${encodedIndustry}/${encodedTable}/products/${encodedProduct}`
         );
         if (!response.ok) {
             throw new Error('Failed to fetch product');

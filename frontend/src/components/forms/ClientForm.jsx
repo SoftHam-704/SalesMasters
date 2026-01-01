@@ -36,14 +36,15 @@ import { cn } from "@/lib/utils"
 import { Check, ChevronsUpDown, Loader2, Save, X } from "lucide-react";
 
 
-const ClientForm = ({ data, onClose, onSave }) => {
+const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
+    if (!open) return null;
+
     const [formData, setFormData] = useState({});
     const [areas, setAreas] = useState([]);
     // const [cities, setCities] = useState([]); // Removed bulk load
     const [cityOptions, setCityOptions] = useState([]); // For async search
     const [sellers, setSellers] = useState([]);
     const [regions, setRegions] = useState([]);
-    const [open, setOpen] = useState(false);
     const [openSeller, setOpenSeller] = useState(false);
     const [loadingAux, setLoadingAux] = useState(false);
 
@@ -1031,8 +1032,13 @@ const ClientForm = ({ data, onClose, onSave }) => {
 
     return (
         <FormCadPadrao
+            open={open}
+            onOpenChange={onOpenChange}
             title={formData.cli_codigo ? `Editar Cliente: ${formData.cli_nomred || formData.cli_nome || formData.cli_codigo}` : 'Novo Cliente'}
-            onClose={onClose}
+            onClose={() => {
+                if (onOpenChange) onOpenChange(false);
+                if (onClose) onClose();
+            }}
             onSave={handleSave}
             tabs={mainTabs}
             relatedTabs={relatedTabs}

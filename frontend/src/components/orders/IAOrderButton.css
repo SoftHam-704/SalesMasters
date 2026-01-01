@@ -1,0 +1,56 @@
+.ia-btn-light {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 36px;
+  padding: 0 14px;
+
+  background: #ffffff;
+  color: #2f3a4a;
+
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  position: relative;
+
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.2s ease;
+}
+
+/* Ícone */
+.ia-icon {
+  font-size: 14px;
+  color: #3b82f6;
+  /* azul suave */
+}
+
+/* Hover */
+.ia-btn-light:hover {
+  background: #f8fafc;
+  border-color: #cfe0ff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
+}
+
+/* Micro movimento */
+.ia-btn-light:hover .ia-icon {
+  transform: rotate(8deg);
+}
+
+/* Click */
+.ia-btn-light:active {
+  transform: scale(0.97);
+}
+
+/* Estado desabilitado */
+.ia-btn-light:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

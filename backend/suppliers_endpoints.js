@@ -1,33 +1,41 @@
-// ==================== SUPPLIERS (FORNECEDORES) ENDPOINTS ====================
 const express = require('express');
-const router = express.Router();
 
 module.exports = (pool) => {
+    const router = express.Router();
+
     // GET all suppliers
     router.get('/', async (req, res) => {
         try {
             const query = `
                 SELECT 
                     for_codigo as id,
-                    for_cnpj as cnpj,
+                    for_codigo,
+                    for_cgc as cnpj,
+                    for_cgc,
                     for_inscricao as inscricao,
-                    for_razao as "razaoSocial",
+                    for_nome as "razaoSocial",
                     for_nomered as nome,
+                    for_nomered,
                     for_nomered as "nomeReduzido",
-                    for_situacao as situacao,
+                    for_tipo2,
+                    for_tipo2 as situacao,
                     for_endereco as endereco,
                     for_bairro as bairro,
                     for_cidade as cidade,
                     for_uf as uf,
                     for_cep as cep,
-                    for_telefone as telefone,
+                    for_fone as telefone,
                     for_email as email,
-                    for_obs2 as obs2
+                    for_obs2 as obs2,
+                    for_homepage,
+                    for_locimagem,
+                    for_fax
                 FROM fornecedores
+                WHERE for_tipo2 = 'A'
                 ORDER BY for_nomered
             `;
             const result = await pool.query(query);
-            res.json(result.rows);
+            res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('Error fetching suppliers:', error);
             res.status(500).json({ error: error.message });
@@ -144,7 +152,10 @@ module.exports = (pool) => {
                     for_cep as cep,
                     for_telefone as telefone,
                     for_email as email,
-                    for_obs2 as obs2
+                    for_obs2 as obs2,
+                    for_homepage,
+                    for_locimagem,
+                    for_fax
                 FROM fornecedores
                 WHERE for_codigo = $1
             `;

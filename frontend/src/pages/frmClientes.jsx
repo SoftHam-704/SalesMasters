@@ -1,46 +1,14 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import {
-    Users,
-    Plus,
-    Search,
-    Filter,
-    RefreshCw,
-    MoreVertical,
-    Pencil,
-    ShieldCheck,
-    ShieldAlert,
-    Trash2
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import GridCadPadrao from "../components/GridCadPadrao";
 import ClientForm from "../components/forms/ClientForm";
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [showInactive, setShowInactive] = useState(false);
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
     const [selectedClient, setSelectedClient] = useState(null);
@@ -59,6 +27,9 @@ const FrmClientes = () => {
         return value;
     };
 
+
+    const [statusFilter, setStatusFilter] = useState("true"); // 'true' = Ativos, 'false' = Inativos, 'all' = Todos
+
     const fetchClients = async (page = 1) => {
         setLoading(true);
         try {
@@ -66,11 +37,8 @@ const FrmClientes = () => {
                 page: page.toString(),
                 limit: '10',
                 search: searchTerm,
+                active: statusFilter
             });
-
-            if (!showInactive) {
-                query.append('active', 'true');
-            }
 
             const response = await fetch(`http://localhost:3005/api/clients?${query.toString()}`);
             if (!response.ok) throw new Error('Falha ao buscar dados');
@@ -90,279 +58,169 @@ const FrmClientes = () => {
     };
 
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            fetchClients(1);
-        }, 300); // Debounce search
-        return () => clearTimeout(timeoutId);
-    }, [searchTerm, showInactive]);
+        // Trigger fetch when these change
+        fetchClients(1);
+    }, [statusFilter, searchTerm]); // Added statusFilter dependency
 
     const handleNew = () => {
         setSelectedClient(null);
         setIsFormOpen(true);
     };
 
-    const handleEdit = (client) => {
-        setSelectedClient(client);
-        setIsFormOpen(true);
-    };
-
-    const handleSave = async (data) => {
+    const handleSave = async (clientData) => {
+        // ... (existing handleSave)
+        setLoading(true);
         try {
-            const method = data.cli_codigo ? 'PUT' : 'POST';
-            const url = data.cli_codigo
-                ? `http://localhost:3005/api/clients/${data.cli_codigo}`
-                : `http://localhost:3005/api/clients`;
+            const method = selectedClient ? 'PUT' : 'POST';
+            const url = selectedClient
+                ? `http://localhost:3005/api/clients/${selectedClient.cli_codigo}`
+                : 'http://localhost:3005/api/clients';
 
             const response = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify(clientData)
             });
 
             const result = await response.json();
 
-            if (!response.ok) throw new Error(result.message || 'Erro ao salvar');
-
-            toast.success("Cliente salvo com sucesso!");
-            setIsFormOpen(false);
-            fetchClients(pagination.page);
+            if (result.success) {
+                toast.success(result.message);
+                setIsFormOpen(false);
+                fetchClients(pagination.page);
+            } else {
+                toast.error(result.message);
+            }
         } catch (error) {
-            console.error(error);
-            toast.error(error.message);
+            toast.error("Erro ao salvar: " + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleDelete = async (client) => {
-        if (!window.confirm(`Tem certeza que deseja excluir o cliente ${client.cli_nome}?`)) {
-            return;
-        }
+    const handleDelete = async (row) => {
+        if (!confirm(`Deseja realmente excluir o cliente ${row.cli_nomred}?`)) return;
 
+        setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/clients/${client.cli_codigo}`, {
-                method: 'DELETE',
+            const response = await fetch(`http://localhost:3005/api/clients/${row.cli_codigo}`, {
+                method: 'DELETE'
             });
-
             const result = await response.json();
 
-            if (!response.ok) throw new Error(result.message || 'Erro ao excluir');
-
-            toast.success("Cliente excluído com sucesso!");
-            fetchClients(pagination.page);
+            if (result.success) {
+                toast.success(result.message);
+                fetchClients(pagination.page);
+            } else {
+                toast.error(result.message);
+            }
         } catch (error) {
-            console.error(error);
-            toast.error(error.message);
+            toast.error("Erro ao excluir: " + error.message);
+        } finally {
+            setLoading(false);
         }
     };
+
+    const columns = [
+        { key: 'cli_codigo', label: 'Cód', width: '80px', isId: true },
+        {
+            key: 'cli_cnpj',
+            label: 'CPF/CNPJ',
+            width: '190px',
+            render: (row) => <span className="font-bold text-sm whitespace-nowrap">{formatCNPJ(row.cli_cnpj)}</span>
+        },
+        {
+            key: 'cli_nomred',
+            label: 'Nome Reduzido',
+            width: '180px', // Reverted to fixed but smaller width as requested "diminua um pouco"
+            render: (row) => (
+                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase truncate">
+                    {row.cli_nomred}
+                </Badge>
+            )
+        },
+        {
+            key: 'cli_nome',
+            label: 'Razão Social / Nome',
+            render: (row) => (
+                <div className="flex flex-col">
+                    <span className="font-medium text-sm text-foreground truncate">{row.cli_nome}</span>
+                    {row.cli_fantasia && row.cli_fantasia !== row.cli_nome && (
+                        <span className="text-xs text-muted-foreground truncate">{row.cli_fantasia}</span>
+                    )}
+                </div>
+            )
+        },
+        {
+            key: 'cli_cidade', // Keeping key, but data now comes from JOIN or fallback
+            label: 'Cidade/UF',
+            width: '150px',
+            render: (row) => <span className="text-sm">{row.cli_cidade}/{row.cli_uf}</span>
+        },
+        {
+            key: 'cli_tipopes',
+            label: 'Situação',
+            width: '100px',
+            align: 'center',
+            render: (row) => (
+                <Badge
+                    variant={row.cli_tipopes === 'A' ? "default" : "secondary"}
+                    className={row.cli_tipopes === 'A'
+                        ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border-emerald-500/20"
+                        : "bg-slate-100 text-slate-500 border-slate-200"}
+                >
+                    {row.cli_tipopes === 'A' ? "Ativo" : "Inativo"}
+                </Badge>
+            )
+        }
+    ];
+
+    // Extra controls for the grid (Status Filter)
+    const extraControls = (
+        <select
+            className="h-9 px-3 py-1 rounded-md border border-input bg-background text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+        >
+            <option value="true">Ativos</option>
+            <option value="false">Inativos</option>
+            <option value="all">Todos</option>
+        </select>
+    );
 
     return (
-        <div className="p-8 space-y-6 animate-fade-in">
-            {isFormOpen && (
-                <ClientForm
-                    data={selectedClient}
-                    onClose={() => setIsFormOpen(false)}
-                    onSave={handleSave}
-                />
-            )}
+        <div className="h-full bg-slate-50 p-6">
+            <ClientForm
+                open={isFormOpen}
+                onOpenChange={setIsFormOpen}
+                client={selectedClient} // Ensure this prop name matches usage in ClientForm (it was 'data' before, verify)
+                // Wait, ClientForm uses 'data' prop. I should fix this to 'data' here or update ClientForm. 
+                // Previous code passed 'client={selectedClient}' but let's check ClientForm definition.
+                // ClientForm definition: const ClientForm = ({ data, ... })
+                // Let's change prop name to 'data' here to be safe
+                data={selectedClient}
+                onSave={handleSave}
+            />
 
-            {/* Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-            >
-                <div>
-                    <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                        <Users className="h-8 w-8 text-primary" />
-                        <span className="text-gradient">Clientes</span>
-                    </h1>
-                    <p className="text-muted-foreground mt-2">
-                        Gerencie sua base de clientes
-                    </p>
-                </div>
-
-                <div className="flex gap-3">
-                    <Button
-                        onClick={handleNew}
-                        className="bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-xl transition-all duration-300"
-                    >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Novo Cliente
-                    </Button>
-                </div>
-            </motion.div>
-
-            {/* Filters */}
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="glass rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between"
-            >
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar por nome, fantasia ou CNPJ..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 bg-background/50 border-white/10 focus:border-primary/50 transition-all font-medium"
-                    />
-                </div>
-
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="flex items-center space-x-2 bg-background/30 px-3 py-2 rounded-lg border border-white/5">
-                        <Checkbox
-                            id="inactive"
-                            checked={showInactive}
-                            onCheckedChange={setShowInactive}
-                        />
-                        <Label htmlFor="inactive" className="text-sm font-medium cursor-pointer">
-                            Mostrar inativos
-                        </Label>
-                    </div>
-
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:text-primary"
-                        onClick={() => fetchClients(pagination.page)}
-                        disabled={loading}
-                    >
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
-                </div>
-            </motion.div>
-
-            {/* Table */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="glass rounded-xl border border-white/10 shadow-xl overflow-hidden"
-            >
-                <div className="p-1">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="hover:bg-white/5 border-white/10">
-                                <TableHead className="w-[80px] text-primary font-bold">Cód</TableHead>
-                                <TableHead className="w-[180px] text-primary font-bold">CPF/CNPJ</TableHead>
-                                <TableHead className="text-primary font-bold">Nome Reduzido</TableHead>
-                                <TableHead className="text-primary font-bold">Razão Social / Nome</TableHead>
-                                <TableHead className="text-primary font-bold">Cidade/UF</TableHead>
-                                <TableHead className="text-primary font-bold">Telefone</TableHead>
-                                <TableHead className="text-center text-primary font-bold">Situação</TableHead>
-                                <TableHead className="text-right text-primary font-bold">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                        Carregando dados...
-                                    </TableCell>
-                                </TableRow>
-                            ) : clients.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                        Nenhum cliente encontrado.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                clients.map((client) => (
-                                    <TableRow
-                                        key={client.cli_codigo}
-                                        className={`
-                                            group hover:bg-white/5 border-white/5 transition-colors duration-200
-                                            ${client.cli_tipopes === 'I' ? "opacity-60" : ""}
-                                        `}
-                                    >
-                                        <TableCell className="font-mono text-sm text-muted-foreground">
-                                            {client.cli_codigo}
-                                        </TableCell>
-                                        <TableCell className="font-medium font-mono text-sm whitespace-nowrap">
-                                            {formatCNPJ(client.cli_cnpj)}
-                                        </TableCell>
-                                        <TableCell className="font-semibold text-orange-500">
-                                            {client.cli_nomred}
-                                        </TableCell>
-                                        <TableCell className="font-semibold text-foreground/90">
-                                            {client.cli_nome}
-                                            {client.cli_fantasia && client.cli_fantasia !== client.cli_nome && (
-                                                <div className="text-xs text-muted-foreground font-normal">
-                                                    {client.cli_fantasia}
-                                                </div>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="text-sm">
-                                            {client.cli_cidade}/{client.cli_uf}
-                                        </TableCell>
-                                        <TableCell className="text-sm font-mono text-muted-foreground">
-                                            {client.cli_fone1}
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            <Badge
-                                                variant={client.cli_tipopes === 'A' ? "default" : "secondary"}
-                                                className={`
-                                                    ${client.cli_tipopes === 'A'
-                                                        ? "bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/25 border-emerald-500/20"
-                                                        : "bg-slate-500/15 text-slate-600 hover:bg-slate-500/25 border-slate-500/20"
-                                                    }
-                                                `}
-                                            >
-                                                {client.cli_tipopes === 'A' ? "Ativo" : "Inativo"}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleEdit(client)}
-                                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                    title="Editar"
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDelete(client)}
-                                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-
-                    {/* Simple Pagination */}
-                    <div className="flex items-center justify-end space-x-2 py-4 px-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchClients(pagination.page - 1)}
-                            disabled={pagination.page <= 1 || loading}
-                        >
-                            Anterior
-                        </Button>
-                        <div className="text-sm text-muted-foreground">
-                            Página {pagination.page} de {pagination.totalPages}
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchClients(pagination.page + 1)}
-                            disabled={pagination.page >= pagination.totalPages || loading}
-                        >
-                            Próxima
-                        </Button>
-                    </div>
-                </div>
-            </motion.div>
+            <GridCadPadrao
+                title="Clientes"
+                subtitle="Gerencie sua base de clientes"
+                icon={Users}
+                data={clients}
+                loading={loading}
+                columns={columns}
+                searchPlaceholder="Buscar por nome, fantasia ou CNPJ..."
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                pagination={pagination}
+                onPageChange={(page) => fetchClients(page)}
+                onNew={handleNew}
+                onEdit={(row) => { setSelectedClient(row); setIsFormOpen(true); }}
+                onDelete={handleDelete}
+                onRefresh={() => fetchClients(pagination.page)}
+                newButtonLabel="Novo Cliente"
+                extraControls={extraControls}
+            />
         </div>
     );
 };

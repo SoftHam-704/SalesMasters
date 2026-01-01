@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Pencil, Trash2, RefreshCw, Plus } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import ActivityAreaForm from '../components/forms/ActivityAreaForm';
+import { useState, useEffect } from "react";
+import { Map } from "lucide-react";
 import { toast } from "sonner";
+import ActivityAreaForm from "../components/forms/ActivityAreaForm";
+import GridCadPadrao from "../components/GridCadPadrao";
 
 const FrmAreaAtuacao = () => {
     const [areas, setAreas] = useState([]);
-    const [filteredAreas, setFilteredAreas] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showForm, setShowForm] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
     const [selectedArea, setSelectedArea] = useState(null);
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
     const fetchAreas = async () => {
         setLoading(true);
@@ -20,7 +18,6 @@ const FrmAreaAtuacao = () => {
             const data = await response.json();
             if (data.success) {
                 setAreas(data.data);
-                setFilteredAreas(data.data);
             }
         } catch (error) {
             console.error('Erro ao carregar áreas de atuação:', error);
@@ -34,25 +31,14 @@ const FrmAreaAtuacao = () => {
         fetchAreas();
     }, []);
 
-    useEffect(() => {
-        if (searchTerm.trim() === '') {
-            setFilteredAreas(areas);
-        } else {
-            const filtered = areas.filter(area =>
-                area.atu_descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            setFilteredAreas(filtered);
-        }
-    }, [searchTerm, areas]);
-
     const handleNew = () => {
         setSelectedArea(null);
-        setShowForm(true);
+        setIsFormOpen(true);
     };
 
     const handleEdit = (area) => {
         setSelectedArea(area);
-        setShowForm(true);
+        setIsFormOpen(true);
     };
 
     const handleDelete = async (area) => {
@@ -89,9 +75,7 @@ const FrmAreaAtuacao = () => {
 
             const response = await fetch(url, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
 
@@ -99,7 +83,7 @@ const FrmAreaAtuacao = () => {
 
             if (data.success) {
                 toast.success(data.message || 'Área de atuação salva com sucesso!');
-                setShowForm(false);
+                setIsFormOpen(false);
                 fetchAreas();
             } else {
                 toast.error(data.message || 'Erro ao salvar área');
@@ -110,107 +94,55 @@ const FrmAreaAtuacao = () => {
         }
     };
 
-    if (showForm) {
-        return (
-            <ActivityAreaForm
-                data={selectedArea}
-                onClose={() => setShowForm(false)}
-                onSave={handleSave}
-            />
-        );
-    }
+    // Definição das colunas
+    const columns = [
+        {
+            key: 'atu_id',
+            label: 'ID',
+            width: '80px',
+            isId: true
+        },
+        {
+            key: 'atu_descricao',
+            label: 'Descrição',
+            cellClass: 'font-semibold text-orange-600'
+        }
+    ];
+
+    // Filtrar dados localmente
+    const filteredAreas = searchTerm
+        ? areas.filter(area =>
+            area.atu_descricao?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        : areas;
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b px-6 py-4">
-                <h1 className="text-2xl font-bold text-gray-800">Cadastro de Áreas de Atuação</h1>
-            </div>
-
-            {/* Toolbar */}
-            <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
-                <Input
-                    placeholder="pesquisar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-xs h-9 text-sm"
+        <>
+            {isFormOpen && (
+                <ActivityAreaForm
+                    data={selectedArea}
+                    onClose={() => setIsFormOpen(false)}
+                    onSave={handleSave}
                 />
-                <Button
-                    onClick={handleNew}
-                    size="sm"
-                    className="h-9 text-sm"
-                >
-                    <Plus size={16} className="mr-2" />
-                    Novo
-                </Button>
-                <Button
-                    onClick={fetchAreas}
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-sm"
-                >
-                    <RefreshCw size={16} className="mr-2" />
-                    Atualizar
-                </Button>
-            </div>
+            )}
 
-            {/* Grid */}
-            <div className="flex-1 overflow-auto px-6 py-4">
-                {loading ? (
-                    <div className="text-center py-8 text-gray-500">Carregando...</div>
-                ) : filteredAreas.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                        {searchTerm ? 'Nenhuma área encontrada' : 'Nenhuma área cadastrada'}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-lg border overflow-hidden">
-                        <table className="w-full">
-                            <thead className="bg-gray-100 border-b">
-                                <tr>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700 w-24">ID</th>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700">Descrição</th>
-                                    <th className="text-center p-3 text-sm font-semibold text-gray-700 w-24">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredAreas.map((area) => (
-                                    <tr
-                                        key={area.atu_id}
-                                        className="border-b hover:bg-gray-50 cursor-pointer"
-                                        onDoubleClick={() => handleEdit(area)}
-                                    >
-                                        <td className="p-3 text-sm text-gray-600">{area.atu_id}</td>
-                                        <td className="p-3 text-sm font-semibold text-orange-600">{area.atu_descricao}</td>
-                                        <td className="p-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleEdit(area)}
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={16} className="text-blue-600" />
-                                                </Button>
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleDelete(area)}
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 size={16} className="text-red-600" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-        </div>
+            <GridCadPadrao
+                title="Áreas de Atuação"
+                subtitle="Gerencie as áreas de atuação"
+                icon={Map}
+                data={filteredAreas}
+                loading={loading}
+                columns={columns}
+                searchPlaceholder="Buscar por descrição..."
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                onNew={handleNew}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={fetchAreas}
+                newButtonLabel="Nova Área"
+            />
+        </>
     );
 };
 

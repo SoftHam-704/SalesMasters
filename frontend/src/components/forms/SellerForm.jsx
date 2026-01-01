@@ -87,6 +87,19 @@ const SellerForm = ({ data, onClose, onSave }) => {
         }
     };
 
+    // Load users for the dropdown
+    const loadUsers = async () => {
+        try {
+            const res = await fetch('http://localhost:3005/api/users');
+            if (res.ok) {
+                const json = await res.json();
+                setUsers(json.data || []);
+            }
+        } catch (error) {
+            console.error("Erro ao carregar usuários", error);
+        }
+    };
+
     useEffect(() => {
         if (data?.ven_codigo) {
             fetchIndustries();
@@ -97,6 +110,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
         }
         loadSuppliers();
         loadAllRegions();
+        loadUsers();
     }, [data?.ven_codigo]);
 
     useEffect(() => {
@@ -292,11 +306,21 @@ const SellerForm = ({ data, onClose, onSave }) => {
                         </div>
                         <div>
                             <Label className="text-xs">Usuário (para controle de acesso)</Label>
-                            <Input
+                            <Select
                                 value={formData.ven_nomeusu || ''}
-                                onChange={(e) => handleChange('ven_nomeusu', e.target.value)}
-                                className="h-8 text-sm"
-                            />
+                                onValueChange={(value) => handleChange('ven_nomeusu', value)}
+                            >
+                                <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Selecione um usuário" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {users.map((user) => (
+                                        <SelectItem key={user.codigo} value={user.usuario}>
+                                            {user.nome} {user.sobrenome} ({user.usuario})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 

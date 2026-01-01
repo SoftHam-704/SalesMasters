@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Pencil, Trash2, RefreshCw, Plus } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import ProductGroupForm from '../components/forms/ProductGroupForm';
+import { useState, useEffect } from "react";
+import { Package } from "lucide-react";
 import { toast } from "sonner";
+import ProductGroupForm from "../components/forms/ProductGroupForm";
+import GridCadPadrao from "../components/GridCadPadrao";
 
 const FrmGrupoPro = () => {
     const [groups, setGroups] = useState([]);
-    const [filteredGroups, setFilteredGroups] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showForm, setShowForm] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
     const [selectedGroup, setSelectedGroup] = useState(null);
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
-    // Fetch groups from API
     const fetchGroups = async () => {
         setLoading(true);
         try {
@@ -21,7 +18,6 @@ const FrmGrupoPro = () => {
             const data = await response.json();
             if (data.success) {
                 setGroups(data.data);
-                setFilteredGroups(data.data);
             }
         } catch (error) {
             console.error('Erro ao carregar grupos:', error);
@@ -35,27 +31,14 @@ const FrmGrupoPro = () => {
         fetchGroups();
     }, []);
 
-    // Filter groups based on search term
-    useEffect(() => {
-        if (searchTerm.trim() === '') {
-            setFilteredGroups(groups);
-        } else {
-            const filtered = groups.filter(group =>
-                group.gru_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                group.gru_codigo?.toString().includes(searchTerm)
-            );
-            setFilteredGroups(filtered);
-        }
-    }, [searchTerm, groups]);
-
     const handleNew = () => {
         setSelectedGroup(null);
-        setShowForm(true);
+        setIsFormOpen(true);
     };
 
     const handleEdit = (group) => {
         setSelectedGroup(group);
-        setShowForm(true);
+        setIsFormOpen(true);
     };
 
     const handleDelete = async (group) => {
@@ -77,7 +60,7 @@ const FrmGrupoPro = () => {
                 toast.error(data.message || 'Erro ao excluir grupo');
             }
         } catch (error) {
-            console.error('Erro ao excluir grupo:', error);
+            console.error('Erro ao excluir:', error);
             toast.error('Erro ao excluir grupo');
         }
     };
@@ -92,9 +75,7 @@ const FrmGrupoPro = () => {
 
             const response = await fetch(url, {
                 method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
 
@@ -102,128 +83,67 @@ const FrmGrupoPro = () => {
 
             if (data.success) {
                 toast.success(data.message || 'Grupo salvo com sucesso!');
-                setShowForm(false);
+                setIsFormOpen(false);
                 fetchGroups();
             } else {
-                toast.error(data.message || 'Erro ao salvar grupo');
+                toast.error(data.message || 'Erro ao salvar');
             }
         } catch (error) {
-            console.error('Erro ao salvar grupo:', error);
+            console.error('Erro:', error);
             toast.error('Erro ao salvar grupo');
         }
     };
 
-    if (showForm) {
-        return (
-            <ProductGroupForm
-                data={selectedGroup}
-                onClose={() => setShowForm(false)}
-                onSave={handleSave}
-            />
-        );
-    }
+    // Definição das colunas
+    const columns = [
+        {
+            key: 'gru_codigo',
+            label: 'ID',
+            width: '80px',
+            isId: true
+        },
+        {
+            key: 'gru_nome',
+            label: 'Descrição',
+            cellClass: 'font-semibold text-foreground/90'
+        }
+    ];
+
+    // Filtrar dados localmente
+    const filteredGroups = searchTerm
+        ? groups.filter(g =>
+            g.gru_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            g.gru_codigo?.toString().includes(searchTerm)
+        )
+        : groups;
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b px-6 py-4">
-                <h1 className="text-2xl font-bold text-gray-800">Cadastro de Grupos de Produtos</h1>
-            </div>
-
-            {/* Toolbar */}
-            <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
-                <Input
-                    placeholder="pesquisar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-xs h-9 text-sm"
+        <>
+            {isFormOpen && (
+                <ProductGroupForm
+                    data={selectedGroup}
+                    onClose={() => setIsFormOpen(false)}
+                    onSave={handleSave}
                 />
-                <Button
-                    onClick={handleNew}
-                    size="sm"
-                    className="h-9 text-sm"
-                >
-                    <Plus size={16} className="mr-2" />
-                    Novo
-                </Button>
-                <Button
-                    onClick={fetchGroups}
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-sm"
-                >
-                    <RefreshCw size={16} className="mr-2" />
-                    Atualizar
-                </Button>
-            </div>
+            )}
 
-            {/* Grid */}
-            <div className="flex-1 overflow-auto px-6 py-4">
-                {loading ? (
-                    <div className="text-center py-8 text-gray-500">Carregando...</div>
-                ) : filteredGroups.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                        {searchTerm ? 'Nenhum grupo encontrado' : 'Nenhum grupo cadastrado'}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-lg border overflow-hidden">
-                        <table className="w-full">
-                            <thead className="bg-gray-100 border-b">
-                                <tr>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700 w-24">
-                                        ID
-                                    </th>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                                        Descrição
-                                    </th>
-                                    <th className="text-center p-3 text-sm font-semibold text-gray-700 w-32">
-                                        Ações
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredGroups.map((group) => (
-                                    <tr
-                                        key={group.gru_codigo}
-                                        className="border-b hover:bg-gray-50 cursor-pointer"
-                                        onDoubleClick={() => handleEdit(group)}
-                                    >
-                                        <td className="p-3 text-sm text-gray-600">
-                                            {group.gru_codigo}
-                                        </td>
-                                        <td className="p-3 text-sm text-gray-900">
-                                            {group.gru_nome}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-8 w-8"
-                                                    onClick={() => handleEdit(group)}
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={16} className="text-blue-600" />
-                                                </Button>
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-8 w-8"
-                                                    onClick={() => handleDelete(group)}
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 size={16} className="text-red-600" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-        </div>
+            <GridCadPadrao
+                title="Grupos de Produtos"
+                subtitle="Gerencie os grupos de produtos"
+                icon={Package}
+                data={filteredGroups}
+                loading={loading}
+                columns={columns}
+                searchPlaceholder="Buscar por descrição ou código..."
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                onNew={handleNew}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={fetchGroups}
+                newButtonLabel="Novo Grupo"
+            />
+        </>
     );
 };
 

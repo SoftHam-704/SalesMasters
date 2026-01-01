@@ -154,7 +154,9 @@ module.exports = (pool) => {
             console.log(`📦 [PRODUCTS] Buscando produtos: industria=${industria}, tabela="${tabela}"`);
 
             const result = await pool.query(
-                'SELECT * FROM fn_listar_produtos_tabela($1, $2)',
+                `SELECT f.*, p.pro_codigonormalizado 
+                 FROM fn_listar_produtos_tabela($1, $2) f 
+                 JOIN cad_prod p ON f.itab_idprod = p.pro_id`,
                 [industria, tabela]
             );
 

@@ -206,14 +206,14 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         switch (activeTab) {
             case 'principal':
                 return (
-                    <div className="space-y-1 p-1">
+                    <div className="space-y-4 p-4">
                         {/* ROW 1: CNPJ, IE, Situacao */}
-                        <div className="flex gap-1.5 items-end">
-                            <div className="w-40 relative">
-                                <Label className="text-[10px] text-muted-foreground">CNPJ <span className="text-[10px] text-gray-400 font-normal">Somente números</span></Label>
+                        <div className="flex gap-4 items-end">
+                            <div className="flex-1 min-w-[200px] relative">
+                                <Label className="text-xs text-muted-foreground">CNPJ <span className="text-[10px] text-gray-400 font-normal">Somente números</span></Label>
                                 <div className="relative flex items-center">
                                     <Input
-                                        className="h-7 text-xs font-mono pr-8 bg-yellow-50/50 border-yellow-200 focus:border-yellow-400"
+                                        className="h-9 text-sm font-mono pr-10 bg-yellow-50/50 border-yellow-200 focus:border-yellow-400"
                                         value={formData.cnpj || ''}
                                         onChange={(e) => handleChange('cnpj', e.target.value)}
                                         onFocus={handleCNPJFocus}
@@ -223,26 +223,26 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                     <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="absolute right-0 h-7 w-7 text-muted-foreground hover:text-emerald-600"
+                                        className="absolute right-0 h-9 w-9 text-muted-foreground hover:text-emerald-600"
                                         onClick={handleConsultarCNPJ}
                                         disabled={!!supplier?.id}
                                         title="Consultar na Receita Federal"
                                     >
-                                        <Radio className="h-3 w-3" />
+                                        <Radio className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
-                            <div className="w-32">
-                                <Label className="text-[10px] text-muted-foreground">Inscrição</Label>
-                                <Input className="h-7 text-xs bg-muted/10 font-mono" value={formData.inscricao || ''} readOnly />
+                            <div className="w-48">
+                                <Label className="text-xs text-muted-foreground">Inscrição</Label>
+                                <Input className="h-9 text-sm bg-muted/10 font-mono" value={formData.inscricao || ''} readOnly />
                             </div>
-                            <div className="w-32">
-                                <Label className="text-[10px] text-muted-foreground">Situação</Label>
+                            <div className="w-40">
+                                <Label className="text-xs text-muted-foreground">Situação</Label>
                                 <Select
                                     value={formData.situacao === "Ativo" ? "ativo" : "inativo"}
                                     onValueChange={(val) => handleChange('situacao', val === 'ativo' ? 'Ativo' : 'Inativo')}
                                 >
-                                    <SelectTrigger className="h-7 text-xs">
+                                    <SelectTrigger className="h-9 text-sm">
                                         <SelectValue placeholder="Selecione" />
                                     </SelectTrigger>
                                     <SelectContent className="z-[9999]">
@@ -255,52 +255,54 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
                         {/* ROW 2: Razao Social */}
                         <div>
-                            <Label className="text-[10px] text-muted-foreground">Razão social</Label>
+                            <Label className="text-xs text-muted-foreground">Razão social</Label>
                             <Input
-                                className="h-7 text-xs font-bold bg-white text-black"
+                                className="h-9 text-sm font-bold bg-white text-black text-lg"
                                 value={formData.razaoSocial || ''}
                                 onChange={(e) => handleChange('razaoSocial', e.target.value)}
                             />
                         </div>
 
                         {/* ROW 3: Address */}
-                        <div className="flex gap-1.5 items-end">
+                        <div className="flex gap-4 items-end">
                             <div className="flex-[2]">
-                                <Label className="text-[10px] text-muted-foreground">Endereço</Label>
+                                <Label className="text-xs text-muted-foreground">Endereço</Label>
                                 <Input
-                                    className="h-7 text-xs"
+                                    className="h-9 text-sm"
                                     value={formData.endereco || ''}
                                     onChange={(e) => handleChange('endereco', e.target.value)}
                                 />
                             </div>
                             <div className="flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Bairro</Label>
+                                <Label className="text-xs text-muted-foreground">Bairro</Label>
                                 <Input
-                                    className="h-7 text-xs"
+                                    className="h-9 text-sm"
                                     value={formData.bairro || ''}
                                     onChange={(e) => handleChange('bairro', e.target.value)}
                                 />
                             </div>
-                            <div className="flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Cidade</Label>
+                        </div>
+                        <div className="flex gap-4 items-end">
+                            <div className="flex-[2]">
+                                <Label className="text-xs text-muted-foreground">Cidade</Label>
                                 <Input
-                                    className="h-7 text-xs"
+                                    className="h-9 text-sm"
                                     value={formData.cidade || ''}
                                     onChange={(e) => handleChange('cidade', e.target.value)}
                                 />
                             </div>
-                            <div className="w-16">
-                                <Label className="text-[10px] text-muted-foreground">UF</Label>
+                            <div className="w-20">
+                                <Label className="text-xs text-muted-foreground">UF</Label>
                                 <Input
-                                    className="h-7 text-xs text-center"
+                                    className="h-9 text-sm text-center"
                                     value={formData.uf || ''}
                                     onChange={(e) => handleChange('uf', e.target.value)}
                                 />
                             </div>
-                            <div className="w-24">
-                                <Label className="text-[10px] text-muted-foreground">Cep</Label>
+                            <div className="w-32">
+                                <Label className="text-xs text-muted-foreground">Cep</Label>
                                 <Input
-                                    className="h-7 text-xs"
+                                    className="h-9 text-sm"
                                     value={formData.cep || ''}
                                     onChange={(e) => handleChange('cep', e.target.value)}
                                 />
@@ -308,35 +310,31 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                         </div>
 
                         {/* ROW 4: Phones, Email, Reduzido */}
-                        <div className="flex gap-1.5 items-end">
-                            <div className="w-32">
-                                <Label className="text-[10px] text-muted-foreground">Telefone</Label>
+                        <div className="flex gap-4 items-end">
+                            <div className="w-40">
+                                <Label className="text-xs text-muted-foreground">Telefone</Label>
                                 <Input
-                                    className="h-7 text-xs font-mono"
+                                    className="h-9 text-sm font-mono"
                                     value={formData.telefone || ''}
                                     onChange={(e) => handleChange('telefone', e.target.value)}
                                 />
                             </div>
-                            <div className="w-32">
-                                <Label className="text-[10px] text-muted-foreground">Telefone 2</Label>
-                                <Input className="h-7 text-xs font-mono" placeholder="" />
-                            </div>
-                            <div className="w-32">
-                                <Label className="text-[10px] text-muted-foreground">Fax</Label>
-                                <Input className="h-7 text-xs font-mono" placeholder="" />
+                            <div className="w-40">
+                                <Label className="text-xs text-muted-foreground">Telefone 2</Label>
+                                <Input className="h-9 text-sm font-mono" placeholder="" />
                             </div>
                             <div className="flex-[1.5]">
-                                <Label className="text-[10px] text-muted-foreground">E-mail</Label>
+                                <Label className="text-xs text-muted-foreground">E-mail</Label>
                                 <Input
-                                    className="h-7 text-xs"
+                                    className="h-9 text-sm"
                                     value={formData.email || ''}
                                     onChange={(e) => handleChange('email', e.target.value)}
                                 />
                             </div>
                             <div className="flex-1">
-                                <Label className="text-[10px] text-muted-foreground font-semibold">Nome reduzido</Label>
+                                <Label className="text-xs text-muted-foreground font-semibold">Nome reduzido</Label>
                                 <Input
-                                    className="h-7 text-xs font-bold text-red-900 border-red-500 bg-red-50/20"
+                                    className="h-9 text-sm font-bold text-red-900 border-red-500 bg-red-50/20"
                                     value={formData.nomeReduzido || ''}
                                     onChange={(e) => handleChange('nomeReduzido', e.target.value)}
                                 />
@@ -351,11 +349,19 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                         <div className="space-y-1.5">
                             <div>
                                 <Label className="text-[10px] text-muted-foreground">Imagem para aplicativos</Label>
-                                <Input className="h-7 text-xs bg-yellow-50/50 border-yellow-200" defaultValue="https://www.softham.com.br/clientes/nds/2m.jpg" />
+                                <Input
+                                    className="h-7 text-xs bg-yellow-50/50 border-yellow-200"
+                                    value={formData.homepage || ''}
+                                    onChange={(e) => handleChange('homepage', e.target.value)}
+                                />
                             </div>
                             <div>
                                 <Label className="text-[10px] text-muted-foreground">Logotipo</Label>
-                                <Input className="h-7 text-xs bg-muted/10" defaultValue="z:\logo\2mplas.jpg" />
+                                <Input
+                                    className="h-7 text-xs bg-muted/10"
+                                    value={formData.locimagem || ''}
+                                    onChange={(e) => handleChange('locimagem', e.target.value)}
+                                />
                             </div>
                             <div>
                                 <Label className="text-[10px] text-muted-foreground">Observações</Label>

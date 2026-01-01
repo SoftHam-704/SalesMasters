@@ -18,7 +18,6 @@ import {
     Sparkles
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
-import { ThemeToggle } from '../components/ThemeToggle';
 import './Dashboard.css';
 
 
@@ -40,17 +39,20 @@ const Dashboard = () => {
     const [salesComparison, setSalesComparison] = useState([]);
     const [quantitiesComparison, setQuantitiesComparison] = useState([]);
     const [topClients, setTopClients] = useState([]);
+    const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loadingQuantities, setLoadingQuantities] = useState(true);
     const [loadingClients, setLoadingClients] = useState(true);
-    const [industryRevenue, setIndustryRevenue] = useState([]);
     const [loadingIndustry, setLoadingIndustry] = useState(true);
+    const [loadingMetrics, setLoadingMetrics] = useState(true);
+    const [industryRevenue, setIndustryRevenue] = useState([]);
 
     useEffect(() => {
         fetchSalesComparison();
         fetchQuantitiesComparison();
         fetchTopClients();
         fetchIndustryRevenue();
+        fetchDashboardMetrics();
     }, [selectedYear, selectedMonth]);
 
     const fetchSalesComparison = async () => {
@@ -144,6 +146,30 @@ const Dashboard = () => {
         }
     };
 
+    const fetchDashboardMetrics = async () => {
+        try {
+            setLoadingMetrics(true);
+            const params = new URLSearchParams({
+                ano: selectedYear
+            });
+
+            if (selectedMonth) {
+                params.append('mes', selectedMonth);
+            }
+
+            const response = await fetch(`http://localhost:3005/api/dashboard/metrics?${params}`);
+            const data = await response.json();
+
+            if (data.success) {
+                setMetrics(data.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar métricas do dashboard:', error);
+        } finally {
+            setLoadingMetrics(false);
+        }
+    };
+
     const getGreeting = () => {
         const hour = new Date().getHours();
         if (hour < 12) return 'Bom dia';
@@ -171,15 +197,11 @@ const Dashboard = () => {
                         >
                             👋
                         </motion.span>
-                        <ThemeToggle />
                     </div>
                 </div>
                 <div className="welcome-subtitle">
                     <Flame className="flame-icon" />
-                    <span className="streak-text">12 dias de sequência!</span>
-                    <span className="separator">·</span>
-                    <span>Você está no top 5% dos vendedores esta semana</span>
-                    <Sparkles className="sparkles-icon" />
+                    <span className="welcome-slogan">Inteligência comercial que guia decisões.</span>
                 </div>
             </motion.div>
 
@@ -194,33 +216,55 @@ const Dashboard = () => {
             {/* Metrics Grid */}
             <div className="metrics-grid">
                 <MetricCard
-                    title="Vendas do Mês"
-                    value="R$ 127.450"
-                    change={23.5}
+                    title="Total Vendido"
+                    value={loadingMetrics || !metrics ? "..." : `R$ ${parseFloat(metrics.total_vendido_current || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    change={loadingMetrics || !metrics ? 0 : parseFloat(metrics.vendas_percent_change || 0)}
                     icon={DollarSign}
                     delay={0.1}
                 />
                 <MetricCard
-                    title="Novos Clientes"
-                    value="48"
-                    change={12.3}
+                    title="Quantidade Vendida"
+                    value={loadingMetrics || !metrics ? "..." : Math.round(parseFloat(metrics.quantidade_vendida_current || 0)).toLocaleString('pt-BR')}
+                    change={loadingMetrics || !metrics ? 0 : parseFloat(metrics.quantidade_percent_change || 0)}
                     icon={Users}
                     delay={0.2}
                 />
                 <MetricCard
-                    title="Taxa de Conversão"
-                    value="34.2%"
-                    change={8.1}
+                    title="Clientes Atendidos"
+                    value={loadingMetrics || !metrics ? "..." : String(metrics.clientes_atendidos_current || 0)}
+                    change={loadingMetrics || !metrics ? 0 : parseFloat(metrics.clientes_percent_change || 0)}
                     icon={Target}
                     delay={0.3}
                 />
                 <MetricCard
-                    title="Ticket Médio"
-                    value="R$ 2.655"
-                    change={-2.4}
+                    title="Qtd. Pedidos"
+                    value={loadingMetrics || !metrics ? "..." : parseFloat(metrics.qtd_pedidos_current || 0).toLocaleString('pt-BR')}
+                    change={loadingMetrics || !metrics ? 0 : parseFloat(metrics.pedidos_percent_change || 0)}
                     icon={TrendingUp}
                     delay={0.4}
                 />
+
+                {(() => {
+                    const totalVendido = parseFloat(metrics?.total_vendido_current || 0);
+                    const clientesAtendidos = parseFloat(metrics?.clientes_atendidos_current || 0);
+                    const ticketMedio = clientesAtendidos > 0 ? totalVendido / clientesAtendidos : 0;
+
+                    // Approximate Ticket Change
+                    const sPct = parseFloat(metrics?.vendas_percent_change || 0) / 100;
+                    const cPct = parseFloat(metrics?.clientes_percent_change || 0) / 100;
+                    // T_change = ((1 + S) / (1 + C)) - 1
+                    const tChange = (1 + cPct) !== 0 ? (((1 + sPct) / (1 + cPct)) - 1) * 100 : 0;
+
+                    return (
+                        <MetricCard
+                            title="Ticket Médio"
+                            value={loadingMetrics || !metrics ? "..." : `R$ ${ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                            change={loadingMetrics || !metrics ? 0 : tChange}
+                            icon={Sparkles}
+                            delay={0.5}
+                        />
+                    );
+                })()}
             </div>
 
             {/* Main Content Grid */}
@@ -246,13 +290,13 @@ const Dashboard = () => {
                                 Ver relatório <ArrowRight className="arrow-icon" />
                             </button>
                         </div>
-                        <div className="chart-container">
+                        <div className="chart-container" style={{ height: '200px', width: '100%' }}>
                             {loadingQuantities ? (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '180px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                                     <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height={180}>
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <AreaChart data={quantitiesComparison}>
                                         <defs>
                                             <linearGradient id="colorQty2025" x1="0" y1="0" x2="0" y2="1">
@@ -333,13 +377,13 @@ const Dashboard = () => {
                             <h3 className="card-title">Comparação de Vendas ({selectedYear - 1} vs {selectedYear})</h3>
                             <button className="btn-link-small">Ver detalhes</button>
                         </div>
-                        <div className="chart-container" style={{ height: '180px', padding: '10px' }}>
+                        <div className="chart-container" style={{ height: '200px', width: '100%', padding: '10px' }}>
                             {loading ? (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                                     <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <AreaChart data={salesComparison}>
                                         <defs>
                                             <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">

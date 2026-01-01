@@ -7,6 +7,24 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const XLSX = require('xlsx');
 const path = require('path');
+const multer = require('multer');
+
+// Configure multer for logo uploads
+const logoStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = 'C:\\SalesMasters\\Imagens';
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Keep original filename
+        cb(null, file.originalname);
+    }
+});
+const uploadLogo = multer({ storage: logoStorage });
 
 const app = express();
 const PORT = 3005;
@@ -15,6 +33,26 @@ const PORT = 3005;
 app.use(cors());
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Serve static images from C:\SalesMasters\Imagens
+app.use('/images', express.static('C:\\SalesMasters\\Imagens'));
+
+// Endpoint to serve any local image file
+app.get('/api/image', (req, res) => {
+    const { path: imagePath } = req.query;
+
+    if (!imagePath) {
+        return res.status(400).json({ success: false, message: 'Path is required' });
+    }
+
+    // Check if file exists
+    if (!fs.existsSync(imagePath)) {
+        return res.status(404).json({ success: false, message: 'Image not found' });
+    }
+
+    // Send the file
+    res.sendFile(imagePath);
+});
 
 // Root Route
 app.get('/', (req, res) => {
@@ -28,7 +66,7 @@ app.get('/', (req, res) => {
 // Logging Middleware
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    if (req.method === 'PUT' || req.method === 'POST') {
+    if ((req.method === 'PUT' || req.method === 'POST') && req.body && Object.keys(req.body).length > 0) {
         console.log('Body:', JSON.stringify(req.body).substring(0, 500));
     }
     next();
@@ -455,7 +493,7 @@ app.delete('/api/v2/regions/:regionId/cities/:cityId', async (req, res) => {
 // GET - List all activity areas
 app.get('/api/v2/activity-areas', async (req, res) => {
     try {
-        const query = 'SELECT * FROM area_atuacao ORDER BY atu_descricao';
+        const query = 'SELECT * FROM area_atu ORDER BY atu_descricao';
         const result = await pool.query(query);
         res.json({ success: true, data: result.rows });
     } catch (error) {
@@ -467,7 +505,7 @@ app.get('/api/v2/activity-areas', async (req, res) => {
 app.get('/api/v2/activity-areas/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await pool.query('SELECT * FROM area_atuacao WHERE atu_id = $1', [id]);
+        const result = await pool.query('SELECT * FROM area_atu WHERE atu_id = $1', [id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
         res.json({ success: true, data: result.rows[0] });
     } catch (error) {
@@ -481,7 +519,7 @@ app.post('/api/v2/activity-areas', async (req, res) => {
         const { atu_descricao, atu_sel, gid } = req.body;
         if (!atu_descricao) return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
 
-        const query = 'INSERT INTO area_atuacao (atu_descricao, atu_sel, gid) VALUES ($1, $2, $3) RETURNING *';
+        const query = 'INSERT INTO area_atu (atu_descricao, atu_sel, gid) VALUES ($1, $2, $3) RETURNING *';
         const result = await pool.query(query, [atu_descricao, atu_sel || '', gid || '']);
         res.json({ success: true, data: result.rows[0], message: 'Área de atuação criada com sucesso!' });
     } catch (error) {
@@ -495,7 +533,7 @@ app.put('/api/v2/activity-areas/:id', async (req, res) => {
         const { id } = req.params;
         const { atu_descricao, atu_sel, gid } = req.body;
         const result = await pool.query(
-            'UPDATE area_atuacao SET atu_descricao = $1, atu_sel = $2, gid = $3 WHERE atu_id = $4 RETURNING *',
+            'UPDATE area_atu SET atu_descricao = $1, atu_sel = $2, gid = $3 WHERE atu_id = $4 RETURNING *',
             [atu_descricao, atu_sel, gid, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
@@ -509,7 +547,7 @@ app.put('/api/v2/activity-areas/:id', async (req, res) => {
 app.delete('/api/v2/activity-areas/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await pool.query('DELETE FROM area_atuacao WHERE atu_id = $1 RETURNING *', [id]);
+        const result = await pool.query('DELETE FROM area_atu WHERE atu_id = $1 RETURNING *', [id]);
         if (result.rows.length === 0) return res.status(404).json({ success: false, message: 'Área de atuação não encontrada' });
         res.json({ success: true, message: 'Área de atuação excluída!' });
     } catch (error) {
@@ -607,6 +645,89 @@ app.post('/api/v2/carriers', async (req, res) => {
     }
 });
 
+// ==========================================
+// CATEGORIAS DE PRODUTOS (categoria_prod)
+// ==========================================
+
+// GET - Listar todas as categorias
+app.get('/api/v2/product-categories', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM categoria_prod ORDER BY cat_id');
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Buscar categoria por ID
+app.get('/api/v2/product-categories/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('SELECT * FROM categoria_prod WHERE cat_id = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Categoria não encontrada' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Criar nova categoria
+app.post('/api/v2/product-categories', async (req, res) => {
+    try {
+        const { cat_descricao } = req.body;
+
+        if (!cat_descricao) {
+            return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+        }
+
+        const result = await pool.query(
+            'INSERT INTO categoria_prod (cat_descricao) VALUES ($1) RETURNING *',
+            [cat_descricao]
+        );
+        res.json({ success: true, data: result.rows[0], message: 'Categoria criada com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Atualizar categoria
+app.put('/api/v2/product-categories/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { cat_descricao } = req.body;
+
+        const result = await pool.query(
+            'UPDATE categoria_prod SET cat_descricao = $1 WHERE cat_id = $2 RETURNING *',
+            [cat_descricao, id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Categoria não encontrada' });
+        }
+        res.json({ success: true, data: result.rows[0], message: 'Categoria atualizada!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Excluir categoria
+app.delete('/api/v2/product-categories/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query('DELETE FROM categoria_prod WHERE cat_id = $1', [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: 'Categoria não encontrada' });
+        }
+        res.json({ success: true, message: 'Categoria excluída com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 // PUT - Update carrier
 app.put('/api/v2/carriers/:id', async (req, res) => {
     try {
@@ -674,10 +795,30 @@ app.delete('/api/v2/carriers/:id', async (req, res) => {
     }
 });
 
+// ==================== ORDER PRINTING ENDPOINTS ====================
+require('./order_print_endpoints')(app, pool);
+
 // ==================== PRICE TABLES ENDPOINTS ====================
-// Import price tables routes
-const priceTablesRouter = require('./price_tables_endpoints')(pool);
-app.use('/api', priceTablesRouter);
+
+// ==================== CLI_IND ENDPOINTS ====================
+// Import CLI_IND routes for special client conditions
+const cliIndRouter = require('./cli_ind_endpoints')(pool);
+app.use('/api', cliIndRouter);
+
+// ==================== CLI_ANIV ENDPOINTS ====================
+// Import CLI_ANIV routes for buyer lookup
+const cliAnivRouter = require('./cli_aniv_endpoints')(pool);
+app.use('/api', cliAnivRouter);
+
+// ==================== PARAMETROS ENDPOINTS ====================
+// Import parametros routes for system configuration
+const parametrosRouter = require('./parametros_endpoints')(pool);
+app.use('/api', parametrosRouter);
+
+// ==================== USERS ENDPOINTS ====================
+// Import users routes for user management
+const usersRouter = require('./users_endpoints')(pool);
+app.use('/api/users', usersRouter);
 
 // ==================== AUXILIARY DATA ENDPOINTS ====================
 
@@ -829,6 +970,195 @@ app.post('/api/config/database/save', async (req, res) => {
         res.json({
             success: false,
             message: `❌ Erro ao salvar configuração: ${error.message}`
+        });
+    }
+});
+
+// ==================== COMPANY CONFIGURATION ENDPOINTS ====================
+
+// GET current company configuration from PostgreSQL
+app.get('/api/config/company', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM empresa_status WHERE emp_id = 1');
+
+        if (result.rows.length > 0) {
+            const row = result.rows[0];
+            res.json({
+                success: true,
+                config: {
+                    situacao: row.emp_situacao?.trim() || 'A',
+                    nome: row.emp_nome || '',
+                    endereco: row.emp_endereco || '',
+                    bairro: row.emp_bairro || '',
+                    cidade: row.emp_cidade || '',
+                    uf: row.emp_uf?.trim() || '',
+                    cep: row.emp_cep || '',
+                    cnpj: row.emp_cnpj || '',
+                    inscricao: row.emp_inscricao || '',
+                    fones: row.emp_fones || '',
+                    logotipo: row.emp_logotipo || '',
+                    baseDadosLocal: row.emp_basedadoslocal || '',
+                    host: row.emp_host || 'localhost',
+                    porta: row.emp_porta || 3070,
+                    username: row.emp_username || 'SYSDBA',
+                    password: row.emp_password || '',
+                    pastaBasica: row.emp_pastabasica || ''
+                }
+            });
+        } else {
+            // Retornar configuração padrão se não existir
+            res.json({
+                success: true,
+                config: {
+                    situacao: 'A',
+                    nome: 'SOFTHAM SISTEMAS - LOCAL',
+                    endereco: 'R. SANTIAGO PERES UBINHA, 150',
+                    bairro: 'JARDIM DOM NERY',
+                    cidade: 'CAMPINAS',
+                    uf: 'SP',
+                    cep: '13.031-730',
+                    cnpj: '17.504.829/0001-24',
+                    inscricao: '',
+                    fones: '(19) 3203-8600',
+                    logotipo: 'C:\\SalesMasters\\Imagens\\Softham1.png',
+                    baseDadosLocal: 'C:\\SalesMasters\\Dados50\\Nova\\BASESALES.FDB',
+                    host: 'localhost',
+                    porta: 3070,
+                    username: 'SYSDBA',
+                    password: '',
+                    pastaBasica: 'C:\\SalesMasters\\'
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao carregar configuração da empresa:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao carregar configuração: ${error.message}`
+        });
+    }
+});
+
+// POST save company configuration to PostgreSQL
+app.post('/api/config/company/save', async (req, res) => {
+    try {
+        const config = req.body;
+
+        // Verificar se existe registro
+        const checkResult = await pool.query('SELECT emp_id FROM empresa_status WHERE emp_id = 1');
+
+        if (checkResult.rows.length > 0) {
+            // Update existing record
+            await pool.query(`
+                UPDATE empresa_status SET
+                    emp_situacao = $1,
+                    emp_nome = $2,
+                    emp_endereco = $3,
+                    emp_bairro = $4,
+                    emp_cidade = $5,
+                    emp_uf = $6,
+                    emp_cep = $7,
+                    emp_cnpj = $8,
+                    emp_inscricao = $9,
+                    emp_fones = $10,
+                    emp_logotipo = $11,
+                    emp_basedadoslocal = $12,
+                    emp_host = $13,
+                    emp_porta = $14,
+                    emp_username = $15,
+                    emp_password = $16,
+                    emp_pastabasica = $17,
+                    emp_dataatualizacao = CURRENT_TIMESTAMP
+                WHERE emp_id = 1
+            `, [
+                config.situacao || 'A',
+                config.nome,
+                config.endereco,
+                config.bairro,
+                config.cidade,
+                config.uf,
+                config.cep,
+                config.cnpj,
+                config.inscricao,
+                config.fones,
+                config.logotipo,
+                config.baseDadosLocal,
+                config.host,
+                config.porta,
+                config.username,
+                config.password,
+                config.pastaBasica
+            ]);
+        } else {
+            // Insert new record
+            await pool.query(`
+                INSERT INTO empresa_status (
+                    emp_id, emp_situacao, emp_nome, emp_endereco, emp_bairro, emp_cidade,
+                    emp_uf, emp_cep, emp_cnpj, emp_inscricao, emp_fones,
+                    emp_logotipo, emp_basedadoslocal, emp_host, emp_porta,
+                    emp_username, emp_password, emp_pastabasica
+                ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            `, [
+                config.situacao || 'A',
+                config.nome,
+                config.endereco,
+                config.bairro,
+                config.cidade,
+                config.uf,
+                config.cep,
+                config.cnpj,
+                config.inscricao,
+                config.fones,
+                config.logotipo,
+                config.baseDadosLocal,
+                config.host,
+                config.porta,
+                config.username,
+                config.password,
+                config.pastaBasica
+            ]);
+        }
+
+        console.log('✅ Configuração da empresa salva no PostgreSQL:', config.nome);
+
+        res.json({
+            success: true,
+            message: '✅ Configuração da empresa salva com sucesso!'
+        });
+    } catch (error) {
+        console.error('Erro ao salvar configuração da empresa:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao salvar configuração: ${error.message}`
+        });
+    }
+});
+
+// POST upload logo image
+app.post('/api/config/company/upload-logo', uploadLogo.single('logo'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nenhum arquivo enviado'
+            });
+        }
+
+        const fullPath = path.join('C:\\SalesMasters\\Imagens', req.file.originalname);
+
+        console.log('✅ Logo uploaded:', fullPath);
+
+        res.json({
+            success: true,
+            path: fullPath,
+            filename: req.file.originalname,
+            message: '✅ Logo enviado com sucesso!'
+        });
+    } catch (error) {
+        console.error('Erro ao fazer upload do logo:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao fazer upload: ${error.message}`
         });
     }
 });
@@ -986,6 +1316,40 @@ app.get('/api/dashboard/sales-performance', async (req, res) => {
         res.status(500).json({
             success: false,
             message: `Erro ao buscar performance de vendedores: ${error.message}`
+        });
+    }
+});
+
+// GET /api/dashboard/metrics - General dashboard metrics (total sales, quantity, clients, orders)
+app.get('/api/dashboard/metrics', async (req, res) => {
+    try {
+        const { ano, mes } = req.query;
+
+        if (!ano) {
+            return res.status(400).json({
+                success: false,
+                message: 'Parâmetro "ano" é obrigatório'
+            });
+        }
+
+        console.log(`📊 [DASHBOARD] Buscando métricas gerais: ano=${ano}, mes=${mes || 'todos'}`);
+
+        const result = await pool.query(
+            'SELECT * FROM get_dashboard_metrics($1, $2)',
+            [parseInt(ano), mes ? parseInt(mes) : null]
+        );
+
+        console.log(`📊 [DASHBOARD] Métricas retornadas com sucesso`);
+
+        res.json({
+            success: true,
+            data: result.rows[0] // Return first row with all metrics
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching dashboard metrics:', error);
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar métricas do dashboard: ${error.message}`
         });
     }
 });
@@ -1373,77 +1737,6 @@ app.post('/api/import/suppliers-xlsx', async (req, res) => {
     }
 });
 
-// ==================== CRUD FORNECEDORES ====================
-
-// GET - Listar todos os fornecedores (com filtros)
-app.get('/api/suppliers', async (req, res) => {
-    try {
-        const { search, active, page = 1, limit = 10 } = req.query;
-
-        let query = 'SELECT * FROM fornecedores WHERE 1=1';
-        const params = [];
-        let paramCount = 1;
-
-        // Filtro de busca
-        if (search) {
-            query += ` AND (for_nome ILIKE $${paramCount} OR for_cgc ILIKE $${paramCount} OR for_cidade ILIKE $${paramCount})`;
-            params.push(`%${search}%`);
-            paramCount++;
-        }
-
-        // Filtro ativo/inativo
-        if (active !== undefined) {
-            query += ` AND for_tipo2 = $${paramCount}`;
-            params.push(active === 'true' ? 'A' : 'I');
-            paramCount++;
-        }
-
-        // Ordenação
-        query += ' ORDER BY for_nome';
-
-        // Paginação
-        const offset = (page - 1) * limit;
-        query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-        params.push(limit, offset);
-
-        const result = await pool.query(query, params);
-
-        // Contar total
-        let countQuery = 'SELECT COUNT(*) FROM fornecedores WHERE 1=1';
-        const countParams = [];
-        let countParamCount = 1;
-
-        if (search) {
-            countQuery += ` AND (for_nome ILIKE $${countParamCount} OR for_cgc ILIKE $${countParamCount} OR for_cidade ILIKE $${countParamCount})`;
-            countParams.push(`%${search}%`);
-            countParamCount++;
-        }
-
-        if (active !== undefined) {
-            countQuery += ` AND for_tipo2 = $${countParamCount}`;
-            countParams.push(active === 'true' ? 'A' : 'I');
-        }
-
-        const countResult = await pool.query(countQuery, countParams);
-        const total = parseInt(countResult.rows[0].count);
-
-        res.json({
-            success: true,
-            data: result.rows,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total: total,
-                totalPages: Math.ceil(total / limit)
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar fornecedores: ${error.message}`
-        });
-    }
-});
 
 // GET - Buscar fornecedor por ID
 app.get('/api/suppliers/:id', async (req, res) => {
@@ -1551,8 +1844,9 @@ app.put('/api/suppliers/:id', async (req, res) => {
                 for_nome = $1, for_endereco = $2, for_bairro = $3, for_cidade = $4,
                 for_uf = $5, for_cep = $6, for_fone = $7, for_fone2 = $8,
                 for_fax = $9, for_inscricao = $10, for_email = $11,
-                for_tipo2 = $12, for_nomered = $13, for_obs2 = $14
-            WHERE for_cgc = $15
+                for_tipo2 = $12, for_nomered = $13, for_obs2 = $14,
+                for_homepage = $15, for_locimagem = $16
+            WHERE for_cgc = $17
             RETURNING *
         `;
 
@@ -1571,6 +1865,8 @@ app.put('/api/suppliers/:id', async (req, res) => {
             supplier.for_tipo2 || 'A',
             supplier.for_nomered,
             supplier.for_obs2 || '',
+            supplier.for_homepage || '',
+            supplier.for_locimagem || '',
             supplier.for_cgc // The Key
         ];
 
@@ -3905,11 +4201,24 @@ RETURNING *
 
 // Load orders endpoints
 require('./orders_endpoints')(app, pool);
+require('./ia_order_endpoints')(app, pool);
 require('./order_items_endpoints')(app, pool);
+require('./order_print_endpoints')(app, pool);
+require('./email_endpoints')(app, pool);
+require('./pdf_save_endpoints')(app, pool);
+require('./crm_endpoints')(app, pool);
+app.use('/api/financeiro', require('./financial_endpoints')(pool)); // Financial Module
+app.use('/api', require('./parametros_endpoints')(pool));
+app.use('/api', require('./price_tables_endpoints')(pool)); // Register Price Tables Endpoints
+
+app.use('/api/suppliers', require('./suppliers_endpoints')(pool));
+app.use('/api/clients', require('./clients_endpoints')(pool));
+app.use('/api/sellers', require('./vendedores_endpoints')(pool));
+app.use('/api/reports', require('./reports_endpoints')(pool));
+require('./narratives_endpoints')(app);
 
 app.listen(PORT, () => {
 
     console.log(`🚀 Backend rodando na porta ${PORT} - UNIQUE CHECK 3002`);
     console.log(`📡 API disponível em http://localhost:${PORT}`);
 });
-

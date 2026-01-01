@@ -20,10 +20,16 @@ export const TabProvider = ({ children }) => {
 
         // Use functional update to prevent duplicates
         setTabs(prev => {
+            // Ensure Dashboard is always first
+            if (!prev.some(tab => tab.path === '/')) {
+                const homeInfo = getRouteInfo('/');
+                prev = [{ path: '/', label: homeInfo.label, icon: homeInfo.icon }, ...prev];
+            }
+
             // Check if tab already exists
             const exists = prev.some(tab => tab.path === currentPath);
 
-            if (!exists) {
+            if (!exists && currentPath !== '/') {
                 const routeInfo = getRouteInfo(currentPath);
                 return [...prev, {
                     path: currentPath,

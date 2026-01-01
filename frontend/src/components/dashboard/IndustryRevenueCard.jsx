@@ -45,7 +45,7 @@ export const IndustryRevenueCard = ({ data, loading }) => {
                         <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                     </div>
                 ) : data && data.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <BarChart
                             data={data}
                             layout="vertical"

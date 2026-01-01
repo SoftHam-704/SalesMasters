@@ -22,7 +22,7 @@ BEGIN
         FROM pedidos p
         INNER JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
         WHERE EXTRACT(YEAR FROM p.ped_data) = p_ano_atual
-          AND p.ped_situacao = 'F'
+          AND p.ped_situacao IN ('P', 'F')
         GROUP BY EXTRACT(MONTH FROM p.ped_data)
     ),
     quantidades_anterior AS (
@@ -32,7 +32,7 @@ BEGIN
         FROM pedidos p
         INNER JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
         WHERE EXTRACT(YEAR FROM p.ped_data) = p_ano_anterior
-          AND p.ped_situacao = 'F'
+          AND p.ped_situacao IN ('P', 'F')
         GROUP BY EXTRACT(MONTH FROM p.ped_data)
     ),
     meses AS (

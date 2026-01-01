@@ -10,13 +10,18 @@ import {
     Search, Plus, Edit, Trash2, Printer,
     Factory, TrendingUp, Package, DollarSign, Calendar,
     ChevronRight, Filter, X, Sparkles, FileText, Copy, Globe,
-    Receipt, FileCheck, Repeat, Building2, XCircle, ShoppingCart
+    Receipt, FileCheck, Repeat, Building2, XCircle, ShoppingCart,
+    BarChart2, ArrowRight, Settings, Mail
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import IndustryList from './IndustryList';
 import OrderDialog from './OrderDialog';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { toast } from 'sonner';
+import PrintOrderDialog from './PrintOrderDialog';
+import { exportOrderToExcel } from '../../utils/exportOrderToExcel';
+import SendEmailDialog from './SendEmailDialog';
+import './OrdersPage.css';
 
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -30,6 +35,17 @@ const formatDate = (dateString) => {
 
 export default function OrdersPage() {
     const [selectedIndustry, setSelectedIndustry] = useState(null);
+    const [printDialogOpen, setPrintDialogOpen] = useState(false);
+    const [orderToPrint, setOrderToPrint] = useState(null);
+    const [orderToPrintIndustry, setOrderToPrintIndustry] = useState(null);
+    const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false);
+    const [orderToEmailData, setOrderToEmailData] = useState(null);
+    const [showNarrative, setShowNarrative] = useState(false);
+    const [narrative, setNarrative] = useState('');
+    const [loadingNarrative, setLoadingNarrative] = useState(false);
+    const [activeNarrativeTab, setActiveNarrativeTab] = useState('Performance');
+
+
 
     // Calcular data padrão: 1º dia do mês anterior até hoje
     const today = new Date();
@@ -41,7 +57,7 @@ export default function OrdersPage() {
         ignorarIndustria: false,
         pesquisa: '',
         situacao: 'Z',
-        dataInicio: formatDateInput(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())),
+        dataInicio: formatDateInput(new Date(2025, 0, 1)), // 01/01/2025
         dataFim: formatDateInput(today)
     });
     const [selectedOrderObj, setSelectedOrderObj] = useState(null);
@@ -138,6 +154,101 @@ export default function OrdersPage() {
         console.log('Pedido criado:', orderData);
         loadOrders(); // Recarregar lista de pedidos
     };
+
+    const handleOpenEmailDialog = async (orderId, industryId, sorting) => {
+        try {
+            setLoading(true);
+            const response = await fetch(`http://localhost:3005/api/orders/${orderId}/print-data?industria=${industryId}&sortBy=${sorting}`);
+            const data = await response.json();
+
+            if (data.success) {
+                setOrderToEmailData(data.data);
+                setSendEmailDialogOpen(true);
+                setPrintDialogOpen(false); // Close print dialog if it was open
+            } else {
+                toast.error('Erro ao carregar dados do pedido para e-mail');
+            }
+        } catch (error) {
+            console.error('Erro ao abrir diálogo de e-mail:', error);
+            toast.error('Erro ao carregar dados do pedido');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Save PDF to industry folder in the background (async, non-blocking)
+    const savePdfInBackground = async (orderNumber, industryId, model, sorting) => {
+        try {
+            // Fetch order print data
+            const printDataRes = await fetch(`http://localhost:3005/api/orders/${orderNumber}/print-data?industria=${industryId}&sortBy=${sorting}`);
+            const printData = await printDataRes.json();
+
+            if (!printData.success || !printData.data) {
+                console.warn('[PDF-SAVE] Failed to fetch order data');
+                return;
+            }
+
+            const { order, items } = printData.data;
+
+            // Generate simple PDF using jsPDF (same as email fallback)
+            const { jsPDF } = await import('jspdf');
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text(`Pedido: ${order.ped_pedido}`, 10, 20);
+            doc.setFontSize(10);
+            doc.text(`Data: ${new Date(order.ped_data).toLocaleDateString('pt-BR')}`, 10, 30);
+            doc.text(`Cliente: ${order.cli_nome}`, 10, 40);
+            doc.text(`Indústria: ${order.for_nomered}`, 10, 50);
+
+            let y = 70;
+            doc.setFont("helvetica", "bold");
+            doc.text("Qtd", 10, y);
+            doc.text("Produto", 30, y);
+            doc.text("V. Unit", 130, y);
+            doc.text("Total", 170, y);
+            doc.line(10, y + 2, 200, y + 2);
+
+            doc.setFont("helvetica", "normal");
+            items.forEach((item) => {
+                y += 10;
+                if (y > 280) { doc.addPage(); y = 20; }
+                doc.text(String(item.ite_quant || 0), 10, y);
+                doc.text(item.ite_nomeprod || 'Produto', 30, y, { maxWidth: 90 });
+                doc.text(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.ite_puniliq || 0), 130, y);
+                doc.text(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.ite_totliquido || 0), 170, y);
+            });
+
+            y += 15;
+            doc.line(10, y - 5, 200, y - 5);
+            doc.setFont("helvetica", "bold");
+            doc.text(`TOTAL LÍQUIDO: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.ped_totliq || 0)}`, 140, y);
+
+            const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+            // Send to backend to save
+            const saveRes = await fetch('http://localhost:3005/api/orders/save-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pdfBase64,
+                    orderNumber: order.ped_pedido,
+                    clientName: order.cli_nomred || order.cli_nome,
+                    industryName: order.for_nomered
+                })
+            });
+
+            const saveResult = await saveRes.json();
+            if (saveResult.success) {
+                console.log('✅ [PDF-SAVE] PDF saved to:', saveResult.filePath);
+            } else {
+                console.warn('[PDF-SAVE] Failed:', saveResult.message);
+            }
+        } catch (error) {
+            console.error('[PDF-SAVE] Error saving PDF:', error);
+        }
+    };
+
 
     return (
         <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
@@ -248,7 +359,7 @@ export default function OrdersPage() {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-xs text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">Quantidade Vendida</p>
-                                            <p className="text-2xl font-bold text-blue-700 dark:text-white mt-1">{qtdVendida}</p>
+                                            <p className="text-2xl font-bold text-blue-700 dark:text-white mt-1">{Math.round(qtdVendida).toLocaleString('pt-BR')}</p>
                                         </div>
                                         <div className="p-3 bg-blue-500/20 rounded-xl">
                                             <Package className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -463,7 +574,12 @@ export default function OrdersPage() {
                                                                             <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-50 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={() => { setSelectedOrderObj(order); setOrderDialogOpen(true); }}>
                                                                                 <Edit className="h-4 w-4" />
                                                                             </Button>
-                                                                            <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-slate-600 border-emerald-200 dark:border-slate-600 shadow-sm">
+                                                                            <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-slate-600 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setOrderToPrint(order.ped_pedido);
+                                                                                setOrderToPrintIndustry(order.ped_industria);
+                                                                                setPrintDialogOpen(true);
+                                                                            }}>
                                                                                 <Printer className="h-4 w-4" />
                                                                             </Button>
                                                                             <Button size="sm" variant="outline" className="bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/30 shadow-sm">
@@ -501,7 +617,11 @@ export default function OrdersPage() {
                                                 <Edit className="h-4 w-4" />
                                                 <span>Modificar</span>
                                             </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                                            <ContextMenuItem onClick={() => {
+                                                setOrderToPrint(order.ped_pedido);
+                                                setOrderToPrintIndustry(order.ped_industria);
+                                                setPrintDialogOpen(true);
+                                            }} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                                 <Printer className="h-4 w-4" />
                                                 <span>Imprimir</span>
                                             </ContextMenuItem>
@@ -519,9 +639,9 @@ export default function OrdersPage() {
                                                 <Copy className="h-4 w-4" />
                                                 <span>Espelhar pedidos (clonar)</span>
                                             </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Receipt className="h-4 w-4" />
-                                                <span>Faturamentos</span>
+                                            <ContextMenuItem onClick={() => handleOpenEmailDialog(order.ped_pedido, order.ped_industria, 'digitacao')} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                                                <Mail className="h-4 w-4" />
+                                                <span>Enviar por E-mail</span>
                                             </ContextMenuItem>
                                             <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                                 <FileCheck className="h-4 w-4" />
@@ -535,6 +655,7 @@ export default function OrdersPage() {
                                                 <Building2 className="h-4 w-4" />
                                                 <span>Mudar de indústria</span>
                                             </ContextMenuItem>
+
                                             <ContextMenuSeparator />
                                             <ContextMenuItem className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20">
                                                 <XCircle className="h-4 w-4" />
@@ -548,8 +669,56 @@ export default function OrdersPage() {
                     )}
                 </ScrollArea>
 
+                {/* Legacy Narrative Panel Reverted */}
+                <AnimatePresence>
+                    {selectedIndustry && (
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 20, opacity: 0 }}
+                            className="px-6 pb-6 pt-2"
+                        >
+                            <motion.div
+                                animate={{
+                                    height: showNarrative ? 'auto' : '40px',
+                                    marginRight: showNarrative ? '8rem' : '6rem'
+                                }}
+                                className={cn(
+                                    "flex flex-col rounded-xl backdrop-blur-md border transition-all duration-300 overflow-hidden relative z-0",
+                                    showNarrative
+                                        ? "bg-emerald-50/80 dark:bg-slate-900/60 border-emerald-200/50 dark:border-white/10 p-4 shadow-lg"
+                                        : "bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/20 dark:border-emerald-500/10 p-0 cursor-pointer hover:bg-emerald-500/20"
+                                )}
+                                onClick={() => !showNarrative && setShowNarrative(true)}
+                            >
+                                <div className="flex items-center justify-between px-4 h-10 shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Insights Principais</span>
+                                    </div>
+                                    {showNarrative && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) => { e.stopPropagation(); setShowNarrative(false); }}
+                                            className="h-6 w-6 p-0 hover:bg-emerald-200/50 dark:hover:bg-white/10"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                                {showNarrative && (
+                                    <div className="px-4 pb-4 overflow-y-auto">
+                                        <p className="text-sm text-muted-foreground whitespace-pre-line">{narrative || 'Carregando insights...'}</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Premium Floating Action Button - Crystal Orb */}
-                <div className="absolute bottom-8 right-8">
+                <div className="absolute bottom-[2%] right-[3%]">
                     {/* Orbital particles */}
                     <motion.div
                         initial={{ scale: 0, opacity: 0 }}
@@ -594,7 +763,7 @@ export default function OrdersPage() {
                         transition={{ type: "spring", stiffness: 200, damping: 15 }}
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsOrderFormOpen(true)}
+                        onClick={handleNewOrder}
                         className="relative group"
                     >
                         {/* Circle shape with glass effect */}
@@ -683,6 +852,57 @@ export default function OrdersPage() {
                 onOrderCreated={handleOrderCreated}
                 selectedOrder={selectedOrderObj}
             />
-        </div >
+
+            <PrintOrderDialog
+                isOpen={printDialogOpen}
+                onClose={() => setPrintDialogOpen(false)}
+                orderNumber={orderToPrint}
+                onPrint={(model, sorting) => {
+                    console.log(`Printing order ${orderToPrint} with model ${model} and sorting ${sorting}`);
+                    const url = `/print/order/${orderToPrint}?model=${model}&sortBy=${sorting}&industria=${orderToPrintIndustry}`;
+                    // Store model and sort for email PDF generation
+                    localStorage.setItem('printModel', String(model));
+                    localStorage.setItem('printSortBy', sorting);
+
+                    // Save PDF to industry folder in the background (non-blocking)
+                    savePdfInBackground(orderToPrint, orderToPrintIndustry, model, sorting);
+
+                    // Center window on screen (like poDesktopCenter in Delphi)
+                    const width = 900;
+                    const height = 700;
+                    const left = (window.screen.width - width) / 2;
+                    const top = (window.screen.height - height) / 2;
+                    window.open(url, 'PrintPreview', `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no`);
+                    // Dialog stays open - user can try other formats or send email
+                }}
+                onExportExcel={async (sorting) => {
+                    try {
+                        // Fetch order data for Excel export
+                        const response = await fetch(`http://localhost:3005/api/orders/${orderToPrint}/print-data?industria=${orderToPrintIndustry}&sortBy=${sorting}`);
+                        if (!response.ok) throw new Error('Failed to fetch order data');
+                        const data = await response.json();
+
+                        exportOrderToExcel(data.data.order, data.data.items);
+                        toast.success('Excel exportado com sucesso!');
+                        setPrintDialogOpen(false);
+                    } catch (error) {
+                        console.error('Error exporting to Excel:', error);
+                        toast.error('Erro ao exportar para Excel');
+                    }
+                }}
+                onSendEmail={(sorting) => handleOpenEmailDialog(orderToPrint, orderToPrintIndustry, sorting)}
+            />
+
+            <SendEmailDialog
+                isOpen={sendEmailDialogOpen}
+                onClose={() => setSendEmailDialogOpen(false)}
+                orderData={orderToEmailData}
+                onSend={async (data) => {
+                    console.log('Sending email with data:', data);
+                    // This will be connected to the real backend later
+                    return new Promise(resolve => setTimeout(resolve, 2000));
+                }}
+            />
+        </div>
     );
 }

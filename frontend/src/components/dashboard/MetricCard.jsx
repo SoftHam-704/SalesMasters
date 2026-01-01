@@ -18,7 +18,7 @@ export const MetricCard = ({ title, value, change, icon: Icon, delay = 0 }) => {
                 </div>
                 <div className={`metric-change ${isPositive ? 'positive' : 'negative'}`}>
                     {isPositive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                    <span>{Math.abs(change)}%</span>
+                    <span>{Math.abs(change).toFixed(2)}%</span>
                 </div>
             </div>
             <div className="metric-card-body">

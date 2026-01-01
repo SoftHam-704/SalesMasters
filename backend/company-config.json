@@ -1,0 +1,18 @@
+{
+  "nome": "SOFTHAM SISTEMAS - LOCAL",
+  "endereco": "R. TRISTÃO DOS SANTOS, 633",
+  "bairro": "PQ DO LAGEADO",
+  "cidade": "CAMPO GRANDE",
+  "uf": "MS",
+  "cep": "79075052",
+  "cnpj": "17.504.829/0001-24",
+  "inscricao": "",
+  "fones": "(67) 9 9607-8885",
+  "logotipo": "C:\\SalesMasters\\Imagens\\logo_cinza.png",
+  "baseDadosLocal": "C:\\SalesMasters\\Dados50\\Nova\\BASESALES.FDB",
+  "host": "localhost",
+  "porta": 3070,
+  "username": "SYSDBA",
+  "password": "",
+  "pastaBasica": "C:\\SalesMasters\\"
+}

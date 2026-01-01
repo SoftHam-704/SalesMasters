@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import { ComposedChart, Bar, Cell, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 
 export const IndustryParetoCard = ({ data, loading }) => {
@@ -68,7 +68,7 @@ export const IndustryParetoCard = ({ data, loading }) => {
                         <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                     </div>
                 ) : paretoData && paretoData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <ComposedChart
                             data={paretoData}
                             margin={{ top: 10, right: 30, left: 0, bottom: 40 }}
@@ -137,10 +137,16 @@ export const IndustryParetoCard = ({ data, loading }) => {
                             <Bar
                                 yAxisId="left"
                                 dataKey="total_faturamento"
-                                fill="hsl(200, 70%, 45%)"
                                 radius={[8, 8, 0, 0]}
                                 name="Faturamento"
-                            />
+                            >
+                                {paretoData.map((entry, index) => (
+                                    <Cell
+                                        key={`cell-${index}`}
+                                        fill={entry.percentual_acumulado <= 80 ? '#15803d' : 'hsl(200, 70%, 45%)'}
+                                    />
+                                ))}
+                            </Bar>
                             <Line
                                 yAxisId="right"
                                 type="monotone"

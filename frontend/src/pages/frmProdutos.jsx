@@ -713,7 +713,7 @@ const FrmProdutos = () => {
                                 <thead className="bg-gray-100 border-b">
                                     <tr>
                                         <th className="text-left p-3 text-xs font-semibold text-gray-700 w-32">
-                                            Código
+                                            ID
                                         </th>
                                         <th className="text-left p-3 text-xs font-semibold text-gray-700">
                                             Produto
@@ -736,6 +736,9 @@ const FrmProdutos = () => {
                                         <th className="text-center p-3 text-xs font-semibold text-gray-700 w-20">
                                             ST %
                                         </th>
+                                        <th className="text-left p-3 text-xs font-semibold text-gray-700 w-32">
+                                            Cód. Normaliz.
+                                        </th>
                                         <th className="text-center p-3 text-xs font-semibold text-gray-700 w-24">
                                             Status
                                         </th>
@@ -747,7 +750,7 @@ const FrmProdutos = () => {
                                             <ContextMenuTrigger asChild>
                                                 <tr className="border-b hover:bg-gray-50 cursor-pointer">
                                                     <td className="p-3 text-xs text-gray-900 font-mono">
-                                                        {product.pro_codprod}
+                                                        {product.itab_idprod}
                                                     </td>
                                                     <td className="p-3 text-xs text-gray-900">
                                                         {product.pro_nome}
@@ -769,6 +772,9 @@ const FrmProdutos = () => {
                                                     </td>
                                                     <td className="p-3 text-xs text-gray-600 text-center">
                                                         {formatPercent(product.itab_st)}
+                                                    </td>
+                                                    <td className="p-3 text-xs text-gray-500 font-mono">
+                                                        {product.pro_codigonormalizado || '-'}
                                                     </td>
                                                     <td className="p-3 text-center">
                                                         <span className={`inline-block px-2 py-1 text-xs rounded-full ${product.itab_status
@@ -907,7 +913,7 @@ const FrmProdutos = () => {
                 currentTable={selectedTable}
                 totalProducts={filteredProducts.length}
             />
-        </div>
+        </div >
     );
 };
 

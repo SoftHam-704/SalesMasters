@@ -50,10 +50,11 @@ BEGIN
     WITH current_period AS (
         SELECT 
             p.ped_vendedor,
-            COALESCE(SUM(p.ped_totliq), 0) as total_value,
-            COALESCE(SUM((SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido)), 0) as total_qty,
+            COALESCE(SUM(i.ite_totliquido), 0) as total_value,
+            COALESCE(SUM(i.ite_quant), 0) as total_qty,
             COUNT(DISTINCT p.ped_cliente) as unique_clients
         FROM pedidos p
+        LEFT JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
         WHERE p.ped_data >= v_current_start_date
           AND p.ped_data <= v_current_end_date
           AND p.ped_situacao IN ('P', 'F')
@@ -63,10 +64,11 @@ BEGIN
     previous_period AS (
         SELECT 
             p.ped_vendedor,
-            COALESCE(SUM(p.ped_totliq), 0) as total_value,
-            COALESCE(SUM((SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido)), 0) as total_qty,
+            COALESCE(SUM(i.ite_totliquido), 0) as total_value,
+            COALESCE(SUM(i.ite_quant), 0) as total_qty,
             COUNT(DISTINCT p.ped_cliente) as unique_clients
         FROM pedidos p
+        LEFT JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
         WHERE p.ped_data >= v_previous_start_date
           AND p.ped_data <= v_previous_end_date
           AND p.ped_situacao IN ('P', 'F')

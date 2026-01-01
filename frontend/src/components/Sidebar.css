@@ -1,178 +1,29 @@
-/* Sidebar Styles */
+/* Sidebar Custom Scrollbar for Dark Blue Theme */
 
-.sidebar {
-    width: 280px;
-    height: 100vh;
-    background: var(--bg-sidebar);
-    color: var(--text-white);
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    left: 0;
-    top: 0;
-    overflow-y: auto;
-}
-
-.sidebar-header {
-    padding: var(--spacing-lg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.sidebar-logo {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-}
-
-.logo-img {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    border-radius: var(--radius-lg);
-    flex-shrink: 0;
-}
-
-.logo-text h3 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-
-.logo-text p {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.2;
-}
-
-.sidebar-search {
-    padding: var(--spacing-md) var(--spacing-lg);
-}
-
-.sidebar-search input {
-    width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--radius-md);
-    color: var(--text-white);
-    font-size: 0.875rem;
-}
-
-.sidebar-search input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.sidebar-search input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.sidebar-menu {
-    flex: 1;
-    padding: var(--spacing-sm) 0;
-    overflow-y: auto;
-}
-
-.menu-section {
-    margin-bottom: var(--spacing-lg);
-}
-
-.menu-section-title {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.menu-item {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    color: rgba(255, 255, 255, 0.8);
-    text-decoration: none;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    font-size: 0.875rem;
-}
-
-.menu-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-white);
-}
-
-.menu-item.active {
-    background: rgba(37, 99, 235, 0.2);
-    color: var(--text-white);
-    border-left: 3px solid var(--primary-color);
-    font-weight: 500;
-}
-
-.menu-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.menu-label {
-    flex: 1;
-}
-
-.sidebar-footer {
-    padding: var(--spacing-lg);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin-top: auto;
-}
-
-.footer-logo {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-}
-
-.footer-logo-img {
-    height: 40px;
-    width: 40px;
-    object-fit: contain;
-    border-radius: var(--radius-md);
-    flex-shrink: 0;
-}
-
-.footer-logo-text p {
-    font-size: 0.875rem;
-    font-weight: 500;
-    margin-bottom: 0.25rem;
-}
-
-.footer-logo-text small {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-/* Scrollbar para sidebar */
-/* Scrollbar Customizada */
-.sidebar {
+.custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
-.sidebar::-webkit-scrollbar {
-    width: 4px;
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
 }
 
-.sidebar::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+    border-radius: 10px;
+    transition: background 0.3s;
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.sidebar {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }

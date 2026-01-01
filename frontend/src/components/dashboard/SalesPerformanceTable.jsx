@@ -70,6 +70,13 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
         }).format(value || 0);
     };
 
+    const formatQuantity = (value) => {
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(Math.round(value || 0));
+    };
+
     const formatPercent = (value) => {
         const num = parseFloat(value) || 0;
         return `${num.toFixed(2)}%`;
@@ -189,7 +196,7 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
                                     {renderTrendIndicator(seller.mom_value_percent)}
                                 </td>
                                 <td className="text-right">
-                                    {formatCurrency(seller.total_qty_current)}
+                                    {formatQuantity(seller.total_qty_current)}
                                 </td>
                                 <td className="text-center">
                                     {renderTrendIndicator(seller.mom_qty_percent)}

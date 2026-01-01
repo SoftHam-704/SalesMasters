@@ -225,6 +225,27 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Marquee Animation for Meta Bar */
+.marquee-container {
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.animate-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: marquee 30s linear infinite;
+  padding-left: 20%;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Placeholder Pages */
 .page-placeholder {
   display: flex;

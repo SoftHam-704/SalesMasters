@@ -18,7 +18,7 @@ const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, sel
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[1100px] max-w-[95vw] p-0 gap-0 bg-transparent border-none shadow-2xl h-[80vh] flex flex-col">
+            <DialogContent hideCloseButton className="w-[1350px] max-w-[98vw] p-0 gap-0 bg-transparent border-none shadow-2xl h-[85vh] flex flex-col">
                 <DialogHeader className="bg-teal-600 text-white px-4 py-2 flex flex-row items-center justify-between shrink-0 rounded-t-lg">
                     <DialogTitle className="text-sm font-bold flex items-center gap-2">
                         Novo Pedido <span className="text-teal-200 font-normal">• {selectedIndustry?.for_nomered}</span>

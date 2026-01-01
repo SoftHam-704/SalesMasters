@@ -1,0 +1,661 @@
+// CRM Endpoints Module
+// Manages customer relationship interactions and pipeline
+
+module.exports = function (app, pool) {
+
+    // --- PIPELINE / KANBAN ENDPOINTS ---
+
+    // GET - List Pipeline Stages with Opportunities
+    app.get('/api/crm/pipeline', async (req, res) => {
+        try {
+            const { ven_codigo } = req.query;
+
+            // 1. Get Stages
+            const stagesRes = await pool.query('SELECT * FROM crm_funil_etapas ORDER BY ordem');
+            const stages = stagesRes.rows;
+
+            // 2. Get Opportunities (optionally filtered by seller)
+            let query = `
+                SELECT 
+                    o.*, 
+                    c.cli_nomred, 
+                    c.cli_cidade, 
+                    c.cli_uf,
+                    (SELECT COUNT(*) FROM crm_interacao i WHERE i.oportunidade_id = o.oportunidade_id) as interacoes_count,
+                    (SELECT MAX(data_hora) FROM crm_interacao i WHERE i.oportunidade_id = o.oportunidade_id) as ultima_interacao
+                FROM crm_oportunidades o
+                JOIN clientes c ON c.cli_codigo = o.cli_codigo
+            `;
+            const params = [];
+
+            if (ven_codigo) {
+                query += ' WHERE o.ven_codigo = $1';
+                params.push(ven_codigo);
+            }
+
+            const oppsRes = await pool.query(query, params);
+            const opportunities = oppsRes.rows;
+
+            // 3. Merge
+            const pipeline = stages.map(stage => ({
+                ...stage,
+                items: opportunities.filter(o => o.etapa_id === stage.etapa_id)
+            }));
+
+            res.json({ success: true, data: pipeline });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching pipeline:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // POST - Create Opportunity
+    app.post('/api/crm/oportunidades', async (req, res) => {
+        try {
+            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id } = req.body;
+
+            const result = await pool.query(`
+                INSERT INTO crm_oportunidades 
+                (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id || 1]);
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error creating opportunity:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Move Opportunity (Drag & Drop)
+    app.put('/api/crm/oportunidades/:id/move', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { etapa_id } = req.body;
+
+            await pool.query(
+                'UPDATE crm_oportunidades SET etapa_id = $1, atualizado_em = CURRENT_TIMESTAMP WHERE oportunidade_id = $2',
+                [etapa_id, id]
+            );
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('❌ [CRM] Error moving opportunity:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // --- INTERACTIONS ENDPOINTS (EXISTING) ---
+
+    // GET - List interactions for a seller
+    app.get('/api/crm/interacoes', async (req, res) => {
+        console.log('📋 [CRM] Fetching interactions');
+        try {
+            const { ven_codigo } = req.query;
+
+            if (!ven_codigo) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ven_codigo é obrigatório'
+                });
+            }
+
+            const result = await pool.query(`
+                SELECT 
+                    i.id AS interacao_id,
+                    i.data_hora AS data_interacao,
+                    i.observacao AS descricao,
+                    c.cli_nomred,
+                    c.cli_codigo,
+                    t.descricao AS tipo,
+                    r.descricao AS resultado,
+                    cn.descricao AS canal
+                FROM crm_interacao i
+                JOIN clientes c ON c.cli_codigo = i.cli_codigo
+                JOIN crm_tipo_interacao t ON t.id = i.tipo_interacao_id
+                LEFT JOIN crm_resultado r ON r.id = i.resultado_id
+                LEFT JOIN crm_canal cn ON cn.id = i.canal_id
+                WHERE i.ven_codigo = $1
+                ORDER BY i.data_hora DESC
+                LIMIT 50
+            `, [ven_codigo]);
+
+            res.json({
+                success: true,
+                data: result.rows
+            });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching interactions:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao buscar interações: ${error.message}`
+            });
+        }
+    });
+
+    // POST - Create new interaction
+    app.post('/api/crm/interacoes', async (req, res) => {
+        console.log('➕ [CRM] Creating new interaction');
+        const client = await pool.connect();
+
+        try {
+            const {
+                cli_codigo,
+                ven_codigo,
+                tipo_interacao_id,
+                canal_id,
+                resultado_id,
+                descricao,
+                industrias
+            } = req.body;
+
+            if (!cli_codigo || !ven_codigo || !tipo_interacao_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'cli_codigo, ven_codigo e tipo_interacao_id são obrigatórios'
+                });
+            }
+
+            await client.query('BEGIN');
+
+            const { rows } = await client.query(`
+                INSERT INTO crm_interacao
+                (cli_codigo, ven_codigo, tipo_interacao_id, canal_id, resultado_id, descricao)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING interacao_id
+            `, [
+                cli_codigo,
+                ven_codigo,
+                tipo_interacao_id,
+                canal_id || null,
+                resultado_id || null,
+                descricao || ''
+            ]);
+
+            const interacaoId = rows[0].interacao_id;
+
+            // Associate industries if provided
+            if (industrias && Array.isArray(industrias) && industrias.length > 0) {
+                for (const for_codigo of industrias) {
+                    await client.query(`
+                        INSERT INTO crm_interacao_industria (interacao_id, for_codigo)
+                        VALUES ($1, $2)
+                    `, [interacaoId, for_codigo]);
+                }
+            }
+
+            await client.query('COMMIT');
+
+            console.log(`✅ [CRM] Interaction ${interacaoId} created`);
+            res.status(201).json({
+                success: true,
+                interacao_id: interacaoId
+            });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('❌ [CRM] Error creating interaction:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao criar interação: ${error.message}`
+            });
+        } finally {
+            client.release();
+        }
+    });
+
+    // GET - List interaction types
+    app.get('/api/crm/tipos', async (req, res) => {
+        try {
+            const result = await pool.query(`
+                SELECT id, descricao 
+                FROM crm_tipo_interacao 
+                WHERE ativo = true 
+                ORDER BY descricao
+            `);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching tipos:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - List channels
+    app.get('/api/crm/canais', async (req, res) => {
+        try {
+            const result = await pool.query(`
+                SELECT id, descricao 
+                FROM crm_canal 
+                WHERE ativo = true 
+                ORDER BY descricao
+            `);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching canais:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - List results/outcomes
+    app.get('/api/crm/resultados', async (req, res) => {
+        try {
+            const result = await pool.query(`
+                SELECT id, descricao, ordem
+                FROM crm_resultado 
+                WHERE ativo = true 
+                ORDER BY ordem, descricao
+            `);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching resultados:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== TIPOS DE INTERAÇÃO CRUD ====================
+
+    // POST - Create new interaction type
+    app.post('/api/crm/tipos', async (req, res) => {
+        console.log('➕ [CRM] Creating new tipo de interação');
+        try {
+            const { descricao } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'INSERT INTO crm_tipo_interacao (descricao, ativo) VALUES ($1, true) RETURNING *',
+                [descricao.trim()]
+            );
+            res.status(201).json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error creating tipo:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Update interaction type
+    app.put('/api/crm/tipos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { descricao } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'UPDATE crm_tipo_interacao SET descricao = $1 WHERE id = $2 RETURNING *',
+                [descricao.trim(), id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Tipo não encontrado' });
+            }
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error updating tipo:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // DELETE - Soft delete interaction type
+    app.delete('/api/crm/tipos/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query(
+                'UPDATE crm_tipo_interacao SET ativo = false WHERE id = $1 RETURNING *',
+                [id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Tipo não encontrado' });
+            }
+            res.json({ success: true, message: 'Tipo removido com sucesso' });
+        } catch (error) {
+            console.error('❌ [CRM] Error deleting tipo:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== CANAIS CRUD ====================
+
+    // POST - Create new channel
+    app.post('/api/crm/canais', async (req, res) => {
+        console.log('➕ [CRM] Creating new canal');
+        try {
+            const { descricao } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'INSERT INTO crm_canal (descricao, ativo) VALUES ($1, true) RETURNING *',
+                [descricao.trim()]
+            );
+            res.status(201).json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error creating canal:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Update channel
+    app.put('/api/crm/canais/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { descricao } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'UPDATE crm_canal SET descricao = $1 WHERE id = $2 RETURNING *',
+                [descricao.trim(), id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Canal não encontrado' });
+            }
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error updating canal:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // DELETE - Soft delete channel
+    app.delete('/api/crm/canais/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query(
+                'UPDATE crm_canal SET ativo = false WHERE id = $1 RETURNING *',
+                [id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Canal não encontrado' });
+            }
+            res.json({ success: true, message: 'Canal removido com sucesso' });
+        } catch (error) {
+            console.error('❌ [CRM] Error deleting canal:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== RESULTADOS CRUD ====================
+
+    // POST - Create new result
+    app.post('/api/crm/resultados', async (req, res) => {
+        console.log('➕ [CRM] Creating new resultado');
+        try {
+            const { descricao, ordem } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'INSERT INTO crm_resultado (descricao, ordem, ativo) VALUES ($1, $2, true) RETURNING *',
+                [descricao.trim(), ordem || 0]
+            );
+            res.status(201).json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error creating resultado:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Update result
+    app.put('/api/crm/resultados/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { descricao, ordem } = req.body;
+            if (!descricao || !descricao.trim()) {
+                return res.status(400).json({ success: false, message: 'Descrição é obrigatória' });
+            }
+            const result = await pool.query(
+                'UPDATE crm_resultado SET descricao = $1, ordem = $2 WHERE id = $3 RETURNING *',
+                [descricao.trim(), ordem || 0, id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Resultado não encontrado' });
+            }
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error updating resultado:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // DELETE - Soft delete result
+    app.delete('/api/crm/resultados/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query(
+                'UPDATE crm_resultado SET ativo = false WHERE id = $1 RETURNING *',
+                [id]
+            );
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Resultado não encontrado' });
+            }
+            res.json({ success: true, message: 'Resultado removido com sucesso' });
+        } catch (error) {
+            console.error('❌ [CRM] Error deleting resultado:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // POST - Seed initial CRM data
+    app.post('/api/crm/seed', async (req, res) => {
+        console.log('🌱 [CRM] Seeding lookup data');
+        try {
+            // Clear and insert tipos de interação
+            await pool.query(`DELETE FROM crm_tipo_interacao`);
+            await pool.query(`
+                INSERT INTO crm_tipo_interacao (id, descricao, ativo) VALUES 
+                (1, 'Visita', true),
+                (2, 'Prospecção', true),
+                (3, 'Pós-venda', true),
+                (4, 'Negociação', true),
+                (5, 'Cobrança', true)
+            `);
+
+            // Clear and insert canais (as per user request)
+            await pool.query(`DELETE FROM crm_canal`);
+            await pool.query(`
+                INSERT INTO crm_canal (id, descricao, ativo) VALUES 
+                (1, 'Presencial', true),
+                (2, 'Telefone', true),
+                (3, 'WhatsApp', true),
+                (4, 'E-mail', true),
+                (5, 'Online', true)
+            `);
+
+            // Clear and insert resultados (as per user request - ordem crescente)
+            await pool.query(`DELETE FROM crm_resultado`);
+            await pool.query(`
+                INSERT INTO crm_resultado (id, descricao, ativo) VALUES 
+                (1, 'Negativo', true),
+                (2, 'Neutro', true),
+                (3, 'Positivo', true),
+                (4, 'Pedido gerado', true)
+            `);
+
+            console.log('✅ [CRM] Seed data inserted');
+            res.json({ success: true, message: 'Dados iniciais inseridos com sucesso' });
+        } catch (error) {
+            console.error('❌ [CRM] Error seeding data:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== SELL-OUT ENDPOINTS ====================
+
+    // GET - List sell-out records with filters
+    app.get('/api/crm/sellout', async (req, res) => {
+        try {
+            const { cli_codigo, for_codigo, periodo_inicio, periodo_fim } = req.query;
+
+            let query = `
+                SELECT 
+                    s.id,
+                    s.cli_codigo,
+                    c.cli_nomred,
+                    s.for_codigo,
+                    f.for_nome,
+                    s.periodo,
+                    s.valor,
+                    s.quantidade,
+                    s.criado_em
+                FROM crm_sellout s
+                JOIN clientes c ON c.cli_codigo = s.cli_codigo
+                JOIN fornecedores f ON f.for_codigo = s.for_codigo
+                WHERE 1=1
+            `;
+            const params = [];
+            let paramIndex = 1;
+
+            if (cli_codigo) {
+                query += ` AND s.cli_codigo = $${paramIndex++}`;
+                params.push(cli_codigo);
+            }
+            if (for_codigo) {
+                query += ` AND s.for_codigo = $${paramIndex++}`;
+                params.push(for_codigo);
+            }
+            if (periodo_inicio) {
+                query += ` AND s.periodo >= $${paramIndex++}`;
+                params.push(periodo_inicio);
+            }
+            if (periodo_fim) {
+                query += ` AND s.periodo <= $${paramIndex++}`;
+                params.push(periodo_fim);
+            }
+
+            query += ' ORDER BY s.periodo DESC, c.cli_nomred LIMIT 500';
+
+            const result = await pool.query(query, params);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // POST - Create single sell-out record
+    app.post('/api/crm/sellout', async (req, res) => {
+        console.log('➕ [CRM] Creating sell-out record');
+        try {
+            const { cli_codigo, for_codigo, periodo, valor, quantidade } = req.body;
+
+            if (!cli_codigo || !for_codigo || !periodo) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cliente, Indústria e Período são obrigatórios'
+                });
+            }
+
+            const result = await pool.query(`
+                INSERT INTO crm_sellout (cli_codigo, for_codigo, periodo, valor, quantidade)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+            `, [cli_codigo, for_codigo, periodo, valor || 0, quantidade || 0]);
+
+            res.status(201).json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error creating sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Update sell-out record
+    app.put('/api/crm/sellout/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { cli_codigo, for_codigo, periodo, valor, quantidade } = req.body;
+
+            const result = await pool.query(`
+                UPDATE crm_sellout 
+                SET cli_codigo = $1, for_codigo = $2, periodo = $3, valor = $4, quantidade = $5
+                WHERE id = $6
+                RETURNING *
+            `, [cli_codigo, for_codigo, periodo, valor || 0, quantidade || 0, id]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Registro não encontrado' });
+            }
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error updating sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // DELETE - Delete sell-out record
+    app.delete('/api/crm/sellout/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query('DELETE FROM crm_sellout WHERE id = $1 RETURNING *', [id]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Registro não encontrado' });
+            }
+
+            res.json({ success: true, message: 'Registro removido com sucesso' });
+        } catch (error) {
+            console.error('❌ [CRM] Error deleting sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // POST - Bulk import from spreadsheet
+    app.post('/api/crm/sellout/import', async (req, res) => {
+        console.log('📥 [CRM] Importing sell-out data');
+        const client = await pool.connect();
+
+        try {
+            const { data } = req.body; // Array of { cli_codigo, for_codigo, periodo, valor, quantidade }
+
+            if (!Array.isArray(data) || data.length === 0) {
+                return res.status(400).json({ success: false, message: 'Nenhum dado para importar' });
+            }
+
+            await client.query('BEGIN');
+
+            let imported = 0;
+            let errors = [];
+
+            for (const row of data) {
+                try {
+                    const { cli_codigo, for_codigo, periodo, valor, quantidade } = row;
+
+                    if (!cli_codigo || !for_codigo || !periodo) {
+                        errors.push(`Linha inválida: CLI=${cli_codigo}, FOR=${for_codigo}, PERIODO=${periodo}`);
+                        continue;
+                    }
+
+                    // Upsert - update if exists, insert if not
+                    await client.query(`
+                        INSERT INTO crm_sellout (cli_codigo, for_codigo, periodo, valor, quantidade)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (cli_codigo, for_codigo, periodo) 
+                        DO UPDATE SET valor = $4, quantidade = $5
+                    `, [cli_codigo, for_codigo, periodo, valor || 0, quantidade || 0]);
+
+                    imported++;
+                } catch (rowError) {
+                    errors.push(`Erro na linha CLI=${row.cli_codigo}: ${rowError.message}`);
+                }
+            }
+
+            await client.query('COMMIT');
+
+            console.log(`✅ [CRM] Imported ${imported} sell-out records`);
+            res.json({
+                success: true,
+                imported,
+                total: data.length,
+                errors: errors.length > 0 ? errors.slice(0, 10) : undefined
+            });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('❌ [CRM] Error importing sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        } finally {
+            client.release();
+        }
+    });
+
+    console.log('📋 CRM endpoints registered');
+};
