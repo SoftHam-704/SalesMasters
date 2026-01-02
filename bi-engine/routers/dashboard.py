@@ -13,6 +13,8 @@ from services.analysis import analyze_pareto, analyze_industry_growth
 from services.insights import generate_insights
 from services.top_industries import fetch_top_industries
 from services.dashboard_summary import fetch_dashboard_summary
+from services.industry_dashboard import get_industry_details
+from services.client_dashboard import get_client_details
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
@@ -202,3 +204,32 @@ async def get_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor
     """
     data = fetch_top_industries(ano, mes, metrica, limit)
     return {"success": True, "data": data}
+
+@router.get("/industry-details")
+async def get_industry_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor'):
+    """
+    Retorna detalhes completos para o painel de indústria (Funil, Gráficos, Churn).
+    """
+    return get_industry_details(ano, mes, industryId, metrica)
+
+@router.get("/filters-options")
+async def get_filters_options():
+    """
+    Retorna lista de opções para filtros (Indústrias, Clientes).
+    """
+    from services.data_fetcher import fetch_available_filters
+    return fetch_available_filters()
+
+@router.get("/client-details")
+async def get_client_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor', uf: str = None):
+    """
+    Retorna análise detalhada de clientes para o dashboard:
+    - Grupos de lojas
+    - Ciclo de compra (ordenado por dias sem comprar DESC)
+    - Top clientes com MoM
+    - Ativos vs Inativos (carteira = clientes históricos)
+    - Sem compras (com dias sem comprar)
+    - Risco de churn
+    - Lista de UFs disponíveis para filtro
+    """
+    return get_client_details(ano, mes, industryId, metrica, uf)

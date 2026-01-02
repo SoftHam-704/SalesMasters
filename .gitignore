@@ -54,3 +54,8 @@ venv/
 data/*.csv
 data/*.json
 SalesMasters*.rar
+
+# Large files
+data/itens_ped.json
+data/itens_ped.csv
+*.rar

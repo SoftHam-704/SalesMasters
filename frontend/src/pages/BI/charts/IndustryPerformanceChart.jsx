@@ -2,7 +2,7 @@ import React from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell
 } from 'recharts';
-import { formatCurrency, formatNumber } from '../../../utils/formatters';
+import { formatCurrency, formatNumber, formatCompactCurrency } from '../../../utils/formatters';
 
 const CustomTooltip = ({ active, payload, label, metrica }) => {
     if (active && payload && payload.length) {
@@ -39,54 +39,87 @@ const CustomTooltip = ({ active, payload, label, metrica }) => {
 const IndustryPerformanceChart = ({ data, metrica = 'Valor' }) => {
     if (!data || data.length === 0) {
         return (
-            <div className="flex items-center justify-center h-32 text-slate-400 text-xs text-center">
+            <div className="flex items-center justify-center h-full text-slate-400 text-xs text-center min-h-[200px]">
                 <p>Aguardando dados...</p>
             </div>
         );
     }
 
-    // Dynamic height calculation: 40px per item + 50px buffer
-    const chartHeight = Math.max(data.length * 40 + 50, 200);
+    // Dynamic height calculation: shorter bars, less padding
+    const itemHeight = 28;
+    const chartHeight = Math.max(data.length * itemHeight, 100);
+
+    // Custom label to show "R$ 9.5M"
+    const renderCustomLabel = (props) => {
+        const { x, y, width, value, index } = props;
+        const item = data[index];
+        const displayValue = metrica === 'Valor'
+            ? formatCompactCurrency(item.total_vendas)
+            : formatNumber(item.total_quantidade);
+
+        const percentual = item.percentual ? ` ${item.percentual}%` : '';
+
+        return (
+            <text
+                x={x + width + 5}
+                y={y + 15}
+                fill="#334155"
+                fontSize={11}
+                fontWeight={600}
+                dominantBaseline="middle"
+            >
+                {displayValue}{percentual}
+            </text>
+        );
+    };
 
     return (
-        <div style={{ width: '100%', height: chartHeight }}>
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                    layout="vertical"
-                    data={data}
-                    margin={{ top: 20, right: 50, bottom: 20, left: 20 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                    <XAxis
-                        type="number"
-                        hide={true}
-                    />
-                    <YAxis
-                        dataKey="nome"
-                        type="category"
-                        width={100}
-                        tick={{ fontSize: 10, fill: '#64748b' }}
-                        interval={0}
-                    />
-                    <Tooltip content={<CustomTooltip metrica={metrica} />} cursor={{ fill: '#f8fafc' }} />
-
-                    <Bar
-                        dataKey={metrica === 'Valor' ? 'total_vendas' : 'total_quantidade'}
-                        barSize={20}
-                        radius={[0, 4, 4, 0]}
+        <div className="w-full max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent pr-2">
+            <div style={{ width: '100%', height: chartHeight }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                        layout="vertical"
+                        data={data}
+                        margin={{ top: 0, right: 60, bottom: 0, left: 10 }} // Increased right margin for labels
                     >
-                        {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index < 3 ? '#6366f1' : '#94a3b8'} fillOpacity={index < 3 ? 1 : 0.7} />
-                        ))}
-                        <LabelList
-                            dataKey="percentual"
-                            position="right"
-                            formatter={(val) => `${val}%`}
-                            style={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }}
+                        <defs>
+                            <linearGradient id="industryBarGradient" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#0ea5e9" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#0284c7" stopOpacity={1} />
+                            </linearGradient>
+                        </defs>
+                        {/* No grid lines as per print */}
+
+                        <XAxis type="number" hide={true} />
+
+                        <YAxis
+                            dataKey="nome"
+                            type="category"
+                            width={110}
+                            tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
+                            interval={0}
+                            axisLine={false}
+                            tickLine={false}
                         />
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
+
+                        <Tooltip
+                            content={<CustomTooltip metrica={metrica} />}
+                            cursor={{ fill: '#f1f5f9', opacity: 0.5 }}
+                        />
+
+                        <Bar
+                            dataKey={metrica === 'Valor' ? 'total_vendas' : 'total_quantidade'}
+                            barSize={14} // Thinner bars
+                            radius={[0, 4, 4, 0]}
+                            fill="url(#industryBarGradient)"
+                        >
+                            <LabelList
+                                content={renderCustomLabel}
+                            />
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 };

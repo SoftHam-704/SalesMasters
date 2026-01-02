@@ -88,3 +88,25 @@ def fetch_metas_progresso(ano: int) -> pd.DataFrame:
     """
     df = execute_query(query, {"ano": ano})
     return df
+
+@lru_cache(maxsize=1)
+def fetch_available_filters():
+    """
+    Busca todas as opções de filtros (Indústrias e Clientes).
+    """
+    print("--- DB HIT: Fetching Filter Options ---", flush=True)
+    
+    # 1. Industries
+    q_ind = "SELECT for_codigo, for_nomered FROM fornecedores ORDER BY for_nomered"
+    df_ind = execute_query(q_ind)
+    
+    # 2. Clients (Limit to 1000 or similar if needed? User wants dropdown. Let's send all, distinct)
+    # WARNING: Accessing full list of clients might be heavy. But typically 'Active' clients.
+    # For filter purposes, let's keep it simple.
+    q_cli = "SELECT cli_codigo, cli_nomred FROM clientes ORDER BY cli_nomred"
+    df_cli = execute_query(q_cli)
+    
+    return {
+        "industries": df_ind.to_dict('records') if not df_ind.empty else [],
+        "clients": df_cli.to_dict('records') if not df_cli.empty else []
+    }

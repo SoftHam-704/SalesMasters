@@ -45,3 +45,21 @@ export const formatPercent = (value) => {
         maximumFractionDigits: 2
     }).format(num) + '%';
 };
+
+/**
+ * Formats a number to a compact string (e.g., 1.5M, 200k)
+ * @param {number|string} value 
+ * @returns {string}
+ */
+export const formatCompactCurrency = (value) => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return 'R$ 0';
+
+    if (num >= 1000000) {
+        return `R$ ${(num / 1000000).toFixed(1)}M`;
+    } else if (num >= 1000) {
+        return `R$ ${(num / 1000).toFixed(0)}k`;
+    } else {
+        return formatCurrency(num);
+    }
+};

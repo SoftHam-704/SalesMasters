@@ -1,31 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity, Loader2 } from 'lucide-react';
-import BubbleChart from './BI/charts/BubbleChart';
-import EvolutionChart from './BI/charts/EvolutionChart';
-import ParetoChart from './BI/charts/ParetoChart';
-import IndustryPerformanceChart from './BI/charts/IndustryPerformanceChart';
-
-// Formatters
-const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-};
-
-const formatNumber = (value) => {
-    return new Intl.NumberFormat('pt-BR').format(value || 0);
-};
+import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity } from 'lucide-react';
+import OverviewTab from './BI/tabs/OverviewTab';
+import IndustriasTab from './BI/tabs/IndustriasTab';
+import ClientesTab from './BI/tabs/ClientesTab';
 
 const IntelligencePage = () => {
     const [activePage, setActivePage] = useState('VISAO_GERAL');
-    const [metrics, setMetrics] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [industries, setIndustries] = useState([]);
-    const [selectedIndustry, setSelectedIndustry] = useState(null);
-    const [hoveredIndustry, setHoveredIndustry] = useState(null);
-    const [goalScrollerData, setGoalScrollerData] = useState([]);
-    const [evolutionData, setEvolutionData] = useState([]);
-    const [paretoData, setParetoData] = useState([]);
-    const [industryPerformanceData, setIndustryPerformanceData] = useState([]);
     const [user, setUser] = useState({ name: 'Usuário', avatar: null });
 
     // Filter states
@@ -36,6 +17,25 @@ const IntelligencePage = () => {
         cliente: 'Todos',
         metrica: 'Valor'
     });
+
+    const [industryOptions, setIndustryOptions] = useState([]);
+    const [clientOptions, setClientOptions] = useState([]);
+
+    useEffect(() => {
+        const fetchFilters = async () => {
+            try {
+                // Fetch full list for dropdowns
+                const res = await axios.get('http://localhost:8000/api/dashboard/filters-options');
+                if (res.data) {
+                    setIndustryOptions(res.data.industries || []);
+                    setClientOptions(res.data.clients || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch filter options", err);
+            }
+        };
+        fetchFilters();
+    }, []);
 
     const menuItems = [
         { id: 'VISAO_GERAL', label: 'Visão Geral', icon: <LayoutDashboard size={20} />, color: 'text-white' },
@@ -56,118 +56,6 @@ const IntelligencePage = () => {
 
     // Check if should show client filter (hidden on Visão Geral)
     const showClientFilter = activePage !== 'VISAO_GERAL';
-
-    // Fetch KPIs from API - filtered by selected industry
-    useEffect(() => {
-        const fetchMetrics = async () => {
-            if (activePage !== 'VISAO_GERAL') return;
-
-            setLoading(true);
-            try {
-                const params = {
-                    ano: filters.ano,
-                    mes: monthsMap[filters.mes] || 'Todos',
-                    industria: selectedIndustry?.codigo || null
-                };
-
-                const response = await axios.get('http://localhost:8000/api/dashboard/summary', { params });
-
-                if (response.data && response.data.success) {
-                    setMetrics(response.data.data);
-                }
-            } catch (error) {
-                console.error('Erro ao buscar métricas:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchMetrics();
-    }, [filters.ano, filters.mes, activePage, selectedIndustry]);
-
-    // Fetch Top Industries for Bubble Chart
-    useEffect(() => {
-        const fetchIndustries = async () => {
-            if (activePage !== 'VISAO_GERAL') return;
-
-            try {
-                const params = {
-                    ano: filters.ano,
-                    mes: monthsMap[filters.mes] || 'Todos',
-                    metrica: filters.metrica
-                };
-
-                const response = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params });
-
-                if (response.data && response.data.success) {
-                    setIndustries(response.data.data);
-                }
-            } catch (error) {
-                console.error('Erro ao buscar indústrias:', error);
-            }
-        };
-
-        fetchIndustries();
-        fetchIndustries();
-    }, [filters.ano, filters.mes, filters.metrica, activePage]);
-
-    // Fetch Goals Scroller Data
-    useEffect(() => {
-        const fetchGoals = async () => {
-            if (activePage !== 'VISAO_GERAL') return;
-            try {
-                const response = await axios.get('http://localhost:8000/api/dashboard/goals-scroller', {
-                    params: { ano: filters.ano }
-                });
-                if (response.data) {
-                    setGoalScrollerData(response.data);
-                }
-            } catch (error) {
-                console.error('Erro ao buscar metas scroller:', error);
-            }
-        };
-
-        fetchGoals();
-    }, [filters.ano, activePage]);
-
-    // Fetch Evolution & Pareto Data
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            if (activePage !== 'VISAO_GERAL') return;
-            try {
-                const params = {
-                    ano: filters.ano,
-                    metrica: filters.metrica.toLowerCase()
-                };
-
-                // Evolution
-                const evolutionRes = await axios.get('http://localhost:8000/api/dashboard/evolution', { params });
-                if (evolutionRes.data) setEvolutionData(evolutionRes.data);
-
-                // Pareto
-                const paretoRes = await axios.get('http://localhost:8000/api/dashboard/pareto', { params });
-                if (paretoRes.data) setParetoData(paretoRes.data);
-
-                // Industry Performance (Top 50)
-                const industryParams = { ...params, limit: 50 };
-                const perfRes = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params: industryParams });
-                if (perfRes.data?.success) setIndustryPerformanceData(perfRes.data.data);
-
-            } catch (error) {
-                console.error('Erro ao buscar dados do dashboard:', error);
-            }
-        };
-
-        fetchDashboardData();
-    }, [filters.ano, filters.metrica, activePage]);
-
-    // Calculate bubble sizes (proportional to max value)
-    const getSize = (value, maxValue) => {
-        const minSize = 50;
-        const maxSize = 120;
-        const ratio = value / maxValue;
-        return minSize + (maxSize - minSize) * ratio;
-    };
 
     return (
         <div className="p-6 font-['Inter'] min-h-screen bg-slate-50 relative overflow-hidden">
@@ -279,6 +167,11 @@ const IntelligencePage = () => {
                             className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
                         >
                             <option value="Todos">Indústrias</option>
+                            {industryOptions.map(ind => (
+                                <option key={ind.for_codigo} value={ind.for_codigo}>
+                                    {ind.for_nomered}
+                                </option>
+                            ))}
                         </select>
                     )}
 
@@ -290,6 +183,11 @@ const IntelligencePage = () => {
                             className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
                         >
                             <option value="Todos">Clientes</option>
+                            {clientOptions.map(cli => (
+                                <option key={cli.cli_codigo} value={cli.cli_codigo}>
+                                    {cli.cli_nomred}
+                                </option>
+                            ))}
                         </select>
                     )}
 
@@ -301,6 +199,7 @@ const IntelligencePage = () => {
                     >
                         <option value="Valor">Valor</option>
                         <option value="Quantidade">Quantidade</option>
+                        <option value="Unidades">Unidades</option>
                     </select>
 
                     {/* Real-time indicator */}
@@ -313,214 +212,24 @@ const IntelligencePage = () => {
 
             {/* Central Panel - Fixed Height with Internal Scroll */}
             <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
-                {/* Scrollable Content */}
-                <div className="h-full overflow-y-auto p-5 scroll-smooth" id="central-panel-scroll">
-
-                    {/* Row 1: Market Share + KPIs/Charts */}
-                    <div className="grid grid-cols-12 gap-4 mb-4">
-
-                        {/* Left: Bubble Chart - Market Share */}
-                        <div className="col-span-5 bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl relative overflow-hidden min-h-[280px] flex flex-col justify-center">
-                            {/* Ambient glow effects */}
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-                            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#082320]/80 pointer-events-none"></div>
-
-                            {/* Header - ABSOLUTE positioning at top */}
-                            <div className="absolute top-4 left-0 right-0 z-10 text-center">
-                                <h3 className="font-['Roboto'] text-cyan-400/90 text-[11px] font-bold uppercase tracking-[0.25em]">
-                                    Market Share: Top 6 Indústrias - Performance
-                                </h3>
-                            </div>
-
-                            {/* BubbleChart Component - Centered in full height */}
-                            <div className="relative z-10 h-full w-full">
-                                <BubbleChart
-                                    data={industries}
-                                    selectedIndustryId={selectedIndustry?.codigo}
-                                    metrica={filters.metrica}
-                                    onIndustryClick={(id) => setSelectedIndustry(prev => prev?.codigo === id ? null : industries.find(i => i.codigo === id))}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Right: KPIs + Metas + Evolution */}
-                        <div className="col-span-7 flex flex-col gap-3">
-
-                            {/* KPI Cards Row */}
-                            <div className="grid grid-cols-4 gap-3">
-                                {/* Faturamento */}
-                                <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 hover:shadow-md transition-all text-center">
-                                    <p className="font-['Roboto'] text-[10px] text-slate-400 font-bold uppercase mb-1">Faturamento</p>
-                                    <h4 className="font-['Roboto'] text-lg font-black text-slate-800">
-                                        {loading ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : formatCurrency(metrics?.total_vendido_current)}
-                                    </h4>
-                                    <div className="font-['Roboto'] flex items-center justify-center gap-1 mt-1">
-                                        {metrics?.vendas_percent_change !== undefined && (
-                                            <span className={`text-[10px] font-bold ${parseFloat(metrics.vendas_percent_change) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                M-1: {parseFloat(metrics.vendas_percent_change) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(metrics.vendas_percent_change) || 0).toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Qtd Pedidos */}
-                                <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 hover:shadow-md transition-all text-center">
-                                    <p className="font-['Roboto'] text-[10px] text-slate-400 font-bold uppercase mb-1">Qtd. Pedidos</p>
-                                    <h4 className="font-['Roboto'] text-lg font-black text-slate-800">
-                                        {loading ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : formatNumber(metrics?.qtd_pedidos_current)}
-                                    </h4>
-                                    <div className="font-['Roboto'] flex items-center justify-center gap-1 mt-1">
-                                        {metrics?.pedidos_percent_change !== undefined && (
-                                            <span className={`text-[10px] font-bold ${parseFloat(metrics.pedidos_percent_change) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                M-1: {parseFloat(metrics.pedidos_percent_change) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(metrics.pedidos_percent_change) || 0).toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Clientes Atendidos */}
-                                <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 hover:shadow-md transition-all text-center">
-                                    <p className="font-['Roboto'] text-[10px] text-slate-400 font-bold uppercase mb-1">Clientes atendidos</p>
-                                    <h4 className="font-['Roboto'] text-lg font-black text-slate-800">
-                                        {loading ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : formatNumber(metrics?.clientes_atendidos_current)}
-                                    </h4>
-                                    <div className="font-['Roboto'] flex items-center justify-center gap-1 mt-1">
-                                        {metrics?.clientes_percent_change !== undefined && (
-                                            <span className={`text-[10px] font-bold ${parseFloat(metrics.clientes_percent_change) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                M-1: {parseFloat(metrics.clientes_percent_change) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(metrics.clientes_percent_change) || 0).toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Qtd Vendida */}
-                                <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 hover:shadow-md transition-all text-center">
-                                    <p className="font-['Roboto'] text-[10px] text-slate-400 font-bold uppercase mb-1">Qtd. vendida</p>
-                                    <h4 className="font-['Roboto'] text-lg font-black text-slate-800">
-                                        {loading ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : formatNumber(metrics?.quantidade_vendida_current)}
-                                    </h4>
-                                    <div className="font-['Roboto'] flex items-center justify-center gap-1 mt-1">
-                                        {metrics?.quantidade_percent_change !== undefined && (
-                                            <span className={`text-[10px] font-bold ${parseFloat(metrics.quantidade_percent_change) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                M-1: {parseFloat(metrics.quantidade_percent_change) >= 0 ? '▲' : '▼'} {Math.abs(parseFloat(metrics.quantidade_percent_change) || 0).toFixed(1)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="bg-gradient-to-r from-[#1a2e35] to-[#143228] rounded-lg py-2 px-3 flex flex-col items-center justify-center overflow-hidden shadow-inner border border-[#1a2e35] gap-1">
-                                {/* Centralized Title - In Flow */}
-                                <div className="bg-[#143228]/50 border border-[#1a2e35]/50 px-3 py-0.5 rounded-full shadow-sm backdrop-blur-sm">
-                                    <div className="flex items-center gap-1.5">
-                                        <Target size={10} className="text-emerald-400" />
-                                        <span className="font-['Roboto'] text-[9px] font-bold text-emerald-100 uppercase tracking-widest">
-                                            Metas atingidas (YTD) • Valor realizado vs Meta anual
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="w-full overflow-hidden relative h-6">
-                                    <div className="flex items-center gap-12 animate-marquee whitespace-nowrap absolute top-0 left-0 hover:[animation-play-state:paused] w-max">
-                                        {[...goalScrollerData, ...goalScrollerData].map((item, idx) => {
-                                            const diff = item.total_sales - item.total_goal;
-                                            const isSurplus = diff >= 0;
-                                            const diffFormatted = new Intl.NumberFormat('pt-BR', {
-                                                style: 'currency',
-                                                currency: 'BRL',
-                                                maximumFractionDigits: 0
-                                            }).format(Math.abs(diff));
-
-                                            return (
-                                                <span key={`${item.industry}-${idx}`} className="font-['Roboto'] text-white flex items-center gap-2 select-none">
-                                                    <span className="font-['Roboto'] text-xs font-bold text-slate-300">{item.industry}</span>
-
-                                                    <span className={`font-['Roboto'] text-sm font-black ${isSurplus ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {item.percent.toFixed(1)}%
-                                                    </span>
-
-                                                    <span className={`font-['Roboto'] text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 ${isSurplus ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                        {isSurplus ? 'Superavit' : 'Falta'}
-                                                        <span className="font-['Roboto'] font-normal opacity-90">{diffFormatted}</span>
-                                                    </span>
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                    <style>{`
-                                        @keyframes marquee {
-                                            0% { transform: translateX(0); }
-                                            100% { transform: translateX(-50%); } 
-                                        }
-                                        .animate-marquee {
-                                            animation: marquee 60s linear infinite;
-                                        }
-                                    `}</style>
-                                </div>
-                            </div>
-
-                            {/* Evolution Chart */}
-                            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex-1 min-h-[280px] flex flex-col">
-                                <div className="text-center mb-3">
-                                    <p className="font-['Roboto'] text-xs font-bold text-slate-700 uppercase tracking-wide">Evolução do Volume de {filters.metrica === 'Valor' ? 'Vendas' : 'Peças'}</p>
-                                    <p className="font-['Roboto'] text-[10px] text-slate-500 mt-0.5">Análise de Tendência Mensal (MoM) • {filters.metrica} • {filters.ano}</p>
-                                </div>
-
-                                <div className="flex-1 w-full min-h-0">
-                                    {loading ? (
-                                        <div className="h-full flex items-center justify-center">
-                                            <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
-                                        </div>
-                                    ) : (
-                                        <EvolutionChart data={evolutionData} metrica={filters.metrica} />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                {activePage === 'VISAO_GERAL' && (
+                    <OverviewTab filters={filters} monthsMap={monthsMap} />
+                )}
+                {activePage === 'INDUSTRIAS' && (
+                    <IndustriasTab filters={filters} monthsMap={monthsMap} />
+                )}
+                {activePage === 'CLIENTES' && (
+                    <ClientesTab filters={filters} monthsMap={monthsMap} />
+                )}
+                {/* Fallback for other tabs */}
+                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES'].includes(activePage) && (
+                    <div className="h-full flex flex-col items-center justify-center p-10 text-slate-400">
+                        <Target size={48} className="mb-4 text-slate-200" />
+                        <p className="text-lg font-medium">Módulo: {activeItem.label}</p>
+                        <p className="text-sm">Em desenvolvimento</p>
                     </div>
-
-                    {/* Row 2: Bottom Charts */}
-                    <div className="grid grid-cols-12 gap-4">
-                        {/* Pareto Chart - Aligned with Bubble Chart (col-span-5) */}
-                        <div className="col-span-5 bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[300px] flex flex-col">
-                            <div className="mb-1 text-center">
-                                <p className="font-['Roboto'] text-[11px] font-bold text-slate-700 uppercase">Curva ABC de Clientes (Pareto)</p>
-                                <p className="text-[9px] text-slate-400">Classificação 80/20 • {filters.metrica} • {filters.ano}</p>
-                            </div>
-                            <div className="flex-1 w-full min-h-0">
-                                {loading ? (
-                                    <div className="h-full flex items-center justify-center">
-                                        <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
-                                    </div>
-                                ) : (
-                                    <ParetoChart data={paretoData} metrica={filters.metrica} />
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Right column placeholder (col-span-7) */}
-                        <div className="col-span-7">
-                            {/* Participação da Indústria */}
-                            <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 min-h-[300px] flex flex-col">
-                                <div className="mb-3 text-center">
-                                    <p className="font-['Roboto'] text-[11px] font-bold text-slate-700 uppercase">Ranking e Participação de Mercado</p>
-                                    <p className="text-[9px] text-slate-400">Desempenho por Indústria • {filters.metrica} • {filters.ano}</p>
-                                </div>
-                                <div className="flex-1 w-full min-h-0">
-                                    {loading ? (
-                                        <div className="h-full flex items-center justify-center">
-                                            <Loader2 className="animate-spin text-slate-300 w-5 h-5" />
-                                        </div>
-                                    ) : (
-                                        <IndustryPerformanceChart data={industryPerformanceData} metrica={filters.metrica} />
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div >
+                )}
+            </div>
 
             {/* Scroll Indicator Arrow - Shows when there's more content */}
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce opacity-60 pointer-events-none z-40">
@@ -529,7 +238,7 @@ const IntelligencePage = () => {
             </div>
 
             {/* Bottom Menu - Dynamic PageControl */}
-            < div className="fixed bottom-6 left-[calc(50%+9rem)] -translate-x-1/2 z-50" >
+            <div className="fixed bottom-6 left-[calc(50%+9rem)] -translate-x-1/2 z-50">
                 <div className="bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full px-5 py-2.5 flex items-center gap-1">
                     {menuItems.map((item) => {
                         const isActive = activePage === item.id;
@@ -562,8 +271,8 @@ const IntelligencePage = () => {
                         );
                     })}
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 };
 

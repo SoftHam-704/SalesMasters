@@ -175,48 +175,202 @@ def get_top_clientes_mes(industry_id: int):
     except:
         return []
 
+def get_alertas_globais(ano: int):
+    """Alertas de performance global: Queda Ano x Ano."""
+    try:
+        # Comparar faturamento acumulado atual vs ano anterior (mesmo período)
+        query = """
+            WITH current_year AS (
+                SELECT COALESCE(SUM(i.ite_totliquido), 0) as total 
+                FROM pedidos p JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+                WHERE EXTRACT(YEAR FROM p.ped_data) = :ano 
+                AND p.ped_situacao IN ('P', 'F')
+            ),
+            last_year AS (
+                SELECT COALESCE(SUM(i.ite_totliquido), 0) as total 
+                FROM pedidos p JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+                WHERE EXTRACT(YEAR FROM p.ped_data) = :ano - 1
+                AND p.ped_situacao IN ('P', 'F')
+                AND EXTRACT(DOY FROM p.ped_data) <= EXTRACT(DOY FROM CURRENT_DATE)
+            )
+            SELECT 
+                c.total as total_atual,
+                l.total as total_anterior
+            FROM current_year c, last_year l
+        """
+        df = execute_query(query, {"ano": ano})
+        
+        results = []
+        if not df.empty:
+            row = df.iloc[0]
+            curr = float(row['total_atual'])
+            prev = float(row['total_anterior'])
+            
+            if prev > 0 and curr < prev:
+                diff_pct = ((curr - prev) / prev) * 100
+                diff_val = prev - curr
+                diff_fmt = f"R$ {diff_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                
+                results.append({
+                    "titulo": "Alerta de Queda Anual",
+                    "detalhe": f"O faturamento está {abs(diff_pct):.1f}% menor que o mesmo período do ano anterior (Diferença: {diff_fmt}).",
+                    "prioridade": "Atenção",
+                    "acao": "Rever Estratégia",
+                    "impacto": "Meta Anual"
+                })
+        return results
+    except Exception as e:
+        print(f"Global Alerts Error: {e}", flush=True)
+        return []
+
 def get_riscos_sugestao(industry_id: int):
-    return [get_placeholder_sugestao()]
+    """Riscos: Clientes em Churn (Compraram ano passado, nada este ano/período)."""
+    try:
+        # Se industry_id existe, filtra. Se não, global.
+        ind_filter = ""
+        params = {}
+        if industry_id:
+            ind_filter = "AND p.ped_industria = :ind_id"
+            params["ind_id"] = industry_id
+
+        query = f"""
+            WITH clientes_ano_passado AS (
+                SELECT DISTINCT ped_cliente 
+                FROM pedidos p 
+                WHERE EXTRACT(YEAR FROM p.ped_data) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
+                {ind_filter}
+            ),
+            clientes_este_ano AS (
+                SELECT DISTINCT ped_cliente 
+                FROM pedidos p 
+                WHERE EXTRACT(YEAR FROM p.ped_data) = EXTRACT(YEAR FROM CURRENT_DATE)
+                {ind_filter}
+            )
+            SELECT COUNT(*) as qtd_churn
+            FROM clientes_ano_passado cap
+            WHERE cap.ped_cliente NOT IN (SELECT ped_cliente FROM clientes_este_ano)
+        """
+        df = execute_query(query, params)
+        
+        results = []
+        if not df.empty:
+            churn_count = int(df.iloc[0]['qtd_churn'])
+            if churn_count > 0:
+                 results.append({
+                    "titulo": "Risco de Churn (Inatividade)",
+                    "detalhe": f"Identificamos {churn_count} clientes que compraram no ano passado mas ainda não realizaram pedidos este ano.",
+                    "impacto": "Retenção",
+                    "acao": "Ativar Base",
+                    "prioridade": "Alta"
+                })
+        
+        # Fallback se não tiver churn
+        if not results:
+             results.append({
+                "titulo": "Monitoramento de Riscos",
+                "detalhe": "Nenhum risco crítico de churn identificado no momento. A base de clientes ativos está saudável.",
+                "impacto": "Positivo",
+                "acao": "Manter",
+                "prioridade": "Baixa"
+            })
+            
+        return results
+    except Exception as e:
+        print(f"Risk Logic Error: {e}", flush=True)
+        return []
 
 def get_placeholder_sugestao():
+    # Depreciado em favor da lógica real acima, mantido apenas para compatibilidade se erro
     return {
-        "titulo": "💡 Sua Sugestão",
-        "detalhe": "Quais outros dados seriam úteis para você nesta seção? Clique para sugerir.",
-        "impacto": "Customização",
-        "acao": "Sugerir Agora",
+        "titulo": "Insights em Processamento",
+        "detalhe": "O sistema está compilando novos padrões de dados para gerar recomendações precisas.",
+        "impacto": "Sistema",
+        "acao": "Aguarde",
         "prioridade": "Info"
     }
 
 def get_oportunidades_globais(ano: int):
-    """Visão global usando dados reais agregados (Exemplo parcial)."""
-    return [
-        {
-            "titulo": "Foco em Recuperação",
-            "detalhe": "Existem indústrias com faturamento 20% abaixo da média histórica do ano passado.",
-            "valor": "R$ 45.000,00",
-            "acao": "Ver Detalhes",
-            "impacto": "Anual"
-        }
-    ]
+    """Visão global usando dados reais agregados."""
+    try:
+        # Analisar TOTAL de pedidos pendentes (Situação 'P')
+        query = """
+            SELECT 
+                COUNT(*) as qtd_pedidos,
+                COALESCE(SUM(ite_totliquido), 0) as total_pendente,
+                COUNT(DISTINCT ped_cliente) as qtd_clientes
+            FROM pedidos p
+            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
+              AND p.ped_situacao = 'P' 
+        """
+        df = execute_query(query, {"ano": ano})
+        
+        results = []
+        if not df.empty:
+            row = df.iloc[0]
+            qtd_pedidos = row['qtd_pedidos'] or 0
+            if qtd_pedidos > 0:
+                total_val = float(row['total_pendente'])
+                # Formatação PT-BR
+                qtd_fmt = f"{int(qtd_pedidos):,}".replace(",", ".")
+                val_fmt = f"R$ {total_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                
+                results.append({
+                    "titulo": "Pedidos Pendentes (Global)",
+                    "detalhe": f"Existem {qtd_fmt} pedidos em aberto totalizando {val_fmt}. O faturamento pode ser antecipado com aprovações.",
+                    "prioridade": "Alta",
+                    "acao": "Ver Pendências",
+                    "impacto": "Caixa Imediato"
+                })
+        
+        return results
+    except Exception as e:
+        print(f"Global Ops Error: {e}", flush=True)
+        return []
 
-def get_alertas_globais(ano: int):
-    return [
-        {
-            "titulo": "Metas Globais",
-            "detalhe": "Projeção de fechamento do trimestre indica 92% de atingimento total.",
-            "prioridade": "Média",
-            "acao": "Ajustar Rotas",
-            "impacto": "Estratégico"
-        }
-    ]
+
 
 def get_destaques_globais(ano: int):
-    return [
-        {
-            "titulo": "Maior Pedido do Mês",
-            "detalhe": "Um novo recorde de pedido único foi estabelecido esta semana.",
-            "valor": "Destaque",
-            "acao": "Comemorar",
-            "impacto": "Performance"
-        }
-    ]
+    """Maior venda do mês atual."""
+    try:
+        query = """
+            SELECT 
+                c.cli_nomred,
+                p.ped_pedido,
+                p.ped_totliq
+            FROM pedidos p
+            JOIN clientes c ON p.ped_cliente = c.cli_codigo
+            WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
+              AND EXTRACT(MONTH FROM p.ped_data) = EXTRACT(MONTH FROM CURRENT_DATE)
+              AND p.ped_situacao IN ('P', 'F')
+            ORDER BY p.ped_totliq DESC
+            LIMIT 1
+        """
+        df = execute_query(query, {"ano": ano})
+        
+        results = []
+        if not df.empty:
+            row = df.iloc[0]
+            val = float(row['ped_totliq'] or 0)
+            if val > 0:
+                val_fmt = f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                results.append({
+                    "titulo": "Maior Venda do Mês 🏆",
+                    "detalhe": f"Cliente {row['cli_nomred']} realizou o maior pedido do mês (#{row['ped_pedido']}) no valor de {val_fmt}.",
+                    "valor": "Top 1",
+                    "acao": "Detalhes",
+                    "impacto": "Recorde"
+                })
+        return results
+    except Exception as e:
+        print(f"Global Highlights Error: {e}", flush=True)
+        return []
+
+def get_placeholder_sugestao():
+    return {
+        "titulo": "Assistente de Insights",
+        "detalhe": "Estou analisando novos padrões de vendas dia a dia. Continue vendendo para gerar mais inteligência.",
+        "impacto": "Aprendizado",
+        "acao": "Saber Mais",
+        "prioridade": "AI Info"
+    }
