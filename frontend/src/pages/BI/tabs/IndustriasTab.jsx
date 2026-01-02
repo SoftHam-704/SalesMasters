@@ -11,15 +11,27 @@ const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 const formatNumber = (val) => new Intl.NumberFormat('pt-BR').format(val);
 const formatPercent = (val) => `${val?.toFixed(1) || '0.0'}%`;
 
-const IndustriasTab = ({ filters, monthsMap }) => {
+// Mapping months to numeric strings for API calls
+const monthsMap = {
+    'Todos': 'Todos',
+    'Janeiro': '01',
+    'Fevereiro': '02',
+    'Março': '03',
+    'Abril': '04',
+    'Maio': '05',
+    'Junho': '06',
+    'Julho': '07',
+    'Agosto': '08',
+    'Setembro': '09',
+    'Outubro': '10',
+    'Novembro': '11',
+    'Dezembro': '12'
+};
+
+const IndustriasTab = ({ filters }) => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
     const [topIndustries, setTopIndustries] = useState([]);
-
-    // Default to first industry if none selected or 'Todos'
-    // But filters.industria comes from the main select which might have names
-    // We need the ID. Let's assume we fetch top industries to populate a local selector if global is "Todos"
-    // Or simpler: if global is "Todos", we pick the #1 industry automatically.
 
     useEffect(() => {
         const fetchData = async () => {
@@ -28,7 +40,7 @@ const IndustriasTab = ({ filters, monthsMap }) => {
                 // 1. Get List of Industries to pick one if needed
                 let targetId = null;
 
-                // 1. Fetch Top Industries list (useful for context or fallback)
+                // 1. Fetch Top Industries list
                 const indRes = await axios.get('http://localhost:8000/api/dashboard/top-industries', {
                     params: { ano: filters.ano, mes: monthsMap[filters.mes] || 'Todos' }
                 });
@@ -39,10 +51,8 @@ const IndustriasTab = ({ filters, monthsMap }) => {
 
                 // 2. Determine Target ID
                 if (filters.industria && filters.industria !== 'Todos') {
-                    // Use the selected ID from the dropdown
                     targetId = filters.industria;
                 } else if (indRes.data?.success && indRes.data.data.length > 0) {
-                    // Fallback to top industry if "Todos"
                     targetId = indRes.data.data[0].codigo;
                 }
 
@@ -67,7 +77,7 @@ const IndustriasTab = ({ filters, monthsMap }) => {
         };
 
         fetchData();
-    }, [filters.ano, filters.mes, filters.industria, filters.metrica, monthsMap]);
+    }, [filters.ano, filters.mes, filters.industria, filters.metrica]);
 
     if (loading) {
         return (

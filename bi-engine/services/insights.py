@@ -1,97 +1,115 @@
 from services.database import execute_query
 import pandas as pd
+from openai import OpenAI
+import os
+import httpx
 
 def generate_insights(ano: int, industry_id: int = None):
     """
-    Gera narrativas baseadas em 4 categorias estratégicas para Representantes:
-    Oportunidades, Alertas, Destaques e Riscos.
-    Usa dados reais do PostgreSQL se industry_id for fornecido.
+    Gera narrativas baseadas em AI V3 (OpenAI).
+    Analisa dados reais e pede insights qualitativos e quantitativos.
     """
     try:
-        # Sanitizar industry_id
-        if not industry_id:
-            industry_id = None
-        else:
-            try:
-                industry_id = int(industry_id)
-            except:
-                industry_id = None
-
-        if industry_id:
-            oportunidades = get_oportunidades(industry_id)
-            alertas = get_alertas_meta(industry_id)
-            destaques = get_top_clientes_mes(industry_id)
-            riscos = get_riscos_sugestao(industry_id)
-            prefixo = "Analisando a performance da indústria selecionada"
-        else:
-            oportunidades = get_oportunidades_globais(ano)
-            alertas = get_alertas_globais(ano)
-            destaques = get_destaques_globais(ano)
-            riscos = [get_placeholder_sugestao()]
-            prefixo = "Na visão geral do ano"
-
-        total_oportunidades = len(oportunidades)
-        total_alertas = len(alertas)
+        # Prepara dados para o Prompt
+        oportunidades = get_oportunidades(industry_id) or []
+        alertas = get_alertas_meta(industry_id) or []
         
-        resumo = f"{prefixo}, identificamos **{total_oportunidades} oportunidades** de faturamento e **{total_alertas} alertas** de agilidade. O foco deve ser na reposição preditiva e no fechamento de pedidos pendentes."
+        # Resumo simples dos dados para o prompt (evitar token overflow)
+        data_summary = f"""
+        Oportunidades ({len(oportunidades)}): {[f"{o['titulo']} ({o.get('valor','?')})" for o in oportunidades[:3]]}
+        Alertas ({len(alertas)}): {[f"{a['titulo']} ({a.get('prioridade','?')})" for a in alertas[:3]]}
+        Contexto: Ano {ano}, Indústria ID {industry_id if industry_id else 'Todas'}
+        """
 
+        # Call OpenAI with timeout (avoid dashboard freeze)
+        import httpx
+        api_key = os.getenv("OPENAI_API_KEY")
+        try:
+            client = OpenAI(api_key=api_key, http_client=httpx.Client(timeout=10.0))
+            
+            prompt = f"""
+            Aja como um Diretor Comercial Sênior analisando este dashboard.
+            Dados:
+            {data_summary}
+    
+            Gere um 'Resumo Executivo' (max 250 chars) direto e orientado a ação. 
+            Não use "Olá" ou introduções. Vá direto ao ponto.
+            """
+    
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Você é um assistente de BI focado em vendas B2B."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=100
+            )
+            ai_summary = response.choices[0].message.content.strip()
+        except Exception as ai_err:
+            print(f"AI Timeout/Error: {ai_err}", flush=True)
+            ai_summary = "Resumo indisponível no momento. Foco em clientes com queda de ticket e itens sem venda para recuperação imediata."
+        
         return {
             "success": True,
-            "industria_analisada": "Geral" if not industry_id else "Indústria Selecionada",
-            "resumo_executivo": resumo,
+            "industria_analisada": "Geral" if not industry_id else f"Indústria {industry_id}",
+            "resumo_executivo": ai_summary,
             "categorias": {
                 "oportunidades": oportunidades,
                 "alertas": alertas,
-                "destaques": destaques,
-                "riscos": riscos
+                "destaques": get_top_clientes_mes(industry_id),
+                "riscos": get_riscos_sugestao(industry_id)
             }
         }
         
     except Exception as e:
-        print(f"FAULT: Insights generation v2.1 failed: {str(e)}", flush=True)
-        return {"error": f"Erro ao gerar insights: {str(e)}"}
+        print(f"FAULT: AI Insights generation failed: {str(e)}", flush=True)
+        # Fallback para estático em caso de erro da API
+        return {
+            "success": True, 
+            "resumo_executivo": "Identificamos oportunidades de reposição e alertas de ritmo. (Smart Insight indisponível momentaneamente)",
+            "categorias": {
+                "oportunidades": oportunidades if 'oportunidades' in locals() else [],
+                "alertas": alertas if 'alertas' in locals() else [],
+                "destaques": [], 
+                "riscos": []
+            }
+        }
 
 def get_oportunidades(industry_id: int):
-    """Real: Clientes 'atrasados' na reposição."""
+    """Real: Clientes 'atrasados' na reposição usando view otimizada."""
     try:
-        query = """
-            WITH freq_clientes AS (
-                SELECT 
-                    p.ped_cliente,
-                    c.cli_nomred,
-                    MAX(p.ped_data) as ultima_compra,
-                    CURRENT_DATE - MAX(p.ped_data) as dias_desde_ultima
+        # Nota: A view vw_metricas_cliente é global. 
+        # Se industry_id for informado, ainda usamos a query legada porém com filtro.
+        # Mas para o Analytics global, usamos a view.
+        if not industry_id or industry_id == "Todos":
+            query = """
+                SELECT cliente_nome as cli_nomred, dias_sem_compra as dias_desde_ultima
+                FROM vw_metricas_cliente
+                WHERE dias_sem_compra > 25
+                ORDER BY dias_sem_compra DESC
+                LIMIT 3
+            """
+            df = execute_query(query)
+        else:
+            query = """
+                SELECT DISTINCT p.ped_cliente, c.cli_nomred, (CURRENT_DATE - MAX(p.ped_data)::date) as dias_desde_ultima
                 FROM pedidos p
                 JOIN clientes c ON p.ped_cliente = c.cli_codigo
-                WHERE p.ped_industria = :industry_id
-                  AND p.ped_situacao IN ('P', 'F')
+                WHERE p.ped_industria = :industry_id AND p.ped_situacao IN ('P', 'F')
                 GROUP BY 1, 2
-            )
-            SELECT * FROM freq_clientes
-            WHERE dias_desde_ultima > 25
-            ORDER BY dias_desde_ultima DESC
-            LIMIT 3
-        """
-        df = execute_query(query, {"industry_id": industry_id})
+                HAVING (CURRENT_DATE - MAX(p.ped_data)::date) > 25
+                ORDER BY 3 DESC LIMIT 3
+            """
+            df = execute_query(query, {"industry_id": industry_id})
         
         results = []
         for _, row in df.iterrows():
             results.append({
                 "titulo": f"Reposição: {row['cli_nomred']}",
-                "detalhe": f"Este cliente costuma comprar com mais frequência, mas está há {row['dias_desde_ultima']} dias sem pedidos nesta pasta.",
+                "detalhe": f"Este cliente costuma comprar com frequência, mas está há {int(row['dias_desde_ultima'])} dias sem pedidos.",
                 "valor": "Potencial Alto",
                 "acao": "Oferecer reposição",
                 "impacto": "Receita"
-            })
-        
-        # Se vazio, retornar modelo para sugestão
-        if not results:
-            results.append({
-                "titulo": "Mix de Produtos (Real)",
-                "detalhe": "Análise de quais produtos este cliente ainda não compra nesta indústria.",
-                "valor": "Aguardando Vendas",
-                "acao": "Analisar Mix",
-                "impacto": "Oportunidade"
             })
         return results
     except:
@@ -176,47 +194,32 @@ def get_top_clientes_mes(industry_id: int):
         return []
 
 def get_alertas_globais(ano: int):
-    """Alertas de performance global: Queda Ano x Ano."""
+    """Alertas de performance global usando vw_performance_mensal."""
     try:
-        # Comparar faturamento acumulado atual vs ano anterior (mesmo período)
         query = """
-            WITH current_year AS (
-                SELECT COALESCE(SUM(i.ite_totliquido), 0) as total 
-                FROM pedidos p JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
-                WHERE EXTRACT(YEAR FROM p.ped_data) = :ano 
-                AND p.ped_situacao IN ('P', 'F')
-            ),
-            last_year AS (
-                SELECT COALESCE(SUM(i.ite_totliquido), 0) as total 
-                FROM pedidos p JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
-                WHERE EXTRACT(YEAR FROM p.ped_data) = :ano - 1
-                AND p.ped_situacao IN ('P', 'F')
-                AND EXTRACT(DOY FROM p.ped_data) <= EXTRACT(DOY FROM CURRENT_DATE)
-            )
             SELECT 
-                c.total as total_atual,
-                l.total as total_anterior
-            FROM current_year c, last_year l
+                SUM(valor_total) as total_atual,
+                LAG(SUM(valor_total)) OVER (ORDER BY mes) as total_anterior
+            FROM vw_performance_mensal
+            GROUP BY mes
+            ORDER BY mes DESC
+            LIMIT 2
         """
-        df = execute_query(query, {"ano": ano})
+        df = execute_query(query)
         
         results = []
-        if not df.empty:
-            row = df.iloc[0]
-            curr = float(row['total_atual'])
-            prev = float(row['total_anterior'])
+        if len(df) >= 2:
+            curr = float(df.iloc[0]['total_atual'])
+            prev = float(df.iloc[1]['total_atual'])
             
             if prev > 0 and curr < prev:
                 diff_pct = ((curr - prev) / prev) * 100
-                diff_val = prev - curr
-                diff_fmt = f"R$ {diff_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                
                 results.append({
-                    "titulo": "Alerta de Queda Anual",
-                    "detalhe": f"O faturamento está {abs(diff_pct):.1f}% menor que o mesmo período do ano anterior (Diferença: {diff_fmt}).",
+                    "titulo": "Alerta de Queda Mensal",
+                    "detalhe": f"O faturamento deste mês está {abs(diff_pct):.1f}% menor que o mês passado.",
                     "prioridade": "Atenção",
                     "acao": "Rever Estratégia",
-                    "impacto": "Meta Anual"
+                    "impacto": "Meta"
                 })
         return results
     except Exception as e:
@@ -233,24 +236,12 @@ def get_riscos_sugestao(industry_id: int):
             ind_filter = "AND p.ped_industria = :ind_id"
             params["ind_id"] = industry_id
 
-        query = f"""
-            WITH clientes_ano_passado AS (
-                SELECT DISTINCT ped_cliente 
-                FROM pedidos p 
-                WHERE EXTRACT(YEAR FROM p.ped_data) = EXTRACT(YEAR FROM CURRENT_DATE) - 1
-                {ind_filter}
-            ),
-            clientes_este_ano AS (
-                SELECT DISTINCT ped_cliente 
-                FROM pedidos p 
-                WHERE EXTRACT(YEAR FROM p.ped_data) = EXTRACT(YEAR FROM CURRENT_DATE)
-                {ind_filter}
-            )
+        query = """
             SELECT COUNT(*) as qtd_churn
-            FROM clientes_ano_passado cap
-            WHERE cap.ped_cliente NOT IN (SELECT ped_cliente FROM clientes_este_ano)
+            FROM vw_metricas_cliente
+            WHERE dias_sem_compra > 90
         """
-        df = execute_query(query, params)
+        df = execute_query(query)
         
         results = []
         if not df.empty:
@@ -258,7 +249,7 @@ def get_riscos_sugestao(industry_id: int):
             if churn_count > 0:
                  results.append({
                     "titulo": "Risco de Churn (Inatividade)",
-                    "detalhe": f"Identificamos {churn_count} clientes que compraram no ano passado mas ainda não realizaram pedidos este ano.",
+                    "detalhe": f"Identificamos {churn_count} clientes inativos há mais de 90 dias.",
                     "impacto": "Retenção",
                     "acao": "Ativar Base",
                     "prioridade": "Alta"
@@ -374,3 +365,78 @@ def get_placeholder_sugestao():
         "acao": "Saber Mais",
         "prioridade": "AI Info"
     }
+
+def generate_critical_alerts_ai(ano: int, mes: str = 'Todos', industry_id: int = None):
+    """
+    Gera 3 alertas críticos de alto impacto (benefício/perda) usando OpenAI e dados reais.
+    """
+    from services.analytics_dashboard import get_critical_alerts, get_kpis_metrics
+    
+    try:
+        # 1. Busca dados reais
+        alerts_data = get_critical_alerts(ano, mes, industry_id)
+        kpi_data = get_kpis_metrics(ano, mes, industry_id)
+        
+        # 2. Prepara resumo para o GPT
+        # lost_clients: list of {cli_nomred, dias_sem_compra, estimated_annual_loss}
+        # dead_stock: {dead_stock_count, dead_stock_value}
+        # kpi_variation: variation: {valor, pedidos, ticket, clientes}
+        
+        lost_summary = [f"{c['cli_nomred']} ({c['dias_sem_compra']} dias s/ compra, Perda Est. R$ {c['estimated_annual_loss']:,.0f}/ano)" for c in alerts_data.get('lost_clients', [])[:5]]
+        
+        data_context = f"""
+        - Clientes Perdidos: {lost_summary}
+        """
+        
+        api_key = os.getenv("OPENAI_API_KEY")
+        client = OpenAI(api_key=api_key, http_client=httpx.Client(timeout=10.0))
+        
+        prompt = f"""
+        Aja como um Diretor Comercial focado em resultados. Gere ATÉ 5 alertas críticos baseados APENAS nos dados de clientes perdidos abaixo.
+        Siga RIGOROSAMENTE este formato JSON:
+        [
+          {{
+            "title": "NOME CLIENTE zerou pedidos - Perda estimada de R$ X",
+            "subtitle": "Cliente histórico sem compras há X dias."
+          }}
+        ]
+
+        Dados Reais:
+        {data_context}
+        
+        Importante: 
+        1. Formate o valor da perda com separadores de milhar (ex: 1.840.838/ano).
+        2. O título DEVE ser "[NOME CLIENTE] zerou pedidos - Perda estimada de R$ [VALOR]/ano".
+        3. O subtítulo DEVE ser "Cliente histórico sem compras há [DIAS] dias."
+        4. No máximo 5 alertas.
+        Não use markdown na resposta, apenas o JSON puro.
+        """
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Você é um assistente de BI que gera alertas financeiros de alto impacto."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=400,
+            temperature=0
+        )
+        
+        import json
+        content = response.choices[0].message.content.strip()
+        # Remove markdown if any
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+            
+        return json.loads(content)
+        
+    except Exception as e:
+        print(f"Error generating AI alerts: {e}", flush=True)
+        # Fallback estático baseado nos dados se a IA falhar
+        return [
+            {
+                "title": "Erro na geração de insights via AI",
+                "subtitle": "Verifique a conexão com a OpenAI ou logs do servidor.",
+                "icon": "🚨"
+            }
+        ]

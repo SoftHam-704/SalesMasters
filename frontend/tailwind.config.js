@@ -47,6 +47,9 @@ export default {
                 md: "var(--radius-md)",
                 sm: "var(--radius-sm)",
             },
+            fontFamily: {
+                roboto: ['Roboto', 'sans-serif'],
+            },
         },
     },
     plugins: [],

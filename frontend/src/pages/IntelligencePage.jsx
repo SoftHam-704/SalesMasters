@@ -4,6 +4,12 @@ import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, 
 import OverviewTab from './BI/tabs/OverviewTab';
 import IndustriasTab from './BI/tabs/IndustriasTab';
 import ClientesTab from './BI/tabs/ClientesTab';
+import AnalyticsTab from './BI/tabs/AnalyticsTab';
+
+// STABLE CONSTANTS - Outside component to prevent re-render loops
+const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
+const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+const MONTHS = ['Todos', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 const IntelligencePage = () => {
     const [activePage, setActivePage] = useState('VISAO_GERAL');
@@ -48,9 +54,7 @@ const IntelligencePage = () => {
         { id: 'PRODUTOS', label: 'Produtos', icon: <Package size={20} />, color: 'text-cyan-500' },
     ];
 
-    const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
-    const months = ['Todos', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    const monthsMap = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
+    // Use module-level constants (YEARS, MONTHS, MONTHS_MAP)
 
     const activeItem = menuItems.find(item => item.id === activePage) || menuItems[0];
 
@@ -147,7 +151,7 @@ const IntelligencePage = () => {
                         onChange={(e) => setFilters(p => ({ ...p, ano: e.target.value }))}
                         className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
                     >
-                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
 
                     {/* Month */}
@@ -156,7 +160,7 @@ const IntelligencePage = () => {
                         onChange={(e) => setFilters(p => ({ ...p, mes: e.target.value }))}
                         className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
                     >
-                        {months.map(m => <option key={m} value={m}>{m}</option>)}
+                        {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
 
                     {/* Industry - Hidden on Visão Geral */}
@@ -213,16 +217,19 @@ const IntelligencePage = () => {
             {/* Central Panel - Fixed Height with Internal Scroll */}
             <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
                 {activePage === 'VISAO_GERAL' && (
-                    <OverviewTab filters={filters} monthsMap={monthsMap} />
+                    <OverviewTab key="overview" filters={filters} />
                 )}
                 {activePage === 'INDUSTRIAS' && (
-                    <IndustriasTab filters={filters} monthsMap={monthsMap} />
+                    <IndustriasTab key="industrias" filters={filters} />
                 )}
                 {activePage === 'CLIENTES' && (
-                    <ClientesTab filters={filters} monthsMap={monthsMap} />
+                    <ClientesTab key="clientes" filters={filters} />
+                )}
+                {activePage === 'ESTATISTICAS' && (
+                    <AnalyticsTab key="analytics" filters={filters} />
                 )}
                 {/* Fallback for other tabs */}
-                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES'].includes(activePage) && (
+                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS'].includes(activePage) && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-slate-400">
                         <Target size={48} className="mb-4 text-slate-200" />
                         <p className="text-lg font-medium">Módulo: {activeItem.label}</p>

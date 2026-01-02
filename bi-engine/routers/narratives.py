@@ -38,10 +38,20 @@ async def read_risks(industryId: int = Query(...)):
     return {"success": True, "data": get_riscos_sugestao(industryId)}
 
 @router.get("/executive-summary")
-async def read_summary(industryId: int = Query(...)):
-    """
-    Retorna resumo executivo consolidado.
-    """
-    # Reutiliza a lógica geral
+async def read_summary(industryId: int = Query(None)):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /executive-summary (industryId={industryId})", flush=True)
     insights = generate_insights(2025, industryId)
+    print(f"RESPONSE /executive-summary - Duration: {time.time() - start:.2f}s", flush=True)
     return {"success": True, "data": insights.get("resumo_executivo", "")}
+
+@router.get("/advanced-analysis")
+async def read_advanced_analysis(ano: int = 2025, mes: str = 'Todos'):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /advanced-analysis (ano={ano}, mes={mes})", flush=True)
+    from services.insights import generate_critical_alerts_ai
+    insights = generate_critical_alerts_ai(ano, mes)
+    print(f"RESPONSE /advanced-analysis - Duration: {time.time() - start:.2f}s", flush=True)
+    return {"success": True, "data": insights}

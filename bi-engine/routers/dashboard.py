@@ -15,6 +15,14 @@ from services.top_industries import fetch_top_industries
 from services.dashboard_summary import fetch_dashboard_summary
 from services.industry_dashboard import get_industry_details
 from services.client_dashboard import get_client_details
+from services.analytics_dashboard import (
+    get_critical_alerts,
+    get_kpis_metrics,
+    get_portfolio_abc,
+    get_client_comparison,
+    get_top_clients_variation,
+    get_full_analytics_tab
+)
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
@@ -233,3 +241,52 @@ async def get_client_details_api(ano: int = 2025, mes: str = 'Todos', industryId
     - Lista de UFs disponíveis para filtro
     """
     return get_client_details(ano, mes, industryId, metrica, uf)
+
+# --- ANALYTICS DASHBOARD ENDPOINTS ---
+
+@router.get("/analytics/alerts")
+async def get_analytics_alerts(ano: int = 2025, mes: str = 'Todos'):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /analytics/alerts (ano={ano}, mes={mes})", flush=True)
+    res = get_critical_alerts(ano, mes)
+    print(f"RESPONSE /analytics/alerts - Duration: {time.time() - start:.2f}s", flush=True)
+    return res
+
+@router.get("/analytics/kpis")
+async def get_analytics_kpis(ano: int = 2025, mes: str = 'Todos'):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /analytics/kpis (ano={ano}, mes={mes})", flush=True)
+    res = get_kpis_metrics(ano, mes)
+    print(f"RESPONSE /analytics/kpis - Duration: {time.time() - start:.2f}s", flush=True)
+    return res
+
+@router.get("/analytics/portfolio-abc")
+async def get_analytics_portfolio(ano: int = 2025, industryId: int = None):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /analytics/portfolio-abc (ano={ano}, industryId={industryId})", flush=True)
+    res = get_portfolio_abc(ano, industryId)
+    print(f"RESPONSE /analytics/portfolio-abc - Duration: {time.time() - start:.2f}s", flush=True)
+    return res
+
+@router.get("/analytics/top-clients-variation")
+async def get_analytics_top_clients_variation(ano: int = 2025, mes: str = "Todos", industryId: int = None):
+    return get_top_clients_variation(ano, mes, industryId)
+
+@router.get("/analytics/full-tab")
+async def get_analytics_full_tab(ano: int = 2025, mes: str = "Todos", industryId: int = None):
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /analytics/full-tab (ano={ano}, mes={mes}, industry={industryId})", flush=True)
+    res = get_full_analytics_tab(ano, mes, industryId)
+    print(f"RESPONSE /analytics/full-tab - Duration: {time.time() - start:.2f}s", flush=True)
+    return res
+
+@router.get("/analytics/client-comparison")
+async def get_client_comparison_api(ref_client: int, target_client: int):
+    """
+    Retorna comparativo entre dois clientes para identificar oportunidades.
+    """
+    return get_client_comparison(ref_client, target_client)

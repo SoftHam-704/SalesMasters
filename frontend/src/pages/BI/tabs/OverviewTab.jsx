@@ -7,6 +7,9 @@ import ParetoChart from '../charts/ParetoChart';
 import IndustryPerformanceChart from '../charts/IndustryPerformanceChart';
 import NarrativesWidget from '../components/NarrativesWidget';
 
+// Import stable constants
+const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
+
 // Formatters
 const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -16,7 +19,7 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
 };
 
-const OverviewTab = ({ filters, monthsMap }) => {
+const OverviewTab = ({ filters }) => {
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(false);
     const [industries, setIndustries] = useState([]);
@@ -34,7 +37,7 @@ const OverviewTab = ({ filters, monthsMap }) => {
             try {
                 const params = {
                     ano: filters.ano,
-                    mes: monthsMap[filters.mes] || 'Todos',
+                    mes: MONTHS_MAP[filters.mes] || 'Todos',
                     industria: selectedIndustry?.codigo || null
                 };
 
@@ -51,7 +54,7 @@ const OverviewTab = ({ filters, monthsMap }) => {
         };
 
         fetchMetrics();
-    }, [filters.ano, filters.mes, selectedIndustry, monthsMap]);
+    }, [filters.ano, filters.mes, selectedIndustry]);
 
     // Fetch Top Industries for Bubble Chart
     useEffect(() => {
@@ -59,7 +62,7 @@ const OverviewTab = ({ filters, monthsMap }) => {
             try {
                 const params = {
                     ano: filters.ano,
-                    mes: monthsMap[filters.mes] || 'Todos',
+                    mes: MONTHS_MAP[filters.mes] || 'Todos',
                     metrica: filters.metrica
                 };
 
@@ -74,7 +77,7 @@ const OverviewTab = ({ filters, monthsMap }) => {
         };
 
         fetchIndustries();
-    }, [filters.ano, filters.mes, filters.metrica, monthsMap]);
+    }, [filters.ano, filters.mes, filters.metrica]);
 
     // Fetch Goals Scroller Data
     useEffect(() => {

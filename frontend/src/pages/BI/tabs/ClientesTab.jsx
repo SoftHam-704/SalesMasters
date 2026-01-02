@@ -27,7 +27,24 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
 };
 
-const ClientesTab = ({ filters, monthsMap }) => {
+// Mapping months to numeric strings for API calls
+const monthsMap = {
+    'Todos': 'Todos',
+    'Janeiro': '01',
+    'Fevereiro': '02',
+    'Março': '03',
+    'Abril': '04',
+    'Maio': '05',
+    'Junho': '06',
+    'Julho': '07',
+    'Agosto': '08',
+    'Setembro': '09',
+    'Outubro': '10',
+    'Novembro': '11',
+    'Dezembro': '12'
+};
+
+const ClientesTab = ({ filters }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedUf, setSelectedUf] = useState('Todos');
@@ -57,7 +74,7 @@ const ClientesTab = ({ filters, monthsMap }) => {
         };
 
         fetchClientData();
-    }, [filters, monthsMap, selectedUf]);
+    }, [filters, selectedUf]);
 
     if (loading) {
         return (

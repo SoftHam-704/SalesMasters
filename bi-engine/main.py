@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
-from routers import dashboard, narratives
+from routers import dashboard, narratives, portfolio
 
 app = FastAPI(
     title="SalesMasters BI Engine",
@@ -10,9 +10,11 @@ app = FastAPI(
 )
 
 # CORS Middleware
+origins = CORS_ORIGINS + ["http://localhost:5173", "http://127.0.0.1:5173"]
+print(f"DEBUG: CORS Origins Enabled: {origins}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(dashboard.router)
 app.include_router(narratives.router)
+app.include_router(portfolio.router)
 
 @app.get("/")
 async def root():
