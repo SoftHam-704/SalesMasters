@@ -144,14 +144,14 @@ const OverviewTab = ({ filters }) => {
                 {/* Left: Bubble Chart + Narratives */}
                 <div className="col-span-5 flex flex-col gap-4">
                     {/* Bubble Chart - Market Share */}
-                    <div className="bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl relative overflow-hidden h-[310px] flex flex-col justify-center shadow-lg border border-[#0d3d38]">
+                    <div className="bg-gradient-to-br from-[#0a3d3d] via-[#0d4a4a] to-[#0a3535] rounded-xl relative overflow-hidden h-[310px] flex flex-col justify-center shadow-lg border border-[#0d4a4a]">
                         {/* Ambient glow effects */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none"></div>
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#082320]/80 pointer-events-none"></div>
 
                         {/* Header - ABSOLUTE positioning at top */}
                         <div className="absolute top-4 left-0 right-0 z-10 text-center">
-                            <h3 className="font-['Roboto'] text-cyan-400/90 text-xs font-bold uppercase tracking-[0.25em]">
+                            <h3 className="font-['Roboto'] !text-cyan-200 text-xs font-bold uppercase tracking-[0.25em] drop-shadow-md">
                                 Market Share: Top 6 Indústrias - Performance
                             </h3>
                         </div>
@@ -239,12 +239,12 @@ const OverviewTab = ({ filters }) => {
                         </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-[#1a2e35] to-[#143228] rounded-lg py-2 px-3 flex flex-col items-center justify-center overflow-hidden shadow-inner border border-[#1a2e35] gap-1">
+                    <div className="bg-gradient-to-br from-[#0a3d3d] via-[#0d4a4a] to-[#0a3535] rounded-lg py-2 px-3 flex flex-col items-center justify-center overflow-hidden shadow-inner border border-[#0d4a4a] gap-1">
                         {/* Centralized Title - In Flow */}
                         <div className="bg-[#143228]/50 border border-[#1a2e35]/50 px-3 py-0.5 rounded-full shadow-sm backdrop-blur-sm">
                             <div className="flex items-center gap-1.5">
-                                <Target size={10} className="text-emerald-400" />
-                                <span className="font-['Roboto'] text-[9px] font-bold text-emerald-100 uppercase tracking-widest">
+                                <Target size={10} className="text-cyan-400" />
+                                <span className="font-['Roboto'] text-[9px] font-bold !text-cyan-200 uppercase tracking-[0.15em] drop-shadow-sm">
                                     Metas atingidas (YTD) • Valor realizado vs Meta anual
                                 </span>
                             </div>
@@ -262,16 +262,16 @@ const OverviewTab = ({ filters }) => {
                                     }).format(Math.abs(diff));
 
                                     return (
-                                        <span key={`${item.industry}-${idx}`} className="font-['Roboto'] text-white flex items-center gap-2 select-none">
-                                            <span className="font-['Roboto'] text-xs font-bold text-slate-300">{item.industry}</span>
+                                        <span key={`${item.industry}-${idx}`} className="font-['Roboto'] !text-white flex items-center gap-2 select-none">
+                                            <span className="font-['Roboto'] text-xs font-bold !text-slate-100">{item.industry}</span>
 
-                                            <span className={`font-['Roboto'] text-sm font-black ${isSurplus ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            <span className={`font-['Roboto'] text-sm font-black ${isSurplus ? '!text-emerald-400' : '!text-red-400'}`}>
                                                 {item.percent.toFixed(1)}%
                                             </span>
 
-                                            <span className={`font-['Roboto'] text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 ${isSurplus ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                            <span className={`font-['Roboto'] text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-1 ${isSurplus ? 'bg-emerald-500/20 !text-emerald-400' : 'bg-red-500/20 !text-red-400'}`}>
                                                 {isSurplus ? 'Superavit' : 'Falta'}
-                                                <span className="font-['Roboto'] font-normal opacity-90">{diffFormatted}</span>
+                                                <span className="font-['Roboto'] font-normal opacity-90 !text-white">{diffFormatted}</span>
                                             </span>
                                         </span>
                                     );

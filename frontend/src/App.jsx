@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
+import Sidebar from './components/SidebarNew';
 import Dashboard from './pages/Dashboard';
 import FrmIndustria from './pages/frmIndustria';
 import FrmClientes from './pages/frmClientes';
@@ -45,7 +45,7 @@ import ChartOfAccountsPage from './pages/financial/ChartOfAccountsPage';
 import CostCentersPage from './pages/financial/CostCentersPage';
 import FinancialClientsPage from './pages/financial/FinancialClientsPage';
 import FinancialSuppliersPage from './pages/financial/FinancialSuppliersPage';
-import BIPage from './pages/BIPage';
+
 import IntelligencePage from './pages/IntelligencePage';
 import './styles/global.css';
 import './App.css';
@@ -112,7 +112,7 @@ function App() {
             <Route path="/utilitarios/tetris" element={<TetrisGame />} />
             <Route path="/intelligence" element={<IntelligencePage />} />
             <Route path="/bi-intelligence" element={<IntelligencePage />} />
-            <Route path="/bi-python" element={<BIPage />} />
+
             <Route path="/crm" element={<CRMPage />} />
             <Route path="/configuracoes/crm" element={<CRMSettings />} />
             <Route path="/movimentacoes/sell-out" element={<SellOutPage />} />

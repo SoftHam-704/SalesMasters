@@ -5,6 +5,8 @@ import OverviewTab from './BI/tabs/OverviewTab';
 import IndustriasTab from './BI/tabs/IndustriasTab';
 import ClientesTab from './BI/tabs/ClientesTab';
 import AnalyticsTab from './BI/tabs/AnalyticsTab';
+import CurvaABCTab from './BI/tabs/CurvaABCTab';
+import MetasTab from './BI/tabs/MetasTab';
 
 // STABLE CONSTANTS - Outside component to prevent re-render loops
 const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
@@ -21,7 +23,7 @@ const IntelligencePage = () => {
         mes: 'Todos',
         industria: 'Todos',
         cliente: 'Todos',
-        metrica: 'Valor'
+        metrica: 'valor'
     });
 
     const [industryOptions, setIndustryOptions] = useState([]);
@@ -201,9 +203,9 @@ const IntelligencePage = () => {
                         onChange={(e) => setFilters(p => ({ ...p, metrica: e.target.value }))}
                         className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
                     >
-                        <option value="Valor">Valor</option>
-                        <option value="Quantidade">Quantidade</option>
-                        <option value="Unidades">Unidades</option>
+                        <option value="valor">Valor</option>
+                        <option value="quantidade">Quantidade</option>
+                        <option value="unidades">Unidades</option>
                     </select>
 
                     {/* Real-time indicator */}
@@ -228,8 +230,14 @@ const IntelligencePage = () => {
                 {activePage === 'ESTATISTICAS' && (
                     <AnalyticsTab key="analytics" filters={filters} />
                 )}
+                {activePage === 'CURVA_ABC' && (
+                    <CurvaABCTab key="curva-abc" filters={filters} />
+                )}
+                {activePage === 'METAS' && (
+                    <MetasTab key="metas" filters={filters} />
+                )}
                 {/* Fallback for other tabs */}
-                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS'].includes(activePage) && (
+                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS', 'CURVA_ABC', 'METAS'].includes(activePage) && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-slate-400">
                         <Target size={48} className="mb-4 text-slate-200" />
                         <p className="text-lg font-medium">Módulo: {activeItem.label}</p>
@@ -244,9 +252,19 @@ const IntelligencePage = () => {
                 <span className="text-[8px] text-slate-400 font-medium mt-1">Mais insights</span>
             </div>
 
-            {/* Bottom Menu - Dynamic PageControl */}
+            {/* Bottom Menu - Dynamic PageControl - FULL HD Quality */}
             <div className="fixed bottom-6 left-[calc(50%+9rem)] -translate-x-1/2 z-50">
-                <div className="bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full px-5 py-2.5 flex items-center gap-1">
+                <div
+                    className="bg-[#0c4545] border border-teal-400/40 shadow-lg shadow-teal-900/40 rounded-full px-5 py-2.5 flex items-center gap-1"
+                    style={{
+                        WebkitFontSmoothing: 'antialiased',
+                        MozOsxFontSmoothing: 'grayscale',
+                        textRendering: 'geometricPrecision',
+                        willChange: 'transform',
+                        transform: 'translate3d(0, 0, 0)',
+                        backfaceVisibility: 'hidden'
+                    }}
+                >
                     {menuItems.map((item) => {
                         const isActive = activePage === item.id;
                         return (
@@ -254,26 +272,28 @@ const IntelligencePage = () => {
                                 key={item.id}
                                 onClick={() => setActivePage(item.id)}
                                 className={`
-                                    flex items-center gap-2.5 px-4 py-2.5 rounded-full transition-all duration-300 
+                                    flex items-center gap-2.5 px-4 py-2.5 rounded-full transition-all duration-300 group
                                     ${isActive
-                                        ? 'bg-gradient-to-r from-[#0f172a] to-[#1e293b] text-white shadow-lg shadow-slate-900/30 scale-[1.02]'
-                                        : 'bg-transparent text-slate-600 hover:bg-slate-100 hover:scale-[1.02]'
+                                        ? 'bg-[rgba(0,180,180,0.15)] border border-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.2)] scale-[1.02]'
+                                        : 'bg-transparent border border-transparent hover:bg-teal-400/10 hover:border-teal-400/20 hover:scale-[1.02]'
                                     }
                                 `}
+                                style={{
+                                    WebkitFontSmoothing: 'antialiased',
+                                    textRendering: 'geometricPrecision'
+                                }}
                             >
                                 {React.cloneElement(item.icon, {
                                     size: 18,
-                                    className: `transition-colors duration-300 ${isActive ? 'text-white drop-shadow-sm' : item.color}`
+                                    className: `transition-colors duration-300 ${item.color}`,
+                                    style: { shapeRendering: 'geometricPrecision' }
                                 })}
 
-                                <div className="flex flex-col items-start leading-none">
-                                    <span className={`font-['Roboto'] text-[11px] font-bold uppercase tracking-wide transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-800'}`}>
-                                        {item.label}
-                                    </span>
-                                    <span className={`text-[8px] font-semibold uppercase tracking-wider ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
-                                        EXPLORAR
-                                    </span>
-                                </div>
+                                <span
+                                    className={`font-['Roboto'] text-[12px] font-medium uppercase tracking-wide transition-colors duration-300 !text-white`}
+                                >
+                                    {item.label}
+                                </span>
                             </button>
                         );
                     })}

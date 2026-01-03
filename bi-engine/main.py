@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
-from routers import dashboard, narratives, portfolio
+from routers import dashboard, narratives, portfolio, abc_intelligence, metas
 
 app = FastAPI(
     title="SalesMasters BI Engine",
@@ -24,6 +24,8 @@ app.add_middleware(
 app.include_router(dashboard.router)
 app.include_router(narratives.router)
 app.include_router(portfolio.router)
+app.include_router(abc_intelligence.router)
+app.include_router(metas.router)
 
 @app.get("/")
 async def root():

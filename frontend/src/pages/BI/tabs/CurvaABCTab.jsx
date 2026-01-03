@@ -1,15 +1,19 @@
 import React from 'react';
+import ABCIntelligence from './ABCIntelligence';
 
-const CurvaABCTab = () => {
+const CurvaABCTab = ({ filters = {} }) => {
+    // Mapeia os filtros recebidos via props para o formato esperado pelo ABCIntelligence
+    const filtros = {
+        ano: filters.ano || new Date().getFullYear(),
+        meses: filters.mes === 'Todos' ? 'todos' : filters.mes || 'todos',
+        industria: filters.industria && filters.industria !== 'Todos' ? filters.industria : 'todos',
+        clientes: filters.cliente && filters.cliente !== 'Todos' ? filters.cliente : 'todos',
+        metrica: filters.metrica || 'valor'
+    };
+
     return (
-        <div className="bg-white rounded-[40px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-gray-50">
-            <div className="flex items-center gap-4 mb-6">
-                <div className="w-1.5 h-6 bg-[#F59E0B] rounded-full"></div>
-                <h2 className="text-2xl font-bold text-[#334155]">Curva ABC</h2>
-            </div>
-            <div className="flex items-center justify-center h-64 text-gray-400">
-                <p className="text-lg">Conteúdo em desenvolvimento...</p>
-            </div>
+        <div className="curva-abc-tab p-4 h-full overflow-auto">
+            <ABCIntelligence filtros={filtros} />
         </div>
     );
 };

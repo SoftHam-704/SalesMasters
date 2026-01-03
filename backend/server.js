@@ -4215,6 +4215,7 @@ app.use('/api/suppliers', require('./suppliers_endpoints')(pool));
 app.use('/api/clients', require('./clients_endpoints')(pool));
 app.use('/api/sellers', require('./vendedores_endpoints')(pool));
 app.use('/api/reports', require('./reports_endpoints')(pool));
+app.use('/api/metas', require('./metas_endpoints')(pool)); // Dashboard de Metas
 require('./narratives_endpoints')(app);
 
 app.listen(PORT, () => {

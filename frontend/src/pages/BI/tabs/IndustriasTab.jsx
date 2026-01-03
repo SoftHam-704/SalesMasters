@@ -254,15 +254,28 @@ const IndustriasTab = ({ filters }) => {
                             <AreaChart data={monthly_sales} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="funnelEvolutionGradient" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor="#15803d" stopOpacity={0.9} />
-                                        <stop offset="50%" stopColor="#22c55e" stopOpacity={0.7} />
-                                        <stop offset="100%" stopColor="#86efac" stopOpacity={0.5} />
+                                        <stop offset="0%" stopColor="#0891b2" stopOpacity={0.9} />
+                                        <stop offset="50%" stopColor="#22d3ee" stopOpacity={0.7} />
+                                        <stop offset="100%" stopColor="#67e8f9" stopOpacity={0.5} />
                                     </linearGradient>
                                 </defs>
                                 <Tooltip
                                     cursor={{ stroke: '#ea580c', strokeWidth: 1 }}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px' }}
-                                    formatter={(val) => [filters.metrica === 'valor' ? formatCurrency(val) : formatNumber(val), filters.metrica || 'Valor']}
+                                    contentStyle={{
+                                        backgroundColor: '#ffffff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                        fontSize: '12px',
+                                        fontWeight: 500,
+                                        color: '#1e293b'
+                                    }}
+                                    itemStyle={{ color: '#334155', fontWeight: 600 }}
+                                    labelStyle={{ color: '#64748b', fontWeight: 500, marginBottom: '4px' }}
+                                    formatter={(val) => [
+                                        filters.metrica === 'valor' ? formatCurrency(val) : formatNumber(val),
+                                        filters.metrica ? filters.metrica.charAt(0).toUpperCase() + filters.metrica.slice(1) : 'Valor'
+                                    ]}
                                     labelFormatter={(label) => `Mês: ${label}`}
                                 />
                                 <Area
@@ -326,7 +339,10 @@ const IndustriasTab = ({ filters }) => {
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
                                 <Tooltip
                                     cursor={{ fill: '#f8fafc' }}
-                                    formatter={(Val) => formatCurrency(Val)}
+                                    formatter={(Val) => [
+                                        filters.metrica === 'valor' ? formatCurrency(Val) : formatNumber(Val),
+                                        filters.metrica ? filters.metrica.charAt(0).toUpperCase() + filters.metrica.slice(1) : 'Valor'
+                                    ]}
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 />
                                 <Bar dataKey="vendas" radius={[4, 4, 0, 0]}>
