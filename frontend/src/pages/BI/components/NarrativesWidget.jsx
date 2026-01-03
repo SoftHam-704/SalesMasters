@@ -55,7 +55,7 @@ const NarrativesWidget = ({ loading, data }) => {
             {/* Premium Header Gradient Line */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-80" />
 
-            <div className="p-5 flex gap-5 items-start">
+            <div className="px-5 py-[28px] flex gap-5 items-start">
 
                 {/* Visual Icon Container */}
                 <div className={`shrink-0 w-12 h-12 rounded-xl ${style.bg} ${style.border} border flex items-center justify-center shadow-sm`}>

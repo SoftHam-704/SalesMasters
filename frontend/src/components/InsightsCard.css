@@ -1,0 +1,282 @@
+/* InsightsCard.css */
+/* Estilo ajustado para tema claro com fundo #f9fefc */
+
+.insights-card-container {
+    background: #f9fefc;
+    /* Fundo solicitado */
+    border: 1px solid #e2e8f0;
+    /* Borda sutil */
+    border-radius: 12px;
+    padding: 24px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    /* Sombra mais leve */
+}
+
+/* ========== HEADER ========== */
+.insights-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    /* Divisor claro */
+}
+
+.insights-header h3 {
+    color: #0f172a;
+    /* Slate 900 - Escuro */
+    font-size: 16px;
+    font-weight: 700;
+    /* Mais peso para destacar no fundo claro */
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.last-update {
+    color: #64748b;
+    /* Slate 500 */
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* ========== LOADING STATE ========== */
+.insights-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #10b981;
+    /* Verde Emerald vibrante */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.insights-loading p {
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.5;
+    max-width: 280px;
+}
+
+/* ========== ERROR STATE ========== */
+.insights-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+}
+
+.insights-error p {
+    color: #ef4444;
+    /* Vermelho padrão */
+    font-size: 13px;
+    text-align: center;
+}
+
+.btn-retry {
+    background: #fecaca;
+    color: #991b1b;
+    border: 1px solid #f87171;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-retry:hover {
+    background: #fca5a5;
+}
+
+/* ========== INSIGHTS CONTENT ========== */
+.insights-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 8px;
+    margin-bottom: 16px;
+    /* Altura máxima para ativar scroll */
+    max-height: 400px;
+    /* Ensure a minimum height so it doesn't collapse if few items */
+    min-height: 200px;
+}
+
+/* Custom scrollbar */
+.insights-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.insights-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.insights-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.insights-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ========== INSIGHT BOX ========== */
+.insight-box {
+    background: #ffffff;
+    /* Card branco sobre fundo claro */
+    border: 1px solid #f1f5f9;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    /* Sombra sutil para levantar o card */
+}
+
+.insight-box:hover {
+    background: #ffffff;
+    border-color: #10b981;
+    /* Borda verde ao hover */
+    transform: translateX(4px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.insight-box:last-child {
+    margin-bottom: 0;
+}
+
+.insight-title {
+    color: #1e293b;
+    /* Escuro forte */
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.insight-detail {
+    color: #475569;
+    /* Cinza médio */
+    font-size: 12px;
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.insight-action {
+    background: #ecfdf5;
+    /* Fundo verde muito claro */
+    border-left: 3px solid #10b981;
+    /* Verde Emerald */
+    padding: 10px 12px;
+    border-radius: 6px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.action-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.insight-action {
+    color: #047857;
+    /* Verde escuro texto */
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+/* ========== FOOTER ========== */
+.insights-footer {
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.btn-refresh {
+    width: 100%;
+    background: #ffffff;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-refresh:hover:not(:disabled) {
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #94a3b8;
+    transform: translateY(-1px);
+}
+
+.btn-refresh:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ========== RESPONSIVE & ANIMATION ========== */
+@media (max-width: 768px) {
+    .insights-card-container {
+        padding: 16px;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.insight-box {
+    animation: fadeIn 0.4s ease;
+}
+
+.insight-box:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.insight-box:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.insight-box:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.insight-box:nth-child(4) {
+    animation-delay: 0.4s;
+}

@@ -125,7 +125,7 @@ const EvolutionChart = ({ data, metrica = 'Valor' }) => {
                 <LineChart
                     data={data}
                     // Increase margins to allow CustomLabels to render outside the strictly plotted area
-                    margin={{ top: 40, right: 30, left: 10, bottom: 30 }}
+                    margin={{ top: 40, right: 30, left: 10, bottom: 10 }}
                 >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis

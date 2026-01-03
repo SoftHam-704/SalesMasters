@@ -1,0 +1,97 @@
+/* CommercialEfficiency.css */
+
+.commercial-efficiency {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.commercial-efficiency h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 20px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* Métricas */
+.ce-metric {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.ce-metric:last-of-type {
+    border-bottom: none;
+}
+
+.ce-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.ce-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.ce-variation {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ce-variation.positive {
+    color: #10b981;
+}
+
+.ce-variation.negative {
+    color: #ef4444;
+}
+
+/* Oportunidade */
+.ce-opportunity {
+    background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 100%);
+    border-left: 4px solid #3b82f6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.ce-opp-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.ce-opp-content {
+    flex: 1;
+}
+
+.ce-opp-content strong {
+    color: #1e40af;
+    font-size: 13px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.ce-opp-details {
+    font-size: 12px;
+    color: #1e3a8a;
+    line-height: 1.6;
+}
+
+.ce-loading {
+    padding: 40px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}

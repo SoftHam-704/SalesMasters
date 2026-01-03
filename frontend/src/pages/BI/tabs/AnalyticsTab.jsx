@@ -8,6 +8,10 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../../../utils/formatters';
 import PortfolioAnalysis from '../PortfolioAnalysis';
+import InsightsCard from '../../../components/InsightsCard';
+import PriorityActions from '../../../components/PriorityActions';
+import CommercialEfficiency from '../../../components/CommercialEfficiency';
+import CustomerComparison from '../../../components/CustomerComparison';
 
 // Mapping months to numeric strings for API calls
 const MONTHS_MAP = {
@@ -111,16 +115,16 @@ const AnalyticsTab = ({ filters }) => {
             {/* TOP SUMMARY SECTION: ALERTS & KPIs SIDE-BY-SIDE */}
             <div className="px-6 py-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    {/* 1. CRITICAL ALERT BANNER (2/3 Width) */}
-                    <div className="lg:col-span-2 bg-[#fffbeb] rounded-xl shadow-sm border border-amber-100 p-6 flex flex-col h-full">
+                    {/* 1. RISK ANALYSIS (Critical Alerts) - Restored */}
+                    <div className="lg:col-span-1 bg-[#fffbeb] rounded-xl shadow-sm border border-amber-100 p-6 flex flex-col h-full">
                         <div className="flex items-center gap-3 mb-6">
                             <AlertTriangle className="text-amber-600 font-bold" size={20} />
                             <h2 className="text-[12px] font-black text-amber-900 uppercase tracking-widest">
-                                ALERTAS CRÍTICOS EXIGEM AÇÃO
+                                ANÁLISES DE RISCO
                             </h2>
                         </div>
 
-                        <div className="space-y-3 flex-1">
+                        <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px]">
                             {advancedInsights.map((insight, idx) => (
                                 <div key={idx} className="bg-white rounded-lg p-4 flex items-center gap-4 shadow-sm border-l-4 border-amber-500 transition-all hover:bg-slate-50">
                                     <div className="flex-1">
@@ -134,38 +138,44 @@ const AnalyticsTab = ({ filters }) => {
                         </div>
                     </div>
 
-                    {/* 2. KPI CARDS (1/3 Width - 2x2 Grid) */}
-                    <div className="grid grid-cols-2 gap-4 h-full">
-                        <DetailedMetricCard
-                            label={filters.mes === 'Todos' ? 'Valor Vendido' : `Valor Vendido (${filters.mes})`}
-                            value={kpis?.valor_total || 0}
-                            target={kpis?.meta_valor_total || 0}
-                            leftColor="bg-slate-800"
-                        />
-                        <DetailedMetricCard
-                            label={filters.mes === 'Todos' ? 'Nº de Pedidos' : `Nº de Pedidos (${filters.mes})`}
-                            value={kpis?.qtd_pedidos || 0}
-                            target={kpis?.meta_qtd_pedidos || 0}
-                            leftColor="bg-slate-800"
-                            infoTooltip="Meta calculada: Período Anterior + 15%"
-                            formatValue={formatNumber}
-                            footerExplanation="Meta proj. sobre período anterior + 15%"
-                        />
-                        <DetailedMetricCard
-                            label={filters.mes === 'Todos' ? 'Ticket Médio' : `Ticket Médio (${filters.mes})`}
-                            value={kpis?.ticket_medio || 0}
-                            target={kpis?.meta_ticket_medio || 0}
-                            leftColor="bg-slate-800"
-                            footerExplanation="Meta proj. sobre período anterior + 15%"
-                        />
-                        <DetailedMetricCard
-                            label={filters.mes === 'Todos' ? 'Clientes Ativos' : `Clientes Ativos (${filters.mes})`}
-                            value={kpis?.clientes_ativos || 0}
-                            target={kpis?.meta_clientes_ativos || 0}
-                            leftColor="bg-slate-800"
-                            formatValue={formatNumber}
-                            footerExplanation="Meta proj. sobre período anterior + 15%"
-                        />
+                    {/* 2. KPI CARDS (Middle Column) */}
+                    <div className="lg:col-span-1">
+                        <div className="grid grid-cols-2 gap-4 h-full">
+                            <DetailedMetricCard
+                                label={filters.mes === 'Todos' ? 'Valor Vendido' : `Valor Vendido (${filters.mes})`}
+                                value={kpis?.valor_total || 0}
+                                target={kpis?.meta_valor_total || 0}
+                                leftColor="bg-slate-800"
+                            />
+                            <DetailedMetricCard
+                                label={filters.mes === 'Todos' ? 'Nº de Pedidos' : `Nº de Pedidos (${filters.mes})`}
+                                value={kpis?.qtd_pedidos || 0}
+                                target={kpis?.meta_qtd_pedidos || 0}
+                                infoTooltip="Meta: +15% sobre o período anterior"
+                                formatValue={formatNumber}
+                                leftColor="bg-slate-800"
+                            />
+                            <DetailedMetricCard
+                                label="Ticket Médio"
+                                value={kpis?.ticket_medio || 0}
+                                target={kpis?.meta_ticket_medio || 0}
+                                footerExplanation="Meta proj. sobre período anterior + 15%"
+                                leftColor="bg-slate-800"
+                            />
+                            <DetailedMetricCard
+                                label="Clientes Ativos"
+                                value={kpis?.clientes_ativos || 0}
+                                target={kpis?.meta_clientes_ativos || 0}
+                                formatValue={formatNumber}
+                                footerExplanation="Meta proj. sobre período anterior + 15%"
+                                leftColor="bg-slate-800"
+                            />
+                        </div>
+                    </div>
+
+                    {/* 3. INSIGHTS CARD (Right Column) */}
+                    <div className="lg:col-span-1 h-full">
+                        <InsightsCard ano={filters.ano} industryId={filters.industria?.codigo} />
                     </div>
                 </div>
 
@@ -200,166 +210,24 @@ const AnalyticsTab = ({ filters }) => {
                             )}
                         </div>
 
-                        {/* CLIENT COMPARISON TABLE */}
-                        <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                            <h3 className="text-base font-black text-slate-800 flex items-center gap-3 mb-8">
-                                <TrendingUp className="text-blue-500" size={24} />
-                                COMPARATIVO DE CLIENTES: ANO ATUAL VS ANTERIOR
-                            </h3>
-
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 italic">
-                                            <th className="py-4 px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cliente</th>
-                                            <th className="py-4 px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Ano Anterior</th>
-                                            <th className="py-4 px-2 text-[11px] font-bold text-slate-800 uppercase tracking-widest text-center">Ano Atual</th>
-                                            <th className="py-4 px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Variação</th>
-                                            <th className="py-4 px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {clientVariations.length > 0 ? clientVariations.map((client, idx) => (
-                                            <TableRow
-                                                key={idx}
-                                                name={client.name}
-                                                prev={formatCurrency(client.prev)}
-                                                current={formatCurrency(client.current)}
-                                                variation={client.variation}
-                                                status={client.status}
-                                                critical={client.status === 'perdido'}
-                                            />
-                                        )) : (
-                                            <tr>
-                                                <td colSpan="5" className="py-10 text-center text-slate-400 font-medium">
-                                                    Nenhum dado comparativo disponível para este período.
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* DYNAMIC CONTEXT BOXES */}
-                            <div className="mt-6 space-y-4">
-                                {clientVariations?.some(c => c.status === 'perdido' || c.is_negative) && (
-                                    <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-center justify-between">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-1.5 bg-red-100 rounded text-red-600 font-bold text-xs mt-1 shrink-0">🚨</div>
-                                            <div className="text-xs">
-                                                <strong className="text-red-900 block mb-1 uppercase tracking-tight">
-                                                    {clientVariations.find(c => c.is_negative || c.status === 'perdido')?.name} Necessita Atenção
-                                                </strong>
-                                                <p className="text-red-700 font-semibold opacity-90">
-                                                    Queda significativa identificada ({clientVariations.find(c => c.is_negative || c.status === 'perdido')?.variation}). Risco de evasão da base.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button className="text-[10px] font-bold text-red-600 bg-white border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">PLANO DE REVERSÃO</button>
-                                    </div>
-                                )}
-
-                                {clientVariations?.some(c => c.status === 'destaque' || !c.is_negative) && (
-                                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-1.5 bg-emerald-100 rounded text-emerald-600 font-bold text-xs mt-1 shrink-0">🔥</div>
-                                            <div className="text-xs">
-                                                <strong className="text-emerald-900 block mb-1 uppercase tracking-tight">
-                                                    Destaque: {clientVariations.find(c => c.status === 'destaque' || !c.is_negative)?.name}
-                                                </strong>
-                                                <p className="text-emerald-700 font-semibold opacity-90">
-                                                    Crescimento de {clientVariations.find(c => c.status === 'destaque' || !c.is_negative)?.variation} no período. Oportunidade de expansão de mix.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button className="text-[10px] font-bold text-emerald-600 bg-white border border-emerald-200 px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors">EXPANDIR MIX</button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        {/* CLIENT COMPARISON TABLE - Now using new component */}
+                        <CustomerComparison ano={parseInt(filters?.ano) || 2025} />
                     </div>
 
                     {/* RIGHT COLUMN (1/3) */}
                     <div className="space-y-8">
                         {/* DISCOVERIES CARD (AI) */}
-                        <div className="bg-slate-800 rounded-2xl p-7 text-white shadow-xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-[0.03] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-700"></div>
+                        {/* RIGHT COLUMN (1/3) */}
 
-                            <h3 className="text-sm font-black flex items-center gap-2 mb-6 border-b border-white/10 pb-4">
-                                <Zap className="text-amber-400 fill-amber-300" size={20} />
-                                💡 DESCOBERTAS DA ANÁLISE
-                            </h3>
+                        {/* PRIORITY ACTIONS CARD - Now using new component */}
+                        <PriorityActions />
 
-                            <div className="space-y-6">
-                                {aiSummary?.categorias ? (
-                                    <>
-                                        {aiSummary.categorias.oportunidades?.slice(0, 1).map((item, id) => (
-                                            <InsightItem key={`op-${id}`} title={item.titulo} text={item.detalhe} action={`👉 ${item.acao}`} />
-                                        ))}
-                                        {aiSummary.categorias.destaques?.slice(0, 1).map((item, id) => (
-                                            <InsightItem key={`dest-${id}`} title={item.titulo} text={item.detalhe} action={`🏆 ${item.acao}`} />
-                                        ))}
-                                        {aiSummary.categorias.riscos?.slice(0, 1).map((item, id) => (
-                                            <InsightItem key={`risk-${id}`} title={item.titulo} text={item.detalhe} action={`⚠️ ${item.acao}`} />
-                                        ))}
-                                    </>
-                                ) : (
-                                    <div className="text-xs text-white/50 italic py-10 text-center">
-                                        Compilando novas descobertas baseadas no comportamento atual...
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* PRIORITY ACTIONS CARD */}
-                        <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                            <h3 className="text-sm font-black text-slate-800 flex items-center gap-3 mb-6">
-                                <Target className="text-orange-500" size={20} />
-                                AÇÕES PRIORITÁRIAS
-                            </h3>
-
-                            <div className="space-y-4">
-                                {aiSummary?.categorias?.alertas?.length > 0 ? aiSummary.categorias.alertas.map((alerta, idx) => (
-                                    <PriorityItem
-                                        key={idx}
-                                        label={`Prioridade - ${alerta.prioridade}`}
-                                        text={alerta.titulo}
-                                        sub={alerta.detalhe}
-                                        color={alerta.prioridade === 'Alta' ? 'red' : 'orange'}
-                                    />
-                                )) : (
-                                    <>
-                                        <PriorityItem label="Monitoramento" text="🚀 Nenhuma ação crítica detectada" sub="A base de pedidos está correndo conforme o ritmo esperado." color="emerald" />
-                                        <PriorityItem label="Oportunidade" text="📦 Revisar mix de produtos Curva B" sub="Potencial de migração para Curva A identificado." color="blue" />
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* EFFICIENCY STATISTICS */}
-                        <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                            <h3 className="text-sm font-black text-slate-800 flex items-center gap-3 mb-6 uppercase tracking-wider">
-                                <Activity className="text-slate-400" size={20} />
-                                EFICIÊNCIA COMERCIAL
-                            </h3>
-
-                            <div className="grid grid-cols-1 gap-4">
-                                <SmallStatCard label="Ticket Médio" value={formatCurrency(kpis?.ticket_medio)} trend={kpis?.variation?.ticket ? `${kpis.variation.ticket >= 0 ? '+' : ''}${kpis.variation.ticket.toFixed(1)}%` : '0%'} color={kpis?.variation?.ticket >= 0 ? 'emerald' : 'red'} />
-                                <SmallStatCard label="Pedidos p/ Cliente" value={(kpis?.qtd_pedidos / Math.max(1, kpis?.clientes_ativos)).toFixed(1)} trend={kpis?.variation?.pedidos >= 0 ? '↑ Alta' : '↓ Baixa'} color={kpis?.variation?.pedidos >= 0 ? 'emerald' : 'red'} />
-                                <SmallStatCard label="Mix Ativo" value={formatPercent((abcData.filter(d => d.curva !== 'OFF').reduce((a, b) => a + b.qtd_itens, 0) / Math.max(1, totalCatalogItems)) * 100)} trend="Padrão" color="slate" />
-                            </div>
-
-                            <div className="mt-6 p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                                <strong className="text-[10px] text-slate-400 block mb-2 uppercase tracking-widest">Cross-sell Opportunity</strong>
-                                <p className="text-xs font-bold text-slate-700 leading-relaxed italic">
-                                    "40 clientes compram apenas Curva C. Potencial de R$ 280K em vendas adicionais."
-                                </p>
-                            </div>
-                        </div>
+                        {/* EFFICIENCY STATISTICS - Now using new component */}
+                        <CommercialEfficiency />
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

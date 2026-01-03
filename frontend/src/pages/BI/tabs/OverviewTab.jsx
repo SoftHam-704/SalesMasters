@@ -141,35 +141,40 @@ const OverviewTab = ({ filters }) => {
             {/* Row 1: Market Share + KPIs/Charts */}
             <div className="grid grid-cols-12 gap-4 mb-4">
 
-                {/* Left: Bubble Chart - Market Share */}
-                <div className="col-span-5 bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl relative overflow-hidden min-h-[280px] flex flex-col justify-center">
-                    {/* Ambient glow effects */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none"></div>
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#082320]/80 pointer-events-none"></div>
+                {/* Left: Bubble Chart + Narratives */}
+                <div className="col-span-5 flex flex-col gap-4">
+                    {/* Bubble Chart - Market Share */}
+                    <div className="bg-gradient-to-br from-[#0a2a28] via-[#0d3d38] to-[#082320] rounded-xl relative overflow-hidden h-[310px] flex flex-col justify-center shadow-lg border border-[#0d3d38]">
+                        {/* Ambient glow effects */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-cyan-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#082320]/80 pointer-events-none"></div>
 
-                    {/* Header - ABSOLUTE positioning at top */}
-                    <div className="absolute top-4 left-0 right-0 z-10 text-center">
-                        <h3 className="font-['Roboto'] text-cyan-400/90 text-xs font-bold uppercase tracking-[0.25em]">
-                            Market Share: Top 6 Indústrias - Performance
-                        </h3>
+                        {/* Header - ABSOLUTE positioning at top */}
+                        <div className="absolute top-4 left-0 right-0 z-10 text-center">
+                            <h3 className="font-['Roboto'] text-cyan-400/90 text-xs font-bold uppercase tracking-[0.25em]">
+                                Market Share: Top 6 Indústrias - Performance
+                            </h3>
+                        </div>
+
+                        {/* BubbleChart Component - Centered in full height */}
+                        <div className="relative z-10 h-full w-full">
+                            <BubbleChart
+                                data={industries}
+                                selectedIndustryId={selectedIndustry?.codigo}
+                                metrica={filters.metrica}
+                                onIndustryClick={(id) => setSelectedIndustry(prev => prev?.codigo === id ? null : industries.find(i => i.codigo === id))}
+                            />
+                        </div>
                     </div>
 
-                    {/* BubbleChart Component - Centered in full height */}
-                    <div className="relative z-10 h-full w-full">
-                        <BubbleChart
-                            data={industries}
-                            selectedIndustryId={selectedIndustry?.codigo}
-                            metrica={filters.metrica}
-                            onIndustryClick={(id) => setSelectedIndustry(prev => prev?.codigo === id ? null : industries.find(i => i.codigo === id))}
-                        />
-                    </div>
+                    {/* Premium Narratives Widget (Moved Here) */}
+                    <NarrativesWidget loading={loading} data={narrativesData} />
                 </div>
 
                 {/* Right: KPIs + Metas + Evolution */}
                 <div className="col-span-7 flex flex-col gap-3">
 
-                    {/* Premium Narratives Widget */}
-                    <NarrativesWidget loading={loading} data={narrativesData} />
+                    {/* KPI Cards Row */}
 
                     {/* KPI Cards Row */}
                     <div className="grid grid-cols-4 gap-3">
@@ -285,8 +290,8 @@ const OverviewTab = ({ filters }) => {
                     </div>
 
                     {/* Evolution Chart */}
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex-1 min-h-[280px] flex flex-col">
-                        <div className="text-center mb-3">
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2 pb-0 flex-1 min-h-[280px] flex flex-col">
+                        <div className="text-center mb-1">
                             <p className="font-['Roboto'] text-sm font-bold text-slate-700 uppercase tracking-wide">Evolução do Volume de {filters.metrica === 'Valor' ? 'Vendas' : 'Peças'}</p>
                             <p className="font-['Roboto'] text-xs text-slate-500 mt-1">Análise de Tendência Mensal (MoM) • {filters.metrica} • {filters.ano}</p>
                         </div>
