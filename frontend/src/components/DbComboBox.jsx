@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { Search, ChevronDown } from 'lucide-react';
 import './DbComboBox.css';
 
 const DbComboBox = ({
@@ -8,16 +8,24 @@ const DbComboBox = ({
     fetchData,
     labelKey = 'label',
     valueKey = 'value',
-    placeholder = 'Selecione...',
-    minChars = 2,
+    placeholder = 'Pesquisar...',
+    minChars = 1,
+    initialLimit = 20
 }) => {
     const [open, setOpen] = useState(false);
-    const [search, setSearch] = useState('');
+    const [inputValue, setInputValue] = useState('');
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const ref = useRef(null);
 
-    // Fecha ao clicar fora
+    // sincroniza quando value externo muda
+    useEffect(() => {
+        if (value) {
+            setInputValue(value[labelKey]);
+        }
+    }, [value]);
+
+    // fecha ao clicar fora
     useEffect(() => {
         const handler = (e) => {
             if (ref.current && !ref.current.contains(e.target)) {
@@ -28,37 +36,45 @@ const DbComboBox = ({
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // Busca remota com debounce
+    // busca sempre baseada NO TEXTO DIGITADO
     useEffect(() => {
-        if (search.length < minChars) {
-            setItems([]);
-            return;
-        }
+        if (!open) return;
+
+        const search = inputValue.trim();
 
         const timer = setTimeout(async () => {
             setLoading(true);
-            const result = await fetchData(search);
-            setItems(result || []);
+
+            // busca inicial
+            const data =
+                search.length < minChars
+                    ? await fetchData('', initialLimit)
+                    : await fetchData(search);
+
+            setItems(data || []);
             setLoading(false);
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [search, fetchData, minChars]);
+    }, [inputValue, open]);
 
     const handleSelect = (item) => {
         onChange(item);
-        setSearch(item[labelKey]);
+        setInputValue(item[labelKey]);
         setOpen(false);
     };
 
     return (
         <div className="dbcombo" ref={ref}>
-            <div className="dbcombo-input" onClick={() => setOpen(true)}>
+            <div
+                className="dbcombo-input"
+                onClick={() => setOpen(true)}
+            >
                 <Search size={16} />
                 <input
-                    value={search || (value ? value[labelKey] : '')}
+                    value={inputValue}
                     onChange={(e) => {
-                        setSearch(e.target.value);
+                        setInputValue(e.target.value);
                         setOpen(true);
                     }}
                     placeholder={placeholder}
@@ -70,15 +86,9 @@ const DbComboBox = ({
                 <div className="dbcombo-dropdown">
                     {loading && <div className="dbcombo-loading">Buscando...</div>}
 
-                    {!loading && items.length === 0 && search.length >= minChars && (
+                    {!loading && items.length === 0 && (
                         <div className="dbcombo-empty">
-                            Nenhum resultado encontrado
-                        </div>
-                    )}
-
-                    {!loading && items.length === 0 && search.length < minChars && (
-                        <div className="dbcombo-empty">
-                            Digite para pesquisar
+                            Nenhum resultado
                         </div>
                     )}
 

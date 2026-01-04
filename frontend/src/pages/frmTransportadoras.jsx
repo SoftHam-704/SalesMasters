@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Truck } from "lucide-react";
 import { toast } from "sonner";
 import CarrierForm from "../components/forms/CarrierForm";
-import GridCadPadrao from "../components/GridCadPadrao";
+import GridCadPadraoV2 from "../components/GridCadPadraoV2";
 
 const FrmTransportadoras = () => {
     const [carriers, setCarriers] = useState([]);
@@ -138,21 +138,16 @@ const FrmTransportadoras = () => {
                 />
             )}
 
-            <GridCadPadrao
+            <GridCadPadraoV2
                 title="Transportadoras"
                 subtitle="Gerencie as transportadoras"
                 icon={Truck}
                 data={filteredCarriers}
-                loading={loading}
-                columns={columns}
-                searchPlaceholder="Buscar por nome, CNPJ ou cidade..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
+                titleKey="tra_nome"
+                subtitleKey="tra_cidade"
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={fetchCarriers}
-                newButtonLabel="Nova Transportadora"
             />
         </>
     );

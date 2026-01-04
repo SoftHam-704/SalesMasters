@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Pencil, Trash2, Check, X } from 'lucide-react';
-import FormCadPadrao from '../FormCadPadrao';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import FormCadPadraoV2 from '../FormCadPadraoV2';
+import InputField from '../InputField';
 import {
     Select,
     SelectContent,
@@ -11,11 +9,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import IndustryDialog from './IndustryDialog';
 import RegionDialog from './RegionDialog';
 import MetaDialog from './MetaDialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const SellerForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({});
@@ -213,222 +213,211 @@ const SellerForm = ({ data, onClose, onSave }) => {
     const renderTabContent = (activeTab) => {
         if (activeTab === 'dados') {
             return (
-                <div className="space-y-2 p-2">
-                    {/* Nome */}
-                    <div>
-                        <Label className="text-xs font-semibold">Nome</Label>
-                        <Input
-                            value={formData.ven_nome || ''}
-                            onChange={(e) => handleChange('ven_nome', e.target.value)}
-                            className="h-8 text-sm font-bold border-red-300 bg-blue-50"
-                        />
-                    </div>
+                <div className="p-4 space-y-4">
+                     <div className="form-grid">
+                        {/* Nome */}
+                        <div className="col-12">
+                            <InputField
+                                label="Nome"
+                                value={formData.ven_nome || ''}
+                                onChange={(e) => handleChange('ven_nome', e.target.value)}
+                                className="font-bold bg-blue-50"
+                                autoFocus
+                                large
+                            />
+                        </div>
 
-                    {/* Endereço */}
-                    <div>
-                        <Label className="text-xs">Endereço</Label>
-                        <Input
-                            value={formData.ven_endereco || ''}
-                            onChange={(e) => handleChange('ven_endereco', e.target.value)}
-                            className="h-8 text-sm"
-                        />
-                    </div>
+                        {/* Endereço */}
+                        <div className="col-12">
+                            <InputField
+                                label="Endereço"
+                                value={formData.ven_endereco || ''}
+                                onChange={(e) => handleChange('ven_endereco', e.target.value)}
+                            />
+                        </div>
 
-                    {/* Bairro | Cidade | CEP | UF */}
-                    <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-4">
-                            <Label className="text-xs">Bairro</Label>
-                            <Input
+                        {/* Bairro | Cidade | CEP | UF */}
+                        <div className="col-4">
+                            <InputField
+                                label="Bairro"
                                 value={formData.ven_bairro || ''}
                                 onChange={(e) => handleChange('ven_bairro', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div className="col-span-4">
-                            <Label className="text-xs">Cidade</Label>
-                            <Input
+                        <div className="col-4">
+                            <InputField
+                                label="Cidade"
                                 value={formData.ven_cidade || ''}
                                 onChange={(e) => handleChange('ven_cidade', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div className="col-span-2">
-                            <Label className="text-xs">Cep</Label>
-                            <Input
+                        <div className="col-2">
+                             <InputField
+                                label="CEP"
                                 value={formData.ven_cep || ''}
                                 onChange={(e) => handleChange('ven_cep', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div className="col-span-2">
-                            <Label className="text-xs">UF</Label>
-                            <Input
+                        <div className="col-2">
+                             <InputField
+                                label="UF"
                                 value={formData.ven_uf || ''}
                                 onChange={(e) => handleChange('ven_uf', e.target.value)}
                                 maxLength={2}
-                                className="h-8 text-sm text-center"
+                                className="text-center bg-gray-50 font-bold text-blue-600"
                             />
                         </div>
-                    </div>
 
-                    {/* Telefone | Celular | Aniversário */}
-                    <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-4">
-                            <Label className="text-xs">Telefone</Label>
-                            <Input
+                        {/* Telefone | Celular | Aniversário */}
+                        <div className="col-4">
+                            <InputField
+                                label="Telefone"
                                 value={formData.ven_fone1 || ''}
                                 onChange={(e) => handleChange('ven_fone1', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div className="col-span-4">
-                            <Label className="text-xs">Celular</Label>
-                            <Input
+                        <div className="col-4">
+                            <InputField
+                                label="Celular"
                                 value={formData.ven_fone2 || ''}
                                 onChange={(e) => handleChange('ven_fone2', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div className="col-span-4">
-                            <Label className="text-xs">Aniversário</Label>
-                            <Input
+                        <div className="col-4">
+                            <InputField
+                                label="Aniversário"
                                 value={formData.ven_aniversario || ''}
                                 onChange={(e) => handleChange('ven_aniversario', e.target.value)}
                                 placeholder="DD/MM"
-                                className="h-8 text-sm"
+                                className="text-center"
                             />
                         </div>
-                    </div>
 
-                    {/* CPF | RG | CTPS */}
-                    <div className="grid grid-cols-3 gap-2">
-                        <div>
-                            <Label className="text-xs">CPF</Label>
-                            <Input
+                        {/* CPF | RG | CTPS */}
+                        <div className="col-4">
+                            <InputField
+                                label="CPF"
                                 value={formData.ven_cpf || ''}
                                 onChange={(e) => handleChange('ven_cpf', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs">RG</Label>
-                            <Input
+                        <div className="col-4">
+                            <InputField
+                                label="RG"
                                 value={formData.ven_rg || ''}
                                 onChange={(e) => handleChange('ven_rg', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs">CTPS</Label>
-                            <Input
+                        <div className="col-4">
+                            <InputField
+                                label="CTPS"
                                 value={formData.ven_ctps || ''}
                                 onChange={(e) => handleChange('ven_ctps', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                    </div>
 
-                    {/* E-mail | Usuário */}
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <Label className="text-xs">E-mail</Label>
-                            <Input
+                        {/* E-mail | Usuário */}
+                        <div className="col-6">
+                            <InputField
+                                label="E-mail"
                                 value={formData.ven_email || ''}
                                 onChange={(e) => handleChange('ven_email', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs">Usuário (para controle de acesso)</Label>
-                            <Select
-                                value={formData.ven_nomeusu || ''}
-                                onValueChange={(value) => handleChange('ven_nomeusu', value)}
-                            >
-                                <SelectTrigger className="h-8 text-sm">
-                                    <SelectValue placeholder="Selecione um usuário" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {users.map((user) => (
-                                        <SelectItem key={user.codigo} value={user.usuario}>
-                                            {user.nome} {user.sobrenome} ({user.usuario})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                         <div className="col-6">
+                             {/* Usuário - Select mantido mas com estilo ajustado se necessário */}
+                            <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Usuário (Acesso)</Label>
+                            <div className="h-12">
+                                <Select
+                                    value={formData.ven_nomeusu || ''}
+                                    onValueChange={(value) => handleChange('ven_nomeusu', value)}
+                                >
+                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
+                                        <SelectValue placeholder="Selecione um usuário" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {users.map((user) => (
+                                            <SelectItem key={user.codigo} value={user.usuario}>
+                                                {user.nome} {user.sobrenome} ({user.usuario})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Data Admissão | Data Demissão | Status | Cumpre Metas */}
-                    <div className="grid grid-cols-4 gap-2">
-                        <div>
-                            <Label className="text-xs">Data Admissão</Label>
-                            <Input
+                        {/* Data Admissão | Data Demissão | Status | Cumpre Metas */}
+                         <div className="col-3">
+                            <InputField
+                                label="Data Admissão"
                                 type="date"
                                 value={formData.ven_dtadmissao || ''}
                                 onChange={(e) => handleChange('ven_dtadmissao', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs">Data Demissão</Label>
-                            <Input
+                         <div className="col-3">
+                            <InputField
+                                label="Data Demissão"
                                 type="date"
                                 value={formData.ven_dtdemissao || ''}
                                 onChange={(e) => handleChange('ven_dtdemissao', e.target.value)}
-                                className="h-8 text-sm"
                             />
                         </div>
-                        <div>
-                            <Label className="text-xs">Status</Label>
-                            <Select
-                                value={formData.ven_status || 'A'}
-                                onValueChange={(value) => handleChange('ven_status', value)}
-                            >
-                                <SelectTrigger className="h-8 text-sm">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="A">Ativo</SelectItem>
-                                    <SelectItem value="I">Inativo</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        <div className="col-3">
+                             <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Status</Label>
+                             <div className="h-12">
+                                <Select
+                                    value={formData.ven_status || 'A'}
+                                    onValueChange={(value) => handleChange('ven_status', value)}
+                                >
+                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="A">Ativo</SelectItem>
+                                        <SelectItem value="I">Inativo</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                             </div>
                         </div>
-                        <div>
-                            <Label className="text-xs">Cumpre Metas</Label>
-                            <Select
-                                value={formData.ven_cumpremetas || 'S'}
-                                onValueChange={(value) => handleChange('ven_cumpremetas', value)}
-                            >
-                                <SelectTrigger className="h-8 text-sm">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="S">Sim</SelectItem>
-                                    <SelectItem value="N">Não</SelectItem>
-                                </SelectContent>
-                            </Select>
+                         <div className="col-3">
+                             <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Cumpre Metas</Label>
+                             <div className="h-12">
+                                <Select
+                                    value={formData.ven_cumpremetas || 'S'}
+                                    onValueChange={(value) => handleChange('ven_cumpremetas', value)}
+                                >
+                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="S">Sim</SelectItem>
+                                        <SelectItem value="N">Não</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                             </div>
                         </div>
-                    </div>
 
-                    {/* Filiação */}
-                    <div>
-                        <Label className="text-xs">Filiação</Label>
-                        <Input
-                            value={formData.ven_filiacao || ''}
-                            onChange={(e) => handleChange('ven_filiacao', e.target.value)}
-                            className="h-8 text-sm"
-                        />
-                    </div>
+                        {/* Filiação */}
+                        <div className="col-12">
+                            <InputField
+                                label="Filiação"
+                                value={formData.ven_filiacao || ''}
+                                onChange={(e) => handleChange('ven_filiacao', e.target.value)}
+                            />
+                        </div>
 
-                    {/* Observações */}
-                    <div>
-                        <Label className="text-xs">Observações</Label>
-                        <Textarea
-                            value={formData.ven_obs || ''}
-                            onChange={(e) => handleChange('ven_obs', e.target.value)}
-                            className="text-sm min-h-[80px]"
-                        />
-                    </div>
+                        {/* Observações */}
+                        <div className="col-12">
+                            <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Observações</Label>
+                            <textarea
+                                className="modern-textarea h-32"
+                                placeholder="Observações..."
+                                value={formData.ven_obs || ''}
+                                onChange={(e) => handleChange('ven_obs', e.target.value)}
+                            />
+                        </div>
+                     </div>
                 </div>
             );
         }
@@ -958,15 +947,49 @@ const SellerForm = ({ data, onClose, onSave }) => {
     };
 
     return (
-        <FormCadPadrao
+        <FormCadPadraoV2
             title={data ? `Vendedor: ${data.ven_nome || ''}` : "Novo Vendedor"}
-            tabs={mainTabs}
-            relatedTabs={data?.ven_codigo ? relatedTabs : []}
-            renderTabContent={renderTabContent}
-            renderRelatedContent={renderRelatedContent}
             onSave={handleSave}
-            onClose={onClose}
-        />
+            onCancel={onClose}
+        >
+            <Tabs defaultValue="dados" className="h-full flex flex-col">
+                <TabsList className="bg-transparent border-b w-full justify-start p-0 h-auto rounded-none mb-4">
+                    {mainTabs.map(tab => (
+                        <TabsTrigger 
+                            key={tab.id} 
+                            value={tab.id}
+                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:text-emerald-700 bg-transparent shadow-none px-4 py-2"
+                        >
+                            <span className="flex items-center gap-2">
+                                {tab.icon && tab.icon} {tab.label}
+                            </span>
+                        </TabsTrigger>
+                    ))}
+                    {data?.ven_codigo && relatedTabs.map(tab => (
+                        <TabsTrigger 
+                            key={tab.id} 
+                            value={tab.id}
+                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:text-emerald-700 bg-transparent shadow-none px-4 py-2"
+                        >
+                            {tab.label}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+
+                <div className="flex-1">
+                    {mainTabs.map(tab => (
+                        <TabsContent key={tab.id} value={tab.id} className="mt-0">
+                            {renderTabContent(tab.id)}
+                        </TabsContent>
+                    ))}
+                    {data?.ven_codigo && relatedTabs.map(tab => (
+                        <TabsContent key={tab.id} value={tab.id} className="mt-0">
+                            {renderRelatedContent(tab.id)}
+                        </TabsContent>
+                    ))}
+                </div>
+            </Tabs>
+        </FormCadPadraoV2>
     );
 };
 

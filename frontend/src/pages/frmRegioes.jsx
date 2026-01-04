@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Pencil, Trash2, RefreshCw, Plus } from 'lucide-react';
+import { MapPin, RefreshCw } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RegionForm from '../components/forms/RegionForm';
+import GridCadPadraoV2 from '../components/GridCadPadraoV2';
 import { toast } from "sonner";
 
 const FrmRegioes = () => {
@@ -122,93 +123,42 @@ const FrmRegioes = () => {
 
     return (
         <div className="h-screen flex flex-col bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b px-6 py-4">
-                <h1 className="text-2xl font-bold text-gray-800">Cadastro de Regiões</h1>
-            </div>
-
-            {/* Toolbar */}
-            <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
-                <Input
-                    placeholder="pesquisar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-xs h-9 text-sm"
-                />
-                <Button
-                    onClick={handleNew}
-                    size="sm"
-                    className="h-9 text-sm"
-                >
-                    <Plus size={16} className="mr-2" />
-                    Novo
-                </Button>
-                <Button
-                    onClick={fetchRegions}
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-sm"
-                >
-                    <RefreshCw size={16} className="mr-2" />
-                    Atualizar
-                </Button>
+            {/* Toolbar - Search only */}
+            <div className="bg-white border-b px-6 py-3 flex items-center justify-between gap-3">
+                <div className="flex-1 max-w-lg">
+                    <Input
+                        placeholder="Pesquisar regiões..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="h-9 text-sm"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        onClick={fetchRegions}
+                        size="sm"
+                        variant="outline"
+                        className="h-9 text-sm"
+                        title="Atualizar lista"
+                    >
+                        <RefreshCw size={16} className="mr-2" />
+                        Atualizar
+                    </Button>
+                </div>
             </div>
 
             {/* Grid */}
-            <div className="flex-1 overflow-auto px-6 py-4">
-                {loading ? (
-                    <div className="text-center py-8 text-gray-500">Carregando...</div>
-                ) : filteredRegions.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                        {searchTerm ? 'Nenhuma região encontrada' : 'Nenhuma região cadastrada'}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-lg border overflow-hidden">
-                        <table className="w-full">
-                            <thead className="bg-gray-100 border-b">
-                                <tr>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700 w-24">Código</th>
-                                    <th className="text-left p-3 text-sm font-semibold text-gray-700">Descrição</th>
-                                    <th className="text-center p-3 text-sm font-semibold text-gray-700 w-24">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredRegions.map((region) => (
-                                    <tr
-                                        key={region.reg_codigo}
-                                        className="border-b hover:bg-gray-50 cursor-pointer"
-                                        onDoubleClick={() => handleEdit(region)}
-                                    >
-                                        <td className="p-3 text-sm text-gray-600">{region.reg_codigo}</td>
-                                        <td className="p-3 text-sm font-semibold text-orange-600">{region.reg_descricao}</td>
-                                        <td className="p-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleEdit(region)}
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={16} className="text-blue-600" />
-                                                </Button>
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-6 w-6"
-                                                    onClick={() => handleDelete(region)}
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 size={16} className="text-red-600" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+            <div className="flex-1 overflow-auto bg-gray-50/50 p-6">
+                <GridCadPadraoV2
+                    title="Regiões"
+                    subtitle="Cadastro de regiões e cidades atendidas"
+                    icon={MapPin}
+                    data={filteredRegions}
+                    titleKey="reg_descricao"
+                    onNew={handleNew}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                />
             </div>
         </div>
     );

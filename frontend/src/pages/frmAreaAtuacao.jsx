@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Map } from "lucide-react";
 import { toast } from "sonner";
 import ActivityAreaForm from "../components/forms/ActivityAreaForm";
-import GridCadPadrao from "../components/GridCadPadrao";
+import GridCadPadraoV2 from "../components/GridCadPadraoV2";
 
 const FrmAreaAtuacao = () => {
     const [areas, setAreas] = useState([]);
@@ -126,21 +126,15 @@ const FrmAreaAtuacao = () => {
                 />
             )}
 
-            <GridCadPadrao
+            <GridCadPadraoV2
                 title="Áreas de Atuação"
                 subtitle="Gerencie as áreas de atuação"
                 icon={Map}
                 data={filteredAreas}
-                loading={loading}
-                columns={columns}
-                searchPlaceholder="Buscar por descrição..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
+                titleKey="atu_descricao"
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={fetchAreas}
-                newButtonLabel="Nova Área"
             />
         </>
     );

@@ -418,10 +418,23 @@ app.delete('/api/v2/regions/:id', async (req, res) => {
 // --- CITIES (V2) ---
 
 // GET - List all cities (for combobox)
+// GET - List all cities (for combobox)
 app.get('/api/v2/cities', async (req, res) => {
     try {
-        const query = 'SELECT cid_codigo, cid_nome, cid_uf FROM cidades WHERE cid_ativo = true ORDER BY cid_nome';
-        const result = await pool.query(query);
+        const { search = '', limit = 20 } = req.query;
+
+        let query = 'SELECT cid_codigo, cid_nome, cid_uf FROM cidades WHERE cid_ativo = true';
+        const params = [];
+
+        if (search) {
+            query += ' AND cid_nome ILIKE $1';
+            params.push(`%${search}%`);
+        }
+
+        query += ` ORDER BY cid_nome LIMIT $${params.length + 1}`;
+        params.push(parseInt(limit));
+
+        const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

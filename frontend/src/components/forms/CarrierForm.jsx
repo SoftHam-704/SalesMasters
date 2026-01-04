@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search } from 'lucide-react';
-import FormCadPadrao from '../FormCadPadrao';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import FormCadPadraoV2 from '../FormCadPadraoV2';
+import InputField from '../InputField';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -90,163 +88,145 @@ const CarrierForm = ({ data, onClose, onSave }) => {
         onSave(formData);
     };
 
-    const mainTabs = [
-        { id: 'dados', label: 'Dados', icon: <FileText size={16} /> },
-    ];
-
-    const renderTabContent = (activeTab) => {
-        if (activeTab === 'dados') {
-            return (
-                <div className="p-4 space-y-3">
-                    {/* Row 1: CNPJ | Inscrição */}
-                    <div className="flex gap-3">
-                        <div className="flex-1">
-                            <Label className="text-xs font-semibold">CNPJ</Label>
-                            <div className="relative flex items-center">
-                                <Input
+    return (
+        <FormCadPadraoV2
+            title={data ? `Transportadora: ${data.tra_nome || ''}` : "Nova Transportadora"}
+            onSave={handleSave}
+            onCancel={onClose}
+        >
+            <div className="p-4">
+                <div className="form-grid">
+                    {/* Row 1: CNPJ | Consulta | Inscrição */}
+                    <div className="col-5">
+                       <div className="flex gap-2 items-center">
+                            <div className="flex-1">
+                                <InputField
+                                    label="CNPJ"
                                     value={formData.tra_cgc || ''}
                                     onChange={(e) => handleChange('tra_cgc', e.target.value)}
-                                    className="h-8 text-sm bg-blue-50 border-blue-300 font-semibold pr-10"
-                                    placeholder="Somente números"
+                                    placeholder=""
+                                    autoFocus
                                 />
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="absolute right-0 h-8 w-8 text-emerald-600 hover:text-emerald-700"
-                                    onClick={handleConsultarCNPJ}
-                                    title="Consultar CNPJ"
-                                >
-                                    <Search className="h-4 w-4" />
-                                </Button>
                             </div>
-                        </div>
-                        <div className="flex-1">
-                            <Label className="text-xs font-semibold">Inscrição Estadual</Label>
-                            <Input
-                                value={formData.tra_inscricao || ''}
-                                onChange={(e) => handleChange('tra_inscricao', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-[50px] w-[50px] rounded-xl border-slate-200 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 hover:bg-emerald-50 mt-[1px]" // Height to match input field
+                                onClick={handleConsultarCNPJ}
+                                title="Consultar CNPJ"
+                            >
+                                <Search className="h-5 w-5" />
+                            </Button>
+                       </div>
                     </div>
+                    <div className="col-4">
+                        <InputField
+                            label="Inscrição Estadual"
+                            value={formData.tra_inscricao || ''}
+                            onChange={(e) => handleChange('tra_inscricao', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                    {/* Empty space for balance or add ID if available */}
+                    <div className="col-3"></div>
 
                     {/* Row 2: Nome */}
-                    <div>
-                        <Label className="text-xs font-semibold">Nome / Razão Social</Label>
-                        <Input
+                    <div className="col-12">
+                        <InputField
+                            label="Nome / Razão Social"
                             value={formData.tra_nome || ''}
                             onChange={(e) => handleChange('tra_nome', e.target.value)}
-                            className="h-8 text-sm bg-blue-50 border-blue-300 font-semibold"
-                            placeholder="Digite o nome da transportadora"
+                            large
+                            placeholder=""
                         />
                     </div>
 
-                    {/* Row 3: Endereço | Bairro */}
-                    <div className="flex gap-3">
-                        <div className="flex-[2]">
-                            <Label className="text-xs font-semibold">Endereço</Label>
-                            <Input
-                                value={formData.tra_endereco || ''}
-                                onChange={(e) => handleChange('tra_endereco', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <Label className="text-xs font-semibold">Bairro</Label>
-                            <Input
-                                value={formData.tra_bairro || ''}
-                                onChange={(e) => handleChange('tra_bairro', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
+                    {/* Row 3: Endereço (large) | Bairro */}
+                    <div className="col-8">
+                        <InputField
+                            label="Endereço"
+                            value={formData.tra_endereco || ''}
+                            onChange={(e) => handleChange('tra_endereco', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                    <div className="col-4">
+                        <InputField
+                            label="Bairro"
+                            value={formData.tra_bairro || ''}
+                            onChange={(e) => handleChange('tra_bairro', e.target.value)}
+                            placeholder=""
+                        />
                     </div>
 
-                    {/* Row 4: Cidade | UF | CEP */}
-                    <div className="flex gap-3">
-                        <div className="flex-[2]">
-                            <Label className="text-xs font-semibold">Cidade</Label>
-                            <Input
-                                value={formData.tra_cidade || ''}
-                                onChange={(e) => handleChange('tra_cidade', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
-                        <div className="w-20">
-                            <Label className="text-xs font-semibold">UF</Label>
-                            <Input
-                                value={formData.tra_uf || ''}
-                                onChange={(e) => handleChange('tra_uf', e.target.value)}
-                                className="h-8 text-sm text-center"
-                                maxLength={2}
-                            />
-                        </div>
-                        <div className="w-32">
-                            <Label className="text-xs font-semibold">CEP</Label>
-                            <Input
-                                value={formData.tra_cep || ''}
-                                onChange={(e) => handleChange('tra_cep', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
+                    {/* Row 4: CEP | Cidade | UF */}
+                    <div className="col-3">
+                        <InputField
+                            label="CEP"
+                            value={formData.tra_cep || ''}
+                            onChange={(e) => handleChange('tra_cep', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                    <div className="col-7">
+                        <InputField
+                            label="Cidade"
+                            value={formData.tra_cidade || ''}
+                            onChange={(e) => handleChange('tra_cidade', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                    <div className="col-2">
+                        <InputField
+                            label="UF"
+                            value={formData.tra_uf || ''}
+                            onChange={(e) => handleChange('tra_uf', e.target.value)}
+                            placeholder=""
+                            className="text-center"
+                            maxLength={2}
+                        />
                     </div>
 
-                    {/* Row 5: Telefone | Contato */}
-                    <div className="flex gap-3">
-                        <div className="flex-1">
-                            <Label className="text-xs font-semibold">Telefone</Label>
-                            <Input
-                                value={formData.tra_fone || ''}
-                                onChange={(e) => handleChange('tra_fone', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <Label className="text-xs font-semibold">Contato</Label>
-                            <Input
-                                value={formData.tra_contato || ''}
-                                onChange={(e) => handleChange('tra_contato', e.target.value)}
-                                className="h-8 text-sm"
-                            />
-                        </div>
-                    </div>
 
-                    {/* Row 6: Email */}
-                    <div>
-                        <Label className="text-xs font-semibold">E-mail</Label>
-                        <Input
+                    {/* Row 5: Telefone | Contato | Email */}
+                    <div className="col-4">
+                        <InputField
+                            label="Telefone"
+                            value={formData.tra_fone || ''}
+                            onChange={(e) => handleChange('tra_fone', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                    <div className="col-4">
+                        <InputField
+                            label="Contato"
+                            value={formData.tra_contato || ''}
+                            onChange={(e) => handleChange('tra_contato', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
+                     <div className="col-4">
+                        <InputField
+                            label="E-mail"
                             value={formData.tra_email || ''}
                             onChange={(e) => handleChange('tra_email', e.target.value)}
-                            className="h-8 text-sm"
+                            placeholder=""
                             type="email"
                         />
                     </div>
 
-                    {/* Row 7: Observações */}
-                    <div>
-                        <Label className="text-xs font-semibold">Observações</Label>
-                        <Textarea
+                    {/* Row 6: Observações */}
+                    <div className="col-12">
+                        <textarea
+                            className="modern-textarea"
+                            placeholder="Observações adicionais..."
                             value={formData.tra_obs || ''}
                             onChange={(e) => handleChange('tra_obs', e.target.value)}
-                            className="text-sm min-h-[80px]"
-                            placeholder="Observações adicionais..."
                         />
                     </div>
                 </div>
-            );
-        }
-        return null;
-    };
-
-    return (
-        <FormCadPadrao
-            title={data ? `Transportadora: ${data.tra_nome || ''}` : "Nova Transportadora"}
-            tabs={mainTabs}
-            relatedTabs={[]}
-            renderTabContent={renderTabContent}
-            renderRelatedContent={() => null}
-            onSave={handleSave}
-            onClose={onClose}
-        />
+            </div>
+        </FormCadPadraoV2>
     );
 };
 

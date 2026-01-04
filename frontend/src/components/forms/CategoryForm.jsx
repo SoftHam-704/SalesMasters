@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import InputField from '../InputField';
 
 const CategoryForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -37,28 +36,30 @@ const CategoryForm = ({ data, onClose, onSave }) => {
             onSave={handleSave}
             onCancel={onClose}
         >
-            <div className="grid grid-cols-1 gap-4">
-                <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-2">
-                        <Label className="text-xs font-semibold">ID</Label>
-                        <Input
+            <div className="p-4">
+               <div className="form-grid">
+                    {/* ID */}
+                    <div className="col-3">
+                        <InputField
+                            label="ID"
                             value={formData.cat_id}
-                            className="h-8 text-sm bg-gray-100"
-                            disabled={true}
+                            disabled
                             placeholder="Auto"
+                            className="bg-gray-100"
                         />
                     </div>
-                    <div className="col-span-10">
-                        <Label className="text-xs font-semibold">Descrição da Categoria</Label>
-                        <Input
+                    {/* Descrição */}
+                    <div className="col-9">
+                        <InputField
+                            label="Descrição da Categoria"
                             value={formData.cat_descricao}
                             onChange={(e) => handleChange('cat_descricao', e.target.value)}
-                            className="h-8 text-sm bg-blue-50 border-blue-300 font-semibold text-blue-900"
-                            placeholder="Ex: Leve, Pesada, Motopeças"
+                            placeholder=""
                             autoFocus
+                            large
                         />
                     </div>
-                </div>
+               </div>
             </div>
         </FormCadPadraoV2>
     );

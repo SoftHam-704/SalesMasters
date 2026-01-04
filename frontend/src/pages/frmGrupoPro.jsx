@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Package } from "lucide-react";
 import { toast } from "sonner";
 import ProductGroupForm from "../components/forms/ProductGroupForm";
-import GridCadPadrao from "../components/GridCadPadrao";
+import GridCadPadraoV2 from "../components/GridCadPadraoV2";
 
 const FrmGrupoPro = () => {
     const [groups, setGroups] = useState([]);
@@ -127,21 +127,19 @@ const FrmGrupoPro = () => {
                 />
             )}
 
-            <GridCadPadrao
+            <GridCadPadraoV2
                 title="Grupos de Produtos"
                 subtitle="Gerencie os grupos de produtos"
                 icon={Package}
-                data={filteredGroups}
-                loading={loading}
-                columns={columns}
-                searchPlaceholder="Buscar por descrição ou código..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
+                data={filteredGroups.map(g => ({
+                    ...g,
+                    formattedCommission: `Comissão: ${g.gru_percomiss ? g.gru_percomiss.toFixed(2) : '0.00'}%`
+                }))}
+                titleKey="gru_nome"
+                subtitleKey="formattedCommission"
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={fetchGroups}
-                newButtonLabel="Novo Grupo"
             />
         </>
     );

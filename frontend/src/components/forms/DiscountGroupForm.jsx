@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
-import FormCadPadrao from '../FormCadPadrao';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import FormCadPadraoV2 from '../FormCadPadraoV2';
+import InputField from '../InputField';
+import { Label } from "@/components/ui/label"; // Keep Label if used elsewhere
 
 const DiscountGroupForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -54,82 +54,72 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
         onSave(formData);
     };
 
-    const mainTabs = [
-        { id: 'dados', label: 'Dados', icon: <FileText size={16} /> },
-    ];
+    return (
+        <FormCadPadraoV2
+            title={data ? `Grupo: ${data.gde_nome || ''}` : "Novo Grupo de Desconto"}
+            onSave={handleSave}
+            onCancel={onClose}
+        >
+            <div className="p-4">
+                <div className="form-grid">
+                    {/* ID e Nome */}
+                    <div className="col-3">
+                        <InputField
+                            label="Código"
+                            value={formData.gid}
+                            onChange={(e) => handleChange('gid', e.target.value)}
+                            placeholder=""
+                            autoFocus
+                        />
+                    </div>
+                    <div className="col-9">
+                        <InputField
+                            label="Descrição"
+                            value={formData.gde_nome}
+                            onChange={(e) => handleChange('gde_nome', e.target.value)}
+                            placeholder=""
+                        />
+                    </div>
 
-    const renderTabContent = (activeTab) => {
-        if (activeTab === 'dados') {
-            return (
-                <div className="p-4">
-                    <div className="grid grid-cols-1 gap-4">
-                        {/* ID e Nome */}
-                        <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-2">
-                                <Label className="text-xs font-semibold">Código</Label>
-                                <Input
-                                    value={formData.gid}
-                                    onChange={(e) => handleChange('gid', e.target.value)}
-                                    className="h-8 text-sm"
-                                    placeholder="Ex: 001"
-                                />
-                            </div>
-                            <div className="col-span-10">
-                                <Label className="text-xs font-semibold">Descrição</Label>
-                                <Input
-                                    value={formData.gde_nome}
-                                    onChange={(e) => handleChange('gde_nome', e.target.value)}
-                                    className="h-8 text-sm bg-blue-50 border-blue-300 font-semibold"
-                                    placeholder="Descrição do grupo"
-                                />
-                            </div>
-                        </div>
+                    {/* Separator / Title */}
+                    <div className="col-12 mt-4 mb-2">
+                         <Label className="text-sm font-semibold text-gray-700">Níveis de Desconto (%)</Label>
+                    </div>
 
-                        {/* Descontos 1-9 */}
-                        <div className="border rounded-md p-4 bg-gray-50">
-                            <Label className="text-sm font-semibold mb-3 block">Níveis de Desconto (%)</Label>
-                            <div className="grid grid-cols-9 gap-2">
-                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                                    <div key={num} className="text-center">
-                                        <Label className="text-xs font-medium mb-1 block">{num}º</Label>
-                                        <Input
-                                            type="text"
-                                            value={formData[`gde_desc${num}`]?.toFixed(2) || '0.00'}
-                                            onChange={(e) => {
-                                                const value = e.target.value.replace(',', '.');
-                                                if (value === '' || value === '.') {
-                                                    handleChange(`gde_desc${num}`, 0);
-                                                } else if (!isNaN(parseFloat(value))) {
-                                                    handleChange(`gde_desc${num}`, parseFloat(value));
-                                                }
-                                            }}
-                                            onBlur={(e) => {
-                                                const val = parseFloat(e.target.value.replace(',', '.')) || 0;
-                                                handleChange(`gde_desc${num}`, parseFloat(val.toFixed(2)));
-                                            }}
-                                            className={`h-8 text-sm text-center ${num === 1 ? 'bg-yellow-50 border-yellow-300' : ''}`}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
+                    {/* Descontos 1-9 using custom comfortable grid */ }
+                    <div className="col-12">
+                         <div className="discount-grid">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                <div key={num}>
+                                    <InputField
+                                        label={`${num}º`}
+                                        value={formData[`gde_desc${num}`]?.toFixed(2) || '0.00'}
+                                        onChange={(e) => {
+                                            const value = e.target.value.replace(',', '.');
+                                            if (value === '' || value === '.') {
+                                                handleChange(`gde_desc${num}`, 0);
+                                            } else if (!isNaN(parseFloat(value))) {
+                                                handleChange(`gde_desc${num}`, parseFloat(value));
+                                            }
+                                        }}
+                                        onBlur={(e) => {
+                                            const val = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                            handleChange(`gde_desc${num}`, parseFloat(val.toFixed(2)));
+                                        }}
+                                        className={`text-center font-medium w-full ${num === 1 ? 'bg-yellow-50 text-yellow-700' : ''}`}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
+                    {/* 
+                       Wait, mapping 9 divs with col-1 will take 9 columns. Perfect.
+                       12 columns total. 9 Used. 3 Empty on right. 
+                       This looks fine and consistent. 
+                    */}
                 </div>
-            );
-        }
-        return null;
-    };
-
-    return (
-        <FormCadPadrao
-            title={data ? `Grupo de Desconto: ${data.gid || ''}` : "Novo Grupo de Desconto"}
-            tabs={mainTabs}
-            relatedTabs={[]}
-            renderTabContent={renderTabContent}
-            renderRelatedContent={() => null}
-            onSave={handleSave}
-            onClose={onClose}
-        />
+            </div>
+        </FormCadPadraoV2>
     );
 };
 

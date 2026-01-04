@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import InputField from '../InputField';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import '../FormLayout.css';
 
 const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave }) => {
     const [activeTab, setActiveTab] = useState('dados');
@@ -188,315 +188,278 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                     </div>
 
                     <div className="px-6 py-4 overflow-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-                        <TabsContent value="dados" className="mt-0 space-y-4">
-                            {/* Código do fabricante */}
-                            <div className="grid grid-cols-4 gap-4">
-                                <div>
-                                    <Label className="text-xs">Código do fabricante</Label>
-                                    <Input
+                        <TabsContent value="dados" className="mt-0 space-y-4 p-4">
+                            <div className="form-grid">
+                                {/* Código do fabricante */}
+                                <div className="col-3">
+                                    <InputField
+                                        label="Código do fabricante"
                                         value={codigoFabricante}
                                         onChange={(e) => setCodigoFabricante(e.target.value)}
-                                        className="h-8 text-sm"
                                         placeholder="Código"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Cód. original</Label>
-                                    <Input
+                                <div className="col-3">
+                                    <InputField
+                                        label="Cód. original"
                                         value={codigoOriginal}
                                         onChange={(e) => setCodigoOriginal(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Cód. barras</Label>
-                                    <Input
+                                <div className="col-3">
+                                    <InputField
+                                        label="Cód. barras"
                                         value={codigoBarras}
                                         onChange={(e) => setCodigoBarras(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Conversão</Label>
-                                    <Input
+                                <div className="col-3">
+                                    <InputField
+                                        label="Conversão"
                                         value={conversao}
                                         onChange={(e) => setConversao(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Descrição e Aplicação */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label className="text-xs">Descrição</Label>
-                                    <Input
+                                {/* Descrição e Aplicação */}
+                                <div className="col-6">
+                                    <InputField
+                                        label="Descrição"
                                         value={descricao}
                                         onChange={(e) => setDescricao(e.target.value)}
-                                        className="h-8 text-sm"
                                         placeholder="Descrição do produto"
+                                        large
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Aplicação</Label>
-                                    <Input
+                                <div className="col-6">
+                                    <InputField
+                                        label="Aplicação"
                                         value={aplicacao}
                                         onChange={(e) => setAplicacao(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Família, NCM, FINAME */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <Label className="text-xs">Família de produtos</Label>
-                                    <Input
+                                {/* Família, NCM, FINAME */}
+                                <div className="col-4">
+                                     <InputField
+                                        label="Família de produtos"
                                         value={familiaProdutos}
                                         onChange={(e) => setFamiliaProdutos(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">NCM</Label>
-                                    <Input
+                                <div className="col-4">
+                                     <InputField
+                                        label="NCM"
                                         value={ncm}
                                         onChange={(e) => setNcm(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">FINAME</Label>
-                                    <Input
+                                <div className="col-4">
+                                     <InputField
+                                        label="FINAME"
                                         value={finame}
                                         onChange={(e) => setFiname(e.target.value)}
-                                        className="h-8 text-sm"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Categoria */}
-                            <div>
-                                <Label className="text-xs">Categoria</Label>
-                                <div className="flex gap-4 mt-2">
-                                    <label className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="radio"
-                                            name="categoria"
-                                            value="leve"
-                                            checked={categoria === 'leve'}
-                                            onChange={(e) => setCategoria(e.target.value)}
-                                        />
-                                        Linha leve
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="radio"
-                                            name="categoria"
-                                            value="pesada"
-                                            checked={categoria === 'pesada'}
-                                            onChange={(e) => setCategoria(e.target.value)}
-                                        />
-                                        Linha pesada
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="radio"
-                                            name="categoria"
-                                            value="agricola"
-                                            checked={categoria === 'agricola'}
-                                            onChange={(e) => setCategoria(e.target.value)}
-                                        />
-                                        Linha agrícola
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="radio"
-                                            name="categoria"
-                                            value="utilitarios"
-                                            checked={categoria === 'utilitarios'}
-                                            onChange={(e) => setCategoria(e.target.value)}
-                                        />
-                                        Utilitários
-                                    </label>
+                                {/* Categoria */}
+                                <div className="col-12 border rounded-xl p-3 bg-gray-50 flex flex-col justify-center">
+                                    <label className="text-xs font-semibold text-gray-500 mb-2">Categoria</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="categoria"
+                                                value="leve"
+                                                checked={categoria === 'leve'}
+                                                onChange={(e) => setCategoria(e.target.value)}
+                                                className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            Linha leve
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="categoria"
+                                                value="pesada"
+                                                checked={categoria === 'pesada'}
+                                                onChange={(e) => setCategoria(e.target.value)}
+                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            Linha pesada
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="categoria"
+                                                value="agricola"
+                                                checked={categoria === 'agricola'}
+                                                onChange={(e) => setCategoria(e.target.value)}
+                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            Linha agrícola
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="categoria"
+                                                value="utilitarios"
+                                                checked={categoria === 'utilitarios'}
+                                                onChange={(e) => setCategoria(e.target.value)}
+                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            Utilitários
+                                        </label>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Grupo de produtos, Grupo desconto, Tabela */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <Label className="text-xs">Grupo de produtos</Label>
-                                    <Input
+                                {/* Grupo de produtos, Grupo desconto, Tabela */}
+                                <div className="col-4">
+                                     <InputField
+                                        label="Grupo de produtos"
                                         value={grupoProdutos}
                                         onChange={(e) => setGrupoProdutos(e.target.value)}
-                                        className="h-8 text-sm"
                                         type="number"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Grupo desconto</Label>
-                                    <Input
+                                <div className="col-4">
+                                     <InputField
+                                        label="Grupo desconto"
                                         value={grupoDesconto}
                                         onChange={(e) => setGrupoDesconto(e.target.value)}
-                                        className="h-8 text-sm"
                                         type="number"
                                     />
                                 </div>
-                                <div>
-                                    <Label className="text-xs">Tabela</Label>
-                                    <Input
+                                <div className="col-4">
+                                     <InputField
+                                        label="Tabela"
                                         value={tabelaNome}
                                         onChange={(e) => setTabelaNome(e.target.value)}
-                                        className="h-8 text-sm"
                                         disabled
+                                        className="bg-gray-100"
                                     />
                                 </div>
                             </div>
 
                             <div className="border-t pt-4 mt-4">
                                 <h3 className="font-semibold text-sm mb-4">Preços</h3>
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div>
-                                        <Label className="text-xs">Preço bruto</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
-                                            <Input
-                                                value={precoBruto}
-                                                onChange={handleCurrencyChange(setPrecoBruto)}
-                                                onBlur={handleCurrencyBlur(setPrecoBruto, precoBruto)}
-                                                className="h-8 text-sm pl-10"
-                                                placeholder="0,00"
-                                            />
-                                        </div>
+                                <div className="form-grid">
+                                    <div className="col-3">
+                                         <InputField
+                                            label="Preço bruto"
+                                            value={precoBruto}
+                                            onChange={handleCurrencyChange(setPrecoBruto)}
+                                            onBlur={handleCurrencyBlur(setPrecoBruto, precoBruto)}
+                                            placeholder="0,00"
+                                            className="text-right text-emerald-700 font-bold"
+                                        />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Preço promoção</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
-                                            <Input
-                                                value={precoPromocao}
-                                                onChange={handleCurrencyChange(setPrecoPromocao)}
-                                                onBlur={handleCurrencyBlur(setPrecoPromocao, precoPromocao)}
-                                                className="h-8 text-sm pl-10"
-                                                placeholder="0,00"
-                                            />
-                                        </div>
+                                    <div className="col-3">
+                                         <InputField
+                                            label="Preço promoção"
+                                            value={precoPromocao}
+                                            onChange={handleCurrencyChange(setPrecoPromocao)}
+                                            onBlur={handleCurrencyBlur(setPrecoPromocao, precoPromocao)}
+                                            placeholder="0,00"
+                                            className="text-right"
+                                        />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Preço especial</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
-                                            <Input
-                                                value={precoEspecial}
-                                                onChange={handleCurrencyChange(setPrecoEspecial)}
-                                                onBlur={handleCurrencyBlur(setPrecoEspecial, precoEspecial)}
-                                                className="h-8 text-sm pl-10"
-                                                placeholder="0,00"
-                                            />
-                                        </div>
+                                    <div className="col-3">
+                                         <InputField
+                                            label="Preço especial"
+                                            value={precoEspecial}
+                                            onChange={handleCurrencyChange(setPrecoEspecial)}
+                                            onBlur={handleCurrencyBlur(setPrecoEspecial, precoEspecial)}
+                                            placeholder="0,00"
+                                            className="text-right"
+                                        />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Preço {'>'}= qtd</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">R$</span>
-                                            <Input
-                                                value={precoQtd}
-                                                onChange={handleCurrencyChange(setPrecoQtd)}
-                                                onBlur={handleCurrencyBlur(setPrecoQtd, precoQtd)}
-                                                className="h-8 text-sm pl-10"
-                                                placeholder="0,00"
-                                            />
-                                        </div>
+                                    <div className="col-3">
+                                         <InputField
+                                            label="Preço > qtd"
+                                            value={precoQtd}
+                                            onChange={handleCurrencyChange(setPrecoQtd)}
+                                            onBlur={handleCurrencyBlur(setPrecoQtd, precoQtd)}
+                                            placeholder="0,00"
+                                            className="text-right"
+                                        />
                                     </div>
                                 </div>
                             </div>
 
                             <div className="border-t pt-4">
                                 <h3 className="font-semibold text-sm mb-4">Detalhamento / Descontos / Impostos</h3>
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div>
-                                        <Label className="text-xs">% Comissão</Label>
-                                        <Input
+                                <div className="form-grid">
+                                    <div className="col-3">
+                                        <InputField
+                                            label="% Comissão"
                                             value={comissao}
                                             onChange={(e) => setComissao(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="number"
                                             step="0.01"
                                         />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Embalagem</Label>
-                                        <Input
+                                    <div className="col-3">
+                                        <InputField
+                                            label="Embalagem"
                                             value={embalagem}
                                             onChange={(e) => setEmbalagem(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="number"
                                         />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Adicional</Label>
-                                        <Input
+                                    <div className="col-3">
+                                        <InputField
+                                            label="Adicional"
                                             value={descontoAdicional}
                                             onChange={(e) => setDescontoAdicional(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="number"
                                             step="0.01"
                                         />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Especial</Label>
-                                        <Input
+                                    <div className="col-3">
+                                        <InputField
+                                            label="Especial"
                                             value={descontoEspecial}
                                             onChange={(e) => setDescontoEspecial(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="number"
                                             step="0.01"
                                         />
                                     </div>
-                                </div>
-                                <div className="grid grid-cols-4 gap-4 mt-4">
-                                    <div>
-                                        <Label className="text-xs">IPI</Label>
-                                        <div className="relative">
-                                            <Input
-                                                value={ipi}
-                                                onChange={handlePercentChange(setIpi)}
-                                                onBlur={handlePercentBlur(setIpi, ipi)}
-                                                className="h-8 text-sm pr-8"
-                                                placeholder="0,00"
-                                            />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">%</span>
-                                        </div>
+
+                                    <div className="col-3">
+                                        <InputField
+                                            label="IPI %"
+                                            value={ipi}
+                                            onChange={handlePercentChange(setIpi)}
+                                            onBlur={handlePercentBlur(setIpi, ipi)}
+                                            placeholder="0,00"
+                                            className="text-right"
+                                        />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">ST</Label>
-                                        <div className="relative">
-                                            <Input
-                                                value={st}
-                                                onChange={handlePercentChange(setSt)}
-                                                onBlur={handlePercentBlur(setSt, st)}
-                                                className="h-8 text-sm pr-8"
-                                                placeholder="0,00"
-                                            />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">%</span>
-                                        </div>
+                                    <div className="col-3">
+                                        <InputField
+                                            label="ST %"
+                                            value={st}
+                                            onChange={handlePercentChange(setSt)}
+                                            onBlur={handlePercentBlur(setSt, st)}
+                                            placeholder="0,00"
+                                            className="text-right"
+                                        />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Peso/Quant</Label>
-                                        <Input
+                                    <div className="col-3">
+                                        <InputField
+                                            label="Peso/Quant"
                                             value={pesoQuant}
                                             onChange={(e) => setPesoQuant(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="number"
                                             step="0.01"
                                         />
                                     </div>
-                                    <div>
-                                        <Label className="text-xs">Venc. promoção</Label>
-                                        <Input
+                                    <div className="col-3">
+                                        <InputField
+                                            label="Venc. promoção"
                                             value={vencPromocao}
                                             onChange={(e) => setVencPromocao(e.target.value)}
-                                            className="h-8 text-sm"
                                             type="date"
                                         />
                                     </div>

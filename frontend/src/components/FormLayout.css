@@ -1,0 +1,123 @@
+/* Modern Form Grid System */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    width: 100%;
+}
+
+/* Custom grid for 9 discount items to ensure better width */
+.discount-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    /* ⬅️ Força 9 colunas horizontalmente */
+    gap: 10px;
+    width: 100%;
+}
+
+@media (max-width: 1024px) {
+    .discount-grid {
+        grid-template-columns: repeat(5, 1fr);
+        /* Em telas menores, quebra em 2 linhas */
+    }
+}
+
+.discount-grid .input-field {
+    margin-bottom: 0;
+}
+
+.col-12 {
+    grid-column: span 12;
+}
+
+.col-11 {
+    grid-column: span 11;
+}
+
+.col-10 {
+    grid-column: span 10;
+}
+
+.col-9 {
+    grid-column: span 9;
+}
+
+.col-8 {
+    grid-column: span 8;
+}
+
+.col-7 {
+    grid-column: span 7;
+}
+
+.col-6 {
+    grid-column: span 6;
+}
+
+.col-5 {
+    grid-column: span 5;
+}
+
+.col-4 {
+    grid-column: span 4;
+}
+
+.col-3 {
+    grid-column: span 3;
+}
+
+.col-2 {
+    grid-column: span 2;
+}
+
+.col-1 {
+    grid-column: span 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+
+    .col-12,
+    .col-11,
+    .col-10,
+    .col-9,
+    .col-8,
+    .col-7,
+    .col-6 {
+        grid-column: span 12;
+    }
+
+    .col-5,
+    .col-4,
+    .col-3,
+    .col-2,
+    .col-1 {
+        grid-column: span 6;
+    }
+}
+
+/* Modern Textarea */
+.modern-textarea {
+    width: 100%;
+    min-height: 120px;
+    border-radius: 12px;
+    /* Matching InputField */
+    border: 1px solid #e5e7eb;
+    padding: 14px;
+    resize: none;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    background: #fff;
+    transition: all 0.2s ease;
+    color: #1f2937;
+}
+
+.modern-textarea::placeholder {
+    color: #9ca3af;
+}
+
+.modern-textarea:focus {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}

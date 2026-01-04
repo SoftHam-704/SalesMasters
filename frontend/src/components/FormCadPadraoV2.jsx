@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import './FormCadPadraoV2.css';
+import './FormLayout.css'; // ⬅️ Global Grid & Modern Styles
 
 const FormCadPadraoV2 = ({ title, children, onSave, onCancel }) => {
     return (

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import '../FormLayout.css';
+import InputField from '../InputField';
 
 const PriceTableImport = () => {
     const [formData, setFormData] = useState({
@@ -131,7 +132,7 @@ const PriceTableImport = () => {
             const linhasCodigo = textareas.codigo.split('\n').filter(l => l.trim() !== '');
             const totalProdutos = linhasCodigo.length;
 
-            console.log(`📦 Preparando importação de ${totalProdutos} produtos...`);
+
 
             const produtos = linhasCodigo.map((_, index) => {
                 const getLinha = (field) => {
@@ -168,7 +169,7 @@ const PriceTableImport = () => {
                 lotes.push(produtos.slice(i, i + TAMANHO_LOTE));
             }
 
-            console.log(`📊 Total de lotes: ${lotes.length}`);
+
 
             // Inicializar progresso
             setProgress({ current: 0, total: lotes.length, percentage: 0 });
@@ -187,7 +188,7 @@ const PriceTableImport = () => {
                 const percentage = Math.round((numeroLote / lotes.length) * 100);
                 setProgress({ current: numeroLote, total: lotes.length, percentage });
 
-                console.log(`🚀 Enviando lote ${numeroLote}/${lotes.length} (${lote.length} produtos)...`);
+                // console.log(`🚀 Enviando lote ${numeroLote}/${lotes.length} (${lote.length} produtos)...`);
 
                 const payload = {
                     industria: parseInt(formData.industria),
@@ -219,7 +220,7 @@ const PriceTableImport = () => {
                         detalhesErros.push(...data.resumo.detalhesErros);
                     }
 
-                    console.log(`✅ Lote ${numeroLote} processado: ${data.resumo.produtosNovos} novos, ${data.resumo.produtosAtualizados} atualizados`);
+                    // console.log(`✅ Lote ${numeroLote} processado: ${data.resumo.produtosNovos} novos, ${data.resumo.produtosAtualizados} atualizados`);
                 } else {
                     throw new Error(data.message || 'Erro ao processar lote');
                 }
@@ -238,12 +239,12 @@ const PriceTableImport = () => {
                 }
             });
 
-            console.log('🎉 Importação concluída!', {
-                total: totalProdutos,
-                inseridos: totalInseridos,
-                atualizados: totalAtualizados,
-                erros: totalErros
-            });
+            // console.log('🎉 Importação concluída!', {
+            //     total: totalProdutos,
+            //     inseridos: totalInseridos,
+            //     atualizados: totalAtualizados,
+            //     erros: totalErros
+            // });
 
         } catch (error) {
             console.error('❌ Erro na importação:', error);
@@ -271,22 +272,24 @@ const PriceTableImport = () => {
         const useScrollbar = field === 'nome' || field === 'aplicacao';
 
         return (
-            <div className="space-y-1">
-                <Label className="text-xs font-medium">
+            <div className="col-2 flex flex-col h-full">
+                <Label className="text-xs font-semibold text-gray-500 mb-1 ml-1">
                     {label} {required && <span className="text-red-500">*</span>}
                 </Label>
-                <Textarea
-                    value={textareas[field]}
-                    onChange={(e) => handleTextareaChange(field, e.target.value)}
-                    className={`h-32 text-sm font-mono resize-none ${useScrollbar ? 'overflow-x-auto whitespace-nowrap' : ''}`}
-                    placeholder={`Cole os dados de ${label.toLowerCase()} aqui (uma por linha)`}
-                />
-                <div
-                    className={`text-xs ${getLineCountColor(field)} cursor-pointer hover:underline hover:text-red-600 transition-colors`}
-                    onClick={() => handleTextareaChange(field, '')}
-                    title="Clique para limpar este campo"
-                >
-                    {lineCounts[field] || 0} linhas
+                <div className="flex-1 relative">
+                    <Textarea
+                        value={textareas[field]}
+                        onChange={(e) => handleTextareaChange(field, e.target.value)}
+                        className={`modern-textarea ${useScrollbar ? 'overflow-x-auto whitespace-nowrap' : ''} h-full min-h-[150px]`}
+                        placeholder={`Cole os dados de ${label.toLowerCase()} aqui (uma por linha)`}
+                    />
+                    <div
+                        className={`absolute bottom-2 right-2 text-xs ${getLineCountColor(field)} cursor-pointer hover:underline hover:text-red-600 transition-colors bg-white/80 px-1 rounded`}
+                        onClick={() => handleTextareaChange(field, '')}
+                        title="Clique para limpar este campo"
+                    >
+                        {lineCounts[field] || 0} linhas
+                    </div>
                 </div>
             </div>
         );
@@ -303,127 +306,135 @@ const PriceTableImport = () => {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {/* Cabeçalho - 2 linhas */}
-                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                        {/* Linha 1: Indústria + Grupo de Desconto (LARGO) */}
-                        <div className="grid grid-cols-4 gap-4">
-                            <div>
-                                <Label>Indústria *</Label>
-                                <Select value={formData.industria} onValueChange={(val) => {
-                                    setFormData({ ...formData, industria: val, tabelaExistente: '', nomeTabela: '' });
-                                    setUseExistingTable(false);
-                                }}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {industries.map(ind => (
-                                            <SelectItem key={ind.for_codigo} value={ind.for_codigo.toString()}>
-                                                {ind.for_nomered}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                    <div className="space-y-4 p-4 bg-gray-50 rounded-xl">
+                        <div className="form-grid">
+                            {/* Linha 1: Indústria + Grupo de Desconto */}
+                            <div className="col-4">
+                                <label className="text-xs font-semibold text-gray-500 ml-1">Indústria *</label>
+                                <div className="h-12">
+                                    <Select 
+                                        value={formData.industria} 
+                                        onValueChange={(val) => {
+                                            setFormData({ ...formData, industria: val, tabelaExistente: '', nomeTabela: '' });
+                                            setUseExistingTable(false);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
+                                            <SelectValue placeholder="Selecione..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {industries.map(ind => (
+                                                <SelectItem key={ind.for_codigo} value={ind.for_codigo.toString()}>
+                                                    {ind.for_nomered}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Grupo de Desconto - 3 colunas = 75% da largura */}
-                            <div className="col-span-3">
-                                <Label>Grupo de Desconto (Opcional)</Label>
-                                <Select value={formData.grupoDesconto} onValueChange={(val) => setFormData({ ...formData, grupoDesconto: val })}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Nenhum" />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-w-6xl">
-                                        <SelectItem value="none">Nenhum</SelectItem>
-                                        {discountGroups.map(grupo => (
-                                            <SelectItem key={grupo.gde_id} value={grupo.gde_id.toString()}>
-                                                <div className="flex items-center gap-3 text-sm">
-                                                    <span className="font-bold text-blue-600 min-w-[60px]">{grupo.gid}</span>
-                                                    <span className="text-gray-400">-</span>
-                                                    <span className="font-medium min-w-[200px]">{grupo.gde_nome}</span>
-                                                    <span className="text-gray-400">|</span>
-                                                    <span className="text-sm font-mono text-gray-600 whitespace-nowrap">
-                                                        {grupo.gde_desc1}% / {grupo.gde_desc2}% / {grupo.gde_desc3}% / {grupo.gde_desc4}% / {grupo.gde_desc5}% / {grupo.gde_desc6}% / {grupo.gde_desc7}% / {grupo.gde_desc8}% / {grupo.gde_desc9}%
-                                                    </span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="col-8">
+                                <label className="text-xs font-semibold text-gray-500 ml-1">Grupo de Desconto (Opcional)</label>
+                                <div className="h-12">
+                                    <Select 
+                                        value={formData.grupoDesconto} 
+                                        onValueChange={(val) => setFormData({ ...formData, grupoDesconto: val })}
+                                    >
+                                        <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
+                                            <SelectValue placeholder="Nenhum" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-w-6xl">
+                                            <SelectItem value="none">Nenhum</SelectItem>
+                                            {discountGroups.map(grupo => (
+                                                <SelectItem key={grupo.gde_id} value={grupo.gde_id.toString()}>
+                                                    <div className="flex items-center gap-3 text-sm">
+                                                        <span className="font-bold text-blue-600 min-w-[60px]">{grupo.gid}</span>
+                                                        <span className="text-gray-400">-</span>
+                                                        <span className="font-medium min-w-[200px]">{grupo.gde_nome}</span>
+                                                        <span className="text-gray-400">|</span>
+                                                        <span className="text-sm font-mono text-gray-600 whitespace-nowrap">
+                                                            {grupo.gde_desc1}% / {grupo.gde_desc2}% / {grupo.gde_desc3}% / {grupo.gde_desc4}% / {grupo.gde_desc5}% / {grupo.gde_desc6}% / {grupo.gde_desc7}% / {grupo.gde_desc8}% / {grupo.gde_desc9}%
+                                                        </span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Linha 2: Nome da Tabela + Datas */}
-                        <div className="grid grid-cols-4 gap-4">
-                            <div className="col-span-2">
-                                <Label>Nome da Tabela de Preços *</Label>
-                                <Input
+                        <div className="form-grid">
+                            {/* Linha 2: Nome da Tabela + Datas */}
+                            <div className="col-6">
+                                <InputField
+                                    label="Nome da Tabela de Preços *"
                                     value={formData.nomeTabela}
                                     onChange={(e) => setFormData({ ...formData, nomeTabela: e.target.value.toUpperCase() })}
                                     placeholder="Ex: PADRAO, PROMOCIONAL, TABPRE 2025"
                                     className="uppercase font-semibold"
                                 />
                             </div>
-                            <div>
-                                <Label className="text-xs">Data Tabela</Label>
-                                <Input
+                            <div className="col-3">
+                                <InputField
+                                    label="Data Tabela"
                                     type="date"
                                     value={formData.dataTabela}
                                     onChange={(e) => setFormData({ ...formData, dataTabela: e.target.value })}
-                                    className="h-10 text-sm"
                                 />
                             </div>
-                            <div>
-                                <Label className="text-xs">Validade</Label>
-                                <Input
+                            <div className="col-3">
+                                <InputField
+                                    label="Validade"
                                     type="date"
                                     value={formData.dataVencimento}
                                     onChange={(e) => setFormData({ ...formData, dataVencimento: e.target.value })}
-                                    className="h-10 text-sm"
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Seleção de Tabela - Melhorada */}
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <Label className="text-sm font-semibold text-blue-900">
-                                    Nome da Tabela de Preços *
-                                </Label>
+                    {/* Seleção de Tabela - Melhorada */}
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+                        <div className="form-grid">
+                            <div className="col-6">
+                                <label className="text-xs font-semibold text-blue-900 ml-1">Nome da Tabela de Preços *</label>
                                 {formData.industria && existingTables.length > 0 ? (
                                     <div className="space-y-2">
-                                        <Select
-                                            value={formData.nomeTabela}
-                                            onValueChange={(val) => {
-                                                if (val === '__NEW__') {
-                                                    setFormData({ ...formData, nomeTabela: '' });
-                                                } else {
-                                                    setFormData({ ...formData, nomeTabela: val });
-                                                }
-                                            }}
-                                        >
-                                            <SelectTrigger className="uppercase font-semibold">
-                                                <SelectValue placeholder="Selecione ou digite nova..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="__NEW__" className="text-green-600 font-semibold">
-                                                    ➕ CRIAR NOVA TABELA
-                                                </SelectItem>
-                                                {existingTables.map((table, idx) => (
-                                                    <SelectItem key={idx} value={table.nome_tabela}>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold">{table.nome_tabela}</span>
-                                                            <span className="text-xs text-gray-500">({table.total_produtos} produtos)</span>
-                                                        </div>
+                                        <div className="h-12">
+                                            <Select
+                                                value={formData.nomeTabela}
+                                                onValueChange={(val) => {
+                                                    if (val === '__NEW__') {
+                                                        setFormData({ ...formData, nomeTabela: '' });
+                                                    } else {
+                                                        setFormData({ ...formData, nomeTabela: val });
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-[50px] rounded-xl border-gray-200 uppercase font-semibold">
+                                                    <SelectValue placeholder="Selecione ou digite nova..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__NEW__" className="text-green-600 font-semibold">
+                                                        ➕ CRIAR NOVA TABELA
                                                     </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                                    {existingTables.map((table, idx) => (
+                                                        <SelectItem key={idx} value={table.nome_tabela}>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-semibold">{table.nome_tabela}</span>
+                                                                <span className="text-xs text-gray-500">({table.total_produtos} produtos)</span>
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
 
                                         {/* Input para nome customizado quando seleciona "CRIAR NOVA" */}
                                         {formData.nomeTabela === '' && (
-                                            <Input
+                                            <InputField
                                                 value={formData.nomeTabela}
                                                 onChange={(e) => setFormData({ ...formData, nomeTabela: e.target.value.toUpperCase() })}
                                                 placeholder="Digite o nome da NOVA tabela"
@@ -434,18 +445,18 @@ const PriceTableImport = () => {
                                     </div>
                                 ) : formData.industria ? (
                                     <div className="space-y-1">
-                                        <Input
+                                        <InputField
                                             value={formData.nomeTabela}
                                             onChange={(e) => setFormData({ ...formData, nomeTabela: e.target.value.toUpperCase() })}
                                             placeholder="Ex: PADRAO, PROMOCIONAL, TABPRE 2025"
                                             className="uppercase font-semibold"
                                         />
-                                        <p className="text-xs text-green-600">
+                                        <p className="text-xs text-green-600 ml-1">
                                             ✨ Nenhuma tabela existente - será criada uma nova
                                         </p>
                                     </div>
                                 ) : (
-                                    <Input
+                                    <InputField
                                         disabled
                                         placeholder="Selecione uma indústria primeiro"
                                         className="uppercase font-semibold"
@@ -453,16 +464,16 @@ const PriceTableImport = () => {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="col-6 flex items-center">
                                 {formData.nomeTabela && formData.nomeTabela !== '' && existingTables.some(t => t.nome_tabela === formData.nomeTabela) ? (
-                                    <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+                                    <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-lg w-full">
                                         <p className="text-sm font-semibold text-yellow-800">⚠️ Modo: ATUALIZAR TABELA EXISTENTE</p>
                                         <p className="text-xs text-yellow-700 mt-1">
                                             Produtos com códigos existentes serão atualizados. Novos códigos serão adicionados.
                                         </p>
                                     </div>
                                 ) : formData.nomeTabela && formData.nomeTabela !== '' ? (
-                                    <div className="p-3 bg-green-50 border border-green-300 rounded-lg">
+                                    <div className="p-3 bg-green-50 border border-green-300 rounded-lg w-full">
                                         <p className="text-sm font-semibold text-green-800">✨ Modo: CRIAR NOVA TABELA</p>
                                         <p className="text-xs text-green-700 mt-1">
                                             Uma nova tabela "{formData.nomeTabela}" será criada com os produtos importados.
@@ -494,7 +505,7 @@ const PriceTableImport = () => {
                     )}
 
                     {/* Campos de dados - Linha 1 */}
-                    <div className="grid grid-cols-6 gap-4">
+                    <div className="form-grid">
                         <TextareaField label="Código" field="codigo" required />
                         <TextareaField label="Complemento" field="complemento" />
                         <TextareaField label="Nome do Produto" field="nome" required />
@@ -504,7 +515,7 @@ const PriceTableImport = () => {
                     </div>
 
                     {/* Campos de dados - Linha 2 */}
-                    <div className="grid grid-cols-6 gap-4">
+                    <div className="form-grid">
                         <TextareaField label="Grupo de Produtos" field="grupo" />
                         <TextareaField label="Aplicação" field="aplicacao" />
                         <TextareaField label="Embalagem" field="embalagem" />
@@ -514,7 +525,7 @@ const PriceTableImport = () => {
                     </div>
 
                     {/* Campos de dados - Linha 3 */}
-                    <div className="grid grid-cols-6 gap-4">
+                    <div className="form-grid">
                         <TextareaField label="Código de Barras" field="codbarras" />
                         <TextareaField label="Desconto Adicional" field="descontoadd" />
                         <TextareaField label="NCM" field="ncm" />

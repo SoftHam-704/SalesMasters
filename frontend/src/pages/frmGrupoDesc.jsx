@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Tags } from "lucide-react";
 import { toast } from "sonner";
 import DiscountGroupForm from "../components/forms/DiscountGroupForm";
-import GridCadPadrao from "../components/GridCadPadrao";
+import GridCadPadraoV2 from "../components/GridCadPadraoV2";
 
 const FrmGrupoDesc = () => {
     const [groups, setGroups] = useState([]);
@@ -107,7 +107,8 @@ const FrmGrupoDesc = () => {
             label: 'ID',
             width: '60px',
             align: 'center',
-            isId: true
+            isId: true,
+            render: (row) => row.gid?.toString().padStart(3, '0')
         },
         // Mapeando colunas de 1 a 9
         ...Array.from({ length: 9 }, (_, i) => ({
@@ -138,21 +139,16 @@ const FrmGrupoDesc = () => {
                 />
             )}
 
-            <GridCadPadrao
+            <GridCadPadraoV2
                 title="Grupos de Desconto"
                 subtitle="Matriz de descontos por grupo"
                 icon={Tags}
                 data={filteredGroups}
-                loading={loading}
                 columns={columns}
-                searchPlaceholder="Pesquisar..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
+                titleKey="displayName"
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={fetchGroups}
-                newButtonLabel="Novo Grupo"
             />
         </>
     );
