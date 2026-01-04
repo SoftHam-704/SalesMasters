@@ -3125,9 +3125,10 @@ app.post('/api/sellers', async (req, res) => {
                 ven_nome, ven_endereco, ven_bairro, ven_cidade, ven_cep, ven_uf,
                 ven_fone1, ven_fone2, ven_obs, ven_cpf, ven_comissao, ven_email,
                 ven_nomeusu, ven_aniversario, ven_rg, ven_ctps, ven_filiacao,
-                ven_pis, ven_filhos, ven_codusu, ven_imagem, gid
+                ven_pis, ven_filhos, ven_codusu, ven_imagem, gid,
+                ven_dtadmissao, ven_dtdemissao, ven_status, ven_cumpremetas
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
             ) RETURNING *
         `;
 
@@ -3153,7 +3154,11 @@ app.post('/api/sellers', async (req, res) => {
             seller.ven_filhos || null,
             seller.ven_codusu || null,
             seller.ven_imagem || '',
-            seller.gid || ''
+            seller.gid || '',
+            seller.ven_dtadmissao || null,
+            seller.ven_dtdemissao || null,
+            seller.ven_status || 'A',
+            seller.ven_cumpremetas || 'S'
         ];
 
         const result = await pool.query(query, values);
@@ -3191,8 +3196,9 @@ app.put('/api/sellers/:id', async (req, res) => {
                 ven_obs = $9, ven_cpf = $10, ven_comissao = $11, ven_email = $12,
                 ven_nomeusu = $13, ven_aniversario = $14, ven_rg = $15, ven_ctps = $16,
                 ven_filiacao = $17, ven_pis = $18, ven_filhos = $19, ven_codusu = $20,
-                ven_imagem = $21
-            WHERE ven_codigo = $22
+                ven_imagem = $21, ven_dtadmissao = $22, ven_dtdemissao = $23,
+                ven_status = $24, ven_cumpremetas = $25
+            WHERE ven_codigo = $26
             RETURNING *
         `;
 
@@ -3218,6 +3224,10 @@ app.put('/api/sellers/:id', async (req, res) => {
             seller.ven_filhos || null,
             seller.ven_codusu || null,
             seller.ven_imagem || '',
+            seller.ven_dtadmissao || null,
+            seller.ven_dtdemissao || null,
+            seller.ven_status || 'A',
+            seller.ven_cumpremetas || 'S',
             id
         ];
 
@@ -3589,6 +3599,160 @@ app.get('/api/regions', async (req, res) => {
             success: false,
             message: `Erro ao buscar regiões: ${error.message}`
         });
+    }
+});
+
+// ==================== SELLER GOALS/METAS ENDPOINTS ====================
+
+// GET - Listar metas de um vendedor (por ano ou todos)
+app.get('/api/sellers/:id/metas', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { ano } = req.query;
+
+        let query = `
+            SELECT 
+                vm.met_id,
+                vm.met_ano,
+                vm.met_industria,
+                vm.met_vendedor,
+                vm.met_jan, vm.met_fev, vm.met_mar, vm.met_abr,
+                vm.met_mai, vm.met_jun, vm.met_jul, vm.met_ago,
+                vm.met_set, vm.met_out, vm.met_nov, vm.met_dez,
+                f.for_nomered as industria_nome
+            FROM vend_metas vm
+            LEFT JOIN fornecedores f ON f.for_codigo = vm.met_industria
+            WHERE vm.met_vendedor = $1
+        `;
+        const params = [id];
+
+        if (ano) {
+            query += ` AND vm.met_ano = $2`;
+            params.push(ano);
+        }
+
+        query += ` ORDER BY vm.met_ano DESC, f.for_nomered`;
+
+        const result = await pool.query(query, params);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao buscar metas: ${error.message}`
+        });
+    }
+});
+
+// POST - Criar nova meta
+app.post('/api/sellers/:id/metas', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const meta = req.body;
+
+        // Verificar se já existe meta para este vendedor/ano/indústria
+        const existCheck = await pool.query(
+            'SELECT met_id FROM vend_metas WHERE met_vendedor = $1 AND met_ano = $2 AND met_industria = $3',
+            [id, meta.met_ano, meta.met_industria]
+        );
+
+        if (existCheck.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Já existe uma meta para este vendedor/ano/indústria'
+            });
+        }
+
+        const query = `
+            INSERT INTO vend_metas (
+                met_vendedor, met_ano, met_industria,
+                met_jan, met_fev, met_mar, met_abr, met_mai, met_jun,
+                met_jul, met_ago, met_set, met_out, met_nov, met_dez
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+            ) RETURNING *
+        `;
+
+        const values = [
+            id,
+            meta.met_ano,
+            meta.met_industria,
+            meta.met_jan || 0, meta.met_fev || 0, meta.met_mar || 0, meta.met_abr || 0,
+            meta.met_mai || 0, meta.met_jun || 0, meta.met_jul || 0, meta.met_ago || 0,
+            meta.met_set || 0, meta.met_out || 0, meta.met_nov || 0, meta.met_dez || 0
+        ];
+
+        const result = await pool.query(query, values);
+
+        res.status(201).json({
+            success: true,
+            data: result.rows[0],
+            message: 'Meta criada com sucesso!'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: `Erro ao criar meta: ${error.message}`
+        });
+    }
+});
+
+// PUT - Atualizar meta existente
+app.put('/api/sellers/:id/metas/:metaId', async (req, res) => {
+    try {
+        const { id, metaId } = req.params;
+        const meta = req.body;
+
+        const query = `
+            UPDATE vend_metas SET
+                met_ano = $1, met_industria = $2,
+                met_jan = $3, met_fev = $4, met_mar = $5, met_abr = $6,
+                met_mai = $7, met_jun = $8, met_jul = $9, met_ago = $10,
+                met_set = $11, met_out = $12, met_nov = $13, met_dez = $14
+            WHERE met_id = $15 AND met_vendedor = $16
+            RETURNING *
+        `;
+
+        const values = [
+            meta.met_ano, meta.met_industria,
+            meta.met_jan || 0, meta.met_fev || 0, meta.met_mar || 0, meta.met_abr || 0,
+            meta.met_mai || 0, meta.met_jun || 0, meta.met_jul || 0, meta.met_ago || 0,
+            meta.met_set || 0, meta.met_out || 0, meta.met_nov || 0, meta.met_dez || 0,
+            metaId, id
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Meta não encontrada' });
+        }
+
+        res.json({ success: true, data: result.rows[0], message: 'Meta atualizada com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: `Erro ao atualizar meta: ${error.message}` });
+    }
+});
+
+// DELETE - Remover meta
+app.delete('/api/sellers/:id/metas/:metaId', async (req, res) => {
+    try {
+        const { id, metaId } = req.params;
+
+        const result = await pool.query(
+            'DELETE FROM vend_metas WHERE met_id = $1 AND met_vendedor = $2 RETURNING *',
+            [metaId, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Meta não encontrada' });
+        }
+
+        res.json({ success: true, message: 'Meta excluída com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: `Erro ao excluir meta: ${error.message}` });
     }
 });
 

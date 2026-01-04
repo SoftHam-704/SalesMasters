@@ -1,0 +1,640 @@
+/* ===== DASHBOARD DE COLABORADORES - CSS ===== */
+
+/* ===== CONTAINER ===== */
+.equipe-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.equipe-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: 16px;
+    color: #64748b;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===== VENDEDOR FILTER BAR ===== */
+.vendedor-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: white;
+    padding: 12px 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+}
+
+.filter-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.vendedor-select {
+    flex: 1;
+    max-width: 300px;
+    padding: 10px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+}
+
+.vendedor-select:hover {
+    border-color: #3b82f6;
+}
+
+.vendedor-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ===== KPI CARDS ===== */
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.kpi-card {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    border-left: 4px solid #3b82f6;
+    transition: all 0.3s;
+    position: relative;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-card.success {
+    border-left-color: #10b981;
+}
+
+.kpi-card.danger {
+    border-left-color: #ef4444;
+}
+
+.kpi-card.warning {
+    border-left-color: #f59e0b;
+}
+
+.kpi-card.info {
+    border-left-color: #3b82f6;
+}
+
+.kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.kpi-value {
+    font-size: 28px;
+    font-weight: 900;
+    color: #1e293b;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+
+.kpi-change {
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #64748b;
+}
+
+.kpi-change.positive {
+    color: #10b981;
+}
+
+.kpi-change.negative {
+    color: #ef4444;
+}
+
+/* ===== MAIN GRID ===== */
+
+.main-grid {
+    display: grid;
+    grid-template-columns: 58% 40%;
+    gap: 16px;
+    min-height: 500px;
+    max-height: 550px;
+    position: relative;
+    z-index: 2;
+}
+
+/* ===== CARDS ===== */
+
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    max-height: 550px;
+    overflow: hidden;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 900;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-icon {
+    font-size: 18px;
+}
+
+.card-badge {
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Seletor de vendedor no painel de recomendações */
+.vendedor-select-insights {
+    padding: 6px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e293b;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    max-width: 200px;
+}
+
+.vendedor-select-insights:hover {
+    border-color: #3b82f6;
+}
+
+.vendedor-select-insights:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ===== TABELA ===== */
+
+.table-container {
+    overflow-y: auto;
+    flex: 1;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+thead th {
+    background: #f8fafc;
+    padding: 10px 8px;
+    text-align: left;
+    font-weight: 700;
+    color: #475569;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+tbody td {
+    padding: 12px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+}
+
+tbody tr {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+tbody tr:hover {
+    background: #f8fafc;
+}
+
+tbody tr.selected {
+    background: #eff6ff;
+}
+
+.td-vendedor {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.td-valor {
+    font-weight: 600;
+    color: #1e293b;
+    text-align: right;
+}
+
+.td-center {
+    text-align: center;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.text-success {
+    color: #10b981;
+}
+
+.text-danger {
+    color: #ef4444;
+}
+
+.text-warning {
+    color: #f59e0b;
+}
+
+.text-muted {
+    color: #94a3b8;
+}
+
+.font-bold {
+    font-weight: 700;
+}
+
+/* ===== RANKING BADGES ===== */
+
+.ranking-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    font-weight: 900;
+    font-size: 12px;
+}
+
+.ranking-1 {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.ranking-2 {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.ranking-3 {
+    background: #fed7aa;
+    color: #9a3412;
+}
+
+.ranking-other {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* ===== PROGRESS BAR ===== */
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 2px;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.progress-success {
+    background: #10b981;
+}
+
+.progress-warning {
+    background: #f59e0b;
+}
+
+.progress-danger {
+    background: #ef4444;
+}
+
+/* ===== BADGES ===== */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    gap: 4px;
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* ===== IA INSIGHTS PANEL ===== */
+
+.ia-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.insight-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    border-radius: 10px;
+    padding: 12px;
+    border-left: 4px solid #3b82f6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+    animation: slideIn 0.3s ease-out;
+}
+
+.insight-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateX(2px);
+}
+
+.insight-success {
+    border-left-color: #10b981;
+}
+
+.insight-warning {
+    border-left-color: #f59e0b;
+}
+
+.insight-danger {
+    border-left-color: #ef4444;
+}
+
+.insight-prediction {
+    background: linear-gradient(135deg, #d1fae5 0%, #ffffff 100%);
+    border-left-color: #10b981;
+}
+
+.insight-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.insight-icon {
+    font-size: 18px;
+}
+
+.insight-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    flex: 1;
+}
+
+.insight-priority {
+    background: #1e293b;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.insight-description {
+    font-size: 11px;
+    color: #475569;
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+
+.insight-action {
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 10px;
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.insight-impact {
+    font-size: 12px;
+    font-weight: 900;
+    color: #10b981;
+    margin-top: 6px;
+}
+
+.insight-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ===== CHARTS GRID ===== */
+
+.charts-grid {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    clear: both;
+    position: relative;
+    z-index: 1;
+}
+
+.equipe-chart-card {
+    min-width: 0;
+    /* Ensures grid item can shrink below content size */
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+    height: 260px;
+}
+
+.chart-header {
+    font-size: 14px;
+    font-weight: 800;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.chart-icon {
+    font-size: 16px;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: calc(100% - 50px);
+}
+
+/* ===== SCROLLBAR ===== */
+
+.table-container::-webkit-scrollbar,
+.ia-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.table-container::-webkit-scrollbar-track,
+.ia-panel::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.ia-panel::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.ia-panel::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 1600px) {
+    .main-grid {
+        grid-template-columns: 55% 43%;
+    }
+}
+
+@media (max-width: 1200px) {
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .main-grid {
+        grid-template-columns: 1fr;
+        max-height: none;
+    }
+
+    /* .charts-grid keeps 3 columns until smaller screens */
+}
+
+@media (max-width: 768px) {
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .vendedor-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .vendedor-select {
+        max-width: none;
+    }
+}

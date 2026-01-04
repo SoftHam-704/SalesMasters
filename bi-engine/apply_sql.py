@@ -1,18 +1,27 @@
-from sqlalchemy import create_engine, text
-from config import DATABASE_URL
+
 import os
+from services.database import engine
 
-engine = create_engine(DATABASE_URL)
+def apply_sql():
+    sql_path = '../backend/sql/fn_produtos_dashboard_complete.sql'
+    print(f"Reading SQL from {sql_path}...")
+    
+    with open(sql_path, 'r', encoding='utf-8') as f:
+        sql_content = f.read()
 
-sql_files = [
-    r"e:\Sistemas_ia\SalesMasters\backend\sql\metas_functions_fixed.sql"
-]
+    print("Connecting to database...")
+    conn = engine.raw_connection()
+    try:
+        cur = conn.cursor()
+        print("Executing SQL script...")
+        cur.execute(sql_content)
+        conn.commit()
+        print("SQL applied successfully!")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error applying SQL: {e}")
+    finally:
+        conn.close()
 
-with engine.connect() as conn:
-    for sql_file in sql_files:
-        print(f"Executing {sql_file}...")
-        with open(sql_file, 'r', encoding='utf-8') as f:
-            sql = f.read()
-            conn.execute(text(sql))
-            conn.commit()
-    print("Done.")
+if __name__ == "__main__":
+    apply_sql()

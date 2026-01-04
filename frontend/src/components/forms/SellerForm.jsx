@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import IndustryDialog from './IndustryDialog';
 import RegionDialog from './RegionDialog';
+import MetaDialog from './MetaDialog';
 
 const SellerForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({});
@@ -26,6 +27,15 @@ const SellerForm = ({ data, onClose, onSave }) => {
     const [sellerRegions, setSellerRegions] = useState([]);
     const [loadingRegions, setLoadingRegions] = useState(false);
     const [allRegions, setAllRegions] = useState([]);
+
+    // Estados para metas
+    const [metas, setMetas] = useState([]);
+    const [loadingMetas, setLoadingMetas] = useState(false);
+    const [metaDialogOpen, setMetaDialogOpen] = useState(false);
+    const [selectedMeta, setSelectedMeta] = useState(null);
+    const [selectedMetaYear, setSelectedMetaYear] = useState(new Date().getFullYear());
+    const [selectedMetaIndustry, setSelectedMetaIndustry] = useState('');
+    const [editingMeta, setEditingMeta] = useState(null);
 
     // Fetch industries/commissions for this seller
     const fetchIndustries = async () => {
@@ -100,18 +110,42 @@ const SellerForm = ({ data, onClose, onSave }) => {
         }
     };
 
+    // Fetch metas for this seller
+    const fetchMetas = async () => {
+        if (!data?.ven_codigo) return;
+        setLoadingMetas(true);
+        try {
+            const res = await fetch(`http://localhost:3005/api/sellers/${data.ven_codigo}/metas`);
+            if (res.ok) {
+                const json = await res.json();
+                setMetas(json.data || []);
+            }
+        } catch (error) {
+            console.error("Erro ao buscar metas", error);
+        } finally {
+            setLoadingMetas(false);
+        }
+    };
+
     useEffect(() => {
         if (data?.ven_codigo) {
             fetchIndustries();
             fetchSellerRegions();
+            fetchMetas();
         } else {
             setIndustries([]);
             setSellerRegions([]);
+            setMetas([]);
         }
         loadSuppliers();
         loadAllRegions();
         loadUsers();
     }, [data?.ven_codigo]);
+
+    // Reset editingMeta when year or industry changes
+    useEffect(() => {
+        setEditingMeta(null);
+    }, [selectedMetaYear, selectedMetaIndustry]);
 
     useEffect(() => {
         if (data) {
@@ -324,6 +358,58 @@ const SellerForm = ({ data, onClose, onSave }) => {
                         </div>
                     </div>
 
+                    {/* Data Admissão | Data Demissão | Status | Cumpre Metas */}
+                    <div className="grid grid-cols-4 gap-2">
+                        <div>
+                            <Label className="text-xs">Data Admissão</Label>
+                            <Input
+                                type="date"
+                                value={formData.ven_dtadmissao || ''}
+                                onChange={(e) => handleChange('ven_dtadmissao', e.target.value)}
+                                className="h-8 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <Label className="text-xs">Data Demissão</Label>
+                            <Input
+                                type="date"
+                                value={formData.ven_dtdemissao || ''}
+                                onChange={(e) => handleChange('ven_dtdemissao', e.target.value)}
+                                className="h-8 text-sm"
+                            />
+                        </div>
+                        <div>
+                            <Label className="text-xs">Status</Label>
+                            <Select
+                                value={formData.ven_status || 'A'}
+                                onValueChange={(value) => handleChange('ven_status', value)}
+                            >
+                                <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="A">Ativo</SelectItem>
+                                    <SelectItem value="I">Inativo</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label className="text-xs">Cumpre Metas</Label>
+                            <Select
+                                value={formData.ven_cumpremetas || 'S'}
+                                onValueChange={(value) => handleChange('ven_cumpremetas', value)}
+                            >
+                                <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="S">Sim</SelectItem>
+                                    <SelectItem value="N">Não</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
                     {/* Filiação */}
                     <div>
                         <Label className="text-xs">Filiação</Label>
@@ -457,6 +543,120 @@ const SellerForm = ({ data, onClose, onSave }) => {
             console.error(error);
             toast.error("Erro ao salvar");
         }
+    };
+
+    // Meta handlers
+    const handleAddMeta = () => {
+        setSelectedMeta(null);
+        setMetaDialogOpen(true);
+    };
+
+    const handleEditMeta = (meta) => {
+        setSelectedMeta(meta);
+        setMetaDialogOpen(true);
+    };
+
+    const handleDeleteMeta = async (meta) => {
+        if (!window.confirm(`Deseja excluir a meta de ${meta.industria_nome || 'Geral'} para ${meta.met_ano}?`)) return;
+
+        try {
+            const res = await fetch(
+                `http://localhost:3005/api/sellers/${data.ven_codigo}/metas/${meta.met_id}`,
+                { method: 'DELETE' }
+            );
+            if (res.ok) {
+                toast.success("Meta excluída!");
+                fetchMetas();
+            } else {
+                toast.error("Erro ao excluir meta");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao excluir meta");
+        }
+    };
+
+    const handleMetaSaved = async (metaData) => {
+        try {
+            const url = selectedMeta
+                ? `http://localhost:3005/api/sellers/${data.ven_codigo}/metas/${selectedMeta.met_id}`
+                : `http://localhost:3005/api/sellers/${data.ven_codigo}/metas`;
+
+            const method = selectedMeta ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(metaData)
+            });
+
+            if (res.ok) {
+                toast.success(selectedMeta ? "Meta atualizada!" : "Meta adicionada!");
+                setMetaDialogOpen(false);
+                fetchMetas();
+            } else {
+                const json = await res.json();
+                toast.error(json.message || "Erro ao salvar");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao salvar");
+        }
+    };
+
+    // Save metas directly from the grid
+    const handleSaveMetas = async () => {
+        if (!selectedMetaIndustry || !editingMeta) {
+            toast.error("Selecione uma indústria e preencha os valores");
+            return;
+        }
+
+        try {
+            // Check if meta exists
+            const existingMeta = metas.find(m =>
+                m.met_ano === selectedMetaYear &&
+                m.met_industria?.toString() === selectedMetaIndustry
+            );
+
+            const metaData = {
+                met_ano: selectedMetaYear,
+                met_industria: parseInt(selectedMetaIndustry),
+                ...editingMeta
+            };
+
+            const url = existingMeta
+                ? `http://localhost:3005/api/sellers/${data.ven_codigo}/metas/${existingMeta.met_id}`
+                : `http://localhost:3005/api/sellers/${data.ven_codigo}/metas`;
+
+            const method = existingMeta ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(metaData)
+            });
+
+            if (res.ok) {
+                toast.success("Metas salvas com sucesso!");
+                setEditingMeta(null);
+                fetchMetas();
+            } else {
+                const json = await res.json();
+                toast.error(json.message || "Erro ao salvar metas");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao salvar metas");
+        }
+    };
+
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(parseFloat(value) || 0);
     };
 
     const renderRelatedContent = (activeTab) => {
@@ -622,12 +822,122 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
         // Lanç. metas tab
         if (activeTab === 'lanc_metas') {
+            // Filter metas for selected year/industry
+            const currentMeta = metas.find(m =>
+                m.met_ano === selectedMetaYear &&
+                m.met_industria?.toString() === selectedMetaIndustry
+            );
+
+            const handleMetaFieldChange = (field, value) => {
+                setEditingMeta(prev => ({
+                    ...prev,
+                    [field]: parseFloat(value) || 0
+                }));
+            };
+
             return (
-                <div className="p-4 text-center">
-                    <div className="text-gray-500 text-sm py-8">
-                        <p className="font-semibold mb-2">🚧 Em Desenvolvimento</p>
-                        <p>Esta funcionalidade estará disponível em breve.</p>
+                <div className="p-3 space-y-4">
+                    {/* Header with selectors */}
+                    <div className="flex justify-between items-center">
+                        <Label className="text-sm font-semibold">Metas Anuais (em Reais)</Label>
+                        <div className="flex gap-2 items-center">
+                            <Select
+                                value={selectedMetaIndustry}
+                                onValueChange={setSelectedMetaIndustry}
+                            >
+                                <SelectTrigger className="h-8 w-48 text-xs">
+                                    <SelectValue placeholder="Selecione indústria" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {suppliers.map(s => (
+                                        <SelectItem key={s.for_codigo} value={s.for_codigo.toString()}>
+                                            {s.for_nomered || s.for_nome}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <select
+                                className="border rounded px-2 py-1 text-xs h-8"
+                                value={selectedMetaYear}
+                                onChange={(e) => setSelectedMetaYear(parseInt(e.target.value))}
+                            >
+                                {[2024, 2025, 2026, 2027].map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
+
+                    {loadingMetas ? (
+                        <div className="text-center text-sm text-gray-500 py-4">Carregando...</div>
+                    ) : !selectedMetaIndustry ? (
+                        <div className="text-center text-sm text-gray-500 py-4">
+                            Selecione uma indústria para visualizar/editar metas
+                        </div>
+                    ) : (
+                        <>
+                            {/* Monthly Goals Grid */}
+                            <div className="grid grid-cols-6 gap-3">
+                                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((month) => {
+                                    const fieldName = `met_${month.toLowerCase()}`;
+                                    const value = editingMeta?.[fieldName] ?? (currentMeta ? parseFloat(currentMeta[fieldName]) || 0 : 0);
+                                    return (
+                                        <div key={month} className="space-y-1">
+                                            <Label className="text-xs text-gray-500">{month}</Label>
+                                            <Input
+                                                className="text-right text-xs font-mono h-8 border-emerald-200"
+                                                value={formatCurrency(value)}
+                                                onChange={(e) => {
+                                                    const numericValue = e.target.value.replace(/[^\d,]/g, '').replace(',', '.');
+                                                    handleMetaFieldChange(fieldName, numericValue);
+                                                }}
+                                                onFocus={(e) => {
+                                                    e.target.value = value.toString();
+                                                    e.target.select();
+                                                    if (!editingMeta) {
+                                                        setEditingMeta(currentMeta ? {
+                                                            met_jan: parseFloat(currentMeta.met_jan) || 0,
+                                                            met_fev: parseFloat(currentMeta.met_fev) || 0,
+                                                            met_mar: parseFloat(currentMeta.met_mar) || 0,
+                                                            met_abr: parseFloat(currentMeta.met_abr) || 0,
+                                                            met_mai: parseFloat(currentMeta.met_mai) || 0,
+                                                            met_jun: parseFloat(currentMeta.met_jun) || 0,
+                                                            met_jul: parseFloat(currentMeta.met_jul) || 0,
+                                                            met_ago: parseFloat(currentMeta.met_ago) || 0,
+                                                            met_set: parseFloat(currentMeta.met_set) || 0,
+                                                            met_out: parseFloat(currentMeta.met_out) || 0,
+                                                            met_nov: parseFloat(currentMeta.met_nov) || 0,
+                                                            met_dez: parseFloat(currentMeta.met_dez) || 0,
+                                                        } : {
+                                                            met_jan: 0, met_fev: 0, met_mar: 0, met_abr: 0,
+                                                            met_mai: 0, met_jun: 0, met_jul: 0, met_ago: 0,
+                                                            met_set: 0, met_out: 0, met_nov: 0, met_dez: 0,
+                                                        });
+                                                    }
+                                                }}
+                                                onBlur={(e) => {
+                                                    const numericValue = parseFloat(e.target.value) || 0;
+                                                    handleMetaFieldChange(fieldName, numericValue);
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Save Button */}
+                            <div className="flex justify-end">
+                                <Button
+                                    onClick={handleSaveMetas}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs px-4"
+                                    disabled={!selectedMetaIndustry}
+                                >
+                                    <FileText size={14} className="mr-2" />
+                                    Salvar Metas
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </div>
             );
         }

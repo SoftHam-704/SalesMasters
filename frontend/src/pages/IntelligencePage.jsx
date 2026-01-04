@@ -7,6 +7,8 @@ import ClientesTab from './BI/tabs/ClientesTab';
 import AnalyticsTab from './BI/tabs/AnalyticsTab';
 import CurvaABCTab from './BI/tabs/CurvaABCTab';
 import MetasTab from './BI/tabs/MetasTab';
+import EquipeTab from './BI/tabs/EquipeTab';
+import ProdutosTab from './BI/tabs/ProdutosTab';
 
 // STABLE CONSTANTS - Outside component to prevent re-render loops
 const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
@@ -217,7 +219,7 @@ const IntelligencePage = () => {
             </div>
 
             {/* Central Panel - Fixed Height with Internal Scroll */}
-            <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
+            <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
                 {activePage === 'VISAO_GERAL' && (
                     <OverviewTab key="overview" filters={filters} />
                 )}
@@ -236,8 +238,14 @@ const IntelligencePage = () => {
                 {activePage === 'METAS' && (
                     <MetasTab key="metas" filters={filters} />
                 )}
+                {activePage === 'EQUIPE' && (
+                    <EquipeTab key="equipe" filters={filters} />
+                )}
+                {activePage === 'PRODUTOS' && (
+                    <ProdutosTab key="produtos" filters={filters} />
+                )}
                 {/* Fallback for other tabs */}
-                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS', 'CURVA_ABC', 'METAS'].includes(activePage) && (
+                {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS', 'CURVA_ABC', 'METAS', 'EQUIPE', 'PRODUTOS'].includes(activePage) && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-slate-400">
                         <Target size={48} className="mb-4 text-slate-200" />
                         <p className="text-lg font-medium">Módulo: {activeItem.label}</p>

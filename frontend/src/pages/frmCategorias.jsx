@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Tag } from "lucide-react";
 import { toast } from "sonner";
 import CategoryForm from "../components/forms/CategoryForm";
-import GridCadPadrao from "../components/GridCadPadrao";
+import GridCadPadraoV2 from "../components/GridCadPadraoV2";
 
 const FrmCategorias = () => {
     const [categories, setCategories] = useState([]);
@@ -126,21 +126,15 @@ const FrmCategorias = () => {
                 />
             )}
 
-            <GridCadPadrao
+            <GridCadPadraoV2
                 title="Categorias de Produtos"
                 subtitle="Gerencie as categorias (Leve, Pesada, etc.)"
                 icon={Tag}
                 data={filteredCategories}
-                loading={loading}
-                columns={columns}
-                searchPlaceholder="Buscar categoria..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
+                titleKey="cat_descricao"
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={fetchCategories}
-                newButtonLabel="Nova Categoria"
             />
         </>
     );
