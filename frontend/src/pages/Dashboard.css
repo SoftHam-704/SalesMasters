@@ -504,3 +504,28 @@
         font-size: 1.25rem;
     }
 }
+
+/* Birthday Card Shimmer Animation */
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+.metric-card-birthday {
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 2px 8px rgba(254, 205, 211, 0.3);
+    }
+
+    100% {
+        box-shadow: 0 4px 15px rgba(254, 205, 211, 0.5);
+    }
+}

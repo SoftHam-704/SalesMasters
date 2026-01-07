@@ -1,20 +1,20 @@
-
 import os
-from services.database import engine
+import urllib.parse
+import psycopg2
 
-def list_columns():
-    conn = engine.raw_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'cad_prod'")
-        rows = cur.fetchall()
-        print("Columns in cad_prod:")
-        for row in rows:
-            print(row[0])
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        conn.close()
+DB_USER = "postgres"
+DB_PASS = "@12Pilabo"
+DB_HOST = "localhost"
+DB_PORT = "5432"
+DB_NAME = "basesales"
+encoded_pass = urllib.parse.quote_plus(DB_PASS)
+DATABASE_URL = f"postgresql://{DB_USER}:{encoded_pass}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-if __name__ == "__main__":
-    list_columns()
+try:
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM pedidos LIMIT 0")
+    print([desc[0] for desc in cur.description])
+    conn.close()
+except Exception as e:
+    print(e)

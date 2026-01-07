@@ -86,7 +86,8 @@ module.exports = function (pool) {
                         par_emailpassword = $26,
                         par_emailtls = $27,
                         par_emailssl = $28,
-                        par_emailalternativo = $29
+                        par_emailalternativo = $29,
+                        par_obs_padrao = $31
                     WHERE par_usuario = $30
                     RETURNING *
                 `;
@@ -100,7 +101,8 @@ module.exports = function (pool) {
                     params.par_telemkttipo, params.par_iniciapedido, params.par_tipofretepadrao,
                     params.par_emailserver, params.par_email, params.par_emailuser,
                     params.par_emailporta, params.par_emailpassword, params.par_emailtls,
-                    params.par_emailssl, params.par_emailalternativo, params.par_usuario
+                    params.par_emailssl, params.par_emailalternativo, params.par_usuario,
+                    params.par_obs_padrao
                 ];
             } else {
                 // INSERT
@@ -113,11 +115,12 @@ module.exports = function (pool) {
                         par_mostrapednovos, par_mostraimpostos, par_qtddecimais, par_pedidopadrao,
                         par_telemkttipo, par_iniciapedido, par_tipofretepadrao,
                         par_emailserver, par_email, par_emailuser, par_emailporta,
-                        par_emailpassword, par_emailtls, par_emailssl, par_emailalternativo
+                        par_emailpassword, par_emailtls, par_emailssl, par_emailalternativo,
+                        par_obs_padrao
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-                        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
+                        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
                     ) RETURNING *
                 `;
                 values = [
@@ -130,7 +133,8 @@ module.exports = function (pool) {
                     params.par_pedidopadrao, params.par_telemkttipo, params.par_iniciapedido,
                     params.par_tipofretepadrao, params.par_emailserver, params.par_email,
                     params.par_emailuser, params.par_emailporta, params.par_emailpassword,
-                    params.par_emailtls, params.par_emailssl, params.par_emailalternativo
+                    params.par_emailtls, params.par_emailssl, params.par_emailalternativo,
+                    params.par_obs_padrao
                 ];
             }
 

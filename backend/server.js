@@ -9,6 +9,19 @@ const XLSX = require('xlsx');
 const path = require('path');
 const multer = require('multer');
 
+// Multi-tenant Utils
+const { masterPool, getTenantPool } = require('./utils/db');
+const { dbContextMiddleware, getCurrentPool } = require('./utils/context');
+
+// Proxy para o pool original: isso garante que TODAS as rotas existentes
+// usem automaticamente o banco de dados do cliente logado sem alterar o código delas.
+const pool = {
+    query: (...args) => (getCurrentPool() || masterPool).query(...args),
+    connect: (...args) => (getCurrentPool() || masterPool).connect(...args),
+    end: (...args) => (getCurrentPool() || masterPool).end(...args)
+};
+
+
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -33,6 +46,18 @@ const PORT = 3005;
 app.use(cors());
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Middleware Multi-tenant: Identifica qual cliente está acessando
+app.use(dbContextMiddleware(getTenantPool));
+
+// Rota de Login Master (Central de Controle)
+const authMasterRoutes = require('./auth_master_endpoints');
+app.use('/api/auth', authMasterRoutes);
+
+// Painel de Administração Master (Apenas para Hamilton)
+const masterPanelRoutes = require('./master_panel_endpoints');
+app.use('/api/master', masterPanelRoutes);
+
 
 // Serve static images from C:\SalesMasters\Imagens
 app.use('/images', express.static('C:\\SalesMasters\\Imagens'));
@@ -72,15 +97,35 @@ app.use((req, res, next) => {
     next();
 });
 
-// PostgreSQL Pool
-// PostgreSQL Pool
-const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'basesales',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '@12Pilabo',
+// System Info (Connection Type)
+app.get('/api/system-info', (req, res) => {
+    //Tenta pegar o host do tenant via header (injetado pelo interceptor do frontend)
+    const tenantDbConfigHeader = req.headers['x-tenant-db-config'];
+    let dbHost = process.env.DB_HOST || 'localhost';
+
+    if (tenantDbConfigHeader) {
+        try {
+            const dbConfig = JSON.parse(tenantDbConfigHeader);
+            if (dbConfig.host) dbHost = dbConfig.host;
+        } catch (e) {
+            console.error('⚠️ [SYSTEM-INFO] Erro ao parsear header de config:', e.message);
+        }
+    }
+
+    // Determinar se é LOCAL ou CLOUD baseado no host
+    const isLocal = dbHost === 'localhost' || dbHost === '127.0.0.1' || dbHost.startsWith('192.168.');
+
+    console.log(`🔍 [SYSTEM-INFO] dbHost=${dbHost}, isLocal=${isLocal}`);
+
+    res.json({
+        success: true,
+        database_type: isLocal ? 'local' : 'cloud'
+    });
 });
+
+// O pool agora é gerenciado dinamicamente via Proxy definido no topo do arquivo.
+// Antiga definição estática removida para dar lugar ao Multi-tenant.
+
 
 // ==================== V2 ENDPOINTS (Top Priority) ====================
 
@@ -575,10 +620,24 @@ app.delete('/api/v2/activity-areas/:id', async (req, res) => {
 // GET - List all carriers
 app.get('/api/v2/carriers', async (req, res) => {
     try {
-        const query = 'SELECT * FROM transportadora ORDER BY tra_nome';
-        const result = await pool.query(query);
+        const { pesquisa, limit = 100 } = req.query;
+        const numLimit = parseInt(limit) || 100;
+
+        let query = 'SELECT tra_codigo, tra_nome, tra_cgc, tra_cidade, tra_uf, tra_fone FROM transportadora WHERE 1=1';
+        const params = [numLimit];
+
+        if (pesquisa && pesquisa.trim() !== '') {
+            params.push(`%${pesquisa}%`);
+            query += ` AND (tra_nome ILIKE $2 OR tra_codigo::text ILIKE $2 OR tra_cgc ILIKE $2)`;
+            query += ` ORDER BY tra_nome LIMIT $1`;
+        } else {
+            query += ` ORDER BY tra_nome LIMIT $1`;
+        }
+
+        const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (error) {
+        console.error('❌ [CARRIERS] ERRO:', error.message);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -838,7 +897,7 @@ app.use('/api/users', usersRouter);
 // GET - Listar clientes (opcionalmente filtrados por status 'A' ou indústria)
 app.get('/api/aux/clientes', async (req, res) => {
     try {
-        const { status, for_codigo } = req.query;
+        const { status, for_codigo, pesquisa, limit = 50 } = req.query;
 
         // Colunas essenciais para busca e exibição
         let query = 'SELECT cli_codigo, cli_nome, cli_nomred, cli_cnpj, cli_tipopes, cli_cidade, cli_uf FROM clientes WHERE 1=1';
@@ -848,12 +907,13 @@ app.get('/api/aux/clientes', async (req, res) => {
             query += " AND cli_tipopes = 'A'";
         }
 
-        // Se quiser manter o suporte para filtro por indústria futuramente
-        if (for_codigo) {
-            // Por enquanto mantendo simples como solicitado, apenas retornando ativos
+        if (pesquisa) {
+            params.push(`%${pesquisa}%`);
+            query += ` AND (cli_nome ILIKE $${params.length} OR cli_nomred ILIKE $${params.length} OR cli_cnpj ILIKE $${params.length} OR cli_codigo::text ILIKE $${params.length})`;
         }
 
-        query += ' ORDER BY cli_nomred, cli_nome';
+        query += ' ORDER BY cli_nomred, cli_nome LIMIT $' + (params.length + 1);
+        params.push(limit);
 
         const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
@@ -866,30 +926,71 @@ app.get('/api/aux/clientes', async (req, res) => {
 // GET - Vendedores
 app.get('/api/aux/vendedores', async (req, res) => {
     try {
-        const query = 'SELECT ven_codigo, ven_nome FROM vendedores ORDER BY ven_nome';
-        const result = await pool.query(query);
+        const { pesquisa, limit = 50 } = req.query;
+        let query = 'SELECT ven_codigo, ven_nome FROM vendedores WHERE 1=1';
+        const params = [];
+
+        if (pesquisa) {
+            params.push(`%${pesquisa}%`);
+            query += ` AND (ven_nome ILIKE $${params.length} OR ven_codigo::text ILIKE $${params.length})`;
+        }
+
+        query += ' ORDER BY ven_nome LIMIT $' + (params.length + 1);
+        params.push(limit);
+
+        const result = await pool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (error) {
+        console.error('Erro ao buscar vendedores:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// GET - Tabelas de Preço por indústria
+// GET - Tabelas de Preço por indústria (usando cad_tabelaspre)
 app.get('/api/aux/price-tables', async (req, res) => {
     try {
-        const { for_codigo } = req.query;
-        let query = 'SELECT tab_codigo, tab_descricao FROM tabela_preco';
+        const { for_codigo, pesquisa, limit = 50 } = req.query;
+
+        // Query distinct table names from cad_tabelaspre
+        let query = `
+            SELECT DISTINCT 
+                itab_tabela as nome_tabela,
+                itab_idindustria as industria
+            FROM cad_tabelaspre 
+            WHERE 1=1
+        `;
         const params = [];
 
         if (for_codigo) {
-            query += ' WHERE tab_fornecedor = $1';
             params.push(for_codigo);
+            query += ` AND itab_idindustria = $${params.length}`;
         }
 
-        query += ' ORDER BY tab_descricao';
+        if (pesquisa) {
+            params.push(`%${pesquisa}%`);
+            query += ` AND itab_tabela ILIKE $${params.length}`;
+        }
+
+        query += ' ORDER BY itab_tabela';
+
+        if (limit) {
+            params.push(limit);
+            query += ` LIMIT $${params.length}`;
+        }
+
         const result = await pool.query(query, params);
-        res.json({ success: true, data: result.rows });
+
+        // Map to expected format for DbComboBox
+        const data = result.rows.map(row => ({
+            nome_tabela: row.nome_tabela,
+            industria: row.industria,
+            label: row.nome_tabela,
+            value: row.nome_tabela
+        }));
+
+        res.json({ success: true, data });
     } catch (error) {
+        console.error('Erro ao buscar tabelas de preço:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -1197,6 +1298,10 @@ app.get('/api/dashboard/sales-comparison', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Erro ao buscar comparação:', error);
+        if (error.code === '42883') { // Undefined function
+            console.warn('⚠️ Função fn_comparacao_vendas_mensais não existe. Retornando dados vazios.');
+            return res.json({ success: true, data: [] });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar comparação de vendas: ${error.message}`
@@ -1224,6 +1329,10 @@ app.get('/api/dashboard/quantities-comparison', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Erro ao buscar comparação de quantidades:', error);
+        if (error.code === '42883') {
+            console.warn('⚠️ Função fn_comparacao_quantidades_mensais não existe. Retornando dados vazios.');
+            return res.json({ success: true, data: [] });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar comparação de quantidades: ${error.message}`
@@ -1258,6 +1367,9 @@ app.get('/api/dashboard/top-clients', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching top clients:', error);
+        if (error.code === '42883') {
+            return res.json({ success: true, data: [] });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar top clientes: ${error.message}`
@@ -1292,6 +1404,9 @@ app.get('/api/dashboard/industry-revenue', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching industry revenue:', error);
+        if (error.code === '42883') {
+            return res.json({ success: true, data: [] });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar faturamento por indústria: ${error.message}`
@@ -1326,6 +1441,9 @@ app.get('/api/dashboard/sales-performance', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching sales performance:', error);
+        if (error.code === '42883') {
+            return res.json({ success: true, data: [] });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar performance de vendedores: ${error.message}`
@@ -1360,6 +1478,13 @@ app.get('/api/dashboard/metrics', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching dashboard metrics:', error);
+        if (error.code === '42883') {
+            // Retorna objeto zerado para métricas
+            return res.json({
+                success: true,
+                data: { total_vendas: 0, total_quantidade: 0, total_clientes: 0, total_pedidos: 0 }
+            });
+        }
         res.status(500).json({
             success: false,
             message: `Erro ao buscar métricas do dashboard: ${error.message}`
@@ -4019,10 +4144,14 @@ app.get('/api/orders', async (req, res) => {
                 c.cli_nomred,
                 c.cli_nome,
                 f.for_nomered,
+                v.ven_nome,
+                t.tra_nome,
                 (SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido) as ped_total_quant
             FROM pedidos p
             INNER JOIN clientes c ON p.ped_cliente = c.cli_codigo
             INNER JOIN fornecedores f ON p.ped_industria = f.for_codigo
+            LEFT JOIN vendedores v ON p.ped_vendedor = v.ven_codigo
+            LEFT JOIN transportadora t ON p.ped_transp = t.tra_codigo
             WHERE 1 = 1
     `;
 
@@ -4260,9 +4389,9 @@ app.post('/api/orders', async (req, res) => {
             ped_cliind || '',
             ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
             ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
-            0, // ped_totbruto
-            0, // ped_totliq
-            0, // ped_totalipi
+            req.body.ped_totbruto || 0,
+            req.body.ped_totliq || 0,
+            req.body.ped_totalipi || 0,
             req.body.ped_obs || ''
         ];
 
@@ -4325,8 +4454,11 @@ ped_data = $1,
     ped_cliind = $12,
     ped_pri = $13, ped_seg = $14, ped_ter = $15, ped_qua = $16, ped_qui = $17,
     ped_sex = $18, ped_set = $19, ped_oit = $20, ped_nov = $21,
-    ped_obs = $22
-            WHERE ped_pedido = $23
+    ped_obs = $22,
+    ped_totbruto = $23,
+    ped_totliq = $24,
+    ped_totalipi = $25
+            WHERE ped_pedido = $26
 RETURNING *
     `;
 
@@ -4346,6 +4478,9 @@ RETURNING *
             ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
             ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
             ped_obs || '',
+            req.body.ped_totbruto || 0,
+            req.body.ped_totliq || 0,
+            req.body.ped_totalipi || 0,
             pedPedido
         ];
 
@@ -4378,13 +4513,14 @@ RETURNING *
 
 // Load orders endpoints
 require('./orders_endpoints')(app, pool);
-require('./ia_order_endpoints')(app, pool);
+require('./smart_order_endpoints')(app, pool);
 require('./order_items_endpoints')(app, pool);
 require('./order_print_endpoints')(app, pool);
 require('./email_endpoints')(app, pool);
 require('./pdf_save_endpoints')(app, pool);
 require('./crm_endpoints')(app, pool);
 app.use('/api/financeiro', require('./financial_endpoints')(pool)); // Financial Module
+app.use('/api', require('./login_endpoints')(pool));
 app.use('/api', require('./parametros_endpoints')(pool));
 app.use('/api', require('./price_tables_endpoints')(pool)); // Register Price Tables Endpoints
 
@@ -4395,8 +4531,16 @@ app.use('/api/reports', require('./reports_endpoints')(pool));
 app.use('/api/metas', require('./metas_endpoints')(pool)); // Dashboard de Metas
 require('./narratives_endpoints')(app);
 
-app.listen(PORT, () => {
+// --- GLOBAL ERROR HANDLING (PREVENT CRASH) ---
+process.on('uncaughtException', (err) => {
+    console.error('🔴 [CRITICAL] Uncaught Exception:', err);
+});
 
-    console.log(`🚀 Backend rodando na porta ${PORT} - UNIQUE CHECK 3002`);
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🟠 [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+app.listen(PORT, () => {
+    console.log(`🚀 Backend rodando na porta ${PORT}`);
     console.log(`📡 API disponível em http://localhost:${PORT}`);
 });

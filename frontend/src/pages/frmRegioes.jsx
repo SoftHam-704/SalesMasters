@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import RegionForm from '../components/forms/RegionForm';
 import GridCadPadraoV2 from '../components/GridCadPadraoV2';
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 import { toast } from "sonner";
 
 const FrmRegioes = () => {
@@ -17,7 +18,8 @@ const FrmRegioes = () => {
     const fetchRegions = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/v2/regions');
+            const url = getApiUrl(NODE_API_URL, '/api/v2/regions');
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setRegions(data.data);
@@ -62,7 +64,8 @@ const FrmRegioes = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/regions/${region.reg_codigo}`, {
+            const url = getApiUrl(NODE_API_URL, `/api/v2/regions/${region.reg_codigo}`);
+            const response = await fetch(url, {
                 method: 'DELETE'
             });
 
@@ -83,8 +86,8 @@ const FrmRegioes = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedRegion
-                ? `http://localhost:3005/api/v2/regions/${selectedRegion.reg_codigo}`
-                : 'http://localhost:3005/api/v2/regions';
+                ? getApiUrl(NODE_API_URL, `/api/v2/regions/${selectedRegion.reg_codigo}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/regions');
 
             const method = selectedRegion ? 'PUT' : 'POST';
 

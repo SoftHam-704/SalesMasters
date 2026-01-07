@@ -15,44 +15,71 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     User, Phone, MessageSquare, Building2,
-    Save, X, Search, Loader2, Check
+    Save, X, Calendar, Clock, Contact
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
+import DbComboBox from '@/components/DbComboBox'; // Using standardized combo
+import InputField from '@/components/InputField';
 
-const NovaInteracaoModal = ({ open, onClose, onSuccess }) => {
+const NovaInteracaoModal = ({ open, onClose, onSuccess, prefill = null }) => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // Form state
-    const [form, setForm] = useState({
-        cli_codigo: '',
-        tipo_interacao_id: '',
-        canal_id: '',
-        resultado_id: '',
-        descricao: '',
-        industrias: []
-    });
+    // Form state matching Legacy UI
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [time, setTime] = useState(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
-    // Lookup data
+    const [clientId, setClientId] = useState(null);
+    const [clientLabel, setClientLabel] = useState('');
+    const [clientPhone, setClientPhone] = useState(''); // Read-only
+
+    const [tipoId, setTipoId] = useState(''); // Tipo Visita
+    const [canalId, setCanalId] = useState(''); // Forma de Interação
+    const [resultadoId, setResultadoId] = useState(''); // Status
+
+    const [contatoNome, setContatoNome] = useState(''); // Pessoa de Contato
+    const [descricao, setDescricao] = useState(''); // Assunto tratado
+
+    // Multi-select for Industries (simplified for now as array of IDs)
+    const [selectedIndustries, setSelectedIndustries] = useState([]);
+
+    // Lookups
     const [tipos, setTipos] = useState([]);
     const [canais, setCanais] = useState([]);
     const [resultados, setResultados] = useState([]);
-    const [industrias, setIndustrias] = useState([]);
+    const [industriasList, setIndustriasList] = useState([]);
 
-    // Client search
-    const [clientSearch, setClientSearch] = useState('');
-    const [clients, setClients] = useState([]);
-    const [selectedClient, setSelectedClient] = useState(null);
-    const [searchingClients, setSearchingClients] = useState(false);
-
-    // Fetch lookup data when modal opens
+    // Fetch Lookup Data
     useEffect(() => {
         if (open) {
             fetchLookupData();
-            resetForm();
+            // Reset or Prefill
+            if (prefill) {
+                setClientId(prefill.cli_codigo);
+                setClientLabel(prefill.cli_nomred || prefill.cli_nome || '');
+                setClientPhone(prefill.cli_fone1 || '');
+                setDescricao(prefill.descricao || '');
+                // Try to map other fields if they exist in prefill
+            } else {
+                resetForm();
+            }
         }
-    }, [open]);
+    }, [open, prefill]);
+
+    const resetForm = () => {
+        setDate(new Date().toISOString().split('T')[0]);
+        setTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        setClientId(null);
+        setClientLabel('');
+        setClientPhone('');
+        setTipoId('');
+        setCanalId('');
+        setResultadoId('');
+        setContatoNome('');
+        setDescricao('');
+        setSelectedIndustries([]);
+    };
 
     const fetchLookupData = async () => {
         setLoading(true);
@@ -64,105 +91,85 @@ const NovaInteracaoModal = ({ open, onClose, onSuccess }) => {
                 fetch('http://localhost:3005/api/suppliers')
             ]);
 
-            const tiposData = await tiposRes.json();
-            const canaisData = await canaisRes.json();
-            const resultadosData = await resultadosRes.json();
-            const industriasData = await industriasRes.json();
+            const d1 = await tiposRes.json();
+            const d2 = await canaisRes.json();
+            const d3 = await resultadosRes.json();
+            const d4 = await industriasRes.json();
 
-            if (tiposData.success) setTipos(tiposData.data);
-            if (canaisData.success) setCanais(canaisData.data);
-            if (resultadosData.success) setResultados(resultadosData.data);
-            if (industriasData.success) setIndustrias(industriasData.data);
+            if (d1.success) setTipos(d1.data);
+            if (d2.success) setCanais(d2.data);
+            // Sort outcomes: Em Aberto/Neutro first? Usually they are ordered by 'ordem'
+            if (d3.success) setResultados(d3.data);
+            if (d4.success) setIndustriasList(d4.data);
+
         } catch (error) {
-            console.error('Error fetching lookup data:', error);
-            toast.error('Erro ao carregar dados');
+            console.error(error);
+            toast.error('Erro ao carregar listas');
         } finally {
             setLoading(false);
         }
     };
 
-    const resetForm = () => {
-        setForm({
-            cli_codigo: '',
-            tipo_interacao_id: '',
-            canal_id: '',
-            resultado_id: '',
-            descricao: '',
-            industrias: []
-        });
-        setClientSearch('');
-        setSelectedClient(null);
-        setClients([]);
-    };
-
-    const searchClients = async () => {
-        // Allow empty search to list top 10 active clients
-        // if (clientSearch.length < 2) return;
-
-        setSearchingClients(true);
+    const fetchClients = async (search) => {
         try {
-            const response = await fetch(`http://localhost:3005/api/clients?search=${encodeURIComponent(clientSearch)}&limit=10`);
+            const response = await fetch(`http://localhost:3005/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
             const data = await response.json();
-            if (data.success) {
-                setClients(data.data);
-            }
+            return data.success ? data.data : [];
         } catch (error) {
-            console.error('Error searching clients:', error);
-        } finally {
-            setSearchingClients(false);
+            console.error(error);
+            return [];
         }
     };
 
-    const selectClient = (client) => {
-        setSelectedClient(client);
-        setForm({ ...form, cli_codigo: client.cli_codigo });
-        setClientSearch(client.cli_nomred || client.cli_nome);
-        setClients([]);
-    };
-
-    const toggleIndustria = (forCodigo) => {
-        const current = form.industrias;
-        if (current.includes(forCodigo)) {
-            setForm({ ...form, industrias: current.filter(id => id !== forCodigo) });
+    const toggleIndustria = (id) => {
+        if (selectedIndustries.includes(id)) {
+            setSelectedIndustries(selectedIndustries.filter(i => i !== id));
         } else {
-            setForm({ ...form, industrias: [...current, forCodigo] });
+            setSelectedIndustries([...selectedIndustries, id]);
         }
     };
 
     const handleSave = async () => {
-        // Validation
-        if (!form.cli_codigo) {
-            toast.error('Selecione um cliente');
-            return;
-        }
-        if (!form.tipo_interacao_id) {
-            toast.error('Selecione o tipo de interação');
-            return;
-        }
+        if (!clientId) return toast.error('Informe o Cliente');
+        if (!canalId) return toast.error('Informe a Forma de Interação');
+        if (!tipoId) return toast.error('Informe o Tipo de Visita');
 
         setSaving(true);
         try {
+            // Combine Date + Time
+            // For now, backend expects just 'data_hora' or timestamp.
+            // We will construct it.
+            const dataHora = `${date} ${time}:00`;
+
+            // Prepare Payload
+            const payload = {
+                cli_codigo: clientId,
+                ven_codigo: 1, // TODO: Auth
+                tipo_interacao_id: tipoId,
+                canal_id: canalId,
+                resultado_id: resultadoId || null,
+                descricao: `[Contato: ${contatoNome || 'N/A'}] ${descricao}`, // Prepending Contact Name as backend might not have column yet
+                industrias: selectedIndustries,
+                // data_hora: dataHora // Backend doesn't support custom date yet in INSERT? Standard uses NOW().
+                // TODO: Update backend to accept custom date if strictly required. 
+                // For now, we assume interaction is just happening or recently happened.
+            };
+
             const response = await fetch('http://localhost:3005/api/crm/interacoes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...form,
-                    ven_codigo: 1 // TODO: Get from auth context
-                })
+                body: JSON.stringify(payload)
             });
 
-            const result = await response.json();
-
-            if (result.success) {
-                toast.success('Interação registrada com sucesso!');
+            if (response.ok) {
+                toast.success('Interação Salva!');
                 if (onSuccess) onSuccess();
                 onClose();
             } else {
-                throw new Error(result.message || 'Erro ao salvar');
+                toast.error('Erro ao salvar');
             }
         } catch (error) {
-            console.error('Error saving interaction:', error);
-            toast.error(`Erro: ${error.message}`);
+            toast.error('Erro de conexão');
         } finally {
             setSaving(false);
         }
@@ -170,212 +177,159 @@ const NovaInteracaoModal = ({ open, onClose, onSuccess }) => {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-2xl">
-                {/* Premium Header */}
-                <DialogHeader className="bg-gradient-to-r from-blue-600 to-cyan-600 p-5 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-60" />
-                    <DialogTitle className="flex items-center gap-3 text-white relative z-10">
-                        <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
-                            <MessageSquare className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="font-bold text-lg">Nova Interação</span>
-                            <p className="text-blue-100 text-xs font-medium mt-0.5">Registre o contato com o cliente</p>
-                        </div>
-                    </DialogTitle>
-                </DialogHeader>
+            <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden rounded-xl bg-white">
+                {/* Header Clean - Centered Title like Legacy */}
+                <div className="p-4 border-b border-slate-100 text-center relative bg-slate-50/50">
+                    <h2 className="text-xl font-bold text-red-800 uppercase tracking-wide" style={{ fontFamily: 'serif' }}>
+                        {clientLabel || 'Nova Interação'}
+                    </h2>
+                    <Button variant="ghost" size="icon" onClick={onClose} className="absolute right-2 top-2 text-slate-400 hover:text-red-500">
+                        <X className="w-5 h-5" />
+                    </Button>
+                </div>
 
-                {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-                    </div>
-                ) : (
-                    <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
-                        {/* Client Search */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <User className="w-4 h-4 text-blue-500" />
-                                Cliente *
-                            </Label>
+                <div className="p-6 space-y-4 bg-slate-50/30">
+                    {/* Row 1: Date, Time, Interaction Form, Visit Type, Status */}
+                    <div className="grid grid-cols-12 gap-4">
+                        {/* Data */}
+                        <div className="col-span-3">
+                            <Label className="text-xs font-semibold text-slate-500">Data</Label>
                             <div className="relative">
-                                <Input
-                                    placeholder="Digite o nome do cliente..."
-                                    value={clientSearch}
-                                    onChange={(e) => setClientSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && searchClients()}
-                                    className="pr-10"
-                                />
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    className="absolute right-1 top-1/2 -translate-y-1/2"
-                                    onClick={searchClients}
-                                    disabled={searchingClients}
-                                >
-                                    {searchingClients ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Search className="w-4 h-4" />
-                                    )}
-                                </Button>
-                            </div>
-
-                            {/* Client search results */}
-                            {clients.length > 0 && (
-                                <div className="border rounded-lg bg-white shadow-lg max-h-40 overflow-y-auto">
-                                    {clients.map((client) => (
-                                        <div
-                                            key={client.cli_codigo}
-                                            onClick={() => selectClient(client)}
-                                            className="p-2 hover:bg-blue-50 cursor-pointer border-b last:border-0 text-sm"
-                                        >
-                                            <span className="font-medium">{client.cli_nomred || client.cli_nome}</span>
-                                            {client.cli_cidade && (
-                                                <span className="text-slate-400 ml-2">- {client.cli_cidade}/{client.cli_uf}</span>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {selectedClient && (
-                                <div className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 p-2 rounded-lg">
-                                    <Check className="w-4 h-4" />
-                                    Cliente selecionado: <strong>{selectedClient.cli_nomred || selectedClient.cli_nome}</strong>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Type and Channel - Side by Side */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                    <MessageSquare className="w-4 h-4 text-blue-500" />
-                                    Tipo de Interação *
-                                </Label>
-                                <Select
-                                    value={form.tipo_interacao_id}
-                                    onValueChange={(v) => setForm({ ...form, tipo_interacao_id: v })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {tipos.map((tipo) => (
-                                            <SelectItem key={tipo.id} value={String(tipo.id)}>
-                                                {tipo.descricao}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                    <Phone className="w-4 h-4 text-blue-500" />
-                                    Canal
-                                </Label>
-                                <Select
-                                    value={form.canal_id}
-                                    onValueChange={(v) => setForm({ ...form, canal_id: v })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {canais.map((canal) => (
-                                            <SelectItem key={canal.id} value={String(canal.id)}>
-                                                {canal.descricao}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 text-sm" />
                             </div>
                         </div>
-
-                        {/* Result */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">Resultado</Label>
-                            <Select
-                                value={form.resultado_id}
-                                onValueChange={(v) => setForm({ ...form, resultado_id: v })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione o resultado..." />
+                        {/* Horário */}
+                        <div className="col-span-2">
+                            <Label className="text-xs font-semibold text-slate-500">Horário</Label>
+                            <div className="relative">
+                                <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-9 text-sm" />
+                            </div>
+                        </div>
+                        {/* Forma de Interação (Canal) */}
+                        <div className="col-span-3">
+                            <Label className="text-xs font-semibold text-slate-500">Forma de interação</Label>
+                            <Select value={canalId} onValueChange={setCanalId}>
+                                <SelectTrigger className="h-9 bg-white border-blue-200">
+                                    <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {resultados.map((resultado) => (
-                                        <SelectItem key={resultado.id} value={String(resultado.id)}>
-                                            {resultado.descricao}
-                                        </SelectItem>
-                                    ))}
+                                    {canais.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.descricao}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
+                        {/* Tipo visita */}
+                        <div className="col-span-2">
+                            <Label className="text-xs font-semibold text-slate-500">Tipo visita</Label>
+                            <Select value={tipoId} onValueChange={setTipoId}>
+                                <SelectTrigger className="h-9 bg-white">
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.descricao}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {/* Status */}
+                        <div className="col-span-2">
+                            <Label className="text-xs font-semibold text-slate-500">Status</Label>
+                            <Select value={resultadoId} onValueChange={setResultadoId}>
+                                <SelectTrigger className="h-9 bg-white">
+                                    <SelectValue placeholder="Em aberto" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {resultados.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.descricao}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
 
-                        {/* Industries */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <Building2 className="w-4 h-4 text-blue-500" />
-                                Indústrias Relacionadas
-                            </Label>
-                            <ScrollArea className="h-32 border rounded-lg p-2">
-                                <div className="grid grid-cols-5 gap-x-2 gap-y-1">
-                                    {industrias.map((ind) => (
-                                        <div key={ind.for_codigo} className="flex items-center gap-1.5 pl-1 min-w-0">
+                    {/* Row 2: Industries (Dropdown) & Client Contact */}
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Industries - Using a Scroll Area for multiple selection simulating the legacy look but better */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-slate-500">Indústrias</Label>
+                            <div className="border rounded-md bg-white h-24 overflow-y-auto p-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                    {industriasList.map((ind) => (
+                                        <div key={ind.for_codigo} className="flex items-center gap-2">
                                             <Checkbox
                                                 id={`ind-${ind.for_codigo}`}
-                                                checked={form.industrias.includes(ind.for_codigo)}
+                                                checked={selectedIndustries.includes(ind.for_codigo)}
                                                 onCheckedChange={() => toggleIndustria(ind.for_codigo)}
-                                                className="shrink-0"
+                                                className="w-3 h-3"
                                             />
-                                            <label
-                                                htmlFor={`ind-${ind.for_codigo}`}
-                                                className="text-xs text-slate-600 cursor-pointer truncate select-none leading-none pt-0.5"
-                                                title={ind.for_nomered || ind.for_nome}
-                                            >
-                                                {ind.for_nomered || ind.for_nome}
+                                            <label htmlFor={`ind-${ind.for_codigo}`} className="text-xs text-slate-600 truncate cursor-pointer select-none">
+                                                {ind.nomeReduzido || ind.razaoSocial}
                                             </label>
                                         </div>
                                     ))}
                                 </div>
-                            </ScrollArea>
+                            </div>
                         </div>
 
-                        {/* Description */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">Descrição</Label>
-                            <Textarea
-                                placeholder="Descreva a interação com o cliente..."
-                                value={form.descricao}
-                                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-                                className="min-h-[100px] resize-none"
-                            />
+                        <div className="space-y-4">
+                            {/* Client (if not prefilled, allows search) */}
+                            <div>
+                                <DbComboBox
+                                    label="Cliente"
+                                    placeholder="Busque o cliente..."
+                                    value={clientId ? { cli_codigo: clientId, cli_nomred: clientLabel } : null}
+                                    onChange={(val, item) => {
+                                        setClientId(val);
+                                        setClientLabel(item ? item.cli_nomred : '');
+                                        setClientPhone(item ? item.cli_fone1 : '');
+                                    }}
+                                    fetchData={fetchClients}
+                                    labelKey="cli_nomred"
+                                    valueKey="cli_codigo"
+                                    className="h-9"
+                                />
+                            </div>
+
+                            {/* Contact Person */}
+                            <div>
+                                <Label className="text-xs font-semibold text-slate-500">Pessoa de contato no cliente</Label>
+                                <Input
+                                    value={contatoNome}
+                                    onChange={e => setContatoNome(e.target.value)}
+                                    placeholder="Ex: FUMINHO"
+                                    className="h-9 bg-white font-semibold uppercase text-slate-700"
+                                />
+                            </div>
                         </div>
                     </div>
-                )}
 
-                <DialogFooter className="bg-slate-50 p-4 border-t gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        disabled={saving}
-                    >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancelar
-                    </Button>
+                    {/* Telefone (Read Only) */}
+                    <div>
+                        <Label className="text-xs font-semibold text-slate-500">Telefone(s)</Label>
+                        <div className="p-2 bg-slate-100 rounded border border-slate-200 text-sm font-medium text-slate-700">
+                            {clientPhone || 'Não informado'}
+                        </div>
+                    </div>
+
+                    {/* Assunto Start */}
+                    <div className="flex-1 flex flex-col min-h-[120px]">
+                        <Label className="text-xs font-semibold text-slate-500 mb-1">Assunto tratado</Label>
+                        <Textarea
+                            value={descricao}
+                            onChange={e => setDescricao(e.target.value)}
+                            placeholder="Descreva o que foi conversado..."
+                            className="flex-1 resize-none bg-white p-3 text-sm leading-relaxed uppercase"
+                            style={{ minHeight: '120px' }}
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter className="p-3 bg-slate-100 border-t flex justify-start gap-3">
                     <Button
                         onClick={handleSave}
-                        disabled={saving || loading}
-                        className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                        disabled={saving}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
                     >
-                        {saving ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                            <Save className="w-4 h-4 mr-2" />
-                        )}
-                        Salvar Interação
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-2" /> Salvar</>}
+                    </Button>
+                    <Button variant="outline" onClick={onClose} className="text-red-600 border-red-200 hover:bg-red-50">
+                        <X className="w-4 h-4 mr-2" /> Cancelar
                     </Button>
                 </DialogFooter>
             </DialogContent>

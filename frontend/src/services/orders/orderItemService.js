@@ -1,9 +1,6 @@
-/**
- * Order Item Service - Gerenciamento de Itens de Pedido
- * Responsável por todas as chamadas de API relacionadas a itens de pedidos
- */
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
-const API_BASE_URL = 'http://localhost:3005/api';
+const API_BASE_URL = getApiUrl(NODE_API_URL, 'api');
 
 export const orderItemService = {
     /**

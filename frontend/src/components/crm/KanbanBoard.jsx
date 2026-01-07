@@ -19,11 +19,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Calendar, DollarSign, User } from 'lucide-react';
+import { MoreHorizontal, Calendar, DollarSign, User, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 // --- Sortable Item (Opportunity Card) ---
-function SortableItem({ id, opportunity, onClick }) {
+function SortableItem({ id, opportunity, onClick, onQuickAction }) {
     const {
         attributes,
         listeners,
@@ -39,10 +39,18 @@ function SortableItem({ id, opportunity, onClick }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
+    const handleWhatsAppClick = (e) => {
+        e.stopPropagation(); // Prevents card opening
+        const phone = opportunity.cli_fone1?.replace(/\D/g, '');
+        if (phone && onQuickAction) {
+            onQuickAction('whatsapp', opportunity);
+        }
+    };
+
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-3 touch-none">
             <Card
-                className="bg-white hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing border-slate-200"
+                className="bg-white hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing border-slate-200 group relative"
                 onClick={(e) => {
                     // Prevent click when dragging
                     if (!isDragging) onClick(opportunity);
@@ -50,22 +58,51 @@ function SortableItem({ id, opportunity, onClick }) {
             >
                 <CardContent className="p-3">
                     <div className="flex justify-between items-start mb-2">
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 border-slate-200 text-slate-500">
-                            #{opportunity.oportunidade_id}
-                        </Badge>
-                        {opportunity.probabilidade > 70 && (
-                            <Badge className="text-[10px] px-1 py-0 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                                🔥 Quente
+                        {/* Industry Badge (Top Left) */}
+                        {opportunity.industria_nome ? (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700 hover:bg-blue-100 flex gap-1 items-center border border-blue-100">
+                                <Building2 className="w-3 h-3" />
+                                {opportunity.industria_nome}
+                            </Badge>
+                        ) : (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 border-slate-200 text-slate-500">
+                                #{opportunity.oportunidade_id}
                             </Badge>
                         )}
+
+                        <div className="flex gap-1">
+                            {/* WhatsApp Quick Action */}
+                            {opportunity.cli_fone1 && (
+                                <button
+                                    onClick={handleWhatsAppClick}
+                                    className="p-1 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="WhatsApp Rápido"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
+
                     <h4 className="font-semibold text-slate-800 text-sm mb-1 line-clamp-2">
                         {opportunity.titulo}
                     </h4>
-                    <div className="flex items-center gap-1 text-xs text-slate-500 mb-2">
-                        <User className="w-3 h-3" />
-                        <span className="truncate">{opportunity.cli_nomred}</span>
+
+                    <div className="flex flex-col gap-1 mb-2">
+                        {/* Client */}
+                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                            <User className="w-3 h-3 text-slate-400" />
+                            <span className="truncate">{opportunity.cli_nomred}</span>
+                        </div>
+                        {/* Promoter / Seller */}
+                        {opportunity.promotor_nome && (
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="font-medium text-slate-500">Promotor:</span>
+                                {opportunity.promotor_nome}
+                            </div>
+                        )}
                     </div>
+
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
                         <div className="flex items-center gap-1 font-bold text-slate-700 text-sm">
                             <DollarSign className="w-3 h-3 text-emerald-600" />
@@ -85,7 +122,7 @@ function SortableItem({ id, opportunity, onClick }) {
 }
 
 // --- Column (Stage) ---
-function KanbanColumn({ id, title, items, color, onCardClick }) {
+function KanbanColumn({ id, title, items, color, onCardClick, onQuickAction }) {
     const { setNodeRef } = useSortable({ id: id, disabled: true });
 
     return (
@@ -114,6 +151,7 @@ function KanbanColumn({ id, title, items, color, onCardClick }) {
                             id={`opp-${op.oportunidade_id}`}
                             opportunity={op}
                             onClick={onCardClick}
+                            onQuickAction={onQuickAction}
                         />
                     ))}
                 </SortableContext>
@@ -128,7 +166,7 @@ function KanbanColumn({ id, title, items, color, onCardClick }) {
     );
 }
 
-export default function KanbanBoard({ pipeline, onDragEnd, onCardClick }) {
+export default function KanbanBoard({ pipeline, onDragEnd, onCardClick, onQuickAction }) {
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -168,6 +206,7 @@ export default function KanbanBoard({ pipeline, onDragEnd, onCardClick }) {
                         color={stage.cor || 'bg-slate-100'}
                         items={stage.items}
                         onCardClick={onCardClick}
+                        onQuickAction={onQuickAction}
                     />
                 ))}
             </div>

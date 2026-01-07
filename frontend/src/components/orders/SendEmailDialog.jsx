@@ -12,11 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mail, X, Send, Paperclip, Loader2, Users, FileText, Activity } from 'lucide-react';
+import { Mail, X, Send, Paperclip, Loader2, Users, FileText, Activity, Building2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { pdf } from '@react-pdf/renderer';
+import OrderPdfReport from './OrderPdfReport';
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
     const [loading, setLoading] = useState(false);
+    const [companyData, setCompanyData] = useState(null);
     const [recipients, setRecipients] = useState({
         cliente: { enabled: true, email: '' },
         industria: { enabled: true, email: '' },
@@ -34,37 +38,45 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
 
     const isQuotation = orderData?.order?.ped_situacao === 'C';
 
-    // Fetch user parameters on mount
+    // Fetch user parameters and company data on mount
     useEffect(() => {
         if (isOpen) {
-            const fetchParams = async () => {
+            const fetchData = async () => {
                 try {
-                    const userId = 1; // TODO: Get from auth context
-                    const response = await fetch(`http://localhost:3005/api/parametros/${userId}`);
-                    const data = await response.json();
-                    if (data.success && data.data) {
+                    // Fetch SMTP Params
+                    const userId = localStorage.getItem('userId') || 1;
+                    const responseParams = await fetch(getApiUrl(NODE_API_URL, `/api/parametros/${userId}`));
+                    const dataParams = await responseParams.json();
+
+                    if (dataParams.success && dataParams.data) {
                         setSmtpInfo({
-                            host: data.data.par_emailserver || '...',
-                            user: data.data.par_emailuser || '...'
+                            host: dataParams.data.par_emailserver || '...',
+                            user: dataParams.data.par_emailuser || '...'
                         });
                         setRecipients(prev => ({
                             ...prev,
-                            escritorio: { ...prev.escritorio, email: data.data.par_email || '' }
+                            escritorio: { ...prev.escritorio, email: dataParams.data.par_email || '' }
                         }));
                     }
+
+                    // Fetch Company Data for PDF
+                    const responseCompany = await fetch(getApiUrl(NODE_API_URL, '/api/config/company'));
+                    const dataCompany = await responseCompany.json();
+                    if (dataCompany.success) {
+                        setCompanyData(dataCompany.data);
+                    }
+
                 } catch (error) {
-                    console.error('Erro ao buscar parâmetros SMTP:', error);
+                    console.error('Erro ao buscar dados iniciais:', error);
                 }
             };
-            fetchParams();
+            fetchData();
         }
     }, [isOpen]);
 
     useEffect(() => {
         if (orderData && isOpen) {
-            // Clear logs when dialog opens with new order
             setLogs([]);
-
             const order = orderData.order;
             const isQuo = order?.ped_situacao === 'C';
 
@@ -84,7 +96,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
 
             setEmailData({
                 assunto: `Ref. pedido nº ${order?.ped_pedido} do cliente: ${order?.cli_nomred || order?.cli_nome}`,
-                anexos: `Pedido_${order?.ped_pedido}_${order?.cli_nomred}.pdf`,
+                anexos: `Pedido_${order?.ped_pedido}_${order?.cli_nomred || 'CLIENTE'}.pdf`,
                 texto: `Pedido nº...............: ${order?.ped_pedido}\n` +
                     `Data do lançamento......: ${dateStr}\n` +
                     `Cliente.................: ${order?.cli_nome}\n` +
@@ -113,150 +125,33 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
         addLog("Iniciando processo de envio...");
 
         try {
-            const { jsPDF } = await import('jspdf');
-            const html2canvas = (await import('html2canvas')).default;
-
-            addLog("Carregando formato de impressão...");
-
-            const order = orderData.order;
-            const industria = order.ped_industria;
-            const pedido = order.ped_pedido;
-
-            // Get model from localStorage or default to 1
+            addLog("Gerando PDF em alta fidelidade...");
             const model = localStorage.getItem('printModel') || '1';
-            const sortBy = localStorage.getItem('printSortBy') || 'digitacao';
 
-            // Create hidden iframe to render OrderReportEngine at 100% zoom for crisp capture
-            const iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position: absolute; left: -9999px; top: -9999px; width: 794px; height: 1123px; border: none;';
-            document.body.appendChild(iframe);
+            // NEW: Generate PDF using the high-fidelity engine directly!
+            // No more iframes or html2canvas hacks.
+            const blob = await pdf(
+                <OrderPdfReport
+                    model={model}
+                    order={orderData.order}
+                    items={orderData.items}
+                    companyData={companyData}
+                />
+            ).toBlob();
 
-            const printUrl = `/print/order/${pedido}?model=${model}&sortBy=${sortBy}&industria=${industria}`;
-            addLog(`Renderizando formato ${model}...`);
+            addLog("PDF gerado com sucesso (vetorial).");
 
-            // Wait for iframe to load
-            await new Promise((resolve, reject) => {
-                iframe.onload = resolve;
-                iframe.onerror = reject;
-                iframe.src = printUrl;
-            });
-
-            // Give it extra time to render
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            addLog("Capturando páginas...");
-
-            // Access the iframe document
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-
-            // Force remove any transform scale on wrappers for crisp capture
-            const styleOverride = iframeDoc.createElement('style');
-            styleOverride.textContent = `
-                * { transform: none !important; }
-                .print-container { transform: none !important; }
-                body > div { transform: none !important; }
-            `;
-            iframeDoc.head.appendChild(styleOverride);
-
-            // Give it a moment to apply the CSS
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            const printPages = iframeDoc.querySelectorAll('.print-container');
-
-            if (printPages.length === 0) {
-                addLog("⚠️ Usando fallback - formato simplificado...");
-                document.body.removeChild(iframe);
-
-                // Fallback to simple PDF if no print pages found
-                const doc = new jsPDF();
-                const items = orderData.items;
-
-                doc.setFontSize(18);
-                doc.text(`Pedido: ${order.ped_pedido}`, 10, 20);
-                doc.setFontSize(10);
-                doc.text(`Data: ${new Date(order.ped_data).toLocaleDateString()}`, 10, 30);
-                doc.text(`Cliente: ${order.cli_nome}`, 10, 40);
-                doc.text(`Indústria: ${order.for_nomered}`, 10, 50);
-
-                let y = 70;
-                doc.setFont("helvetica", "bold");
-                doc.text("Qtd", 10, y);
-                doc.text("Produto", 30, y);
-                doc.text("V. Unit", 130, y);
-                doc.text("Total", 170, y);
-                doc.line(10, y + 2, 200, y + 2);
-
-                doc.setFont("helvetica", "normal");
-                items.forEach((item) => {
-                    y += 10;
-                    if (y > 280) { doc.addPage(); y = 20; }
-                    doc.text(String(item.ite_quant || 0), 10, y);
-                    doc.text(item.ite_nomeprod || 'Produto', 30, y, { maxWidth: 90 });
-                    doc.text(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.ite_puniliq || 0), 130, y);
-                    doc.text(new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.ite_totliquido || 0), 170, y);
-                });
-
-                y += 15;
-                doc.line(10, y - 5, 200, y - 5);
-                doc.setFont("helvetica", "bold");
-                doc.text(`TOTAL LÍQUIDO: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.ped_totliq || 0)}`, 140, y);
-
-                addLog("PDF (fallback) gerado com sucesso.");
-                const pdfBase64 = doc.output('datauristring').split(',')[1];
-
-                await sendEmail(pdfBase64);
-                return;
-            }
-
-            addLog(`Capturando ${printPages.length} página(s)...`);
-
-            // A4 dimensions in mm
-            const pdfWidth = 210;
-            const pdfHeight = 297;
-
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-            for (let i = 0; i < printPages.length; i++) {
-                const page = printPages[i];
-
-                // Capture the page with html2canvas at high resolution for crisp PDF
-                const canvas = await html2canvas(page, {
-                    scale: 3,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    windowWidth: 794,
-                    windowHeight: 1123
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-                // Calculate dimensions to fit A4
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-                const finalWidth = imgWidth * ratio;
-                const finalHeight = imgHeight * ratio;
-
-                if (i > 0) {
-                    doc.addPage();
-                }
-
-                doc.addImage(imgData, 'JPEG', 0, 0, finalWidth, finalHeight);
-                addLog(`Página ${i + 1} capturada.`);
-            }
-
-            // Clean up iframe
-            document.body.removeChild(iframe);
-
-            addLog("PDF gerado com sucesso.");
-            const pdfBase64 = doc.output('datauristring').split(',')[1];
-
-            await sendEmail(pdfBase64);
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result.split(',')[1];
+                await sendEmail(base64data);
+            };
 
         } catch (error) {
-            console.error('Erro ao enviar email:', error);
+            console.error('Erro ao processar PDF:', error);
             addLog(`❌ Erro: ${error.message}`);
-            toast.error(`Erro ao enviar: ${error.message}`);
+            toast.error(`Erro ao gerar PDF: ${error.message}`);
             setLoading(false);
         }
     };
@@ -275,7 +170,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
             recipients: selectedRecipients,
             subject: emailData.assunto,
             text: emailData.texto,
-            userId: 1,
+            userId: localStorage.getItem('userId') || 1,
             attachments: [
                 {
                     filename: emailData.anexos,
@@ -285,7 +180,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
         };
 
         addLog("Enviando e-mail...");
-        const response = await fetch(`http://localhost:3005/api/email/send-order`, {
+        const response = await fetch(getApiUrl(NODE_API_URL, `/api/email/send-order`), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -304,198 +199,184 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
         setLoading(false);
     };
 
-
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100">
+            <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 shadow-2xl rounded-[32px] bg-[#f8fafc]">
                 {/* Premium Header */}
-                <DialogHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-60" />
-                    <DialogTitle className="flex items-center gap-3 text-white relative z-10">
-                        <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-xl">
-                            <Mail className="w-5 h-5" />
+                <DialogHeader className="bg-gradient-to-r from-[#1e40af] to-[#3b82f6] p-8 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
+                    <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+                    <DialogTitle className="flex items-center gap-4 text-white relative z-10">
+                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl shadow-inner border border-white/20">
+                            <Mail className="w-6 h-6" />
                         </div>
                         <div>
-                            <span className="font-bold text-lg">Envio de Pedidos por E-mail</span>
-                            <p className="text-blue-100 text-xs font-medium mt-0.5">Pedido #{orderData?.order?.ped_pedido}</p>
+                            <span className="font-bold text-2xl tracking-tight">Envio de Pedido</span>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-blue-100/90 text-sm font-medium">Pedido #{orderData?.order?.ped_pedido}</p>
+                                <span className="w-1 h-1 bg-blue-300 rounded-full opacity-50" />
+                                <p className="text-blue-100/90 text-sm font-medium">{orderData?.order?.cli_nomred}</p>
+                            </div>
                         </div>
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="flex">
-                    {/* Main Form */}
-                    <div className="flex-1 p-6 space-y-6">
-                        {/* Recipients Section */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-1.5 bg-blue-100 rounded-lg">
+                <div className="flex h-[550px]">
+                    {/* Left Pane - Content */}
+                    <ScrollArea className="flex-1">
+                        <div className="p-8 space-y-8">
+                            {/* Destinatários Section */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-slate-800">
                                     <Users className="w-4 h-4 text-blue-600" />
-                                </div>
-                                <span className="text-sm font-bold text-slate-700">Destinatários</span>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-sm">
-                                {/* Cliente */}
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2.5 w-28">
-                                        <Checkbox
-                                            id="check-cliente"
-                                            checked={recipients.cliente.enabled}
-                                            onCheckedChange={(val) => setRecipients(p => ({ ...p, cliente: { ...p.cliente, enabled: val } }))}
-                                            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                                        />
-                                        <Label htmlFor="check-cliente" className="text-sm font-semibold text-slate-700">Cliente</Label>
-                                    </div>
-                                    <Input
-                                        value={recipients.cliente.email}
-                                        onChange={(e) => setRecipients(p => ({ ...p, cliente: { ...p.cliente, email: e.target.value } }))}
-                                        className="h-9 text-sm border-slate-200 focus:border-blue-400 focus:ring-blue-100 rounded-xl"
-                                        placeholder="email@cliente.com"
-                                    />
+                                    <h3 className="text-sm font-bold uppercase tracking-wider">Destinatários</h3>
                                 </div>
 
-                                {/* Indústria */}
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2.5 w-28">
-                                        <Checkbox
-                                            id="check-industria"
-                                            checked={recipients.industria.enabled}
-                                            disabled={isQuotation}
-                                            onCheckedChange={(val) => setRecipients(p => ({ ...p, industria: { ...p.industria, enabled: val } }))}
-                                            className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                                        />
-                                        <Label htmlFor="check-industria" className={`text-sm font-semibold ${isQuotation ? 'text-slate-400' : 'text-slate-700'}`}>Indústria</Label>
-                                    </div>
-                                    <Input
-                                        value={recipients.industria.email}
-                                        disabled={isQuotation}
-                                        onChange={(e) => setRecipients(p => ({ ...p, industria: { ...p.industria, email: e.target.value } }))}
-                                        className="h-9 text-sm border-slate-200 focus:border-blue-400 focus:ring-blue-100 rounded-xl disabled:bg-slate-50"
-                                        placeholder="email@industria.com"
-                                    />
+                                <div className="grid gap-3">
+                                    {[
+                                        { key: 'cliente', label: 'Cliente', icon: Users, color: 'blue' },
+                                        { key: 'industria', label: 'Indústria', icon: Building2, color: 'indigo', disabled: isQuotation },
+                                        { key: 'escritorio', label: 'Escritório', icon: Building2, color: 'emerald' }
+                                    ].map((dest) => (
+                                        <div key={dest.key} className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 ${recipients[dest.key].enabled ? 'bg-white border-blue-200 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                                            <div className="flex items-center gap-3 min-w-[120px]">
+                                                <Checkbox
+                                                    id={`check-${dest.key}`}
+                                                    checked={recipients[dest.key].enabled}
+                                                    disabled={dest.disabled}
+                                                    onCheckedChange={(val) => setRecipients(p => ({ ...p, [dest.key]: { ...p[dest.key], enabled: val } }))}
+                                                    className="w-5 h-5 rounded-md border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                                />
+                                                <Label htmlFor={`check-${dest.key}`} className={`text-sm font-bold ${dest.disabled ? 'text-slate-400' : 'text-slate-700 cursor-pointer'}`}>
+                                                    {dest.label}
+                                                </Label>
+                                            </div>
+                                            <div className="flex-1 relative">
+                                                <Input
+                                                    value={recipients[dest.key].email}
+                                                    disabled={dest.disabled || !recipients[dest.key].enabled}
+                                                    onChange={(e) => setRecipients(p => ({ ...p, [dest.key]: { ...p[dest.key], email: e.target.value } }))}
+                                                    className="h-10 bg-transparent border-0 border-b border-slate-100 rounded-none px-0 text-sm focus:ring-0 focus:border-blue-500 transition-all font-medium"
+                                                    placeholder={`E-mail do ${dest.label.toLowerCase()}...`}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
+                            </section>
 
-                                {/* Escritório */}
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2.5 w-28">
-                                        <Checkbox
-                                            id="check-escritorio"
-                                            checked={recipients.escritorio.enabled}
-                                            onCheckedChange={(val) => setRecipients(p => ({ ...p, escritorio: { ...p.escritorio, enabled: val } }))}
-                                            className="data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
-                                        />
-                                        <Label htmlFor="check-escritorio" className="text-sm font-semibold text-slate-700">Escritório</Label>
-                                    </div>
-                                    <Input
-                                        value={recipients.escritorio.email}
-                                        onChange={(e) => setRecipients(p => ({ ...p, escritorio: { ...p.escritorio, email: e.target.value } }))}
-                                        className="h-9 text-sm border-slate-200 focus:border-blue-400 focus:ring-blue-100 rounded-xl"
-                                        placeholder="email@escritorio.com"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Email Data Section */}
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-1.5 bg-indigo-100 rounded-lg">
+                            {/* Conteúdo Section */}
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-slate-800">
                                     <FileText className="w-4 h-4 text-indigo-600" />
-                                </div>
-                                <span className="text-sm font-bold text-slate-700">Conteúdo do E-mail</span>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                                    <Label className="text-sm font-semibold text-slate-600 text-right">Assunto:</Label>
-                                    <Input
-                                        value={emailData.assunto}
-                                        onChange={(e) => setEmailData(p => ({ ...p, assunto: e.target.value }))}
-                                        className="h-9 text-sm border-slate-200 focus:border-blue-400 focus:ring-blue-100 rounded-xl"
-                                    />
+                                    <h3 className="text-sm font-bold uppercase tracking-wider">Dados da Mensagem</h3>
                                 </div>
 
-                                <div className="grid grid-cols-[80px_1fr] items-start gap-3">
-                                    <Label className="text-sm font-semibold text-slate-600 text-right pt-2.5">Anexos:</Label>
-                                    <div className="bg-slate-100 border border-slate-200 rounded-xl p-3">
-                                        <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                                            <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-                                            {emailData.anexos}
+                                <div className="space-y-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm text-sm">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Assunto do e-mail</Label>
+                                        <Input
+                                            value={emailData.assunto}
+                                            onChange={(e) => setEmailData(p => ({ ...p, assunto: e.target.value }))}
+                                            className="h-11 border-slate-200 rounded-xl bg-slate-50/50 focus:bg-white transition-colors font-medium"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Anexo gerado (PDF)</Label>
+                                        <div className="flex items-center gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+                                            <div className="p-2 bg-blue-100 rounded-lg">
+                                                <Paperclip className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <span className="text-sm font-semibold text-blue-700">{emailData.anexos}</span>
+                                            <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold">
+                                                <CheckCircle2 className="w-3 h-3" />
+                                                PRONTO
+                                            </div>
                                         </div>
                                     </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Mensagem personalizada</Label>
+                                        <Textarea
+                                            value={emailData.texto}
+                                            onChange={(e) => setEmailData(p => ({ ...p, texto: e.target.value }))}
+                                            className="min-h-[160px] border-slate-200 rounded-2xl bg-[#fafafa] focus:bg-white transition-colors font-mono text-[11px] leading-relaxed p-4"
+                                        />
+                                    </div>
                                 </div>
+                            </section>
+                        </div>
+                    </ScrollArea>
 
-                                <div className="grid grid-cols-[80px_1fr] items-start gap-3">
-                                    <Label className="text-sm font-semibold text-slate-600 text-right pt-2.5">Mensagem:</Label>
-                                    <Textarea
-                                        value={emailData.texto}
-                                        onChange={(e) => setEmailData(p => ({ ...p, texto: e.target.value }))}
-                                        className="min-h-[140px] text-xs font-mono bg-amber-50 border-amber-200 focus:border-amber-400 focus:ring-amber-100 rounded-xl resize-none leading-relaxed"
-                                    />
+                    {/* Right Pane - Logs (Premium Glass Dark) */}
+                    <div className="w-80 bg-[#0f172a] p-6 flex flex-col border-l border-slate-800">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-emerald-500/10 rounded-xl">
+                                    <Activity className="w-4 h-4 text-emerald-400" />
                                 </div>
+                                <span className="text-sm font-bold text-white tracking-wide uppercase">Status</span>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Process Section (Premium Side Panel) */}
-                    <div className="w-72 bg-slate-900 p-5 space-y-4 flex flex-col text-white rounded-br-3xl">
-                        <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-white/10 rounded-lg">
-                                <Activity className="w-4 h-4 text-emerald-400" />
-                            </div>
-                            <span className="text-sm font-bold">Log de Processo</span>
+                            {loading && <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />}
                         </div>
 
-                        <ScrollArea className="flex-1 bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 min-h-[200px]">
-                            <div className="space-y-2">
+                        <ScrollArea className="flex-1 bg-slate-900/50 rounded-2xl border border-slate-800 p-4">
+                            <div className="space-y-3">
                                 {logs.length === 0 && (
-                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
-                                        Aguardando comando...
+                                    <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
+                                        <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-800 flex items-center justify-center">
+                                            <Send className="w-5 h-5 text-slate-700" />
+                                        </div>
+                                        <p className="text-xs text-slate-600 font-medium">Aguardando envio...</p>
                                     </div>
                                 )}
                                 {logs.map((log, i) => (
-                                    <div key={i} className="text-[11px] font-mono text-slate-300 flex items-start gap-2">
-                                        <span className="text-emerald-400">▸</span>
-                                        <span>{log}</span>
+                                    <div key={i} className="group flex items-start gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
+                                        <div className={`mt-1.5 w-1.5 h-1.5 rounded-full ${log.includes('✅') ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : log.includes('❌') ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                                        <span className="text-[11px] font-mono text-slate-400 leading-tight group-hover:text-slate-200 transition-colors">
+                                            {log}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
                         </ScrollArea>
 
-                        <div className="space-y-2 pt-2 border-t border-slate-700/50">
-                            <div className="flex justify-between text-xs">
-                                <span className="text-slate-500">Servidor SMTP:</span>
-                                <span className="text-slate-300 font-medium">{smtpInfo.host}</span>
+                        <div className="mt-6 pt-6 border-t border-slate-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">SMTP Server</span>
+                                <span className="text-[11px] text-slate-300 font-mono truncate max-w-[140px]">{smtpInfo.host}</span>
                             </div>
-                            <div className="flex justify-between text-xs">
-                                <span className="text-slate-500">Usuário:</span>
-                                <span className="text-slate-300 font-medium truncate ml-2 max-w-[140px]" title={smtpInfo.user}>{smtpInfo.user}</span>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Gateway</span>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    <span className="text-[11px] text-slate-300 font-mono">ONLINE</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <DialogFooter className="bg-white/80 backdrop-blur-sm p-5 border-t border-slate-200 gap-4">
+                <DialogFooter className="p-6 bg-white border-t border-slate-100 flex items-center justify-between gap-4">
                     <Button
-                        variant="outline"
+                        variant="ghost"
                         onClick={onClose}
-                        className="border-slate-300 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all duration-200 rounded-xl px-5"
+                        className="text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-2xl px-6 h-12 font-bold transition-all"
                     >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancelar
+                        CANCELAR
                     </Button>
                     <Button
                         onClick={handleSend}
                         disabled={loading}
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white min-w-[140px] shadow-lg shadow-blue-500/20 transition-all duration-200 rounded-xl px-6"
+                        className="bg-[#1e40af] hover:bg-[#1e3a8a] text-white px-8 h-12 rounded-2xl font-bold shadow-xl shadow-blue-900/20 flex items-center gap-3 active:scale-95 transition-all disabled:opacity-50"
                     >
                         {loading ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
-                            <Send className="w-4 h-4 mr-2" />
+                            <Send className="w-5 h-5" />
                         )}
-                        Enviar E-mail
+                        <span>ENVIAR E-MAIL AGORA</span>
                     </Button>
                 </DialogFooter>
             </DialogContent>

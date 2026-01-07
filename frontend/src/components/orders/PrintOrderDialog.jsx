@@ -12,12 +12,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Printer, Mail, FileSpreadsheet, X } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
-const PrintOrderDialog = ({ isOpen, onClose, orderNumber, onPrint, onExportExcel, onSendEmail }) => {
-    const [sorting, setSorting] = useState('digitacao');
-    const [selectedModel, setSelectedModel] = useState(1);
+const PrintOrderDialog = ({ isOpen, onClose, orderNumber, onPrint, onExportExcel, onSendEmail, defaultModel = 1, defaultSorting = 'digitacao' }) => {
+    const [sorting, setSorting] = useState(defaultSorting);
+    const [selectedModel, setSelectedModel] = useState(defaultModel);
+
+    // Update state when defaults change (e.g. when dialog opens and params are loaded)
+    React.useEffect(() => {
+        if (isOpen) {
+            setSorting(defaultSorting);
+            setSelectedModel(defaultModel);
+        }
+    }, [isOpen, defaultSorting, defaultModel]);
 
     const models = Array.from({ length: 28 }, (_, i) => i + 1);
-    const disabledModels = [8, 9, 18, 19, 22, 23, 24]; // Models that are disabled (similar to existing ones)
+    const disabledModels = [8, 9, 18, 19, 22, 23]; // Restoring disabled status for redundant/duplicate models
 
     const handlePrint = () => {
         onPrint(selectedModel, sorting);

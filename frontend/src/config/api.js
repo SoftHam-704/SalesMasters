@@ -1,5 +1,7 @@
+import { NODE_API_URL } from '../utils/apiConfig';
+
 // API Configuration
-export const API_BASE_URL = 'http://localhost:3005';
+export const API_BASE_URL = NODE_API_URL;
 
 // API Endpoints
 export const API_ENDPOINTS = {

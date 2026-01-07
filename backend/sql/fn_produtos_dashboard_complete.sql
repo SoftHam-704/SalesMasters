@@ -107,15 +107,14 @@ BEGIN
           AND EXTRACT(MONTH FROM p.ped_data) BETWEEN p_mes_inicio AND p_mes_fim
           AND (p_industria IS NULL OR p.ped_industria = p_industria)
           AND (p_cliente IS NULL OR p.ped_cliente = p_cliente)
-          AND g.gru_codigo IS NOT NULL
         GROUP BY g.gru_codigo, g.gru_nome
     ),
     total_geral AS (
         SELECT SUM(qtd) as total FROM vendas_familia
     )
     SELECT 
-        gru_codigo,
-        CAST(gru_nome AS VARCHAR),
+        COALESCE(gru_codigo, 0),
+        CAST(COALESCE(gru_nome, 'SEM GRUPO') AS VARCHAR),
         CAST(qtd AS DOUBLE PRECISION),
         skus,
         ROUND(CAST(qtd / NULLIF((SELECT total FROM total_geral), 0) * 100 AS NUMERIC), 2)::DOUBLE PRECISION
@@ -268,9 +267,9 @@ BEGIN
         RETURN QUERY
         SELECT 
             c.cli_codigo,
-            CAST(c.cli_nomred AS VARCHAR),
+            CAST(c.cli_nomred AS VARCHAR) as nome,
             SUM(i.ite_quant)::DOUBLE PRECISION as total,
-            MAX(p.ped_data) as ult_compra,
+            MAX(p.ped_data)::TIMESTAMP as ult_compra,
             CAST('Ativo' AS VARCHAR)
         FROM pedidos p
         INNER JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
@@ -286,10 +285,10 @@ BEGIN
         RETURN QUERY
         SELECT DISTINCT
             c.cli_codigo,
-            CAST(c.cli_nomred AS VARCHAR),
-            0::DOUBLE PRECISION,
-            NULL::TIMESTAMP,
-            CAST('Oportunidade' AS VARCHAR)
+            CAST(c.cli_nomred AS VARCHAR) as nome,
+            0::DOUBLE PRECISION as total,
+            NULL::TIMESTAMP as ult_compra,
+            CAST('Oportunidade' AS VARCHAR) as status
         FROM pedidos p
         INNER JOIN clientes c ON c.cli_codigo = p.ped_cliente
         WHERE p.ped_situacao IN ('P', 'F')
@@ -304,7 +303,7 @@ BEGIN
                 AND (p_ano IS NULL OR EXTRACT(YEAR FROM p2.ped_data) = p_ano)
                 AND (p_ano IS NULL OR EXTRACT(MONTH FROM p2.ped_data) BETWEEN p_mes_inicio AND p_mes_fim)
           )
-        ORDER BY c.cli_nomred;
+        ORDER BY nome;
     END IF;
 END;
 $$;

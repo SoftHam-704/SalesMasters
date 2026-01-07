@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
+import { toast } from "sonner";
 
 const CategoryForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -24,7 +25,7 @@ const CategoryForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.cat_descricao?.trim()) {
-            alert('Descrição é obrigatória');
+            toast.error('Descrição é obrigatória');
             return;
         }
         onSave(formData);
@@ -37,7 +38,7 @@ const CategoryForm = ({ data, onClose, onSave }) => {
             onCancel={onClose}
         >
             <div className="p-4">
-               <div className="form-grid">
+                <div className="form-grid">
                     {/* ID */}
                     <div className="col-3">
                         <InputField
@@ -59,7 +60,7 @@ const CategoryForm = ({ data, onClose, onSave }) => {
                             large
                         />
                     </div>
-               </div>
+                </div>
             </div>
         </FormCadPadraoV2>
     );

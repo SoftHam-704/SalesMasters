@@ -4,6 +4,7 @@ import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const CarrierForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -41,7 +42,8 @@ const CarrierForm = ({ data, onClose, onSave }) => {
         const toastId = toast.loading("Consultando Receita Federal...");
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/carriers/cnpj/${cnpj}`);
+            const url = getApiUrl(NODE_API_URL, `/api/v2/carriers/cnpj/${cnpj}`);
+            const response = await fetch(url);
 
             if (!response.ok) {
                 throw new Error("CNPJ não encontrado.");
@@ -98,7 +100,7 @@ const CarrierForm = ({ data, onClose, onSave }) => {
                 <div className="form-grid">
                     {/* Row 1: CNPJ | Consulta | Inscrição */}
                     <div className="col-5">
-                       <div className="flex gap-2 items-center">
+                        <div className="flex gap-2 items-center">
                             <div className="flex-1">
                                 <InputField
                                     label="CNPJ"
@@ -117,7 +119,7 @@ const CarrierForm = ({ data, onClose, onSave }) => {
                             >
                                 <Search className="h-5 w-5" />
                             </Button>
-                       </div>
+                        </div>
                     </div>
                     <div className="col-4">
                         <InputField
@@ -205,7 +207,7 @@ const CarrierForm = ({ data, onClose, onSave }) => {
                             placeholder=""
                         />
                     </div>
-                     <div className="col-4">
+                    <div className="col-4">
                         <InputField
                             label="E-mail"
                             value={formData.tra_email || ''}

@@ -106,7 +106,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.reg_descricao?.trim()) {
-            alert('Descrição é obrigatória');
+            toast.error('Descrição é obrigatória');
             return;
         }
         onSave(formData);
@@ -148,18 +148,18 @@ const RegionForm = ({ data, onClose, onSave }) => {
                 {/* Content */}
                 <div className="p-4 flex-1 overflow-auto">
                     {activeTab === 'dados' && (
-                            <div className="form-grid">
-                                <div className="col-12">
-                                    <InputField
-                                        label="Descrição"
-                                        value={formData.reg_descricao}
-                                        onChange={(e) => handleChange('reg_descricao', e.target.value)}
-                                        placeholder=""
-                                        autoFocus
-                                        large
-                                    />
-                                </div>
+                        <div className="form-grid">
+                            <div className="col-12">
+                                <InputField
+                                    label="Descrição"
+                                    value={formData.reg_descricao}
+                                    onChange={(e) => handleChange('reg_descricao', e.target.value)}
+                                    placeholder=""
+                                    autoFocus
+                                    large
+                                />
                             </div>
+                        </div>
                     )}
 
                     {activeTab === 'cidades' && (

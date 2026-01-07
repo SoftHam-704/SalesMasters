@@ -6,6 +6,8 @@ const DbComboBox = ({
     value,
     onChange,
     fetchData,
+    label,
+    initialLabel = '', // Suporte para o texto inicial quando temos apenas o ID
     labelKey = 'label',
     valueKey = 'value',
     placeholder = 'Pesquisar...',
@@ -13,17 +15,21 @@ const DbComboBox = ({
     initialLimit = 20
 }) => {
     const [open, setOpen] = useState(false);
-    const [inputValue, setInputValue] = useState('');
+    const [inputValue, setInputValue] = useState(initialLabel);
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const ref = useRef(null);
 
-    // sincroniza quando value externo muda
+    // Sincroniza quando o valor ou o label inicial mudam (importante para o modo Edição)
     useEffect(() => {
-        if (value) {
-            setInputValue(value[labelKey]);
+        if (value && typeof value === 'object') {
+            setInputValue(value[labelKey] || '');
+        } else if (value && initialLabel) {
+            setInputValue(initialLabel);
+        } else if (!value) {
+            setInputValue('');
         }
-    }, [value]);
+    }, [value, initialLabel, labelKey]);
 
     // fecha ao clicar fora
     useEffect(() => {
@@ -40,26 +46,32 @@ const DbComboBox = ({
     useEffect(() => {
         if (!open) return;
 
-        const search = inputValue.trim();
+        const search = (inputValue || '').trim();
 
         const timer = setTimeout(async () => {
             setLoading(true);
 
             // busca inicial
-            const data =
-                search.length < minChars
-                    ? await fetchData('', initialLimit)
-                    : await fetchData(search);
+            try {
+                const data =
+                    search.length < minChars
+                        ? await fetchData('', initialLimit)
+                        : await fetchData(search);
 
-            setItems(data || []);
-            setLoading(false);
+                setItems(data || []);
+            } catch (error) {
+                console.error("Erro na busca do DbComboBox:", error);
+            } finally {
+                setLoading(false);
+            }
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [inputValue, open]);
+    }, [inputValue, open, fetchData, initialLimit, minChars]);
 
     const handleSelect = (item) => {
-        onChange(item);
+        // Passa o valor (ID) e o item completo
+        onChange(item[valueKey], item);
         setInputValue(item[labelKey]);
         setOpen(false);
     };
@@ -70,6 +82,8 @@ const DbComboBox = ({
                 className="dbcombo-input"
                 onClick={() => setOpen(true)}
             >
+                {/* Simulated Floating/Fixed Label to match InputField */}
+                {label && <label className="dbcombo-label">{label}</label>}
                 <Search size={16} />
                 <input
                     value={inputValue}

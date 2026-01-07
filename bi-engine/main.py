@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS
-from routers import dashboard, narratives, portfolio, abc_intelligence, metas, equipe, produtos
+from routers import dashboard, narratives, portfolio, abc_intelligence, metas, equipe, produtos, price_table_import
+from utils.tenant_context import db_context_middleware
 
 # ... app setup ...
 
@@ -11,6 +12,11 @@ app = FastAPI(
     description="Microserviço Python para análises de BI e processamento de dados",
     version="1.0.0"
 )
+
+# Multi-tenant Middleware
+@app.middleware("http")
+async def add_tenant_context(request, call_next):
+    return await db_context_middleware(request, call_next)
 
 # CORS Middleware
 origins = CORS_ORIGINS + ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -31,6 +37,7 @@ app.include_router(abc_intelligence.router)
 app.include_router(metas.router)
 app.include_router(equipe.router)
 app.include_router(produtos.router)
+app.include_router(price_table_import.router)
 
 @app.get("/")
 async def root():

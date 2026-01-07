@@ -59,3 +59,13 @@ SalesMasters*.rar
 data/itens_ped.json
 data/itens_ped.csv
 *.rar
+
+# Excel files (user uploads)
+*.xlsx
+*.xls
+
+# Video files at root
+login/*.mp4
+
+# Temp Python scripts at root
+analyze_price_list.py

@@ -45,14 +45,21 @@ const IndustryPerformanceChart = ({ data, metrica = 'Valor' }) => {
         );
     }
 
+    // Sort data by the selected metric in descending order (highest to lowest)
+    const sortedData = [...data].sort((a, b) => {
+        const valueA = metrica === 'Valor' ? (a.total_vendas || 0) : (a.total_quantidade || 0);
+        const valueB = metrica === 'Valor' ? (b.total_vendas || 0) : (b.total_quantidade || 0);
+        return valueB - valueA; // Descending order
+    });
+
     // Dynamic height calculation: shorter bars, less padding
     const itemHeight = 28;
-    const chartHeight = Math.max(data.length * itemHeight, 100);
+    const chartHeight = Math.max(sortedData.length * itemHeight, 100);
 
     // Custom label to show "R$ 9.5M"
     const renderCustomLabel = (props) => {
         const { x, y, width, value, index } = props;
-        const item = data[index];
+        const item = sortedData[index];
         const displayValue = metrica === 'Valor'
             ? formatCompactCurrency(item.total_vendas)
             : formatNumber(item.total_quantidade);
@@ -79,7 +86,7 @@ const IndustryPerformanceChart = ({ data, metrica = 'Valor' }) => {
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                         layout="vertical"
-                        data={data}
+                        data={sortedData}
                         margin={{ top: 0, right: 60, bottom: 0, left: 10 }} // Increased right margin for labels
                     >
                         <defs>

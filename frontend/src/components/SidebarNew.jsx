@@ -35,45 +35,47 @@ import {
     Home
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
-import salesMastersLogo from '../assets/salesmasters_logo.png';
+import iconeMasters2025 from '../assets/icone_masters_2025.png';
 import softHamLogo from '../assets/softham_logo.png';
 
-// --- NavItem Component ---
 const NavItem = ({ icon: Icon, label, active, badge, badgeClassName, onClick }) => (
     <motion.button
         whileTap={{ scale: 0.98 }}
         onClick={onClick}
         className={cn(
-            "group relative w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all duration-200 rounded-xl",
+            "group relative w-full flex items-center gap-3.5 px-4 py-3 text-left transition-all duration-300 rounded-xl mb-1 border border-transparent",
             active
-                ? "bg-emerald-50"
-                : "hover:bg-gray-50"
+                ? "bg-white shadow-[0_10px_25px_-5px_rgba(30,64,175,0.12)] border-blue-100"
+                : "hover:bg-blue-50/50"
         )}
     >
-        {/* Left accent bar for active state */}
+        {/* Subtle Indicator for active state */}
         {active && (
             <motion.div
                 layoutId="activeAccent"
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-500 rounded-full"
+                className="absolute left-2 w-1 h-5 bg-blue-600 rounded-full"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
             />
         )}
 
-        {/* Icon container */}
+        {/* Icon */}
         <div className={cn(
-            "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
+            "flex items-center justify-center w-5 h-5 transition-all duration-300 ml-1.5",
             active
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
-                : "bg-gray-100 text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600"
+                ? "text-blue-600 scale-110"
+                : "text-slate-400 group-hover:text-blue-500"
         )}>
-            <Icon className={cn("w-[20px] h-[20px]", badgeClassName && "animate-pulse")} strokeWidth={2} />
+            <Icon className={cn("w-full h-full", badgeClassName && "animate-pulse")} strokeWidth={active ? 2.5 : 2} />
         </div>
 
-        {/* Label */}
+        {/* Label - Darker and Bolder */}
         <span className={cn(
-            "flex-1 text-[14px] transition-colors font-medium",
-            active ? "text-emerald-700" : "text-gray-600 group-hover:text-gray-900"
+            "flex-1 text-[13.5px] transition-colors tracking-wide",
+            active
+                ? "text-blue-900 font-black"
+                : "text-slate-700 font-bold group-hover:text-slate-950"
         )}>
             {label}
         </span>
@@ -82,12 +84,12 @@ const NavItem = ({ icon: Icon, label, active, badge, badgeClassName, onClick }) 
         {badge && (
             <span
                 className={cn(
-                    "min-w-[24px] h-6 px-2 flex items-center justify-center text-[10px] font-bold rounded-full transition-all border",
+                    "min-w-[20px] h-5 px-1.5 flex items-center justify-center text-[9px] font-black rounded-full transition-all border",
                     badgeClassName
                         ? badgeClassName
                         : active
-                            ? "bg-emerald-500 text-white border-transparent"
-                            : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                            ? "bg-blue-600 text-white border-transparent shadow-lg shadow-blue-600/20"
+                            : "bg-blue-50 text-blue-600 border-blue-100"
                 )}
             >
                 {badge}
@@ -96,34 +98,24 @@ const NavItem = ({ icon: Icon, label, active, badge, badgeClassName, onClick }) 
     </motion.button>
 );
 
-// --- CollapsibleSection Component ---
 const CollapsibleSection = ({
     icon: Icon,
     title,
     children,
     defaultOpen = false,
-    accentColor,
-    accentBg
+    accentColor // Accent color can still be used for highlights if needed
 }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="mb-1">
+        <div className="mb-2">
             <motion.button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 hover:bg-gray-50 group"
+                className="w-full flex items-center gap-3 px-4 py-2 mt-4 rounded-xl transition-all duration-300 group"
                 whileTap={{ scale: 0.98 }}
             >
-                {/* Section icon */}
-                <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105"
-                    style={{ backgroundColor: accentBg }}
-                >
-                    <Icon className="w-4 h-4" style={{ color: accentColor }} />
-                </div>
-
-                {/* Section title */}
-                <span className="flex-1 text-left text-[12px] font-bold tracking-[0.05em] uppercase text-gray-400">
+                {/* Section title - Deep Slate for Contrast */}
+                <span className="flex-1 text-left text-[11px] font-black tracking-[0.15em] uppercase text-slate-500 group-hover:text-blue-600 transition-colors">
                     {title}
                 </span>
 
@@ -131,9 +123,9 @@ const CollapsibleSection = ({
                 <motion.div
                     animate={{ rotate: isOpen ? 90 : 0 }}
                     transition={{ duration: 0.2 }}
-                    className="text-gray-300"
+                    className="text-slate-400 group-hover:text-blue-500"
                 >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3.5 h-3.5" />
                 </motion.div>
             </motion.button>
 
@@ -143,10 +135,10 @@ const CollapsibleSection = ({
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
                         className="overflow-hidden"
                     >
-                        <div className="py-1 space-y-0.5 ml-2 border-l border-gray-100 pl-2">
+                        <div className="py-2 px-1 space-y-1">
                             {children}
                         </div>
                     </motion.div>
@@ -168,29 +160,47 @@ export const Sidebar = () => {
         return false;
     };
 
+    const [dbType, setDbType] = useState(null);
+
+    React.useEffect(() => {
+        const fetchSystemInfo = async () => {
+            try {
+                const response = await fetch(getApiUrl(NODE_API_URL, '/api/system-info'));
+                const data = await response.json();
+                if (data.success) {
+                    setDbType(data.database_type);
+                }
+            } catch (error) {
+                console.error('Error fetching system info:', error);
+            }
+        };
+        fetchSystemInfo();
+    }, []);
+
     return (
         <motion.aside
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.4 }}
-            className="w-[280px] h-screen flex flex-col bg-white border-r border-gray-100 flex-shrink-0"
+            className="w-[280px] h-screen flex flex-col bg-slate-50 border-r border-slate-200/60 flex-shrink-0 relative overflow-hidden"
             style={{ position: 'sticky', top: 0, zIndex: 50 }}
         >
+            {/* Subtle Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-blue-50/20 via-transparent to-transparent pointer-events-none" />
+
             {/* Header / Logo */}
-            <div className="p-5 pb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-400 p-[2px] shadow-lg shadow-blue-500/30 flex items-center justify-center">
-                        <div className="w-full h-full bg-white rounded-xl flex items-center justify-center overflow-hidden">
-                            <img src={salesMastersLogo} alt="Logo" className="w-8 h-8 object-contain" />
-                        </div>
-                    </div>
-                    <div>
-                        <h1 className="text-gray-900 font-bold text-[18px] tracking-tight">
-                            SalesMasters
-                        </h1>
-                        <p className="text-blue-600 text-[11px] font-semibold tracking-wide uppercase">
-                            Professional v2.5
+            <div className="px-5 pt-12 pb-10 text-center relative z-10">
+                <div className="flex flex-col items-center justify-center gap-5">
+                    <img
+                        src={iconeMasters2025}
+                        alt="Logo"
+                        className="w-[260px] h-auto object-contain hover:scale-105 transition-transform duration-500 drop-shadow-[0_12px_20px_rgba(30,64,175,0.08)]"
+                    />
+                    <div className="flex flex-col items-center gap-1.5">
+                        <p className="text-blue-900/40 text-[9.5px] font-black tracking-[0.3em] uppercase">
+                            Enterprise Edition
                         </p>
+                        <div className="h-[1px] w-10 bg-blue-200" />
                     </div>
                 </div>
             </div>
@@ -300,25 +310,50 @@ export const Sidebar = () => {
                 >
                     <NavItem icon={Package} label="Catálogo Digital" active={isActive("/utilitarios/catalogo-produtos")} onClick={() => navigate("/utilitarios/catalogo-produtos")} />
                     <NavItem icon={Sparkles} label="Assistente IA" active={isActive("/assistente")} onClick={() => navigate("/assistente")} />
+                    <NavItem icon={Gamepad2} label="🎮 Tetris" active={isActive("/utilitarios/tetris")} onClick={() => navigate("/utilitarios/tetris")} />
+                    <NavItem icon={Gamepad2} label="🎲 Jogo de Dados" active={isActive("/utilitarios/jogo-dados")} onClick={() => navigate("/utilitarios/jogo-dados")} />
+                    <NavItem icon={Settings} label="Parâmetros" active={isActive("/utilitarios/parametros")} onClick={() => navigate("/utilitarios/parametros")} />
                     <NavItem icon={Settings} label="Configurações" active={isActive("/utilitarios/configuracoes")} onClick={() => navigate("/utilitarios/configuracoes")} />
                 </CollapsibleSection>
 
             </nav>
 
-            {/* Footer - Restored SoftHam Branding */}
-            <div className="px-4 pb-4 pt-3 border-t border-gray-100">
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                    <img src={softHamLogo} alt="SoftHam" className="w-10 h-10 rounded-full border border-gray-200 bg-white p-0.5" />
-                    <div className="flex flex-col overflow-hidden">
-                        <p className="text-[12px] font-bold text-gray-900 truncate">SoftHam Sistemas</p>
-                        <p className="text-[10px] text-gray-500 font-mono">(67) 9 9607-8885</p>
+            {/* Footer - Logout and SoftHam Branding */}
+            <div className="px-3 pb-6 pt-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-md relative z-10">
+                {/* Botão de Sair */}
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                        if (window.confirm('Deseja realmente sair?')) {
+                            sessionStorage.clear();
+                            localStorage.removeItem('user');
+                            localStorage.removeItem('tenantConfig');
+                            window.location.href = '/login';
+                        }
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-300 group mb-4"
+                >
+                    <ArrowLeftRight className="w-4 h-4 rotate-180 transform group-hover:scale-110 transition-transform text-slate-400 group-hover:text-rose-500" />
+                    <span className="text-[12px] font-black uppercase tracking-[0.15em]">Sair do Sistema</span>
+                </motion.button>
 
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <div className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-white border border-slate-200/60 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.08)] group hover:shadow-xl transition-all duration-500 overflow-hidden relative">
+                    <div className="relative z-10">
+                        <img src={softHamLogo} alt="SoftHam" className="w-20 h-20 rounded-2xl border border-slate-100 bg-slate-50/50 p-2 group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+
+                    <div className="flex flex-col overflow-hidden relative z-10">
+                        <p className="text-[12px] font-black text-blue-900 truncate tracking-tight">SoftHam Sistemas</p>
+                        <p className="text-[10px] text-slate-600 font-extrabold tracking-wide mt-0.5">(67) 9.9607-8885</p>
+
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                            <div className={cn(
+                                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                dbType === 'local' ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                            )}>
+                                <span className={cn("h-1 w-1 rounded-full animate-pulse", dbType === 'local' ? "bg-amber-500" : "bg-emerald-500")} />
+                                {dbType === 'local' ? 'LOCAL' : 'CLOUD'}
                             </div>
-                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Conectado</span>
                         </div>
                     </div>
                 </div>

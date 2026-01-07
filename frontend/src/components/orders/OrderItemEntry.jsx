@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, Trash2, Edit2, Check, X, RefreshCw, Package, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const OrderItemEntry = ({
     pedPedido,
@@ -16,10 +17,11 @@ const OrderItemEntry = ({
     onItemsChange,
     allowDuplicates,
     pedCliente, // Cliente do pedido para buscar histórico
-    entrySpeed = 4, // 1=Muito Rápido (código+quant), 2=Rápido (+compl), 3=Lento (+descontos+%add), 4=Muito Lento (todos)
+    userParams = { par_qtdenter: 4, par_usadecimais: 'S', par_qtddecimais: 2, par_fmtpesquisa: 'D' },
     importedItems,
     onImportComplete
 }) => {
+    const entrySpeed = userParams?.par_qtdenter || 4;
     const [products, setProducts] = useState([]);
     const [orderItems, setOrderItems] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
@@ -239,7 +241,8 @@ const OrderItemEntry = ({
 
     const loadOrderItems = async () => {
         try {
-            const response = await fetch(`http://localhost:3005/api/orders/${pedPedido}/items`);
+            const url = getApiUrl(NODE_API_URL, `/api/orders/${pedPedido}/items`);
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 setOrderItems(data.success ? data.data : []);
@@ -258,9 +261,8 @@ const OrderItemEntry = ({
 
         setLoadingHistory(true);
         try {
-            const response = await fetch(
-                `http://localhost:3005/api/orders/product-history/${encodeURIComponent(productCode)}/${pedCliente}/${selectedIndustry}`
-            );
+            const url = getApiUrl(NODE_API_URL, `/api/orders/product-history/${encodeURIComponent(productCode)}/${pedCliente}/${selectedIndustry}`);
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 setProductHistory(data.success ? data.data : []);
@@ -436,7 +438,8 @@ const OrderItemEntry = ({
 
         setSyncing(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/orders/${pedPedido}/items/sync`, {
+            const url = getApiUrl(NODE_API_URL, `/api/orders/${pedPedido}/items/sync`);
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(orderItems)
@@ -610,6 +613,7 @@ const OrderItemEntry = ({
 
     const getFilteredProducts = () => {
         const term = (currentItem.ite_produto || '').toLowerCase().trim();
+        const searchMode = userParams?.par_fmtpesquisa || 'D'; // C=Apenas Código, D=Código+Descrição
 
         // Sem filtro: mostra apenas os primeiros 200 itens para performance
         if (!term) {
@@ -617,10 +621,13 @@ const OrderItemEntry = ({
         }
 
         // Com filtro: filtra todos os produtos
-        return products.filter(p =>
-            p.pro_codprod?.toLowerCase().includes(term) ||
-            p.pro_nome?.toLowerCase().includes(term)
-        );
+        return products.filter(p => {
+            const matchesCode = p.pro_codprod?.toLowerCase().includes(term);
+            const matchesDesc = p.pro_nome?.toLowerCase().includes(term);
+
+            if (searchMode === 'C') return matchesCode;
+            return matchesCode || matchesDesc;
+        });
     };
 
     // Verifica se há mais itens ocultos (para mostrar mensagem)
@@ -665,7 +672,7 @@ const OrderItemEntry = ({
                 {/* Item Entry Card */}
                 <div className="bg-white border border-emerald-100 rounded-xl p-4 shadow-sm flex flex-col gap-3">
                     <div className="flex gap-2">
-                        <div className="w-40">
+                        <div className="w-32">
                             <Label className={labelClasses}>Código</Label>
                             <Input
                                 ref={codeInputRef}
@@ -673,10 +680,10 @@ const OrderItemEntry = ({
                                 onChange={(e) => handleItemChange('ite_produto', e.target.value)}
                                 onKeyDown={handleCodeKeyDown}
                                 className={cn(inputClasses, "bg-amber-50 border-amber-200 font-bold text-black")}
-                                placeholder="Digite código ou nome..."
+                                placeholder="Digite código..."
                             />
                         </div>
-                        <div className="w-16">
+                        <div className="w-32">
                             <Label className={labelClasses}>Compl.</Label>
                             <Input
                                 value={currentItem.ite_embuch}
@@ -727,6 +734,7 @@ const OrderItemEntry = ({
                             <Label className={labelClasses}>Quant.</Label>
                             <Input
                                 type="number"
+                                step={userParams?.par_usadecimais === 'S' ? (1 / Math.pow(10, userParams?.par_qtddecimais || 2)).toString() : "1"}
                                 value={currentItem.ite_quant}
                                 onChange={(e) => handleItemChange('ite_quant', e.target.value)}
                                 className={cn(inputClasses, "text-center font-bold")}
@@ -743,7 +751,7 @@ const OrderItemEntry = ({
                         <div className="w-20">
                             <Label className={labelClasses}>Líquido</Label>
                             <Input
-                                value={parseFloat(currentItem.ite_puniliq).toFixed(2)}
+                                value={parseFloat(currentItem.ite_puniliq).toFixed(userParams?.par_qtddecimais || 2)}
                                 readOnly
                                 className={cn(inputClasses, "bg-slate-50 text-right font-bold text-emerald-600")}
                             />
@@ -998,13 +1006,17 @@ const OrderItemEntry = ({
                                         </td>
                                     </tr>
                                 ) : (
-                                    orderItems.slice().reverse().map((item, idx) => (
+                                    orderItems.slice().sort((a, b) => (b.ite_seq || 0) - (a.ite_seq || 0)).map((item, idx) => (
                                         <tr key={idx} className="hover:bg-emerald-50/30 border-b border-slate-50 transition-colors">
-                                            <td className="p-2">{item.ite_seq}</td>
+                                            <td className="p-2 font-bold text-slate-400">{String(item.ite_seq || (orderItems.length - idx)).padStart(3, '0')}</td>
                                             <td className="p-2 font-medium text-teal-800">{item.ite_produto}</td>
                                             <td className="p-2 truncate max-w-[150px]">{item.ite_nomeprod}</td>
-                                            <td className="p-2 text-center font-bold">{item.ite_quant}</td>
-                                            <td className="p-2 text-right">R$ {parseFloat(item.ite_puniliq).toFixed(2)}</td>
+                                            <td className="p-2 text-center font-bold">
+                                                {userParams?.par_usadecimais === 'S'
+                                                    ? Number(item.ite_quant || 0).toFixed(userParams?.par_qtddecimais || 2)
+                                                    : parseInt(item.ite_quant || 0)}
+                                            </td>
+                                            <td className="p-2 text-right">R$ {parseFloat(item.ite_puniliq).toFixed(userParams?.par_qtddecimais || 2)}</td>
                                             <td className="p-2 text-right font-bold text-emerald-700">R$ {parseFloat(item.ite_totliquido).toFixed(2)}</td>
                                             <td className="p-2 text-center">
                                                 <div className="flex justify-center gap-1">

@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
 import { Label } from "@/components/ui/label"; // Keep Label if used elsewhere
+import { toast } from "sonner";
 
 const DiscountGroupForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -48,7 +49,7 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.gid?.trim()) {
-            alert('Código (ID) é obrigatório');
+            toast.error('Código (ID) é obrigatório');
             return;
         }
         onSave(formData);
@@ -83,12 +84,12 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
 
                     {/* Separator / Title */}
                     <div className="col-12 mt-4 mb-2">
-                         <Label className="text-sm font-semibold text-gray-700">Níveis de Desconto (%)</Label>
+                        <Label className="text-sm font-semibold text-gray-700">Níveis de Desconto (%)</Label>
                     </div>
 
-                    {/* Descontos 1-9 using custom comfortable grid */ }
+                    {/* Descontos 1-9 using custom comfortable grid */}
                     <div className="col-12">
-                         <div className="discount-grid">
+                        <div className="discount-grid">
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                                 <div key={num}>
                                     <InputField

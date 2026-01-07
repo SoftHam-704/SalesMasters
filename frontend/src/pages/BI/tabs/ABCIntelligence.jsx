@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ABCIntelligence.css';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 const ABCIntelligence = ({ filtros = {} }) => {
     const [loading, setLoading] = useState(false);
@@ -33,7 +34,8 @@ const ABCIntelligence = ({ filtros = {} }) => {
                 metrica: metricaAtiva
             };
 
-            const response = await axios.get('http://localhost:8000/api/analytics/abc-intelligence', { params });
+            const url = getApiUrl(PYTHON_API_URL, '/api/analytics/abc-intelligence');
+            const response = await axios.get(url, { params });
 
             if (response.data?.success && response.data?.data) {
                 // Adapta o formato do backend para o formato esperado pelo componente

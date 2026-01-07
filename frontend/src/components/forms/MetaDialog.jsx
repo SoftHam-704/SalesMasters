@@ -16,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 const MetaDialog = ({ open, onClose, meta, suppliers, onSave }) => {
     const currentYear = new Date().getFullYear();
@@ -70,7 +71,7 @@ const MetaDialog = ({ open, onClose, meta, suppliers, onSave }) => {
 
     const handleSave = () => {
         if (!formData.met_industria) {
-            alert('Selecione uma indústria');
+            toast.error('Selecione uma indústria');
             return;
         }
         onSave({

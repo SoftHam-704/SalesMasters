@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ProgressRing } from '../components/dashboard/ProgressRing';
@@ -8,6 +9,7 @@ import { TopClientsCard } from '../components/dashboard/TopClientsCard';
 import { IndustryRevenueCard } from '../components/dashboard/IndustryRevenueCard';
 import { IndustryParetoCard } from '../components/dashboard/IndustryParetoCard';
 import { SalesPerformanceTable } from '../components/dashboard/SalesPerformanceTable';
+import { BirthdayCard } from '../components/dashboard/BirthdayCard';
 import {
     DollarSign,
     Users,
@@ -15,10 +17,12 @@ import {
     TrendingUp,
     ArrowRight,
     Flame,
-    Sparkles
+    Sparkles,
+    Cake
 } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import './Dashboard.css';
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 
 
@@ -31,10 +35,9 @@ const activities = [
 ];
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     const currentYear = new Date().getFullYear();
-
-
-    const [selectedYear, setSelectedYear] = useState(currentYear);
+    const [selectedYear, setSelectedYear] = useState(2025); // Forçado em 2025 para visualização inicial
     const [selectedMonth, setSelectedMonth] = useState(null); // null = ano todo
     const [salesComparison, setSalesComparison] = useState([]);
     const [quantitiesComparison, setQuantitiesComparison] = useState([]);
@@ -46,6 +49,39 @@ const Dashboard = () => {
     const [loadingIndustry, setLoadingIndustry] = useState(true);
     const [loadingMetrics, setLoadingMetrics] = useState(true);
     const [industryRevenue, setIndustryRevenue] = useState([]);
+    const [userName, setUserName] = useState('Usuário');
+    const [birthdayCount, setBirthdayCount] = useState(0);
+    const [birthdays, setBirthdays] = useState([]);
+    const [loadingBirthdays, setLoadingBirthdays] = useState(true);
+
+    const fetchBirthdays = async () => {
+        try {
+            setLoadingBirthdays(true);
+            const response = await fetch(`${NODE_API_URL}/api/crm/stats/birthdays`);
+            const data = await response.json();
+            if (data.success) {
+                setBirthdayCount(data.data.length);
+                setBirthdays(data.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar aniversariantes:', error);
+        } finally {
+            setLoadingBirthdays(false);
+        }
+    };
+
+    useEffect(() => {
+        const savedUser = sessionStorage.getItem('user');
+        if (savedUser) {
+            try {
+                const user = JSON.parse(savedUser);
+                if (user.nome) setUserName(user.nome);
+            } catch (e) {
+                console.error('Erro ao ler usuário do sessionStorage', e);
+            }
+        }
+        fetchBirthdays();
+    }, []);
 
     useEffect(() => {
         fetchSalesComparison();
@@ -58,19 +94,25 @@ const Dashboard = () => {
     const fetchSalesComparison = async () => {
         try {
             const previousYear = selectedYear - 1;
-            const response = await fetch(`http://localhost:3005/api/dashboard/sales-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            console.log(`📡 [DASHBOARD] Buscando vendas: ${selectedYear} vs ${previousYear}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/sales-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            const response = await fetch(url);
             const data = await response.json();
+
             if (data.success) {
+                console.log(`✅ [DASHBOARD] Vendas recebidas:`, data.data?.length || 0, 'meses');
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
-                    mes: item.mes_nome.substring(0, 3), // Jan, Fev, etc
-                    [selectedYear]: parseFloat(item.vendas_ano_atual) / 1000, // Convert to thousands
-                    [previousYear]: parseFloat(item.vendas_ano_anterior) / 1000
+                    mes: item.mes_nome ? item.mes_nome.substring(0, 3) : '???',
+                    [selectedYear]: parseFloat(item.vendas_ano_atual || 0) / 1000,
+                    [previousYear]: parseFloat(item.vendas_ano_anterior || 0) / 1000
                 }));
                 setSalesComparison(chartData);
+            } else {
+                console.error('❌ [DASHBOARD] Erro na API de vendas:', data.message);
             }
         } catch (error) {
-            console.error('Erro ao buscar comparação de vendas:', error);
+            console.error('❌ [DASHBOARD] Erro ao buscar comparação de vendas:', error);
         } finally {
             setLoading(false);
         }
@@ -79,7 +121,8 @@ const Dashboard = () => {
     const fetchQuantitiesComparison = async () => {
         try {
             const previousYear = selectedYear - 1;
-            const response = await fetch(`http://localhost:3005/api/dashboard/quantities-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/quantities-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 // Transform data for chart
@@ -109,7 +152,8 @@ const Dashboard = () => {
                 params.append('mes', selectedMonth);
             }
 
-            const response = await fetch(`http://localhost:3005/api/dashboard/top-clients?${params}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/top-clients?${params}`);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
@@ -133,11 +177,13 @@ const Dashboard = () => {
                 params.append('mes', selectedMonth);
             }
 
-            const response = await fetch(`http://localhost:3005/api/dashboard/industry-revenue?${params}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/industry-revenue?${params}`);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
-                setIndustryRevenue(data.data);
+                console.log(`✅ [DASHBOARD] Indústrias recebidas:`, data.data?.length || 0);
+                setIndustryRevenue(data.data || []);
             }
         } catch (error) {
             console.error('Erro ao buscar faturamento por indústria:', error);
@@ -157,10 +203,12 @@ const Dashboard = () => {
                 params.append('mes', selectedMonth);
             }
 
-            const response = await fetch(`http://localhost:3005/api/dashboard/metrics?${params}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/metrics?${params}`);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
+                console.log(`✅ [DASHBOARD] Métricas recebidas:`, data.data);
                 setMetrics(data.data);
             }
         } catch (error) {
@@ -188,7 +236,7 @@ const Dashboard = () => {
                 <div className="welcome-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <h1 className="welcome-title">
-                            {getGreeting()}, João!
+                            {getGreeting()}, {userName}!
                         </h1>
                         <motion.span
                             animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
@@ -215,6 +263,26 @@ const Dashboard = () => {
 
             {/* Metrics Grid */}
             <div className="metrics-grid">
+                <MetricCard
+                    title="Aniversariantes (Mês)"
+                    value={String(birthdayCount)}
+                    icon={Cake}
+                    delay={0.05}
+                    onClick={() => {
+                        const element = document.getElementById('dashboard-birthday-card');
+                        if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            // Highlight effect
+                            element.style.boxShadow = '0 0 20px rgba(251, 113, 133, 0.5)';
+                            setTimeout(() => {
+                                element.style.boxShadow = '';
+                            }, 2000);
+                        }
+                    }}
+                    showTrend={false}
+                    subtitle="Clique para ver lista"
+                    variant="birthday"
+                />
                 <MetricCard
                     title="Total Vendido"
                     value={loadingMetrics || !metrics ? "..." : `R$ ${parseFloat(metrics.total_vendido_current || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -453,6 +521,14 @@ const Dashboard = () => {
                         selectedYear={selectedYear}
                         selectedMonth={selectedMonth}
                     />
+
+                    {/* Birthday Card - below Sales Performance */}
+                    <div id="dashboard-birthday-card">
+                        <BirthdayCard
+                            birthdays={birthdays}
+                            loading={loadingBirthdays}
+                        />
+                    </div>
                 </div>
 
                 {/* Column 2: Top 15 Clients */}

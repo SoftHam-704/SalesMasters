@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
+import { toast } from "sonner";
 
 const ProductGroupForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -24,7 +25,7 @@ const ProductGroupForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.gru_nome?.trim()) {
-            alert('Descrição é obrigatória');
+            toast.error('Descrição é obrigatória');
             return;
         }
         onSave(formData);
@@ -36,7 +37,6 @@ const ProductGroupForm = ({ data, onClose, onSave }) => {
             onSave={handleSave}
             onCancel={onClose}
         >
-            <div className="p-4">
             <div className="p-4">
                 <div className="form-grid">
                     {/* Descrição */}
@@ -53,7 +53,7 @@ const ProductGroupForm = ({ data, onClose, onSave }) => {
 
                     {/* % comissão preposto */}
                     <div className="col-3">
-                         <InputField
+                        <InputField
                             label="% comissão preposto"
                             value={formData.gru_percomiss?.toFixed(2) || '0.00'}
                             onChange={(e) => {
@@ -74,7 +74,6 @@ const ProductGroupForm = ({ data, onClose, onSave }) => {
                         />
                     </div>
                 </div>
-            </div>
             </div>
         </FormCadPadraoV2>
     );

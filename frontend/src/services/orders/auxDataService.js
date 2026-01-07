@@ -1,9 +1,6 @@
-/**
- * Auxiliary Data Service - Gerenciamento de Dados Auxiliares
- * Responsável por carregar dados auxiliares (clientes, vendedores, transportadoras, etc)
- */
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
-const API_BASE_URL = 'http://localhost:3005/api';
+const API_BASE_URL = getApiUrl(NODE_API_URL, '/api');
 
 export const auxDataService = {
     /**
@@ -11,8 +8,8 @@ export const auxDataService = {
      * @param {string} status - Status do cliente ('A' = Ativo, 'I' = Inativo)
      * @returns {Promise<{success: boolean, data: Array}>}
      */
-    async getClients(status = 'A') {
-        const response = await fetch(`${API_BASE_URL}/aux/clientes?status=${status}`);
+    async getClients(status = 'A', pesquisa = '') {
+        const response = await fetch(`${API_BASE_URL}/aux/clientes?status=${status}&pesquisa=${pesquisa}`);
         if (!response.ok) {
             throw new Error('Failed to fetch clients');
         }
@@ -21,10 +18,9 @@ export const auxDataService = {
 
     /**
      * Lista todas as transportadoras
-     * @returns {Promise<{success: boolean, data: Array}>}
      */
-    async getCarriers() {
-        const response = await fetch(`${API_BASE_URL}/v2/carriers`);
+    async getCarriers(pesquisa = '') {
+        const response = await fetch(`${API_BASE_URL}/v2/carriers?pesquisa=${pesquisa}`);
         if (!response.ok) {
             throw new Error('Failed to fetch carriers');
         }
@@ -34,8 +30,8 @@ export const auxDataService = {
     /**
      * Lista tabelas de preço por indústria
      */
-    async getPriceTables(industryCode) {
-        const response = await fetch(`${API_BASE_URL}/aux/price-tables?for_codigo=${industryCode}`);
+    async getPriceTables(industryCode, pesquisa = '') {
+        const response = await fetch(`${API_BASE_URL}/aux/price-tables?for_codigo=${industryCode}&pesquisa=${pesquisa}`);
         if (!response.ok) {
             throw new Error('Failed to fetch price tables');
         }
@@ -44,10 +40,9 @@ export const auxDataService = {
 
     /**
      * Lista vendedores ativos
-     * @returns {Promise<{success: boolean, data: Array}>}
      */
-    async getSellers() {
-        const response = await fetch(`${API_BASE_URL}/aux/vendedores`);
+    async getSellers(pesquisa = '') {
+        const response = await fetch(`${API_BASE_URL}/aux/vendedores?pesquisa=${pesquisa}`);
         if (!response.ok) {
             throw new Error('Failed to fetch sellers');
         }

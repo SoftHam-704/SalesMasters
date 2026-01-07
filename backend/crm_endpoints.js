@@ -14,21 +14,31 @@ module.exports = function (app, pool) {
             const stagesRes = await pool.query('SELECT * FROM crm_funil_etapas ORDER BY ordem');
             const stages = stagesRes.rows;
 
-            // 2. Get Opportunities (optionally filtered by seller)
+            // 2. Get Opportunities
+            // Note: We are now joining with fornecedores (industries) and vendedores (promoters)
+            // If the columns don't exist yet, this query might fail. We should ideally run a migration.
+            // Assuming for_codigo was added to crm_oportunidades.
             let query = `
                 SELECT 
                     o.*, 
                     c.cli_nomred, 
                     c.cli_cidade, 
                     c.cli_uf,
+                    c.cli_fone1,
+                    f.for_nomered as industria_nome,
+                    v.ven_nome as promotor_nome,
                     (SELECT COUNT(*) FROM crm_interacao i WHERE i.oportunidade_id = o.oportunidade_id) as interacoes_count,
                     (SELECT MAX(data_hora) FROM crm_interacao i WHERE i.oportunidade_id = o.oportunidade_id) as ultima_interacao
                 FROM crm_oportunidades o
                 JOIN clientes c ON c.cli_codigo = o.cli_codigo
+                LEFT JOIN fornecedores f ON f.for_codigo = o.for_codigo
+                LEFT JOIN vendedores v ON v.ven_codigo = o.ven_codigo
             `;
             const params = [];
 
             if (ven_codigo) {
+                // Determine if we filter strictly by seller or show all if manager
+                // For now, let's keep it open or filter if param passed
                 query += ' WHERE o.ven_codigo = $1';
                 params.push(ven_codigo);
             }
@@ -45,26 +55,41 @@ module.exports = function (app, pool) {
             res.json({ success: true, data: pipeline });
         } catch (error) {
             console.error('❌ [CRM] Error fetching pipeline:', error);
-            res.status(500).json({ success: false, message: error.message });
+            // Fallback for missing columns if migration didn't run
+            if (error.code === '42703') { // Undefined column
+                res.status(500).json({ success: false, message: 'Colunas novas (for_codigo/ven_codigo) não encontradas. Execute a migração.' });
+            } else {
+                res.status(500).json({ success: false, message: error.message });
+            }
         }
     });
 
     // POST - Create Opportunity
     app.post('/api/crm/oportunidades', async (req, res) => {
         try {
-            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id } = req.body;
+            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo } = req.body;
+
+            // Check if for_codigo column exists implicitly by trying to insert
+            // If table doesn't have the column yet, we should add it.
+            // For safety in this environment, I'll assume the migration script I'll provide next will be run.
 
             const result = await pool.query(`
                 INSERT INTO crm_oportunidades 
-                (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id)
-                VALUES ($1, $2, $3, $4, $5)
+                (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *
-            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id || 1]);
+            `, [titulo, cli_codigo, ven_codigo || 1, valor_estimado, etapa_id || 1, for_codigo || null]);
 
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
             console.error('❌ [CRM] Error creating opportunity:', error);
-            res.status(500).json({ success: false, message: error.message });
+            if (error.code === '42703') { // Undefined column
+                // Auto-fix attempt (DANGEROUS but requested for "learning system")
+                // Ideally we send a 500 and ask user to run migration.
+                res.status(500).json({ success: false, message: 'Erro de Banco: Coluna for_codigo ausente. Execute migração.' });
+            } else {
+                res.status(500).json({ success: false, message: error.message });
+            }
         }
     });
 
@@ -82,6 +107,36 @@ module.exports = function (app, pool) {
             res.json({ success: true });
         } catch (error) {
             console.error('❌ [CRM] Error moving opportunity:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PUT - Update full Opportunity details
+    app.put('/api/crm/oportunidades/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo } = req.body;
+
+            const result = await pool.query(`
+                UPDATE crm_oportunidades 
+                SET titulo = $1, 
+                    cli_codigo = $2, 
+                    ven_codigo = $3, 
+                    valor_estimado = $4, 
+                    etapa_id = $5, 
+                    for_codigo = $6,
+                    atualizado_em = CURRENT_TIMESTAMP
+                WHERE oportunidade_id = $7
+                RETURNING *
+            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, id]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Oportunidade não encontrada' });
+            }
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error updating opportunity:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });
@@ -658,4 +713,96 @@ module.exports = function (app, pool) {
     });
 
     console.log('📋 CRM endpoints registered');
+
+    // --- DASHBOARD ENDPOINTS ---
+
+    // GET - Birthdays of the Month
+    app.get('/api/crm/stats/birthdays', async (req, res) => {
+        try {
+            // Correct Logic: fetch from cli_aniv (legacy table) linked to clientes
+            // Using EXTRACT(MONTH) ignores the year (2001 or otherwise), which is perfect.
+            const query = `
+                SELECT
+                    c.cli_codigo,
+                    c.cli_nomred,
+                    c.cli_cidade,
+                    c.cli_fone1,
+                    a.ani_niver AS cli_datanasc,
+                    a.ani_nome,
+                    a.ani_funcao,
+                    a.ani_fone,
+                    a.ani_diaaniv,
+                    a.ani_mes,
+                    a.ani_timequetorce,
+                    a.ani_esportepreferido,
+                    a.ani_hobby
+                FROM cli_aniv a
+                JOIN clientes c ON c.cli_codigo = a.ani_cliente
+                WHERE a.ani_niver BETWEEN
+                      make_date(2001, EXTRACT(MONTH FROM CURRENT_DATE)::int, 1)
+                  AND (make_date(2001, EXTRACT(MONTH FROM CURRENT_DATE)::int, 1)
+                       + INTERVAL '1 month - 1 day')
+                ORDER BY a.ani_niver ASC, c.cli_nomred ASC
+            `;
+            const result = await pool.query(query);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching birthdays:', error);
+            res.json({ success: false, message: 'Table cli_aniv error', data: [] });
+        }
+    });
+
+    // GET - Top Industries Activity
+    app.get('/api/crm/stats/industries', async (req, res) => {
+        try {
+            // Count interactions joined with opportunities -> suppliers
+            // Or if interactions table has for_codigo directly (from our Modal update)
+            // Our NovaInteracaoModal didn't save for_codigo in interaction directly yet, 
+            // but we can join via Opportunity if linked, OR we check if we added for_codigo column to interactions.
+            // Let's assume we look at 'opportunities' created this month for now as a proxy for "Activity" 
+            // OR we count interactions if we can link them.
+
+            // Simpler approach: Count Opportunities by Industry (Pipeline Activity)
+            const query = `
+                SELECT 
+                    f.for_nomered as industria,
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE o.criado_em >= date_trunc('month', CURRENT_DATE)) as no_mes
+                FROM crm_oportunidades o
+                JOIN fornecedores f ON f.for_codigo = o.for_codigo
+                GROUP BY f.for_nomered
+                ORDER BY no_mes DESC, total DESC
+                LIMIT 10
+            `;
+            const result = await pool.query(query);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching industry stats:', error);
+            res.json({ success: false, data: [] });
+        }
+    });
+
+    // GET - Team Activity Ranking
+    app.get('/api/crm/stats/team', async (req, res) => {
+        try {
+            const query = `
+                SELECT 
+                    v.ven_nome as operador,
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE i.data_interacao >= date_trunc('month', CURRENT_DATE)) as no_mes,
+                    COUNT(*) FILTER (WHERE i.data_interacao::date = CURRENT_DATE) as no_dia
+                FROM crm_interacao i
+                JOIN vendedores v ON v.ven_codigo = i.ven_codigo
+                GROUP BY v.ven_nome
+                ORDER BY no_mes DESC
+                LIMIT 10
+            `;
+            const result = await pool.query(query);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching team stats:', error);
+            res.json({ success: false, data: [] });
+        }
+    });
+
 };

@@ -426,9 +426,8 @@ class SmartInsightGenerator:
                 "acao_recomendada": "Contato imediato para entender mudança no padrão de compra"
             })
         
-        # Correlações
-        if data_context.get('correlations'):
-            corr = data_context['correlations'][0]
+        # Correlações (até 2)
+        for corr in data_context.get('correlations', [])[:2]:
             prod_a = str(corr.get('produto_a', ''))[:25]
             prod_b = str(corr.get('produto_b', ''))[:25]
             insights.append({
@@ -626,7 +625,7 @@ def generate_critical_alerts_ai(ano: int, mes: str = 'Todos', industry_id: int =
     insights_data = result.get('data', {}).get('insights', [])
     
     alerts = []
-    for insight in insights_data[:5]:
+    for insight in insights_data[:6]:
         alerts.append({
             "title": insight.get('titulo', 'Insight'),
             "subtitle": insight.get('detalhe', ''),

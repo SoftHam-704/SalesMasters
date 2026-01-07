@@ -9,9 +9,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import DbComboBox from '../DbComboBox';
 import IndustryDialog from './IndustryDialog';
 import RegionDialog from './RegionDialog';
 import MetaDialog from './MetaDialog';
@@ -214,7 +216,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
         if (activeTab === 'dados') {
             return (
                 <div className="p-4 space-y-4">
-                     <div className="form-grid">
+                    <div className="form-grid">
                         {/* Nome */}
                         <div className="col-12">
                             <InputField
@@ -252,14 +254,14 @@ const SellerForm = ({ data, onClose, onSave }) => {
                             />
                         </div>
                         <div className="col-2">
-                             <InputField
+                            <InputField
                                 label="CEP"
                                 value={formData.ven_cep || ''}
                                 onChange={(e) => handleChange('ven_cep', e.target.value)}
                             />
                         </div>
                         <div className="col-2">
-                             <InputField
+                            <InputField
                                 label="UF"
                                 value={formData.ven_uf || ''}
                                 onChange={(e) => handleChange('ven_uf', e.target.value)}
@@ -324,30 +326,33 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                 onChange={(e) => handleChange('ven_email', e.target.value)}
                             />
                         </div>
-                         <div className="col-6">
-                             {/* Usuário - Select mantido mas com estilo ajustado se necessário */}
-                            <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Usuário (Acesso)</Label>
-                            <div className="h-12">
-                                <Select
-                                    value={formData.ven_nomeusu || ''}
-                                    onValueChange={(value) => handleChange('ven_nomeusu', value)}
-                                >
-                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
-                                        <SelectValue placeholder="Selecione um usuário" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {users.map((user) => (
-                                            <SelectItem key={user.codigo} value={user.usuario}>
-                                                {user.nome} {user.sobrenome} ({user.usuario})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                        <div className="col-6">
+                            <DbComboBox
+                                label="Usuário (Acesso)"
+                                value={formData.ven_nomeusu ? { label: formData.ven_nomeusu, value: formData.ven_nomeusu } : null}
+                                onChange={(item) => handleChange('ven_nomeusu', item?.value || '')}
+                                fetchData={async (search) => {
+                                    try {
+                                        const res = await fetch(`http://localhost:3005/api/users?search=${search}`);
+                                        const json = await res.json();
+                                        // Filter/Map if necessary. Assuming API returns {data: [{usuario, nome...}]}
+                                        // We need to map to { label, value }
+                                        const list = json.data || json;
+                                        return list.map(u => ({
+                                            label: `${u.nome} (${u.usuario})`,
+                                            value: u.usuario
+                                        }));
+                                    } catch (e) {
+                                        console.error(e);
+                                        return [];
+                                    }
+                                }}
+                                placeholder="Selecione um usuário..."
+                            />
                         </div>
 
                         {/* Data Admissão | Data Demissão | Status | Cumpre Metas */}
-                         <div className="col-3">
+                        <div className="col-3">
                             <InputField
                                 label="Data Admissão"
                                 type="date"
@@ -355,7 +360,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                 onChange={(e) => handleChange('ven_dtadmissao', e.target.value)}
                             />
                         </div>
-                         <div className="col-3">
+                        <div className="col-3">
                             <InputField
                                 label="Data Demissão"
                                 type="date"
@@ -364,38 +369,34 @@ const SellerForm = ({ data, onClose, onSave }) => {
                             />
                         </div>
                         <div className="col-3">
-                             <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Status</Label>
-                             <div className="h-12">
-                                <Select
-                                    value={formData.ven_status || 'A'}
-                                    onValueChange={(value) => handleChange('ven_status', value)}
-                                >
-                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="A">Ativo</SelectItem>
-                                        <SelectItem value="I">Inativo</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                             </div>
+                            <DbComboBox
+                                label="Status"
+                                value={formData.ven_status === 'I' ? { label: 'Inativo', value: 'I' } : { label: 'Ativo', value: 'A' }}
+                                onChange={(item) => handleChange('ven_status', item?.value || 'A')}
+                                fetchData={async (search) => {
+                                    const options = [
+                                        { label: 'Ativo', value: 'A' },
+                                        { label: 'Inativo', value: 'I' }
+                                    ];
+                                    return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+                                }}
+                                placeholder="Selecione..."
+                            />
                         </div>
-                         <div className="col-3">
-                             <Label className="text-xs font-semibold text-gray-500 ml-1 mb-1 block">Cumpre Metas</Label>
-                             <div className="h-12">
-                                <Select
-                                    value={formData.ven_cumpremetas || 'S'}
-                                    onValueChange={(value) => handleChange('ven_cumpremetas', value)}
-                                >
-                                    <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="S">Sim</SelectItem>
-                                        <SelectItem value="N">Não</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                             </div>
+                        <div className="col-3">
+                            <DbComboBox
+                                label="Cumpre Metas"
+                                value={formData.ven_cumpremetas === 'N' ? { label: 'NÃO', value: 'N' } : { label: 'SIM', value: 'S' }}
+                                onChange={(item) => handleChange('ven_cumpremetas', item?.value || 'S')}
+                                fetchData={async (search) => {
+                                    const options = [
+                                        { label: 'SIM', value: 'S' },
+                                        { label: 'NÃO', value: 'N' }
+                                    ];
+                                    return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+                                }}
+                                placeholder="Selecione..."
+                            />
                         </div>
 
                         {/* Filiação */}
@@ -417,7 +418,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                 onChange={(e) => handleChange('ven_obs', e.target.value)}
                             />
                         </div>
-                     </div>
+                    </div>
                 </div>
             );
         }
@@ -643,8 +644,8 @@ const SellerForm = ({ data, onClose, onSave }) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         }).format(parseFloat(value) || 0);
     };
 
@@ -837,7 +838,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                 <SelectTrigger className="h-8 w-48 text-xs">
                                     <SelectValue placeholder="Selecione indústria" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[9999]">
                                     {suppliers.map(s => (
                                         <SelectItem key={s.for_codigo} value={s.for_codigo.toString()}>
                                             {s.for_nomered || s.for_nome}
@@ -845,15 +846,20 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <select
-                                className="border rounded px-2 py-1 text-xs h-8"
-                                value={selectedMetaYear}
-                                onChange={(e) => setSelectedMetaYear(parseInt(e.target.value))}
+                            <Select
+                                value={selectedMetaYear.toString()}
+                                onValueChange={(val) => setSelectedMetaYear(parseInt(val))}
                             >
-                                {[2024, 2025, 2026, 2027].map(y => (
-                                    <option key={y} value={y}>{y}</option>
-                                ))}
-                            </select>
+                                <SelectTrigger className="h-8 w-24 text-xs">
+                                    <SelectValue placeholder="Ano" />
+                                </SelectTrigger>
+                                <SelectContent className="z-[9999]">
+                                    <SelectItem value="2023">2023</SelectItem>
+                                    <SelectItem value="2024">2024</SelectItem>
+                                    <SelectItem value="2025">2025</SelectItem>
+                                    <SelectItem value="2026">2026</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
@@ -866,48 +872,21 @@ const SellerForm = ({ data, onClose, onSave }) => {
                     ) : (
                         <>
                             {/* Monthly Goals Grid */}
-                            <div className="grid grid-cols-6 gap-3">
+                            <div className="grid grid-cols-4 gap-3">
                                 {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((month) => {
                                     const fieldName = `met_${month.toLowerCase()}`;
                                     const value = editingMeta?.[fieldName] ?? (currentMeta ? parseFloat(currentMeta[fieldName]) || 0 : 0);
                                     return (
-                                        <div key={month} className="space-y-1">
-                                            <Label className="text-xs text-gray-500">{month}</Label>
-                                            <Input
-                                                className="text-right text-xs font-mono h-8 border-emerald-200"
+                                        <div key={month}>
+                                            <InputField
+                                                label={month}
                                                 value={formatCurrency(value)}
                                                 onChange={(e) => {
                                                     const numericValue = e.target.value.replace(/[^\d,]/g, '').replace(',', '.');
                                                     handleMetaFieldChange(fieldName, numericValue);
                                                 }}
-                                                onFocus={(e) => {
-                                                    e.target.value = value.toString();
-                                                    e.target.select();
-                                                    if (!editingMeta) {
-                                                        setEditingMeta(currentMeta ? {
-                                                            met_jan: parseFloat(currentMeta.met_jan) || 0,
-                                                            met_fev: parseFloat(currentMeta.met_fev) || 0,
-                                                            met_mar: parseFloat(currentMeta.met_mar) || 0,
-                                                            met_abr: parseFloat(currentMeta.met_abr) || 0,
-                                                            met_mai: parseFloat(currentMeta.met_mai) || 0,
-                                                            met_jun: parseFloat(currentMeta.met_jun) || 0,
-                                                            met_jul: parseFloat(currentMeta.met_jul) || 0,
-                                                            met_ago: parseFloat(currentMeta.met_ago) || 0,
-                                                            met_set: parseFloat(currentMeta.met_set) || 0,
-                                                            met_out: parseFloat(currentMeta.met_out) || 0,
-                                                            met_nov: parseFloat(currentMeta.met_nov) || 0,
-                                                            met_dez: parseFloat(currentMeta.met_dez) || 0,
-                                                        } : {
-                                                            met_jan: 0, met_fev: 0, met_mar: 0, met_abr: 0,
-                                                            met_mai: 0, met_jun: 0, met_jul: 0, met_ago: 0,
-                                                            met_set: 0, met_out: 0, met_nov: 0, met_dez: 0,
-                                                        });
-                                                    }
-                                                }}
-                                                onBlur={(e) => {
-                                                    const numericValue = parseFloat(e.target.value) || 0;
-                                                    handleMetaFieldChange(fieldName, numericValue);
-                                                }}
+                                                selectAllOnFocus={true}
+                                                className="text-right font-mono"
                                             />
                                         </div>
                                     );
@@ -948,15 +927,15 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
     return (
         <FormCadPadraoV2
-            title={data ? `Vendedor: ${data.ven_nome || ''}` : "Novo Vendedor"}
+            title={data ? `Vendedor: ${data.ven_nome || ''} ` : "Novo Vendedor"}
             onSave={handleSave}
             onCancel={onClose}
         >
             <Tabs defaultValue="dados" className="h-full flex flex-col">
                 <TabsList className="bg-transparent border-b w-full justify-start p-0 h-auto rounded-none mb-4">
                     {mainTabs.map(tab => (
-                        <TabsTrigger 
-                            key={tab.id} 
+                        <TabsTrigger
+                            key={tab.id}
                             value={tab.id}
                             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:text-emerald-700 bg-transparent shadow-none px-4 py-2"
                         >
@@ -966,8 +945,8 @@ const SellerForm = ({ data, onClose, onSave }) => {
                         </TabsTrigger>
                     ))}
                     {data?.ven_codigo && relatedTabs.map(tab => (
-                        <TabsTrigger 
-                            key={tab.id} 
+                        <TabsTrigger
+                            key={tab.id}
                             value={tab.id}
                             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:text-emerald-700 bg-transparent shadow-none px-4 py-2"
                         >

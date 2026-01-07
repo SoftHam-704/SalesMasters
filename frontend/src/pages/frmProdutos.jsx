@@ -15,8 +15,11 @@ import ProductDialog from "@/components/forms/ProductDialog";
 import ProductSalesDialog from "@/components/products/ProductSalesDialog";
 import DiscountGroupDialog from "@/components/products/DiscountGroupDialog";
 import PercentageInputDialog from "@/components/dialogs/PercentageInputDialog";
+import AIImportButton from "@/components/products/AIImportButton";
+import AIImportDialog from "@/components/products/AIImportDialog";
 import { toast } from "sonner";
 import { useTabs } from '../contexts/TabContext';
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const FrmProdutos = () => {
     const { selectTab } = useTabs();
@@ -45,6 +48,9 @@ const FrmProdutos = () => {
     const [ipiDialogOpen, setIpiDialogOpen] = useState(false);
     const [stDialogOpen, setStDialogOpen] = useState(false);
 
+    // AI Import Dialog
+    const [aiImportDialogOpen, setAiImportDialogOpen] = useState(false);
+
     // Carregar indústrias
     useEffect(() => {
         fetchIndustries();
@@ -52,7 +58,8 @@ const FrmProdutos = () => {
 
     const fetchIndustries = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers');
+            const url = getApiUrl(NODE_API_URL, '/api/suppliers');
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setIndustries(data.data);
@@ -78,7 +85,8 @@ const FrmProdutos = () => {
     const fetchTables = async (industria) => {
         try {
             console.log(`📋 [FETCH_TABLES] Buscando tabelas para indústria ${industria}`);
-            const response = await fetch(`http://localhost:3005/api/products/tables/${industria}`);
+            const url = getApiUrl(NODE_API_URL, `/api/products/tables/${industria}`);
+            const response = await fetch(url);
             const data = await response.json();
             console.log(`📋 [FETCH_TABLES] Resposta:`, data);
 
@@ -120,7 +128,7 @@ const FrmProdutos = () => {
         setLoading(true);
         try {
             console.log(`📦 [FETCH_PRODUCTS] Buscando produtos: industria=${industria}, tabela="${tabela}"`);
-            const url = `http://localhost:3005/api/products/${industria}/${encodeURIComponent(tabela)}`;
+            const url = getApiUrl(NODE_API_URL, `/api/products/${industria}/${encodeURIComponent(tabela)}`);
             console.log(`📦 [FETCH_PRODUCTS] URL: ${url}`);
 
             const response = await fetch(url);
@@ -188,7 +196,8 @@ const FrmProdutos = () => {
 
     const handleSaveProduct = async (dadosProduto) => {
         try {
-            const response = await fetch('http://localhost:3005/api/products/save', {
+            const url = getApiUrl(NODE_API_URL, '/api/products/save');
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -228,10 +237,8 @@ const FrmProdutos = () => {
         }
 
         try {
-            const response = await fetch(
-                `http://localhost:3005/api/products/zero-discount-add/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
-                { method: 'PUT' }
-            );
+            const url = getApiUrl(NODE_API_URL, `/api/products/zero-discount-add/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`);
+            const response = await fetch(url, { method: 'PUT' });
 
             const result = await response.json();
 
@@ -253,10 +260,8 @@ const FrmProdutos = () => {
         }
 
         try {
-            const response = await fetch(
-                `http://localhost:3005/api/products/zero-discount-special/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
-                { method: 'PUT' }
-            );
+            const url = getApiUrl(NODE_API_URL, `/api/products/zero-discount-special/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`);
+            const response = await fetch(url, { method: 'PUT' });
 
             const result = await response.json();
 
@@ -445,10 +450,8 @@ const FrmProdutos = () => {
         }
 
         try {
-            const response = await fetch(
-                `http://localhost:3005/api/price-tables/${selectedIndustry}/${encodeURIComponent(selectedTable)}`,
-                { method: 'DELETE' }
-            );
+            const url = getApiUrl(NODE_API_URL, `/api/price-tables/${selectedIndustry}/${encodeURIComponent(selectedTable)}`);
+            const response = await fetch(url, { method: 'DELETE' });
 
             const result = await response.json();
 
@@ -682,7 +685,12 @@ const FrmProdutos = () => {
                 {/* Spacer */}
                 <div className="flex-1"></div>
 
-                {/* Botão Importar Tabela */}
+                {/* Botão AI Import (Premium) */}
+                <AIImportButton
+                    onClick={() => setAiImportDialogOpen(true)}
+                />
+
+                {/* Botão Importar Tabela (Clássico) */}
                 <Button
                     onClick={() => selectTab('/utilitarios/importacao-precos')}
                     size="sm"
@@ -912,6 +920,18 @@ const FrmProdutos = () => {
                 description="Informe o percentual de ST (Substituição Tributária) que será aplicado a todos os produtos da tabela."
                 currentTable={selectedTable}
                 totalProducts={filteredProducts.length}
+            />
+
+            {/* AI Import Dialog */}
+            <AIImportDialog
+                open={aiImportDialogOpen}
+                onOpenChange={setAiImportDialogOpen}
+                onImportComplete={() => {
+                    // Recarregar produtos após importação
+                    if (selectedIndustry && selectedTable) {
+                        fetchProducts(selectedIndustry, selectedTable);
+                    }
+                }}
             />
         </div >
     );

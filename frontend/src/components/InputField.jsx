@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import './InputField.css';
 
 const InputField = ({
@@ -9,21 +9,30 @@ const InputField = ({
   type = 'text',
   large = false,
   selectAllOnFocus = true,
+  className,
   ...props
 }) => {
+  const inputRef = useRef(null);
+
+  const handleFocus = (e) => {
+    if (selectAllOnFocus) {
+      e.target.select();
+    }
+    if (props.onFocus) {
+      props.onFocus(e);
+    }
+  };
+
   return (
     <div className={`input-field ${large ? 'large' : ''}`}>
       <input
+        ref={inputRef}
         type={type}
         value={value}
         onChange={onChange}
-        placeholder=" "
-        onFocus={(e) => {
-          if (selectAllOnFocus) {
-            e.target.select();
-          }
-          if (props.onFocus) props.onFocus(e);
-        }}
+        onFocus={handleFocus}
+        placeholder={placeholder || " "}
+        className={className}
         {...props}
       />
       <label>{label}</label>

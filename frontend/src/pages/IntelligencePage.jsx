@@ -9,6 +9,7 @@ import CurvaABCTab from './BI/tabs/CurvaABCTab';
 import MetasTab from './BI/tabs/MetasTab';
 import EquipeTab from './BI/tabs/EquipeTab';
 import ProdutosTab from './BI/tabs/ProdutosTab';
+import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
 
 // STABLE CONSTANTS - Outside component to prevent re-render loops
 const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
@@ -35,7 +36,8 @@ const IntelligencePage = () => {
         const fetchFilters = async () => {
             try {
                 // Fetch full list for dropdowns
-                const res = await axios.get('http://localhost:8000/api/dashboard/filters-options');
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/filters-options');
+                const res = await axios.get(url);
                 if (res.data) {
                     setIndustryOptions(res.data.industries || []);
                     setClientOptions(res.data.clients || []);

@@ -1,11 +1,11 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from services.database import engine
+from services.database import get_current_engine
 from datetime import datetime
 
 def get_db_connection():
-    return engine.raw_connection()
+    return get_current_engine().raw_connection()
 
 router = APIRouter(prefix="/api/produtos", tags=["produtos"])
 
@@ -65,13 +65,12 @@ async def get_produtos_clientes(
     produto_id: int,
     compraram: bool = Query(..., description="True para quem comprou, False para quem não comprou"),
     ano: Optional[int] = None,
-    mes: Optional[int] = None
+    mes_inicio: Optional[int] = Query(1, description="Mês inicial"),
+    mes_fim: Optional[int] = Query(12, description="Mês final")
 ):
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        mes_inicio = mes if mes else 1
-        mes_fim = mes if mes else 12
         
         cur.execute("SELECT * FROM fn_produtos_clientes(%s, %s, %s, %s, %s)", 
                    (produto_id, compraram, ano, mes_inicio, mes_fim))
@@ -85,6 +84,7 @@ async def get_produtos_clientes(
             "status": row[4]
         } for row in rows]
     except Exception as e:
+        print(f"Erro ao buscar clientes do produto: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()

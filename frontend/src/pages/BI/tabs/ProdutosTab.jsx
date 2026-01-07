@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search,
-    ChevronDown,
-    ChevronUp,
     Package,
-    ArrowUpRight,
-    ArrowDownRight,
-    Minus,
     Store,
-    TrendingUp
+    TrendingUp,
+    Users,
+    BarChart3,
+    Sparkles
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -23,7 +21,8 @@ import {
     ArcElement,
     Filler
 } from 'chart.js';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
+import './ProdutosTab.css';
 
 ChartJS.register(
     CategoryScale,
@@ -37,6 +36,8 @@ ChartJS.register(
     ArcElement,
     Filler
 );
+
+const API_URL = import.meta.env.VITE_BI_API_URL || 'http://localhost:8000';
 
 const ProdutosTab = ({ filters }) => {
     // State
@@ -61,28 +62,26 @@ const ProdutosTab = ({ filters }) => {
         'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4,
         'Maio': 5, 'Junho': 6, 'Julho': 7, 'Agosto': 8,
         'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12,
-        'Todos': null
+        'Todos': 0
     };
 
     // Memoized Values
     const metricMonth = useMemo(() => {
-        if (!filters?.mes) return null;
-        return typeof filters.mes === 'string' ? monthMap[filters.mes] : filters.mes;
-    }, [filters.mes]);
+        if (!filters?.mes) return 0;
+        return typeof filters.mes === 'string' ? (monthMap[filters.mes] ?? 0) : filters.mes;
+    }, [filters?.mes]);
 
     // 1. Initial Load: Ranking, Familias, Portfolio
     useEffect(() => {
         const loadInitialData = async () => {
             setLoading(true);
             try {
-                // Prepare safe params
                 const params = {
                     ano: filters.ano,
-                    mes_inicio: metricMonth || 1,
-                    mes_fim: metricMonth || 12,
+                    mes_inicio: metricMonth === 0 ? 1 : metricMonth,
+                    mes_fim: metricMonth === 0 ? 12 : metricMonth,
                 };
 
-                // Add industries only if not 'Todos'
                 if (filters.industria && filters.industria !== 'Todos') {
                     params.industria = filters.industria;
                 }
@@ -90,18 +89,18 @@ const ProdutosTab = ({ filters }) => {
                 const queryParams = new URLSearchParams(params);
 
                 // Fetch Ranking
-                const resRanking = await fetch(`http://localhost:8000/api/produtos/ranking?${queryParams}`);
+                const resRanking = await fetch(`${API_URL}/api/produtos/ranking?${queryParams}`);
                 const dataRanking = await resRanking.json();
                 setRankingData(dataRanking || []);
                 setFilteredRanking(dataRanking || []);
 
                 // Fetch Familias
-                const resFamilias = await fetch(`http://localhost:8000/api/produtos/familia-ranking?${queryParams}`);
-                setFamiliasData(await resFamilias.json() || []);
+                const resFamilias = await fetch(`${API_URL}/api/produtos/familia-ranking?${queryParams}`);
+                const famData = await resFamilias.json();
+                setFamiliasData(famData || []);
 
-                // Fetch Portfolio (uses same params logic)
-                // For portfolio total, we usually ignore month, but for "sales vs portfolio" graph we use the range
-                const resPort = await fetch(`http://localhost:8000/api/produtos/portfolio-vs-vendas?${queryParams}`);
+                // Fetch Portfolio
+                const resPort = await fetch(`${API_URL}/api/produtos/portfolio-vs-vendas?${queryParams}`);
                 setPortfolioData(await resPort.json() || []);
 
             } catch (error) {
@@ -114,7 +113,7 @@ const ProdutosTab = ({ filters }) => {
         loadInitialData();
     }, [filters.ano, metricMonth, filters.industria]);
 
-    // 2. Load Details when Product Selected or Toggle Changed
+    // 2. Load Details when Product Selected
     useEffect(() => {
         const loadDetails = async () => {
             if (selectedProdutoIndex === null) {
@@ -127,18 +126,16 @@ const ProdutosTab = ({ filters }) => {
             if (!produto) return;
 
             try {
-                // Fetch Clientes
                 const queryCli = new URLSearchParams({
                     compraram: mostrarCompraram,
                     ano: filters.ano,
-                    mes_inicio: metricMonth || 1,
-                    mes_fim: metricMonth || 12
+                    mes_inicio: metricMonth === 0 ? 1 : metricMonth,
+                    mes_fim: metricMonth === 0 ? 12 : metricMonth
                 });
-                const resCli = await fetch(`http://localhost:8000/api/produtos/${produto.id}/clientes?${queryCli}`);
+                const resCli = await fetch(`${API_URL}/api/produtos/${produto.id}/clientes?${queryCli}`);
                 setClientesData(await resCli.json() || []);
 
-                // Fetch Desempenho Mensal
-                const resDes = await fetch(`http://localhost:8000/api/produtos/${produto.id}/desempenho-mensal?ano=${filters.ano}`);
+                const resDes = await fetch(`${API_URL}/api/produtos/${produto.id}/desempenho-mensal?ano=${filters.ano}`);
                 setDesempenhoData(await resDes.json() || []);
 
             } catch (error) {
@@ -163,34 +160,45 @@ const ProdutosTab = ({ filters }) => {
         setFilteredRanking(filtered);
     }, [searchTerm, rankingData]);
 
-
     // Helpers
     const formatNumber = (num) => new Intl.NumberFormat('pt-BR').format(num);
 
-    const filteredClientes = clientesData.filter(c =>
-        clientSearchTerm === '' ||
-        String(c.cliente_nome).toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-        String(c.cliente_codigo).includes(clientSearchTerm)
-    );
+    const filteredClientes = Array.isArray(clientesData)
+        ? clientesData.filter(c =>
+            clientSearchTerm === '' ||
+            String(c.cliente_nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+            String(c.cliente_codigo || '').includes(clientSearchTerm)
+        )
+        : [];
 
-    // --- Chart Data Preparation ---
+    // --- Chart Data Preparation (Light Theme) ---
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
+            x: { grid: { display: false }, ticks: { color: '#64748b' } }
+        }
+    };
 
-    // A. Desempenho Mensal (Line Chart)
     const desempenhoChartData = {
         labels: desempenhoData.map(d => d.mes_nome),
         datasets: [
             {
                 label: `Quantidade ${filters.ano}`,
                 data: desempenhoData.map(d => d.atual),
-                borderColor: '#06b6d4', // cyan-500
-                backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
                 tension: 0.4,
                 fill: true
             },
             {
                 label: `Quantidade ${filters.ano - 1}`,
                 data: desempenhoData.map(d => d.anterior),
-                borderColor: '#94a3b8', // slate-400
+                borderColor: '#94a3b8',
                 backgroundColor: 'transparent',
                 borderDash: [5, 5],
                 tension: 0.4
@@ -198,43 +206,17 @@ const ProdutosTab = ({ filters }) => {
         ]
     };
 
-    const desempenhoOptions = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top', labels: { color: '#e2e8f0' } },
-            title: { display: false }
-        },
-        scales: {
-            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-        }
-    };
-
-    // B. Families (Bar Chart) - Top 5
     const topFamilias = familiasData.slice(0, 5);
     const familiasChartData = {
-        labels: topFamilias.map(f => f.nome),
-        datasets: [
-            {
-                label: 'Quantidade',
-                data: topFamilias.map(f => f.qtd),
-                backgroundColor: ['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981'],
-                borderRadius: 4
-            }
-        ]
+        labels: topFamilias.map(f => f.nome || 'N/A'),
+        datasets: [{
+            label: 'Quantidade',
+            data: topFamilias.map(f => f.qtd || 0),
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+            borderRadius: 6
+        }]
     };
 
-    const familiasOptions = {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-            y: { grid: { display: false }, ticks: { color: '#e2e8f0' } }
-        }
-    };
-
-    // C. Portfolio vs Sales (Line/Bar Combo)
     const portfolioChartData = {
         labels: portfolioData.map(d => d.mes_nome),
         datasets: [
@@ -242,288 +224,263 @@ const ProdutosTab = ({ filters }) => {
                 type: 'bar',
                 label: 'Itens Vendidos',
                 data: portfolioData.map(d => d.vendidos),
-                backgroundColor: '#06b6d4',
-                yAxisID: 'y'
+                backgroundColor: '#3b82f6',
+                borderRadius: 4
             },
             {
                 type: 'line',
                 label: '% Cobertura',
                 data: portfolioData.map(d => d.percentual),
-                borderColor: '#f59e0b', // amber-500
+                borderColor: '#10b981',
                 borderWidth: 2,
-                yAxisID: 'y1'
+                yAxisID: 'y1',
+                tension: 0.4
             }
         ]
     };
 
     const portfolioOptions = {
-        responsive: true,
-        plugins: { legend: { labels: { color: '#e2e8f0' } } },
+        ...chartOptions,
+        plugins: {
+            legend: { display: true, position: 'top', labels: { font: { size: 10 } } }
+        },
         scales: {
-            y: {
-                type: 'linear',
-                position: 'left',
-                grid: { color: '#334155' },
-                ticks: { color: '#94a3b8' }
-            },
-            y1: {
-                type: 'linear',
-                position: 'right',
-                grid: { display: false },
-                ticks: { color: '#f59e0b', callback: (val) => val + '%' }
-            },
-            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            y: { type: 'linear', position: 'left', grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
+            y1: { type: 'linear', position: 'right', grid: { display: false }, ticks: { color: '#10b981', callback: (val) => val + '%' } },
+            x: { grid: { display: false }, ticks: { color: '#64748b' } }
         }
     };
 
+    // Loading State
+    if (loading) {
+        return (
+            <div className="produtos-container">
+                <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Carregando dados de produtos...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="h-full flex gap-4 p-4 bg-slate-900 text-slate-100 overflow-hidden">
+        <div className="produtos-container">
+            {/* KPI Cards Row */}
+            <div className="kpi-grid">
+                <div className="kpi-card info">
+                    <div className="kpi-label">Total Famílias</div>
+                    <div className="kpi-value">{familiasData.length}</div>
+                    <div className="kpi-change">
+                        <Package size={14} /> Grupos ativos
+                    </div>
+                </div>
+                <div className="kpi-card success">
+                    <div className="kpi-label">Total Itens</div>
+                    <div className="kpi-value">
+                        {formatNumber(portfolioData.length > 0 ? portfolioData[portfolioData.length - 1]?.portfolio || 0 : 0)}
+                    </div>
+                    <div className="kpi-change">
+                        <Store size={14} /> No cadastro
+                    </div>
+                </div>
+                <div className="kpi-card warning">
+                    <div className="kpi-label">Itens Movimentados</div>
+                    <div className="kpi-value">
+                        {formatNumber(portfolioData.length > 0 ? portfolioData[portfolioData.length - 1]?.vendidos || 0 : 0)}
+                    </div>
+                    <div className="kpi-change">
+                        <TrendingUp size={14} /> {portfolioData.length > 0 ? (portfolioData[portfolioData.length - 1]?.percentual || 0) + '%' : '0%'} cobertura
+                    </div>
+                </div>
+                <div className="kpi-card">
+                    <div className="kpi-label">Produtos Rankeados</div>
+                    <div className="kpi-value">{formatNumber(rankingData.length)}</div>
+                    <div className="kpi-change">
+                        <BarChart3 size={14} /> No período
+                    </div>
+                </div>
+            </div>
 
-            {/* LEFT PANEL: PRODUCT LIST / RANKING */}
-            <div className="w-1/3 flex flex-col bg-slate-800 rounded-xl border border-slate-700 shadow-xl overflow-hidden">
-                {/* Header & Search */}
-                <div className="p-4 border-b border-slate-700 bg-slate-800 z-10">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent flex items-center gap-2">
-                            <Package className="w-5 h-5 text-cyan-400" />
-                            Ranking Produtos
-                        </h2>
-                        <div className="text-sm text-slate-400">
-                            {rankingData.length} itens encontrados
+            {/* Main Grid: Ranking + Details */}
+            <div className="main-grid">
+                {/* Left Panel: Product Ranking */}
+                <div className="card">
+                    <div className="card-header">
+                        <div className="card-title">
+                            <span className="card-icon"><Package size={18} className="text-blue-500" /></span>
+                            Ranking de Produtos
                         </div>
+                        <div className="card-badge">{filteredRanking.length} itens</div>
                     </div>
 
-                    <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                    {/* Search */}
+                    <div className="search-box">
+                        <Search size={16} className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Buscar produto por nome ou código..."
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                            placeholder="Buscar por nome ou código..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+
+                    {/* Product List */}
+                    <div className="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '40px' }}>#</th>
+                                    <th>Produto</th>
+                                    <th style={{ textAlign: 'right' }}>Qtd</th>
+                                    <th style={{ width: '40px' }}>ABC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredRanking.slice(0, 100).map((prod, index) => (
+                                    <tr
+                                        key={prod.id || index}
+                                        onClick={() => setSelectedProdutoIndex(index)}
+                                        className={selectedProdutoIndex === index ? 'selected' : ''}
+                                    >
+                                        <td className="td-center">{prod.ranking}</td>
+                                        <td>
+                                            <div className="td-vendedor">{prod.nome}</div>
+                                            <div className="text-muted" style={{ fontSize: '11px' }}>{prod.codigo}</div>
+                                        </td>
+                                        <td className="td-valor">{formatNumber(prod.qtd)}</td>
+                                        <td className="td-center">
+                                            <span className={`badge-abc ${prod.abc}`}>{prod.abc}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-                {/* List Content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {loading ? (
-                        <div className="flex justify-center items-center h-40">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+                {/* Right Panel: Charts & Details */}
+                <div className="card">
+                    <div className="card-header">
+                        <div className="card-title">
+                            <span className="card-icon"><Sparkles size={18} className="text-purple-500" /></span>
+                            {selectedProdutoIndex !== null
+                                ? `Detalhes: ${filteredRanking[selectedProdutoIndex]?.nome?.substring(0, 30)}...`
+                                : 'Selecione um produto para ver detalhes'
+                            }
                         </div>
-                    ) : (
-                        <div className="divide-y divide-slate-700/50">
-                            {filteredRanking.map((prod, index) => (
-                                <div
-                                    key={prod.id || index}
-                                    onClick={() => setSelectedProdutoIndex(index)}
-                                    className={`
-                                        p-4 cursor-pointer transition-all hover:bg-slate-700/50 relative
-                                        ${selectedProdutoIndex === index ? 'bg-slate-700/80 border-l-4 border-cyan-500 shadow-lg' : 'border-l-4 border-transparent'}
-                                    `}
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`
-                                                text-xs font-bold px-2 py-0.5 rounded-full
-                                                ${prod.abc === 'A' ? 'bg-green-500/20 text-green-400' :
-                                                    prod.abc === 'B' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                        'bg-red-500/20 text-red-400'}
-                                            `}>
-                                                {prod.abc}
-                                            </span>
-                                            <span className="text-xs text-slate-500">#{prod.ranking}</span>
-                                        </div>
-                                        <span className="text-sm font-semibold text-slate-200">
-                                            {formatNumber(prod.qtd)} un
-                                        </span>
-                                    </div>
+                    </div>
 
-                                    <h3 className="text-sm font-medium text-white mb-1 line-clamp-2">
-                                        {prod.nome}
-                                    </h3>
+                    {selectedProdutoIndex !== null ? (
+                        <>
+                            {/* Performance Chart */}
+                            <div className="chart-section">
+                                <h4 className="section-title">
+                                    <TrendingUp size={16} className="text-blue-500" />
+                                    Desempenho Mensal
+                                </h4>
+                                <div className="chart-wrapper-small">
+                                    <Line data={desempenhoChartData} options={chartOptions} />
+                                </div>
+                            </div>
 
-                                    <div className="flex justify-between items-center text-xs text-slate-500">
-                                        <span>Cod: {prod.codigo}</span>
-                                        <span>{prod.grupo_nome}</span>
-                                    </div>
-
-                                    {/* Mini Progress Bar for Pareto */}
-                                    <div className="mt-2 h-1 bg-slate-900 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-cyan-500/50"
-                                            style={{ width: `${prod.perc_acumulado > 100 ? 100 : prod.perc_acumulado}%` }}
-                                        />
+                            {/* Clients Toggle & Table */}
+                            <div className="clients-section">
+                                <div className="clients-header">
+                                    <h4 className="section-title">
+                                        <Users size={16} className="text-emerald-500" />
+                                        Clientes
+                                    </h4>
+                                    <div className="toggle-buttons">
+                                        <button
+                                            className={`toggle-btn ${mostrarCompraram ? 'active' : ''}`}
+                                            onClick={() => setMostrarCompraram(true)}
+                                        >
+                                            Compraram
+                                        </button>
+                                        <button
+                                            className={`toggle-btn ${!mostrarCompraram ? 'active danger' : ''}`}
+                                            onClick={() => setMostrarCompraram(false)}
+                                        >
+                                            Não Compraram
+                                        </button>
                                     </div>
                                 </div>
-                            ))}
+
+                                <div className="clients-table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Código</th>
+                                                <th>Cliente</th>
+                                                {mostrarCompraram && <th style={{ textAlign: 'right' }}>Qtd</th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredClientes.length > 0 ? filteredClientes.slice(0, 20).map((c, i) => (
+                                                <tr key={i}>
+                                                    <td className="text-muted">{c.cliente_codigo}</td>
+                                                    <td className="td-vendedor">{c.cliente_nome}</td>
+                                                    {mostrarCompraram && <td className="td-valor text-success">{formatNumber(c.qtd)}</td>}
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td colSpan={mostrarCompraram ? 3 : 2} className="text-center text-muted" style={{ padding: '20px' }}>
+                                                        Nenhum cliente encontrado
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="empty-selection">
+                            <Package size={48} className="text-gray-300" />
+                            <p>Clique em um produto no ranking para ver detalhes de desempenho e clientes</p>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* RIGHT PANEL: DETAILS & CHARTS */}
-            <div className="w-2/3 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-
-                {/* 1. KPIs Row */}
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <div className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Total Famílias</div>
-                        <div className="text-2xl font-bold text-white mb-1">{familiasData.length}</div>
-                        <div className="text-xs text-cyan-400 flex items-center gap-1">
-                            <Package size={14} /> Ativas
-                        </div>
+            {/* Charts Grid Row */}
+            <div className="charts-grid">
+                <div className="equipe-chart-card">
+                    <div className="chart-header">
+                        <span className="chart-icon"><Package size={18} className="text-purple-500" /></span>
+                        Top 5 Famílias (Quantidade)
                     </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <div className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Total Itens</div>
-                        <div className="text-2xl font-bold text-white mb-1">
-                            {portfolioData.length > 0 ? portfolioData[portfolioData.length - 1].portfolio : 0}
-                        </div>
-                        <div className="text-xs text-amber-400 flex items-center gap-1">
-                            <Store size={14} /> Cadastro
-                        </div>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                        <div className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-2">Itens Movimentados</div>
-                        <div className="text-2xl font-bold text-white mb-1">
-                            {portfolioData.length > 0 ? portfolioData[portfolioData.length - 1].vendidos : 0}
-                        </div>
-                        <div className="text-xs text-emerald-400 flex items-center gap-1">
-                            <TrendingUp size={14} />
-                            {portfolioData.length > 0 ? portfolioData[portfolioData.length - 1].percentual + '%' : '0%'}
-                        </div>
+                    <div className="chart-wrapper">
+                        {topFamilias.length > 0 ? (
+                            <Bar
+                                data={familiasChartData}
+                                options={{
+                                    ...chartOptions,
+                                    indexAxis: 'y',
+                                    scales: {
+                                        x: { grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
+                                        y: { grid: { display: false }, ticks: { color: '#1e293b', font: { size: 11 } } }
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <div className="empty-chart">
+                                <Package size={32} className="text-gray-300" />
+                                <p>Sem dados de famílias</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* 2. Main Charts Row */}
-                <div className="grid grid-cols-2 gap-4 h-64">
-                    {/* Monthly Performance */}
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col">
-                        <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                            <TrendingUp size={16} className="text-cyan-500" />
-                            {selectedProdutoIndex !== null ? 'Desempenho do Produto' : 'Desempenho Global'} (Unidades)
-                        </h3>
-                        <div className="flex-1 min-h-0">
-                            {selectedProdutoIndex !== null ? (
-                                <Line data={desempenhoChartData} options={desempenhoOptions} />
-                            ) : (
-                                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                                    Selecione um produto para ver o desempenho detalhado
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Top Families */}
-                    <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col">
-                        <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                            <Package size={16} className="text-purple-500" />
-                            Top 5 Famílias (Qtd)
-                        </h3>
-                        <div className="flex-1 min-h-0">
-                            <Bar data={familiasChartData} options={familiasOptions} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. Portfolio Evolution Chart (Full Width) */}
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 h-64 flex flex-col">
-                    <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                        <Store size={16} className="text-amber-500" />
+                <div className="equipe-chart-card">
+                    <div className="chart-header">
+                        <span className="chart-icon"><Store size={18} className="text-amber-500" /></span>
                         Evolução Portfolio vs Vendas
-                    </h3>
-                    <div className="flex-1 min-h-0">
+                    </div>
+                    <div className="chart-wrapper">
                         <Bar data={portfolioChartData} options={portfolioOptions} />
                     </div>
                 </div>
-
-                {/* 4. Clients Table (Only if product selected) */}
-                {selectedProdutoIndex !== null && (
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col flex-1 min-h-[300px]">
-                        <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <h3 className="font-bold text-white">Análise de Clientes</h3>
-                                <div className="flex bg-slate-900 rounded-lg p-1">
-                                    <button
-                                        onClick={() => setMostrarCompraram(true)}
-                                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${mostrarCompraram ? 'bg-cyan-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        Compraram
-                                    </button>
-                                    <button
-                                        onClick={() => setMostrarCompraram(false)}
-                                        className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${!mostrarCompraram ? 'bg-red-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        Não Compraram
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="relative w-64">
-                                <Search className="absolute left-3 top-2.5 h-3 w-3 text-slate-500" />
-                                <input
-                                    type="text"
-                                    placeholder="Filtrar clientes..."
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-md py-1.5 pl-8 pr-4 text-xs focus:outline-none focus:border-cyan-500"
-                                    value={clientSearchTerm}
-                                    onChange={(e) => setClientSearchTerm(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="overflow-auto flex-1">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-900 text-slate-400 text-xs uppercase font-semibold sticky top-0 z-10">
-                                    <tr>
-                                        <th className="p-3 w-20">Cód</th>
-                                        <th className="p-3">Cliente</th>
-                                        {mostrarCompraram ? (
-                                            <>
-                                                <th className="p-3 text-right">Qtd Comprada</th>
-                                                <th className="p-3 text-right">Última Compra</th>
-                                            </>
-                                        ) : (
-                                            <th className="p-3">Status</th>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-700/50">
-                                    {filteredClientes.map((c, i) => (
-                                        <tr key={i} className="hover:bg-slate-700/30 transition-colors">
-                                            <td className="p-3 text-slate-500 font-mono text-xs">{c.cliente_codigo}</td>
-                                            <td className="p-3 font-medium text-slate-200">{c.cliente_nome}</td>
-                                            {mostrarCompraram ? (
-                                                <>
-                                                    <td className="p-3 text-right font-bold text-cyan-400">
-                                                        {formatNumber(c.qtd)}
-                                                    </td>
-                                                    <td className="p-3 text-right text-slate-400 text-xs">
-                                                        {c.ultima_compra ? new Date(c.ultima_compra).toLocaleDateString('pt-BR') : '-'}
-                                                    </td>
-                                                </>
-                                            ) : (
-                                                <td className="p-3">
-                                                    <span className="px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-500 text-xs border border-yellow-500/30">
-                                                        Oportunidade
-                                                    </span>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))}
-                                    {filteredClientes.length === 0 && (
-                                        <tr>
-                                            <td colSpan={4} className="p-8 text-center text-slate-500">
-                                                Nenhum cliente encontrado nesta categoria.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
             </div>
         </div>
     );

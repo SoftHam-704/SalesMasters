@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Settings, CheckCircle2, AlertCircle, Database, Building2, Image, FolderOpen, Search } from 'lucide-react';
+import { Settings, CheckCircle2, AlertCircle, Database, Building2, Image, FolderOpen, Search, Crown } from 'lucide-react';
+import MasterPanel from '@/components/settings/MasterPanel';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const DatabaseConfig = () => {
     const [activeTab, setActiveTab] = useState('postgres');
@@ -47,9 +49,13 @@ const DatabaseConfig = () => {
     const [companyResult, setCompanyResult] = useState(null);
     const [companySaving, setCompanySaving] = useState(false);
 
+    // Verificar se é o Hamilton (Super Admin)
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+    const isHamilton = user.role === 'superadmin';
+
     // Carregar configuração atual
     useEffect(() => {
-        fetch('http://localhost:3005/api/config/database')
+        fetch(getApiUrl(NODE_API_URL, '/api/config/database'))
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -59,7 +65,7 @@ const DatabaseConfig = () => {
             .catch(err => console.error('Erro ao carregar configuração:', err));
 
         // Carregar configuração da empresa
-        fetch('http://localhost:3005/api/config/company')
+        fetch(getApiUrl(NODE_API_URL, '/api/config/company'))
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.config) {
@@ -74,7 +80,7 @@ const DatabaseConfig = () => {
         setResult(null);
 
         try {
-            const response = await fetch('http://localhost:3005/api/config/database/test', {
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/database/test'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
@@ -100,7 +106,7 @@ const DatabaseConfig = () => {
         setResult(null);
 
         try {
-            const response = await fetch('http://localhost:3005/api/config/database/save', {
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/database/save'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
@@ -126,7 +132,7 @@ const DatabaseConfig = () => {
         setCompanyResult(null);
 
         try {
-            const response = await fetch('http://localhost:3005/api/config/company/save', {
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company/save'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(companyConfig)
@@ -158,7 +164,7 @@ const DatabaseConfig = () => {
                 </CardHeader>
                 <CardContent>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 mb-6">
+                        <TabsList className={`grid w-full mb-6 ${isHamilton ? 'grid-cols-3' : 'grid-cols-2'}`}>
                             <TabsTrigger value="postgres" className="flex items-center gap-2">
                                 <Database className="w-4 h-4" />
                                 Dados PostgreSQL
@@ -167,6 +173,12 @@ const DatabaseConfig = () => {
                                 <Building2 className="w-4 h-4" />
                                 Dados da Empresa
                             </TabsTrigger>
+                            {isHamilton && (
+                                <TabsTrigger value="master" className="flex items-center gap-2">
+                                    <Crown className="w-4 h-4 text-amber-500 animate-pulse" />
+                                    PAINEL MASTER
+                                </TabsTrigger>
+                            )}
                         </TabsList>
 
                         {/* PostgreSQL Tab */}
@@ -439,7 +451,7 @@ const DatabaseConfig = () => {
                                                                 const formData = new FormData();
                                                                 formData.append('logo', file);
 
-                                                                const response = await fetch('http://localhost:3005/api/config/company/upload-logo', {
+                                                                const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company/upload-logo'), {
                                                                     method: 'POST',
                                                                     body: formData
                                                                 });
@@ -463,7 +475,7 @@ const DatabaseConfig = () => {
                                         <div className="w-40 h-28 border border-gray-300 rounded-md flex items-center justify-center bg-gray-50 overflow-hidden flex-shrink-0">
                                             {companyConfig.logotipo ? (
                                                 <img
-                                                    src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`}
+                                                    src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`)}
                                                     alt="Logotipo"
                                                     className="max-w-full max-h-full object-contain"
                                                     onError={(e) => {
@@ -575,6 +587,13 @@ const DatabaseConfig = () => {
                                 </Button>
                             </div>
                         </TabsContent>
+
+                        {/* Master Panel Tab - Only for Hamilton */}
+                        {isHamilton && (
+                            <TabsContent value="master">
+                                <MasterPanel />
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </CardContent>
             </Card>

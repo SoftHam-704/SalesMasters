@@ -3,6 +3,7 @@ import { Users } from "lucide-react";
 import { toast } from "sonner";
 import SellerForm from "../components/forms/SellerForm";
 import GridCadPadrao from "../components/GridCadPadrao";
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const FrmVendedores = () => {
     const [sellers, setSellers] = useState([]);
@@ -22,7 +23,8 @@ const FrmVendedores = () => {
                 search: searchTerm,
             });
 
-            const response = await fetch(`http://localhost:3005/api/sellers?${query.toString()}`);
+            const url = getApiUrl(NODE_API_URL, `/api/sellers?${query.toString()}`);
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const result = await response.json();
@@ -60,8 +62,8 @@ const FrmVendedores = () => {
         try {
             const method = data.ven_codigo ? 'PUT' : 'POST';
             const url = data.ven_codigo
-                ? `http://localhost:3005/api/sellers/${data.ven_codigo}`
-                : `http://localhost:3005/api/sellers`;
+                ? getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}`)
+                : getApiUrl(NODE_API_URL, `/api/sellers`);
 
             const response = await fetch(url, {
                 method,
@@ -88,7 +90,8 @@ const FrmVendedores = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/sellers/${seller.ven_codigo}`, {
+            const url = getApiUrl(NODE_API_URL, `/api/sellers/${seller.ven_codigo}`);
+            const response = await fetch(url, {
                 method: 'DELETE',
             });
 

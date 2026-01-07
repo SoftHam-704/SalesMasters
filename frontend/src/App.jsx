@@ -47,6 +47,8 @@ import FinancialClientsPage from './pages/financial/FinancialClientsPage';
 import FinancialSuppliersPage from './pages/financial/FinancialSuppliersPage';
 
 import IntelligencePage from './pages/IntelligencePage';
+import Login from './components/Login/Login';
+import DemoCloud from './pages/DemoCloud';
 import './styles/global.css';
 import './App.css';
 
@@ -55,6 +57,33 @@ import OrderReportEngine from './components/orders/OrderReportEngine';
 
 function App() {
   const isPrintView = window.location.pathname.startsWith('/print/');
+  const [isAuthenticated, setIsAuthenticated] = React.useState(!!sessionStorage.getItem('user'));
+
+  // Sincronizar estado de autenticação e verificar integridade do Multi-tenant
+  React.useEffect(() => {
+    const user = sessionStorage.getItem('user');
+    const tenantConfig = sessionStorage.getItem('tenantConfig');
+
+    console.log('App.jsx: Auth Check', {
+      hasUser: !!user,
+      hasTenant: !!tenantConfig,
+      pathname: window.location.pathname
+    });
+
+    // Se houver usuário mas não houver tenantConfig, a sessão é antiga/inválida
+    // CORREÇÃO TELA BRANCA: Força limpeza total e reload
+    if (user && !tenantConfig) {
+      console.log('⚠️ Sessão antiga/corrompida detectada. Realizando auto-limpeza de emergência.');
+      localStorage.removeItem('user'); // Por garantia, remove do persistente se existir
+      localStorage.removeItem('tenantConfig');
+      sessionStorage.clear();
+      setIsAuthenticated(false);
+      window.location.href = '/login';
+      return;
+    }
+
+    setIsAuthenticated(!!user);
+  }, []);
 
   React.useEffect(() => {
     const handleKeyDown = (e) => {
@@ -76,85 +105,88 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  if (isPrintView) {
-    return (
-      <Routes>
-        <Route path="/print/order/:id" element={<OrderReportEngine />} />
-      </Routes>
-    );
-  }
-
+  // Renderização
   return (
-    <div className="app">
-      <Sidebar />
-      <main className="main-content flex flex-col h-screen overflow-hidden">
-        <TabControl />
-        <div className="flex-1 overflow-auto bg-gray-50">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/industrias" element={<FrmIndustria />} />
-            <Route path="/clientes" element={<FrmClientes />} />
-            <Route path="/vendedores" element={<FrmVendedores />} />
-            <Route path="/produtos" element={<FrmProdutos />} />
-            <Route path="/pedidos" element={<OrdersPage />} />
-            <Route path="/cadastros/grupos-produtos" element={<FrmGrupoPro />} />
-            <Route path="/cadastros/categorias" element={<FrmCategorias />} />
-            <Route path="/cadastros/grupos-descontos" element={<FrmGrupoDesc />} />
-            <Route path="/cadastros/transportadoras" element={<FrmTransportadoras />} />
-            <Route path="/cadastros/regioes" element={<FrmRegioes />} />
-            <Route path="/cadastros/area-atuacao" element={<FrmAreaAtuacao />} />
-            <Route path="/cadastros/tabelas-precos" element={<FrmTabPreco />} />
-            <Route path="/utilitarios/importacao-precos" element={<FrmImportacaoPrecos />} />
-            <Route path="/utilitarios/catalogo-produtos" element={<FrmCadastroProdutos />} />
-            <Route path="/utilitarios/configuracoes" element={<DatabaseConfig />} />
-            <Route path="/utilitarios/parametros" element={<ParametrosPage />} />
-            <Route path="/utilitarios/jogo-dados" element={<DiceGame />} />
-            <Route path="/utilitarios/tetris" element={<TetrisGame />} />
-            <Route path="/intelligence" element={<IntelligencePage />} />
-            <Route path="/bi-intelligence" element={<IntelligencePage />} />
+    <Routes>
+      {/* Rotas Especiais */}
+      <Route path="/print/order/:id" element={<OrderReportEngine />} />
+      <Route path="/demo-cloud" element={<DemoCloud />} />
+      <Route path="/login" element={
+        isAuthenticated ? <Navigate to="/" replace /> : <Login />
+      } />
 
-            <Route path="/crm" element={<CRMPage />} />
-            <Route path="/configuracoes/crm" element={<CRMSettings />} />
-            <Route path="/movimentacoes/sell-out" element={<SellOutPage />} />
-
-            {/* Financeiro - Cadastros */}
-            <Route path="/financeiro/plano-contas" element={<ChartOfAccountsPage />} />
-            <Route path="/financeiro/centro-custo" element={<CostCentersPage />} />
-            <Route path="/financeiro/clientes" element={<FinancialClientsPage />} />
-            <Route path="/financeiro/fornecedores" element={<FinancialSuppliersPage />} />
-
-            {/* Financeiro - Movimentações */}
-            <Route path="/financeiro/receber" element={<ContasReceberPage />} />
-            <Route path="/financeiro/pagar" element={<ContasPagarPage />} />
-            <Route path="/financeiro/contas-pagar" element={<ContasPagarPage />} />
-            <Route path="/financeiro/contas-receber" element={<ContasReceberPage />} />
-
-            {/* Financeiro - Relatórios */}
-            <Route path="/financeiro/relatorios/fluxo-caixa" element={<CashFlowPage />} />
-            <Route path="/financeiro/relatorios/contas-pagar" element={<AccountsPayableReportPage />} />
-            <Route path="/financeiro/relatorios/contas-receber" element={<AccountsReceivableReportPage />} />
-            <Route path="/financeiro/relatorios/dre" element={<DREPage />} />
-
-            {/* Estatísticos */}
-            <Route path="/estatisticos/mapa-vendas" element={<PivotReportPage reportType="vendas" />} />
-            <Route path="/estatisticos/mapa-cliente-industria" element={<ClientIndustryMapPage />} />
-            <Route path="/estatisticos/mapa-cliente-mes" element={<PivotReportPage reportType="vendas" title="Mapa Cliente Mês a Mês" />} />
-            <Route path="/estatisticos/mapa-vendedor" element={<PivotReportPage reportType="vendedor" title="Mapa por Vendedor" />} />
-            <Route path="/estatisticos/mapa-produtos" element={<PivotReportPage reportType="produtos" title="Mapa por Produtos" />} />
-            <Route path="/estatisticos/ultimas-compras" element={<UltimasComprasPage />} />
-            <Route path="/estatisticos/mapa-quantidade" element={<MapaQuantidadePage />} />
-            <Route path="/estatisticos/mapa-3-anos" element={<Mapa3AnosPage />} />
-            <Route path="/estatisticos/itens-nunca-comprados" element={<ItensNuncaCompradosPage />} />
-            <Route path="/estatisticos/comparativo-clientes" element={<ComparativoClientesPage />} />
-            <Route path="/estatisticos/mapa-cliente-geral" element={<MapaClienteGeralPage />} />
-            <Route path="/estatisticos/grupo-lojas" element={<GrupoLojasPage />} />
-            <Route path="/estatisticos/prod-unica-compra" element={<ProdutosUnicaCompraPage />} />
-            <Route path="/estatisticos/clientes-atual-ant" element={<ClientesMoMPage />} />
-            <Route path="/estatisticos/*" element={<PivotReportPage reportType="generic" />} />
-          </Routes>
-        </div>
-      </main>
-    </div>
+      {/* Rota Privada - Layout Principal */}
+      <Route
+        path="*"
+        element={
+          !isAuthenticated ? (
+            <Navigate to="/login" replace />
+          ) : (
+            <div className="app">
+              <Sidebar />
+              <main className="main-content flex flex-col h-screen overflow-hidden">
+                <TabControl />
+                <div className="flex-1 overflow-auto bg-gray-50">
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/industrias" element={<FrmIndustria />} />
+                    <Route path="/clientes" element={<FrmClientes />} />
+                    <Route path="/vendedores" element={<FrmVendedores />} />
+                    <Route path="/produtos" element={<FrmProdutos />} />
+                    <Route path="/pedidos" element={<OrdersPage />} />
+                    <Route path="/cadastros/grupos-produtos" element={<FrmGrupoPro />} />
+                    <Route path="/cadastros/categorias" element={<FrmCategorias />} />
+                    <Route path="/cadastros/grupos-descontos" element={<FrmGrupoDesc />} />
+                    <Route path="/cadastros/transportadoras" element={<FrmTransportadoras />} />
+                    <Route path="/cadastros/regioes" element={<FrmRegioes />} />
+                    <Route path="/cadastros/area-atuacao" element={<FrmAreaAtuacao />} />
+                    <Route path="/cadastros/tabelas-precos" element={<FrmTabPreco />} />
+                    <Route path="/utilitarios/importacao-precos" element={<FrmImportacaoPrecos />} />
+                    <Route path="/utilitarios/catalogo-produtos" element={<FrmCadastroProdutos />} />
+                    <Route path="/utilitarios/configuracoes" element={<DatabaseConfig />} />
+                    <Route path="/utilitarios/parametros" element={<ParametrosPage />} />
+                    <Route path="/utilitarios/jogo-dados" element={<DiceGame />} />
+                    <Route path="/utilitarios/tetris" element={<TetrisGame />} />
+                    <Route path="/intelligence" element={<IntelligencePage />} />
+                    <Route path="/bi-intelligence" element={<IntelligencePage />} />
+                    <Route path="/crm" element={<CRMPage />} />
+                    <Route path="/configuracoes/crm" element={<CRMSettings />} />
+                    <Route path="/movimentacoes/sell-out" element={<SellOutPage />} />
+                    <Route path="/financeiro/plano-contas" element={<ChartOfAccountsPage />} />
+                    <Route path="/financeiro/centro-custo" element={<CostCentersPage />} />
+                    <Route path="/financeiro/clientes" element={<FinancialClientsPage />} />
+                    <Route path="/financeiro/fornecedores" element={<FinancialSuppliersPage />} />
+                    <Route path="/financeiro/receber" element={<ContasReceberPage />} />
+                    <Route path="/financeiro/pagar" element={<ContasPagarPage />} />
+                    <Route path="/financeiro/contas-pagar" element={<ContasPagarPage />} />
+                    <Route path="/financeiro/contas-receber" element={<ContasReceberPage />} />
+                    <Route path="/financeiro/relatorios/fluxo-caixa" element={<CashFlowPage />} />
+                    <Route path="/financeiro/relatorios/contas-pagar" element={<AccountsPayableReportPage />} />
+                    <Route path="/financeiro/relatorios/contas-receber" element={<AccountsReceivableReportPage />} />
+                    <Route path="/financeiro/relatorios/dre" element={<DREPage />} />
+                    <Route path="/estatisticos/mapa-vendas" element={<PivotReportPage reportType="vendas" />} />
+                    <Route path="/estatisticos/mapa-cliente-industria" element={<ClientIndustryMapPage />} />
+                    <Route path="/estatisticos/mapa-cliente-mes" element={<PivotReportPage reportType="vendas" title="Mapa Cliente Mês a Mês" />} />
+                    <Route path="/estatisticos/mapa-vendedor" element={<PivotReportPage reportType="vendedor" title="Mapa por Vendedor" />} />
+                    <Route path="/estatisticos/mapa-produtos" element={<PivotReportPage reportType="produtos" title="Mapa por Produtos" />} />
+                    <Route path="/estatisticos/ultimas-compras" element={<UltimasComprasPage />} />
+                    <Route path="/estatisticos/mapa-quantidade" element={<MapaQuantidadePage />} />
+                    <Route path="/estatisticos/mapa-3-anos" element={<Mapa3AnosPage />} />
+                    <Route path="/estatisticos/itens-nunca-comprados" element={<ItensNuncaCompradosPage />} />
+                    <Route path="/estatisticos/comparativo-clientes" element={<ComparativoClientesPage />} />
+                    <Route path="/estatisticos/mapa-cliente-geral" element={<MapaClienteGeralPage />} />
+                    <Route path="/estatisticos/grupo-lojas" element={<GrupoLojasPage />} />
+                    <Route path="/estatisticos/prod-unica-compra" element={<ProdutosUnicaCompraPage />} />
+                    <Route path="/estatisticos/clientes-atual-ant" element={<ClientesMoMPage />} />
+                    <Route path="/estatisticos/*" element={<PivotReportPage reportType="generic" />} />
+                  </Routes>
+                </div>
+              </main>
+            </div>
+          )
+        }
+      />
+    </Routes>
   );
 }
 

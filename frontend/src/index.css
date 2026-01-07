@@ -173,6 +173,112 @@
   .glow-sm {
     box-shadow: 0 0 30px hsl(160 84% 39% / 0.2);
   }
+
+  .glass-premium {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.125);
+  }
+
+  .mesh-gradient {
+    background-color: #ffffff;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(160, 84%, 35%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 50% 0%, hsla(210, 84%, 35%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(180, 84%, 35%, 0.1) 0px, transparent 50%);
+  }
+
+  .luxury-shadow {
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.05),
+      0 4px 6px -2px rgba(0, 0, 0, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.03);
+  }
+
+  /* --- HYPER-PREMIUM BUTTONS (GALACTIC TIER) --- */
+  .btn-god-save {
+    background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4) !important;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    font-weight: 900 !important;
+    text-transform: uppercase;
+  }
+
+  .btn-god-save:hover {
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 20px 40px -10px rgba(16, 185, 129, 0.6) !important;
+  }
+
+  .btn-god-cancel {
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #64748b !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.3s ease !important;
+    font-weight: 700 !important;
+  }
+
+  .btn-god-cancel:hover {
+    background: #fef2f2 !important;
+    color: #ef4444 !important;
+    border-color: #fee2e2 !important;
+    transform: translateY(-2px) !important;
+  }
+
+  .btn-god-standard {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 0 #1e40af, 0 10px 20px -5px rgba(59, 130, 246, 0.3) !important;
+    transition: all 0.1s ease !important;
+    text-transform: uppercase;
+    font-weight: 900 !important;
+    letter-spacing: 0.1em;
+  }
+
+  .btn-god-standard:active {
+    transform: translateY(3px) !important;
+    box-shadow: 0 1px 0 #1e40af, 0 5px 10px -5px rgba(59, 130, 246, 0.3) !important;
+  }
+
+  .btn-god-emerald {
+    background: linear-gradient(135deg, #065f46 0%, #10b981 100%) !important;
+    color: white !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 0 #047857, 0 10px 20px -5px rgba(16, 185, 129, 0.3) !important;
+    transition: all 0.1s ease !important;
+    text-transform: uppercase;
+    font-weight: 900 !important;
+    letter-spacing: 0.1em;
+  }
+
+  .btn-god-emerald:active {
+    transform: translateY(3px) !important;
+    box-shadow: 0 1px 0 #047857, 0 5px 10px -5px rgba(16, 185, 129, 0.3) !important;
+  }
+
+  .tab-btn-hyper {
+    background: white !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  }
+
+  .tab-btn-hyper:hover {
+    transform: scale(1.05) translateY(-2px) !important;
+    z-index: 10;
+  }
+
+  .active-tab-glow {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1), 0 10px 20px -5px rgba(59, 130, 246, 0.2) !important;
+  }
 }
 
 /* Animations */
@@ -266,7 +372,39 @@
 }
 
 .animate-float {
-  animation: float 3s ease-in-out infinite;
+  animation: float 4s ease-in-out infinite;
+}
+
+.premium-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-shine::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(to bottom right,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.4) 50%,
+      rgba(255, 255, 255, 0) 60%,
+      rgba(255, 255, 255, 0) 100%);
+  transform: rotate(45deg);
+  animation: shine 4s infinite;
+}
+
+@keyframes shine {
+  0% {
+    transform: translateX(-100%) rotate(45deg);
+  }
+
+  100% {
+    transform: translateX(100%) rotate(45deg);
+  }
 }
 
 .animate-count-up {

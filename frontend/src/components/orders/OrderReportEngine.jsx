@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useParams } from 'react-router-dom';
 import { Loader2, Printer, ZoomIn, ZoomOut, X, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PDFViewer } from '@react-pdf/renderer';
+import OrderPdfReport from './OrderPdfReport';
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const OrderReportEngine = () => {
     const { id } = useParams();
@@ -12,7 +15,7 @@ const OrderReportEngine = () => {
     const [data, setData] = useState(null);
     const [companyData, setCompanyData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [zoom, setZoom] = useState(100);
+    const [zoom, setZoom] = useState(94);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -25,8 +28,8 @@ const OrderReportEngine = () => {
 
                 // Fetch order data and company data in parallel
                 const [orderResponse, companyResponse] = await Promise.all([
-                    fetch(`http://localhost:3005/api/orders/${id}/print-data?sortBy=${sortBy}&industria=${industria}`),
-                    fetch('http://localhost:3005/api/config/company')
+                    fetch(getApiUrl(NODE_API_URL, `/api/orders/${id}/print-data?sortBy=${sortBy}&industria=${industria}`)),
+                    fetch(getApiUrl(NODE_API_URL, '/api/config/company'))
                 ]);
 
                 const orderResult = await orderResponse.json();
@@ -104,7 +107,7 @@ const OrderReportEngine = () => {
                 <button className="p-2 hover:bg-slate-600 rounded" title="Página anterior">
                     <ChevronLeft className="w-5 h-5" />
                 </button>
-                <span className="px-3 text-sm">Página 1 de 1</span>
+                <span className="px-3 text-[15px]">Página 1 de 1</span>
                 <button className="p-2 hover:bg-slate-600 rounded" title="Próxima página">
                     <ChevronRight className="w-5 h-5" />
                 </button>
@@ -116,7 +119,7 @@ const OrderReportEngine = () => {
                 <button onClick={handleZoomOut} className="p-2 hover:bg-slate-600 rounded" title="Diminuir zoom">
                     <ZoomOut className="w-5 h-5" />
                 </button>
-                <span className="px-2 text-sm min-w-[50px] text-center">{zoom}%</span>
+                <span className="px-2 text-[15px] min-w-[50px] text-center">{zoom}%</span>
                 <button onClick={handleZoomIn} className="p-2 hover:bg-slate-600 rounded" title="Aumentar zoom">
                     <ZoomIn className="w-5 h-5" />
                 </button>
@@ -136,8 +139,22 @@ const OrderReportEngine = () => {
     // Calculate totals
     const totalBruto = items.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
     const totalLiquido = items.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const totalIPI = items.reduce((acc, it) => acc + (parseFloat(it.ite_valcomipi) - parseFloat(it.ite_totliquido) || 0), 0);
+    const totalIPIVal = items.reduce((acc, it) => acc + (parseFloat(it.ite_ipi) || 0) * (parseInt(it.ite_quant) || 0), 0);
+    const totalSTVal = items.reduce((acc, it) => acc + (parseFloat(it.ite_st) || 0) * (parseInt(it.ite_quant) || 0), 0);
     const totalQuantidade = items.reduce((acc, it) => acc + (parseInt(it.ite_quant) || 0), 0);
+    const totalComImpostos = totalLiquido + totalIPIVal + totalSTVal;
+
+    // Universal PDF Engine for all models (1-50)
+    // This bypasses the old HTML-based renderers which had print margin issues
+    if (parseInt(model) >= 1 && parseInt(model) <= 50) {
+        return (
+            <div className="h-screen w-screen overflow-hidden">
+                <PDFViewer width="100%" height="100%" showToolbar={true}>
+                    <OrderPdfReport model={model} order={order} items={items} companyData={companyData} />
+                </PDFViewer>
+            </div>
+        );
+    }
 
     // Model 25 - Faithful to Delphi
     if (model === '25') {
@@ -153,38 +170,38 @@ const OrderReportEngine = () => {
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
                         {/* Main Content */}
-                        <div className="print-container p-3 text-slate-900 font-sans text-[9px] leading-tight" style={{ width: '210mm' }}>
+                        <div className="print-container p-3 text-slate-900 font-sans text-[11px] leading-tight" style={{ width: '175mm' }}>
                             {/* Header with 3 columns: Logo Rep | Company Info | Logo Industry */}
                             <div className="border border-slate-400 p-2 mb-1 flex justify-between items-center">
                                 <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo Representação"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[8px] text-slate-400">[Logo Rep]</span>
+                                        <span className="text-[10px] text-slate-400">[Logo Rep]</span>
                                     )}
                                 </div>
                                 <div className="text-center flex-1 px-2">
-                                    <div className="font-bold text-[10px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
-                                    <div className="text-[7px]">CNPJ: {companyData?.cnpj || '-'}</div>
-                                    <div className="text-[7px]">End: {companyData?.endereco} {companyData?.bairro}</div>
-                                    <div className="text-[7px]">Fones: {companyData?.fones || '-'}</div>
+                                    <div className="font-bold text-[12px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                    <div className="text-[9px]">CNPJ: {companyData?.cnpj || '-'}</div>
+                                    <div className="text-[9px]">End: {companyData?.endereco} {companyData?.bairro}</div>
+                                    <div className="text-[9px]">Fones: {companyData?.fones || '-'}</div>
                                 </div>
-                                <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 text-[8px] text-slate-400">
+                                <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 text-[10px] text-slate-400">
                                     {order.for_nomered || '[Logo Ind]'}
                                 </div>
                             </div>
 
                             {/* Industry Name Bar */}
-                            <div className="bg-blue-800 text-white text-center py-0.5 font-bold text-[10px] mb-1">
+                            <div className="bg-blue-800 text-white text-center py-0.5 font-bold text-[12px] mb-1">
                                 {order.for_nome || 'INDÚSTRIA'}
                             </div>
 
                             {/* Order Info Bar */}
-                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-6 gap-1 text-[8px]">
+                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-6 gap-1 text-[10px]">
                                 <div><span className="text-slate-500">Cotação nº:</span> {order.ped_pedido}</div>
                                 <div><span className="text-slate-500">Nº pedido cliente:</span> {order.ped_nffat || '-'}</div>
                                 <div className="text-right"><span className="text-slate-500">Lista:</span> <span className="text-blue-700 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
@@ -195,8 +212,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS DO CLIENTE */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">DADOS DO CLIENTE</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">DADOS DO CLIENTE</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                         <div></div>
@@ -226,8 +243,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">DADOS PARA COBRANÇA</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">DADOS PARA COBRANÇA</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                         <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
@@ -243,8 +260,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">TRANSPORTADORA</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">TRANSPORTADORA</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                         <div></div>
@@ -267,11 +284,11 @@ const OrderReportEngine = () => {
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-2">
                                     {/* Discount Header (Gray Bar) */}
-                                    <div className="bg-slate-200 border border-slate-400 px-1 py-0.5 text-[8px] font-bold">
+                                    <div className="bg-slate-200 border border-slate-400 px-1 py-0.5 text-[10px] font-bold">
                                         Descontos: {discountKey}
                                     </div>
                                     {/* Column Headers (Gray Bar) */}
-                                    <div className="bg-slate-200 border border-slate-400 border-t-0 grid grid-cols-12 text-[7px] font-bold text-slate-600">
+                                    <div className="bg-slate-200 border border-slate-400 border-t-0 grid grid-cols-12 text-[9px] font-bold text-slate-600">
                                         <div className="col-span-1 p-0.5 border-r border-slate-300 text-center">Sq:</div>
                                         <div className="col-span-1 p-0.5 border-r border-slate-300 text-red-600">Produto</div>
                                         <div className="col-span-2 p-0.5 border-r border-slate-300 text-blue-600">Cod. orig/Conv./Comp</div>
@@ -286,7 +303,7 @@ const OrderReportEngine = () => {
                                     {groupItems.map((item, idx) => {
                                         globalSeq++;
                                         return (
-                                            <div key={idx} className="border-x border-b border-slate-400 grid grid-cols-12 text-[8px]">
+                                            <div key={idx} className="border-x border-b border-slate-400 grid grid-cols-12 text-[10px]">
                                                 <div className="col-span-1 p-0.5 border-r border-slate-200 text-center text-blue-600">{globalSeq}</div>
                                                 <div className="col-span-1 p-0.5 border-r border-slate-200 text-red-600 font-bold">{item.ite_produto}</div>
                                                 <div className="col-span-2 p-0.5 border-r border-slate-200 text-slate-500">{item.ite_embuch || '-'}</div>
@@ -306,7 +323,7 @@ const OrderReportEngine = () => {
                                         const groupLiq = groupItems.reduce((a, i) => a + (parseFloat(i.ite_puniliq) || 0), 0);
                                         const groupTotal = groupItems.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0), 0);
                                         return (
-                                            <div className="border border-slate-400 border-t-0 bg-slate-100 grid grid-cols-12 text-[8px] font-bold">
+                                            <div className="border border-slate-400 border-t-0 bg-slate-100 grid grid-cols-12 text-[10px] font-bold">
                                                 <div className="col-span-7 p-0.5"></div>
                                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{groupQtd}</div>
                                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{fv(groupBruto)}</div>
@@ -320,7 +337,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Grand Total Row - All Groups Combined */}
-                            <div className="border border-slate-400 bg-slate-200 grid grid-cols-12 text-[8px] font-bold mt-1">
+                            <div className="border border-slate-400 bg-slate-200 grid grid-cols-12 text-[10px] font-bold mt-1">
                                 <div className="col-span-7 p-0.5"></div>
                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{totalQuantidade}</div>
                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{fv(items.reduce((a, i) => a + parseFloat(i.ite_puni || 0), 0))}</div>
@@ -331,41 +348,48 @@ const OrderReportEngine = () => {
 
 
                             {/* Footer Section - Totals and Observations */}
-                            <div className="mt-2 flex gap-4">
+                            <div className="mt-2 flex gap-2 overflow-hidden">
                                 {/* Totals Box */}
-                                <div className="border border-slate-400 p-2 text-[9px] flex-1">
-                                    <div className="grid grid-cols-4 gap-y-1">
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Total bruto:</span>
-                                            <span className="font-bold">{fv(totalBruto)}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Quantidade de itens no</span>
-                                            <span className="font-bold">{items.length}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Total líquido:</span>
-                                            <span className="font-bold">{fv(totalLiquido)}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Qtd total:</span>
-                                            <span className="font-bold">{totalQuantidade}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between">
-                                            <span>Total c/ Impostos:</span>
-                                            <span className="font-bold">{fv(totalLiquido + totalIPI)}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between">
-                                            <span>Vendedor:</span>
-                                            <span className="font-bold text-red-600 uppercase">{order.ven_nome}</span>
-                                        </div>
+                                <div className="border border-slate-400 p-1 text-[10px] flex-[1.5]">
+                                    <div className="flex gap-4">
+                                        <table className="flex-1 table-fixed">
+                                            <tbody>
+                                                <tr className="border-b border-slate-200">
+                                                    <td className="py-0.5 text-slate-500" style={{ width: '60%' }}>T. Bruto:</td>
+                                                    <td className="py-0.5 text-right font-bold">{fv(totalBruto)}</td>
+                                                </tr>
+                                                <tr className="border-b border-slate-200">
+                                                    <td className="py-0.5 text-slate-500">T. Líquido:</td>
+                                                    <td className="py-0.5 text-right font-bold">{fv(totalLiquido)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-0.5 text-slate-500">T. c/ Imp:</td>
+                                                    <td className="py-0.5 text-right font-bold">{fv(totalComImpostos)}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <table className="flex-1 table-fixed border-l border-slate-200 pl-2">
+                                            <tbody>
+                                                <tr className="border-b border-slate-200">
+                                                    <td className="py-0.5 text-slate-500" style={{ width: '60%' }}>Qtd. Itens:</td>
+                                                    <td className="py-0.5 text-right font-bold">{items.length}</td>
+                                                </tr>
+                                                <tr className="border-b border-slate-200">
+                                                    <td className="py-0.5 text-slate-500">Qtd. Total:</td>
+                                                    <td className="py-0.5 text-right font-bold">{totalQuantidade}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="py-0.5 text-slate-500">Vendedor:</td>
+                                                    <td className="py-0.5 text-right font-bold text-red-600 uppercase text-[9px] truncate">{order.ven_nome?.split(' ')[0]}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
-
                                 {/* Observations Box */}
-                                <div className="border border-slate-400 p-2 text-[9px] flex-1 min-h-[80px]">
-                                    <div className="text-center font-bold text-[8px] text-slate-500 uppercase mb-1 border-b border-slate-200 pb-1">OBSERVAÇÕES GERAIS</div>
-                                    <div className="text-[8px] text-slate-600">
+                                <div className="border border-slate-400 p-1 text-[9px] flex-1 min-h-[60px]">
+                                    <div className="text-center font-bold text-[8px] text-slate-500 uppercase border-b border-slate-200 mb-1">OBSERVAÇÕES GERAIS</div>
+                                    <div className="leading-tight break-words">
                                         {order.ped_obs || order.cli_obspedido || order.cli_obsparticular || '-'}
                                     </div>
                                 </div>
@@ -377,10 +401,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4 landscape; margin: 5mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -399,38 +423,38 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-3 text-slate-900 font-sans text-[9px] leading-tight" style={{ width: '270mm' }}>
+                        <div className="print-container p-3 text-slate-900 font-sans text-[11px] leading-tight" style={{ width: '277mm' }}>
                             {/* Header - Same as Model 25 */}
                             <div className="border border-slate-400 p-2 mb-1 flex justify-between items-center">
                                 <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo Representação"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[8px] text-slate-400">[Logo Rep]</span>
+                                        <span className="text-[10px] text-slate-400">[Logo Rep]</span>
                                     )}
                                 </div>
                                 <div className="text-center flex-1 px-2">
-                                    <div className="font-bold text-[10px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
-                                    <div className="text-[7px]">CNPJ: {companyData?.cnpj || '-'}</div>
-                                    <div className="text-[7px]">End: {companyData?.endereco} {companyData?.bairro}</div>
-                                    <div className="text-[7px]">Fones: {companyData?.fones || '-'}</div>
+                                    <div className="font-bold text-[12px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                    <div className="text-[9px]">CNPJ: {companyData?.cnpj || '-'}</div>
+                                    <div className="text-[9px]">End: {companyData?.endereco} {companyData?.bairro}</div>
+                                    <div className="text-[9px]">Fones: {companyData?.fones || '-'}</div>
                                 </div>
-                                <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 text-[8px] text-slate-400">
+                                <div className="w-20 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 text-[10px] text-slate-400">
                                     {order.for_nomered || '[Logo Ind]'}
                                 </div>
                             </div>
 
                             {/* Industry Name Bar */}
-                            <div className="bg-blue-800 text-white text-center py-0.5 font-bold text-[10px] mb-1">
+                            <div className="bg-blue-800 text-white text-center py-0.5 font-bold text-[12px] mb-1">
                                 {order.for_nome || 'INDÚSTRIA'}
                             </div>
 
                             {/* Order Info Bar */}
-                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-6 gap-1 text-[8px]">
+                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-6 gap-1 text-[10px]">
                                 <div><span className="text-slate-500">Cotação nº:</span> {order.ped_pedido}</div>
                                 <div><span className="text-slate-500">Nº pedido cliente:</span> {order.ped_nffat || '-'}</div>
                                 <div className="text-right"><span className="text-slate-500">Lista:</span> <span className="text-blue-700 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
@@ -442,8 +466,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS DO CLIENTE */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">DADOS DO CLIENTE</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">DADOS DO CLIENTE</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                         <div></div>
@@ -473,8 +497,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">DADOS PARA COBRANÇA</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">DADOS PARA COBRANÇA</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                         <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
@@ -490,8 +514,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="mb-1">
-                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[8px] py-0.5">TRANSPORTADORA</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-slate-200 border border-slate-400 text-center font-bold text-[10px] py-0.5">TRANSPORTADORA</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                         <div></div>
@@ -519,14 +543,14 @@ const OrderReportEngine = () => {
                                 return (
                                     <div key={groupIndex} className="mb-2">
                                         {/* Discount Header with Product Group */}
-                                        <div className="bg-slate-200 border border-slate-400 px-1 py-0.5 text-[8px] font-bold flex justify-between">
+                                        <div className="bg-slate-200 border border-slate-400 px-1 py-0.5 text-[10px] font-bold flex justify-between">
                                             <span>Descontos: {discountKey}</span>
                                             {productGroup && <span>Grupo: {productGroup}</span>}
                                         </div>
                                         {/* Items Table */}
-                                        <table className="w-full border-collapse text-[8px]">
+                                        <table className="w-full border-collapse text-[10px]">
                                             <thead>
-                                                <tr className="bg-slate-200 text-[7px] font-bold text-slate-600">
+                                                <tr className="bg-slate-200 text-[9px] font-bold text-slate-600">
                                                     <th className="border border-slate-400 p-0.5 text-center" style={{ width: '25px' }}>Sq</th>
                                                     <th className="border border-slate-400 p-0.5 text-left text-red-600" style={{ width: '70px' }}>Produto</th>
                                                     <th className="border border-slate-400 p-0.5 text-left">Descrição do produto</th>
@@ -565,9 +589,10 @@ const OrderReportEngine = () => {
                                                     const groupQtd = groupItems.reduce((a, i) => a + (parseInt(i.ite_quant) || 0), 0);
                                                     const groupBruto = groupItems.reduce((a, i) => a + (parseFloat(i.ite_puni) || 0), 0);
                                                     const groupLiq = groupItems.reduce((a, i) => a + (parseFloat(i.ite_puniliq) || 0), 0);
-                                                    const groupTotImposto = groupItems.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0) + (parseFloat(i.ite_valipi) || 0) + (parseFloat(i.ite_valst) || 0), 0);
-                                                    const groupIPI = groupItems.reduce((a, i) => a + (parseFloat(i.ite_valipi) || 0), 0);
-                                                    const groupST = groupItems.reduce((a, i) => a + (parseFloat(i.ite_valst) || 0), 0);
+                                                    const groupIPI = groupItems.reduce((a, i) => a + (parseFloat(i.ite_ipi) || 0) * (parseInt(i.ite_quant) || 0), 0);
+                                                    const groupST = groupItems.reduce((a, i) => a + (parseFloat(i.ite_st) || 0) * (parseInt(i.ite_quant) || 0), 0);
+                                                    const groupTotLiquido = groupItems.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0), 0);
+                                                    const groupTotImposto = groupTotLiquido + groupIPI + groupST;
                                                     return (
                                                         <tr className="bg-slate-100 font-bold">
                                                             <td colSpan="3" className="border border-slate-400 p-0.5"></td>
@@ -589,7 +614,7 @@ const OrderReportEngine = () => {
 
 
                             {/* Grand Total */}
-                            <table className="w-full border-collapse text-[8px] mt-1">
+                            <table className="w-full border-collapse text-[10px] mt-1">
                                 <tfoot>
                                     <tr className="bg-slate-200 font-bold">
                                         <td colSpan="3" className="border border-slate-400 p-0.5 text-right">TOTAL GERAL:</td>
@@ -597,7 +622,7 @@ const OrderReportEngine = () => {
                                         <td className="border border-slate-400 p-0.5 text-right" style={{ width: '60px' }}>{fv(items.reduce((a, i) => a + parseFloat(i.ite_puni || 0), 0))}</td>
                                         <td className="border border-slate-400 p-0.5 text-right" style={{ width: '60px' }}>{fv(items.reduce((a, i) => a + parseFloat(i.ite_puniliq || 0), 0))}</td>
                                         <td className="border border-slate-400 p-0.5 text-right" style={{ width: '75px' }}></td>
-                                        <td className="border border-slate-400 p-0.5 text-right" style={{ width: '80px' }}>{fv(items.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0) + (parseFloat(i.ite_valipi) || 0) + (parseFloat(i.ite_valst) || 0), 0))}</td>
+                                        <td className="border border-slate-400 p-0.5 text-right" style={{ width: '80px' }}>{fv(totalComImpostos)}</td>
                                         <td className="border border-slate-400 p-0.5 text-right" style={{ width: '45px' }}></td>
                                         <td className="border border-slate-400 p-0.5 text-right" style={{ width: '45px' }}></td>
                                     </tr>
@@ -606,44 +631,40 @@ const OrderReportEngine = () => {
 
 
                             {/* Footer - Totals and Observations */}
-                            <div className="mt-2 flex gap-4">
-                                <div className="border border-slate-400 p-2 text-[9px] flex-1">
-                                    <div className="grid grid-cols-4 gap-y-1">
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Total bruto:</span>
-                                            <span className="font-bold">{fv(totalBruto)}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Quantidade de itens no</span>
-                                            <span className="font-bold">{items.length}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Total líquido:</span>
-                                            <span className="font-bold">{fv(totalLiquido)}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between border-b border-slate-200 pb-1">
-                                            <span>Qtd total:</span>
-                                            <span className="font-bold">{totalQuantidade}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between">
-                                            <span>Total c/Impostos:</span>
-                                            <span className="font-bold">{fv(items.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0) + (parseFloat(i.ite_valipi) || 0) + (parseFloat(i.ite_valst) || 0), 0))}</span>
-                                        </div>
-                                        <div className="col-span-2 flex justify-between">
-                                            <span>Vendedor:</span>
-                                            <span className="font-bold text-red-600 uppercase">{order.ven_nome}</span>
-                                        </div>
-                                    </div>
+                            <div className="mt-2 flex gap-2">
+                                <div className="border border-slate-400 p-1 text-[10px] flex-1">
+                                    <table className="w-full">
+                                        <tbody>
+                                            <tr className="border-b border-slate-200">
+                                                <td className="py-0.5">Total bruto:</td>
+                                                <td className="py-0.5 text-right font-bold">{fv(totalBruto)}</td>
+                                                <td className="py-0.5 pl-4">Qtd. Itens:</td>
+                                                <td className="py-0.5 text-right font-bold">{items.length}</td>
+                                            </tr>
+                                            <tr className="border-b border-slate-200">
+                                                <td className="py-0.5">Total líquido:</td>
+                                                <td className="py-0.5 text-right font-bold">{fv(totalLiquido)}</td>
+                                                <td className="py-0.5 pl-4">Qtd. Total:</td>
+                                                <td className="py-0.5 text-right font-bold">{totalQuantidade}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="py-0.5">Total c/ Impostos:</td>
+                                                <td className="py-0.5 text-right font-bold">{fv(totalComImpostos)}</td>
+                                                <td className="py-0.5 pl-4">Vendedor:</td>
+                                                <td className="py-0.5 text-right font-bold text-red-600 uppercase">{order.ven_nome}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="border border-slate-400 p-2 text-[9px] flex-1 min-h-[80px]">
-                                    <div className="text-center font-bold text-[8px] text-slate-500 uppercase mb-1 border-b border-slate-200 pb-1">OBSERVAÇÕES GERAIS</div>
-                                    <div className="text-[8px] text-slate-600">
+                                <div className="border border-slate-400 p-1 text-[10px] w-1/3 min-h-[60px]">
+                                    <div className="text-center font-bold text-[9px] text-slate-500 uppercase border-b border-slate-200 mb-1">OBSERVAÇÕES GERAIS</div>
+                                    <div className="leading-tight">
                                         {order.ped_obs || order.cli_obspedido || order.cli_obsparticular || '-'}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="text-right mt-2 text-[8px]">Página: 1</div>
+                            <div className="text-right mt-2 text-[10px]">Página: 1</div>
                         </div>
                     </div>
                 </div>
@@ -651,10 +672,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4 landscape; margin: 5mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -673,25 +694,25 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-3 text-slate-900 font-sans text-[9px] leading-tight" style={{ width: '280mm' }}>
+                        <div className="print-container p-3 text-slate-900 font-sans text-[11px] leading-tight" style={{ width: '277mm' }}>
                             {/* Header - Representative Company */}
                             <div className="border border-slate-400 p-2 mb-1 flex items-center gap-4">
                                 <div className="w-16 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo Representação"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[8px] text-slate-400">[Logo]</span>
+                                        <span className="text-[10px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
                                 <div className="text-center flex-1">
                                     <div className="font-bold text-[11px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
-                                    <div className="text-[7px]">CNPJ: {companyData?.cnpj || '-'}</div>
-                                    <div className="text-[7px]">End: {companyData?.endereco} {companyData?.bairro}</div>
-                                    <div className="text-[7px]">Fones: {companyData?.fones || '-'}</div>
+                                    <div className="text-[9px]">CNPJ: {companyData?.cnpj || '-'}</div>
+                                    <div className="text-[9px]">End: {companyData?.endereco} {companyData?.bairro}</div>
+                                    <div className="text-[9px]">Fones: {companyData?.fones || '-'}</div>
                                 </div>
                             </div>
 
@@ -701,7 +722,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Bar with Vendedor */}
-                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-7 gap-1 text-[8px]">
+                            <div className="border border-slate-400 p-1 mb-1 grid grid-cols-7 gap-1 text-[10px]">
                                 <div>Cotação nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Nº pedido cliente: {order.ped_nffat || '-'}</div>
                                 <div>Lista: <span className="text-blue-700 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
@@ -713,8 +734,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS DO CLIENTE - Only */}
                             <div className="mb-1">
-                                <div className="bg-yellow-100 border border-slate-400 text-center font-bold text-[8px] py-0.5">DADOS DO CLIENTE</div>
-                                <div className="border border-slate-400 border-t-0 p-1 text-[8px]">
+                                <div className="bg-yellow-100 border border-slate-400 text-center font-bold text-[10px] py-0.5">DADOS DO CLIENTE</div>
+                                <div className="border border-slate-400 border-t-0 p-1 text-[10px]">
                                     <div className="grid grid-cols-3 gap-x-4">
                                         <div><span className="font-bold">CNPJ: {order.cli_cnpj}</span></div>
                                         <div>Inscrição: {order.cli_inscricao}</div>
@@ -743,14 +764,14 @@ const OrderReportEngine = () => {
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-2">
                                     {/* Discount Header */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-1 py-0.5 text-[8px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-1 py-0.5 text-[10px] font-bold">
                                         Descontos: {discountKey}
                                     </div>
 
                                     {/* Items Table */}
-                                    <table className="w-full border-collapse text-[8px]">
+                                    <table className="w-full border-collapse text-[10px]">
                                         <thead>
-                                            <tr className="bg-yellow-100 text-[7px] font-bold">
+                                            <tr className="bg-yellow-100 text-[9px] font-bold">
                                                 <th className="border border-slate-400 p-0.5 text-center" style={{ width: '20px' }}>Sq</th>
                                                 <th className="border border-slate-400 p-0.5 text-left text-red-600" style={{ width: '60px' }}>Produto</th>
                                                 <th className="border border-slate-400 p-0.5 text-left" style={{ width: '80px' }}>Complemento</th>
@@ -808,7 +829,7 @@ const OrderReportEngine = () => {
                             <div className="flex gap-2 mt-2">
                                 {/* Totals Box */}
                                 <div className="border border-slate-400">
-                                    <table className="text-[8px]">
+                                    <table className="text-[10px]">
                                         <thead>
                                             <tr className="bg-slate-200">
                                                 <th className="border border-slate-300 p-1">Total bruto</th>
@@ -829,14 +850,14 @@ const OrderReportEngine = () => {
                                         </tbody>
                                     </table>
                                     {/* Observations */}
-                                    <div className="bg-slate-200 text-center font-bold text-[8px] py-0.5 border-t border-slate-400">OBSERVAÇÕES GERAIS</div>
-                                    <div className="p-1 text-[8px] min-h-[40px]">{order.ped_obs || '-'}</div>
+                                    <div className="bg-slate-200 text-center font-bold text-[10px] py-0.5 border-t border-slate-400">OBSERVAÇÕES GERAIS</div>
+                                    <div className="p-1 text-[10px] min-h-[40px]">{order.ped_obs || '-'}</div>
                                 </div>
 
                                 {/* Transportadora Box */}
                                 <div className="border border-slate-400 flex-1">
-                                    <div className="bg-slate-200 text-center font-bold text-[8px] py-0.5">TRANSPORTADORA</div>
-                                    <div className="p-1 text-[8px]">
+                                    <div className="bg-slate-200 text-center font-bold text-[10px] py-0.5">TRANSPORTADORA</div>
+                                    <div className="p-1 text-[10px]">
                                         <div><span className="font-bold">CNPJ:</span> {order.tra_cgc || '-'} <span className="font-bold">Inscrição</span> {order.tra_inscricao || '-'}</div>
                                         <div><span className="font-bold">Nome:</span> {order.tra_nome || '-'}</div>
                                         <div><span className="font-bold">Fone:</span> {order.tra_fone || '-'}</div>
@@ -845,7 +866,7 @@ const OrderReportEngine = () => {
                                 </div>
                             </div>
 
-                            <div className="text-right mt-2 text-[8px]">Página: 1</div>
+                            <div className="text-right mt-2 text-[10px]">Página: 1</div>
                         </div>
                     </div>
                 </div>
@@ -853,10 +874,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4 landscape; margin: 5mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -875,25 +896,25 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-sm leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[15px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Representative Company */}
                             <div className="border border-slate-400 p-2 mb-1 flex items-center gap-4">
                                 <div className="w-16 h-12 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo Representação"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-xs text-slate-400">[Logo]</span>
+                                        <span className="text-[13px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
                                 <div className="text-center flex-1">
                                     <div className="font-bold text-base">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
-                                    <div className="text-xs">CNPJ: {companyData?.cnpj || '-'}</div>
-                                    <div className="text-xs">Fones: {companyData?.fones || '-'}</div>
-                                    <div className="text-xs">E-mail: {companyData?.email || '/'}</div>
+                                    <div className="text-[13px]">CNPJ: {companyData?.cnpj || '-'}</div>
+                                    <div className="text-[13px]">Fones: {companyData?.fones || '-'}</div>
+                                    <div className="text-[13px]">E-mail: {companyData?.email || '/'}</div>
                                 </div>
                             </div>
 
@@ -903,7 +924,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Bar */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-6 gap-2 text-sm">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-6 gap-2 text-[15px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Nº pedido cliente: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Lista: <span className="text-blue-700 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
@@ -914,8 +935,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS DO CLIENTE - MINIMAL (Only Razão social and Comprador) */}
                             <div className="mb-1">
-                                <div className="bg-yellow-100 border border-slate-400 text-center font-bold text-sm py-1">DADOS DO CLIENTE</div>
-                                <div className="border border-slate-400 border-t-0 p-2 text-sm">
+                                <div className="bg-yellow-100 border border-slate-400 text-center font-bold text-[15px] py-1">DADOS DO CLIENTE</div>
+                                <div className="border border-slate-400 border-t-0 p-2 text-[15px]">
                                     <div className="grid grid-cols-2 gap-x-4">
                                         <div><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                         <div></div>
@@ -929,14 +950,14 @@ const OrderReportEngine = () => {
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-2">
                                     {/* Discount Header */}
-                                    <div className="bg-slate-200 border border-slate-400 px-2 py-1 text-sm font-bold">
+                                    <div className="bg-slate-200 border border-slate-400 px-2 py-1 text-[15px] font-bold">
                                         Descontos: {discountKey}
                                     </div>
 
                                     {/* Items Table */}
-                                    <table className="w-full border-collapse text-sm">
+                                    <table className="w-full border-collapse text-[15px]">
                                         <thead>
-                                            <tr className="bg-slate-200 text-xs font-bold">
+                                            <tr className="bg-slate-200 text-[13px] font-bold">
                                                 <th className="border border-slate-400 p-0.5 text-center" style={{ width: '20px' }}>Sq:</th>
                                                 <th className="border border-slate-400 p-0.5 text-left text-red-600" style={{ width: '65px' }}>Produto</th>
                                                 <th className="border border-slate-400 p-0.5 text-left text-blue-600" style={{ width: '90px' }}>Cod. orig/Conv./Comp</th>
@@ -989,7 +1010,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Grand Total Row */}
-                            <div className="border border-slate-400 bg-slate-200 grid grid-cols-12 text-sm font-bold mt-2">
+                            <div className="border border-slate-400 bg-slate-200 grid grid-cols-12 text-[15px] font-bold mt-2">
                                 <div className="col-span-7 p-0.5"></div>
                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{totalQuantidade}</div>
                                 <div className="col-span-1 p-0.5 border-r border-slate-300 text-right">{fv(items.reduce((a, i) => a + parseFloat(i.ite_puni || 0), 0))}</div>
@@ -1001,7 +1022,7 @@ const OrderReportEngine = () => {
                             {/* Footer - Totals Box */}
                             <div className="flex gap-2 mt-2">
                                 <div className="border border-slate-400">
-                                    <table className="text-sm">
+                                    <table className="text-[15px]">
                                         <thead>
                                             <tr className="bg-slate-200">
                                                 <th className="border border-slate-300 p-2">Total bruto</th>
@@ -1022,8 +1043,8 @@ const OrderReportEngine = () => {
                                         </tbody>
                                     </table>
                                     {/* Observations */}
-                                    <div className="bg-slate-200 text-center font-bold text-sm py-1 border-t border-slate-400">OBSERVAÇÕES GERAIS</div>
-                                    <div className="p-2 text-sm min-h-[50px]">{order.ped_obs || '-'}</div>
+                                    <div className="bg-slate-200 text-center font-bold text-[15px] py-1 border-t border-slate-400">OBSERVAÇÕES GERAIS</div>
+                                    <div className="p-2 text-[15px] min-h-[50px]">{order.ped_obs || '-'}</div>
                                 </div>
                             </div>
                         </div>
@@ -1033,10 +1054,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 5mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -1055,22 +1076,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '180mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -1078,20 +1099,20 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry + List */}
-                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                                 <div>Lista: <span className="text-blue-600 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE - Yellow background */}
-                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -1117,8 +1138,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -1129,8 +1150,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -1146,20 +1167,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items grouped by discount */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos: {discountKey}
                                     </div>
 
                                     {/* Items Table */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -1215,37 +1236,33 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Totals */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
-                                <div className="grid grid-cols-2 gap-x-8 gap-y-1">
-                                    <div className="flex justify-between border-b border-slate-200 pb-1">
-                                        <span>Total bruto:</span>
-                                        <span className="font-bold">{fv(totalBruto)}</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-200 pb-1">
-                                        <span>Quantidade de itens no pedido:</span>
-                                        <span className="font-bold">{items.length}</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-200 pb-1">
-                                        <span>Total líquido:</span>
-                                        <span className="font-bold">{fv(totalLiquido)}</span>
-                                    </div>
-                                    <div className="flex justify-between border-b border-slate-200 pb-1">
-                                        <span>Qtd total:</span>
-                                        <span className="font-bold">{totalQuantidade}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Total c/ Impostos:</span>
-                                        <span className="font-bold">{fv(items.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0) + (parseFloat(i.ite_valipi) || 0) + (parseFloat(i.ite_valst) || 0), 0))}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Vendedor:</span>
-                                        <span className="font-bold text-red-600 uppercase">{order.ven_nome}</span>
-                                    </div>
-                                </div>
+                            <div className="border border-slate-400 p-1 mt-3 text-[11px]">
+                                <table className="w-full">
+                                    <tbody>
+                                        <tr className="border-b border-slate-200">
+                                            <td className="py-0.5">Total bruto:</td>
+                                            <td className="py-0.5 text-right font-bold">{fv(totalBruto)}</td>
+                                            <td className="py-0.5 pl-8">Quantidade de itens no pedido:</td>
+                                            <td className="py-0.5 text-right font-bold">{items.length}</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-200">
+                                            <td className="py-0.5">Total líquido:</td>
+                                            <td className="py-0.5 text-right font-bold">{fv(totalLiquido)}</td>
+                                            <td className="py-0.5 pl-8">Qtd total:</td>
+                                            <td className="py-0.5 text-right font-bold">{totalQuantidade}</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-0.5">Total c/ Impostos:</td>
+                                            <td className="py-0.5 text-right font-bold">{fv(items.reduce((a, i) => a + (parseFloat(i.ite_totliquido) || 0) + (parseFloat(i.ite_valipi) || 0) + (parseFloat(i.ite_valst) || 0), 0))}</td>
+                                            <td className="py-0.5 pl-8">Vendedor:</td>
+                                            <td className="py-0.5 text-right font-bold text-red-600 uppercase">{order.ven_nome}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -1256,10 +1273,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -1278,22 +1295,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -1301,20 +1318,20 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry + List */}
-                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                                 <div>Lista: <span className="text-blue-600 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE - Yellow background */}
-                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -1340,8 +1357,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -1352,8 +1369,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -1369,20 +1386,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items grouped by discount */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Model 2 specific columns */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -1433,7 +1450,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Totals (Model 2 specific layout) */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -1458,7 +1475,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -1469,10 +1486,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -1491,22 +1508,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -1514,20 +1531,20 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry + List */}
-                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                                 <div>Lista: <span className="text-blue-600 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE - Yellow background */}
-                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -1553,8 +1570,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -1565,8 +1582,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -1582,20 +1599,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items grouped by discount */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos: {discountKey}
                                     </div>
 
                                     {/* Items Table - Model 3 specific columns */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '30px' }}>Quant</th>
@@ -1648,7 +1665,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Totals */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -1675,7 +1692,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -1686,10 +1703,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -1708,22 +1725,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -1731,20 +1748,20 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry + List */}
-                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 flex justify-between text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                                 <div>Lista: <span className="text-blue-600 font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE - Yellow background */}
-                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="bg-yellow-100 border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -1770,8 +1787,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -1782,8 +1799,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -1799,20 +1816,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items grouped by discount */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow - Model 4 specific text */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Model 4 columns */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '30px' }}>Quant</th>
@@ -1865,7 +1882,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Totals */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -1892,7 +1909,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -1903,10 +1920,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -1925,22 +1942,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-center text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-center text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>CNPJ: {companyData?.cnpj || '-'}</div>
                                     <div>End: {companyData?.endereco} {companyData?.bairro} {companyData?.cidade}/{companyData?.uf}</div>
                                     <div>Fones: {companyData?.fones || '-'}</div>
@@ -1949,19 +1966,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE ONLY - No billing/carrier */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -1989,12 +2006,12 @@ const OrderReportEngine = () => {
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -2045,7 +2062,7 @@ const OrderReportEngine = () => {
 
                             {/* Footer - Simple row with totals */}
                             <div className="border border-slate-400 mt-3">
-                                <table className="w-full text-[10px]">
+                                <table className="w-full text-[12px]">
                                     <thead>
                                         <tr className="bg-slate-200">
                                             <th className="border border-slate-300 p-1">Total líquido</th>
@@ -2068,7 +2085,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -2079,10 +2096,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -2101,22 +2118,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-center text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-center text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>CNPJ: {companyData?.cnpj || '-'}</div>
                                     <div>End: {companyData?.endereco} {companyData?.bairro} {companyData?.cidade}/{companyData?.uf}</div>
                                     <div>Fones: {companyData?.fones || '-'}</div>
@@ -2125,19 +2142,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -2161,8 +2178,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -2173,8 +2190,8 @@ const OrderReportEngine = () => {
 
                             {/* INFORMAÇÕES */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">INFORMAÇÕES</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">INFORMAÇÕES</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Condições pgto:</span> <span className="text-blue-600 font-bold">{order.ped_condpag || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Tipo frete:</span> <span className="text-red-600 font-bold">{order.ped_tipofrete === 'F' ? 'FRETE FOB' : 'FRETE CIF'}</span></div>
@@ -2186,20 +2203,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items grouped by discount */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Model 6 columns with Conversão */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -2251,7 +2268,7 @@ const OrderReportEngine = () => {
 
                             {/* Footer - Simple row with totals */}
                             <div className="border border-slate-400 mt-3">
-                                <table className="w-full text-[10px]">
+                                <table className="w-full text-[12px]">
                                     <thead>
                                         <tr className="bg-slate-200">
                                             <th className="border border-slate-300 p-1">Total líquido</th>
@@ -2276,7 +2293,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -2287,10 +2304,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -2306,22 +2323,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -2329,19 +2346,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -2365,8 +2382,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -2377,8 +2394,8 @@ const OrderReportEngine = () => {
 
                             {/* INFORMAÇÕES */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">INFORMAÇÕES</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">INFORMAÇÕES</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Condições pgto:</span> <span className="text-blue-600 font-bold">{order.ped_condpag || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Tipo frete:</span> <span className="text-red-600 font-bold">{order.ped_tipofrete === 'F' ? 'FRETE FOB' : 'FRETE CIF'}</span></div>
@@ -2390,12 +2407,12 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table - NO discount grouping */}
-                            <table className="w-full border-collapse text-[10px] mb-3">
+                            <table className="w-full border-collapse text-[12px] mb-3">
                                 <thead>
                                     <tr className="bg-yellow-100 font-bold">
                                         <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -2437,7 +2454,7 @@ const OrderReportEngine = () => {
 
                             {/* Footer - Simple row with totals */}
                             <div className="border border-slate-400 mt-3">
-                                <table className="w-full text-[10px]">
+                                <table className="w-full text-[12px]">
                                     <thead>
                                         <tr className="bg-slate-200">
                                             <th className="border border-slate-300 p-1">Total líquido</th>
@@ -2460,7 +2477,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -2471,10 +2488,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -2490,22 +2507,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -2513,19 +2530,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -2551,8 +2568,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -2563,8 +2580,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -2580,12 +2597,12 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table - NO discount grouping, Model 10 specific columns */}
-                            <table className="w-full border-collapse text-[10px] mb-3">
+                            <table className="w-full border-collapse text-[12px] mb-3">
                                 <thead>
                                     <tr className="bg-yellow-100 font-bold">
                                         <th className="border border-slate-400 p-1 text-center" style={{ width: '35px' }}>Quant</th>
@@ -2622,7 +2639,7 @@ const OrderReportEngine = () => {
                             </table>
 
                             {/* Footer - Simple with Vendedor */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -2644,7 +2661,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -2655,10 +2672,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -2674,22 +2691,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -2697,19 +2714,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -2735,8 +2752,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -2752,12 +2769,12 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table - NO discount grouping, Model 11 specific columns */}
-                            <table className="w-full border-collapse text-[9px] mb-3">
+                            <table className="w-full border-collapse text-[11px] mb-3">
                                 <thead>
                                     <tr className="bg-yellow-100 font-bold">
                                         <th className="border border-slate-400 p-1 text-center" style={{ width: '30px' }}>Quant</th>
@@ -2808,7 +2825,7 @@ const OrderReportEngine = () => {
                             </table>
 
                             {/* Footer - Simple */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -2830,7 +2847,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -2841,10 +2858,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -2862,22 +2879,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -2885,19 +2902,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -2923,8 +2940,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || order.cli_bairro}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || order.cli_cidade}</div>
@@ -2935,8 +2952,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -2952,20 +2969,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Two rows per item */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -3000,8 +3017,8 @@ const OrderReportEngine = () => {
                                                         {item.pro_aplicacao2 && (
                                                             <tr className="bg-slate-50">
                                                                 <td className="border-x border-b border-slate-200 p-1" colSpan="9">
-                                                                    <span className="text-slate-400 text-[8px] mr-1">Aplicação:</span>
-                                                                    <span className="text-[9px] italic text-slate-600">{item.pro_aplicacao2}</span>
+                                                                    <span className="text-slate-400 text-[10px] mr-1">Aplicação:</span>
+                                                                    <span className="text-[11px] italic text-slate-600">{item.pro_aplicacao2}</span>
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -3027,7 +3044,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - With Vendedor */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -3057,7 +3074,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -3068,10 +3085,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -3090,22 +3107,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-black font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-black font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-black p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-black flex items-center justify-center overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px]">[Logo]</span>
+                                        <span className="text-[12px]">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -3113,19 +3130,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-black p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-black p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-black p-2 mb-2 text-xs">
+                            <div className="border border-black p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-black p-2 mb-2 text-[10px]">
+                            <div className="border border-black p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2">Razão social: <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2">Endereço: {order.cli_endereco}</div>
@@ -3149,8 +3166,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-black mb-2">
-                                <div className="border-b border-black px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="border-b border-black px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div>Endereço: {order.cli_endcob || order.cli_endereco}</div>
                                     <div>Bairro: {order.cli_baicob || order.cli_bairro}</div>
                                     <div>Cidade: {order.cli_cidcob || order.cli_cidade}</div>
@@ -3161,8 +3178,8 @@ const OrderReportEngine = () => {
 
                             {/* INFORMAÇÕES */}
                             <div className="border border-black mb-2">
-                                <div className="border-b border-black px-2 py-0.5 text-[10px] font-bold text-center">INFORMAÇÕES</div>
-                                <div className="p-2 text-[10px] grid grid-cols-3 gap-x-4 gap-y-0.5">
+                                <div className="border-b border-black px-2 py-0.5 text-[12px] font-bold text-center">INFORMAÇÕES</div>
+                                <div className="p-2 text-[12px] grid grid-cols-3 gap-x-4 gap-y-0.5">
                                     <div>Condições pgto: <span className="font-bold">{order.ped_condpag || '-'}</span></div>
                                     <div>Tipo frete: <span className="font-bold">{order.ped_tipofrete === 'F' ? 'FRETE FOB' : order.ped_tipofrete === 'S' ? 'FRETE CIF' : '-'}</span></div>
                                     <div></div>
@@ -3174,20 +3191,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-black mb-2">
-                                <div className="border-b border-black px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="border-b border-black px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header */}
-                                    <div className="border border-black px-2 py-1 text-[10px] font-bold">
+                                    <div className="border border-black px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - B&W */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="font-bold">
                                                 <th className="border border-black p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -3232,7 +3249,7 @@ const OrderReportEngine = () => {
 
                             {/* Footer - Simple Table */}
                             <div className="mt-3">
-                                <table className="w-full border-collapse text-[10px]">
+                                <table className="w-full border-collapse text-[12px]">
                                     <thead>
                                         <tr className="font-bold">
                                             <th className="border border-black p-1">Total líquido</th>
@@ -3255,7 +3272,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-gray-500">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -3266,10 +3283,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -3287,22 +3304,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -3310,19 +3327,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -3348,8 +3365,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -3365,20 +3382,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Model 14 specific columns with tax VALUE */}
-                                    <table className="w-full border-collapse text-[9px]">
+                                    <table className="w-full border-collapse text-[11px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '30px' }}>Quant</th>
@@ -3432,7 +3449,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Simple with totals */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -3454,7 +3471,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -3465,10 +3482,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -3484,22 +3501,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -3507,20 +3524,20 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry + Lista */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs flex justify-between">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px] flex justify-between">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                                 <div>Lista: <span className="font-bold">{order.ped_tabela || 'LISTA ATUAL'}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -3546,8 +3563,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA - Simplified */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || '-'}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || '-'}</div>
@@ -3558,8 +3575,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -3575,12 +3592,12 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table - NO discount grouping, simple columns */}
-                            <table className="w-full border-collapse text-[10px] mb-3">
+                            <table className="w-full border-collapse text-[12px] mb-3">
                                 <thead>
                                     <tr className="bg-yellow-100 font-bold">
                                         <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -3617,7 +3634,7 @@ const OrderReportEngine = () => {
                             </table>
 
                             {/* Footer - Simple with Vendedor */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -3644,7 +3661,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -3655,10 +3672,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -3677,22 +3694,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -3700,19 +3717,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -3738,8 +3755,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || '-'}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || '-'}</div>
@@ -3750,8 +3767,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -3767,20 +3784,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups - NO TAXES */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - NO IPI/ST columns */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -3819,7 +3836,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - With Vendedor and Obs */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -3844,7 +3861,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -3855,10 +3872,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -3878,22 +3895,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -3901,19 +3918,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -3939,8 +3956,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || '-'}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || '-'}</div>
@@ -3951,8 +3968,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -3968,20 +3985,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups - With Compl. and IPI/ST */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - With Compl., Un.Bruto, IPI, ST */}
-                                    <table className="w-full border-collapse text-[9px]">
+                                    <table className="w-full border-collapse text-[11px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '20px' }}>Sq</th>
@@ -4004,7 +4021,7 @@ const OrderReportEngine = () => {
                                                         <td className="border border-slate-300 p-1 text-center">{globalSeq}</td>
                                                         <td className="border border-slate-300 p-1 text-center font-bold">{item.ite_quant}</td>
                                                         <td className="border border-slate-300 p-1 text-red-600 font-bold">{item.ite_produto}</td>
-                                                        <td className="border border-slate-300 p-1 text-[8px]">{item.ite_embuch || '-'}</td>
+                                                        <td className="border border-slate-300 p-1 text-[10px]">{item.ite_embuch || '-'}</td>
                                                         <td className="border border-slate-300 p-1 uppercase">{item.ite_nomeprod}</td>
                                                         <td className="border border-slate-300 p-1 text-right">{fv(item.ite_puni)}</td>
                                                         <td className="border border-slate-300 p-1 text-right">{fv(item.ite_puniliq)}</td>
@@ -4027,7 +4044,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - With Total Bruto and Vendedor */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total bruto:</span>
@@ -4060,7 +4077,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -4071,10 +4088,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -4093,22 +4110,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -4116,19 +4133,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -4154,8 +4171,8 @@ const OrderReportEngine = () => {
 
                             {/* DADOS PARA COBRANÇA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">DADOS PARA COBRANÇA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">DADOS PARA COBRANÇA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Endereço:</span> {order.cli_endcob || order.cli_endereco}</div>
                                     <div><span className="text-slate-500">Bairro:</span> {order.cli_baicob || '-'}</div>
                                     <div><span className="text-slate-500">Cidade:</span> {order.cli_cidcob || '-'}</div>
@@ -4166,8 +4183,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -4183,20 +4200,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups - Simple columns with IPI/ST */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header - Yellow */}
-                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="bg-yellow-100 border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Simple columns, no Un.Bruto */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="bg-yellow-100 font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '25px' }}>Sq</th>
@@ -4238,7 +4255,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Simple with Vendedor */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -4268,7 +4285,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -4279,10 +4296,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -4302,22 +4319,22 @@ const OrderReportEngine = () => {
                         className="bg-white shadow-2xl"
                         style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
                     >
-                        <div className="print-container p-4 text-slate-900 font-sans text-xs leading-normal" style={{ width: '210mm' }}>
+                        <div className="print-container p-4 text-slate-900 font-sans text-[13px] leading-normal" style={{ width: '190mm' }}>
                             {/* Header - Company Logo and Info */}
                             <div className="border border-slate-400 p-2 mb-2 flex items-start gap-4">
                                 <div className="w-20 h-16 border border-slate-300 flex items-center justify-center bg-slate-50 overflow-hidden flex-shrink-0">
                                     {companyData?.logotipo ? (
                                         <img
-                                            src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                            src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyData.logotipo)}`)}
                                             alt="Logo"
                                             className="max-w-full max-h-full object-contain"
                                         />
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">[Logo]</span>
+                                        <span className="text-[12px] text-slate-400">[Logo]</span>
                                     )}
                                 </div>
-                                <div className="flex-1 text-[10px]">
-                                    <div className="font-bold text-sm">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
+                                <div className="flex-1 text-[12px]">
+                                    <div className="font-bold text-[15px]">{companyData?.nome || 'REPRESENTAÇÃO'}</div>
                                     <div>{companyData?.endereco} {companyData?.bairro}</div>
                                     <div>{companyData?.cidade} {companyData?.uf} {companyData?.cep}</div>
                                     <div>{companyData?.fones}</div>
@@ -4325,19 +4342,19 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Order Info Line */}
-                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 grid grid-cols-3 gap-2 text-[13px]">
                                 <div>Pedido nº: <span className="font-bold">{order.ped_pedido}</span></div>
                                 <div>Pedido cliente nº: {order.ped_nffat || '-'}</div>
                                 <div className="text-right">Data: <span className="font-bold">{fd(order.ped_data)}</span></div>
                             </div>
 
                             {/* Industry */}
-                            <div className="border border-slate-400 p-2 mb-2 text-xs">
+                            <div className="border border-slate-400 p-2 mb-2 text-[13px]">
                                 <div>Indústria: <span className="font-bold">{order.for_nome}</span></div>
                             </div>
 
                             {/* DADOS DO CLIENTE */}
-                            <div className="border border-slate-400 p-2 mb-2 text-[10px]">
+                            <div className="border border-slate-400 p-2 mb-2 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div className="col-span-2"><span className="text-slate-500">Razão social:</span> <span className="font-bold">{order.cli_nome}</span></div>
                                     <div className="col-span-2"><span className="text-slate-500">Endereço:</span> {order.cli_endereco}</div>
@@ -4363,8 +4380,8 @@ const OrderReportEngine = () => {
 
                             {/* TRANSPORTADORA */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-center">TRANSPORTADORA</div>
-                                <div className="p-2 text-[10px] grid grid-cols-2 gap-x-4 gap-y-0.5">
+                                <div className="bg-slate-200 px-2 py-0.5 text-[12px] font-bold text-center">TRANSPORTADORA</div>
+                                <div className="p-2 text-[12px] grid grid-cols-2 gap-x-4 gap-y-0.5">
                                     <div><span className="text-slate-500">Nome:</span> <span className="font-bold">{order.tra_nome || '-'}</span></div>
                                     <div></div>
                                     <div><span className="text-slate-500">Endereço:</span> {order.tra_endereco || '-'}</div>
@@ -4380,20 +4397,20 @@ const OrderReportEngine = () => {
 
                             {/* Observações */}
                             <div className="border border-slate-400 mb-2">
-                                <div className="bg-yellow-100 px-2 py-0.5 text-[10px] font-bold">Observações:</div>
-                                <div className="p-2 text-[10px] min-h-[20px]">{order.ped_obs || '-'}</div>
+                                <div className="bg-yellow-100 px-2 py-0.5 text-[12px] font-bold">Observações:</div>
+                                <div className="p-2 text-[12px] min-h-[20px]">{order.ped_obs || '-'}</div>
                             </div>
 
                             {/* Items Table with Discount Groups - Super simple with Unitário 4 decimals */}
                             {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => (
                                 <div key={groupIndex} className="mb-3">
                                     {/* Discount Header */}
-                                    <div className="border border-slate-400 px-2 py-1 text-[10px] font-bold">
+                                    <div className="border border-slate-400 px-2 py-1 text-[12px] font-bold">
                                         Descontos praticados nos itens abaixo: {discountKey}
                                     </div>
 
                                     {/* Items Table - Super simple with Unitário 4 decimals */}
-                                    <table className="w-full border-collapse text-[10px]">
+                                    <table className="w-full border-collapse text-[12px]">
                                         <thead>
                                             <tr className="font-bold">
                                                 <th className="border border-slate-400 p-1 text-center" style={{ width: '35px' }}>Quant</th>
@@ -4430,7 +4447,7 @@ const OrderReportEngine = () => {
                             ))}
 
                             {/* Footer - Simple */}
-                            <div className="border border-slate-400 p-2 mt-3 text-[10px]">
+                            <div className="border border-slate-400 p-2 mt-3 text-[12px]">
                                 <div className="grid grid-cols-2 gap-x-8 gap-y-1">
                                     <div className="flex justify-between border-b border-slate-200 pb-1">
                                         <span>Total líquido:</span>
@@ -4449,7 +4466,7 @@ const OrderReportEngine = () => {
                             </div>
 
                             {/* Page Footer */}
-                            <div className="flex justify-between mt-2 text-[10px]">
+                            <div className="flex justify-between mt-2 text-[12px]">
                                 <span className="text-slate-400">Formato: {model}</span>
                                 <span>Página: 1</span>
                             </div>
@@ -4460,10 +4477,10 @@ const OrderReportEngine = () => {
                 <style>{`
                     @media print {
                         body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .print-container { transform: scale(1) !important; }
+                        .print-container { transform: scale(1) !important; margin: 0 auto !important; }
                         .no-print { display: none !important; }
                     }
-                    @page { size: A4; margin: 10mm; }
+                    @page { size: A4; margin: 15mm; }
                 `}</style>
             </>
         );
@@ -4475,8 +4492,8 @@ const OrderReportEngine = () => {
             <PrintToolbar />
             <div className="pt-14 min-h-screen bg-slate-300 flex justify-center py-6 overflow-auto">
                 <div
-                    className="print-container p-8 bg-white text-slate-900 font-sans text-sm shadow-2xl"
-                    style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center', width: '210mm', minHeight: '297mm' }}
+                    className="print-container p-8 bg-white text-slate-900 font-sans text-[15px] shadow-2xl"
+                    style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center', width: '190mm', minHeight: '297mm' }}
                 >
                     <div className="text-center p-8">
                         <p className="text-lg">Modelo {model} em desenvolvimento.</p>

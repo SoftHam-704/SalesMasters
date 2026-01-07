@@ -9,18 +9,20 @@
 /* Grid de Curvas */
 .curvas-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .curva-card {
     background: white;
-    border-radius: 16px;
-    padding: 28px;
+    border-radius: 12px;
+    padding: 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     transition: all 0.3s ease;
     border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
 }
 
 .curva-card:hover {
@@ -50,51 +52,41 @@
 
 .card-header {
     display: flex;
-    justify-content: flex-start;
-    margin-bottom: 12px;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
 }
 
 .card-header .dot {
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
 }
 
-.chart-wrapper {
-    display: flex;
-    justify-content: center;
-    margin: 24px 0;
-}
-
-.curva-label {
-    text-align: center;
-    margin: 20px 0 16px;
-    font-size: 15px;
+.curva-title {
+    font-size: 13px;
     font-weight: 700;
     color: #1e293b;
     letter-spacing: 0.3px;
 }
 
-.curva-label .qty {
+.curva-title .qty {
     color: #64748b;
     font-weight: 400;
-    font-size: 14px;
+    font-size: 12px;
+}
+
+.chart-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
 }
 
 .status-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 18px;
-    border-radius: 24px;
-    font-size: 12px;
-    font-weight: 700;
-    margin: 16px 0;
-    width: 100%;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display: none;
+    /* Hide status badge to save space */
 }
 
 .status-badge.status-success,
@@ -130,7 +122,9 @@
 }
 
 .curva-detalhes {
-    margin: 20px 0;
+    margin: 8px 0;
+    max-height: 70px;
+    overflow: hidden;
 }
 
 .curva-detalhes ul {
@@ -140,13 +134,13 @@
 }
 
 .curva-detalhes li {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: #475569;
-    line-height: 1.8;
-    padding-left: 20px;
+    line-height: 1.6;
+    padding-left: 16px;
     position: relative;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .curva-detalhes li:before {
@@ -160,22 +154,22 @@
 
 .btn-action {
     width: 100%;
-    padding: 14px;
+    padding: 8px;
     border: none;
-    border-radius: 10px;
+    border-radius: 6px;
     font-family: 'Roboto', sans-serif;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
-    margin-top: 18px;
+    margin-top: auto;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     text-align: center;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
 }
 
 .btn-success {

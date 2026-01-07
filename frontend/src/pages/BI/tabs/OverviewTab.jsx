@@ -6,6 +6,7 @@ import EvolutionChart from '../charts/EvolutionChart';
 import ParetoChart from '../charts/ParetoChart';
 import IndustryPerformanceChart from '../charts/IndustryPerformanceChart';
 import NarrativesWidget from '../components/NarrativesWidget';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Import stable constants
 const MONTHS_MAP = { 'Todos': 'Todos', 'Janeiro': '01', 'Fevereiro': '02', 'Março': '03', 'Abril': '04', 'Maio': '05', 'Junho': '06', 'Julho': '07', 'Agosto': '08', 'Setembro': '09', 'Outubro': '10', 'Novembro': '11', 'Dezembro': '12' };
@@ -41,7 +42,8 @@ const OverviewTab = ({ filters }) => {
                     industria: selectedIndustry?.codigo || null
                 };
 
-                const response = await axios.get('http://localhost:8000/api/dashboard/summary', { params });
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/summary');
+                const response = await axios.get(url, { params });
 
                 if (response.data && response.data.success) {
                     setMetrics(response.data.data);
@@ -66,7 +68,8 @@ const OverviewTab = ({ filters }) => {
                     metrica: filters.metrica
                 };
 
-                const response = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params });
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/top-industries');
+                const response = await axios.get(url, { params });
 
                 if (response.data && response.data.success) {
                     setIndustries(response.data.data);
@@ -83,7 +86,8 @@ const OverviewTab = ({ filters }) => {
     useEffect(() => {
         const fetchGoals = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/dashboard/goals-scroller', {
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/goals-scroller');
+                const response = await axios.get(url, {
                     params: { ano: filters.ano }
                 });
                 if (response.data) {
@@ -111,16 +115,19 @@ const OverviewTab = ({ filters }) => {
                 if (evolutionRes.data) setEvolutionData(evolutionRes.data);
 
                 // Pareto
-                const paretoRes = await axios.get('http://localhost:8000/api/dashboard/pareto', { params });
+                const paretoUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/pareto');
+                const paretoRes = await axios.get(paretoUrl, { params });
                 if (paretoRes.data) setParetoData(paretoRes.data);
 
                 // Industry Performance (Top 50)
                 const industryParams = { ...params, limit: 50 };
-                const perfRes = await axios.get('http://localhost:8000/api/dashboard/top-industries', { params: industryParams });
+                const perfUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/top-industries');
+                const perfRes = await axios.get(perfUrl, { params: industryParams });
                 if (perfRes.data?.success) setIndustryPerformanceData(perfRes.data.data);
 
                 // Narratives / Insights
-                const insightsRes = await axios.get('http://localhost:8000/api/dashboard/insights', {
+                const insightsUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/insights');
+                const insightsRes = await axios.get(insightsUrl, {
                     params: {
                         ano: filters.ano,
                         industryId: selectedIndustry?.codigo

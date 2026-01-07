@@ -12,6 +12,7 @@ import InsightsCard from '../../../components/InsightsCard';
 import PriorityActions from '../../../components/PriorityActions';
 import CommercialEfficiency from '../../../components/CommercialEfficiency';
 import CustomerComparison from '../../../components/CustomerComparison';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Mapping months to numeric strings for API calls
 const MONTHS_MAP = {
@@ -58,7 +59,8 @@ const AnalyticsTab = ({ filters }) => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const res = await axios.get('http://localhost:8000/api/dashboard/analytics/full-tab', {
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/analytics/full-tab');
+                const res = await axios.get(url, {
                     params: {
                         ano: filters.ano,
                         mes: filters.mes,
@@ -75,7 +77,8 @@ const AnalyticsTab = ({ filters }) => {
                 setAdvancedInsights(data.advanced_insights || []);
 
                 // Fetch filter options separately if needed, but for now we focus on analytics
-                const clientsRes = await axios.get('http://localhost:8000/api/dashboard/filters-options');
+                const filtersUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/filters-options');
+                const clientsRes = await axios.get(filtersUrl);
                 setClientOptions(clientsRes.data?.clients || []);
             } catch (error) {
                 console.error("[AnalyticsTab] Error fetching data:", error);
@@ -91,7 +94,8 @@ const AnalyticsTab = ({ filters }) => {
         if (!refClientId || !targetClientId) return;
         setCompLoading(true);
         try {
-            const res = await axios.get('http://localhost:8000/api/dashboard/analytics/client-comparison', {
+            const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/analytics/client-comparison');
+            const res = await axios.get(url, {
                 params: { ref_client: refClientId, target_client: targetClientId }
             });
             setComparisonData(res.data);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CircularProgress from '../../components/CircularProgress';
 import './PortfolioAnalysis.css';
+import { PYTHON_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const PortfolioAnalysis = ({ filters: parentFilters }) => {
     const [analysis, setAnalysis] = useState(null);
@@ -42,7 +43,8 @@ const PortfolioAnalysis = ({ filters: parentFilters }) => {
                 }
             }
 
-            const response = await fetch(`http://localhost:8000/api/portfolio/analyze?${params}`);
+            const url = getApiUrl(PYTHON_API_URL, `/api/portfolio/analyze?${params}`);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
@@ -74,12 +76,15 @@ const PortfolioAnalysis = ({ filters: parentFilters }) => {
                         key={curva.curva}
                         className={`curva-card curva-${curva.color}`}
                     >
-                        {/* Cabeçalho com bolinha colorida */}
+                        {/* Cabeçalho com bolinha colorida + Título */}
                         <div className="card-header">
                             <span
                                 className="dot"
                                 style={{ backgroundColor: COLORS[curva.curva] }}
                             ></span>
+                            <span className="curva-title">
+                                CURVA {curva.curva} <span className="qty">({curva.qtd_itens})</span>
+                            </span>
                         </div>
 
                         {/* Gráfico Circular */}
@@ -87,13 +92,8 @@ const PortfolioAnalysis = ({ filters: parentFilters }) => {
                             <CircularProgress
                                 percentage={curva.percentual_faturamento}
                                 color={COLORS[curva.curva]}
-                                size={180}
+                                size={110}
                             />
-                        </div>
-
-                        {/* Label */}
-                        <div className="curva-label">
-                            <strong>CURVA {curva.curva} <span className="qty">({curva.qtd_itens})</span></strong>
                         </div>
 
                         {/* Status Badge */}

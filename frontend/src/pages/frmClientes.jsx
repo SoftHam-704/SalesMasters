@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import GridCadPadrao from "../components/GridCadPadrao";
 import ClientForm from "../components/forms/ClientForm";
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
@@ -40,7 +41,8 @@ const FrmClientes = () => {
                 active: statusFilter
             });
 
-            const response = await fetch(`http://localhost:3005/api/clients?${query.toString()}`);
+            const url = getApiUrl(NODE_API_URL, `/api/clients?${query.toString()}`);
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const result = await response.json();
@@ -73,8 +75,8 @@ const FrmClientes = () => {
         try {
             const method = selectedClient ? 'PUT' : 'POST';
             const url = selectedClient
-                ? `http://localhost:3005/api/clients/${selectedClient.cli_codigo}`
-                : 'http://localhost:3005/api/clients';
+                ? getApiUrl(NODE_API_URL, `/api/clients/${selectedClient.cli_codigo}`)
+                : getApiUrl(NODE_API_URL, '/api/clients');
 
             const response = await fetch(url, {
                 method,
@@ -103,7 +105,8 @@ const FrmClientes = () => {
 
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/clients/${row.cli_codigo}`, {
+            const url = getApiUrl(NODE_API_URL, `/api/clients/${row.cli_codigo}`);
+            const response = await fetch(url, {
                 method: 'DELETE'
             });
             const result = await response.json();

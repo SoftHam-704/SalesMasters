@@ -14,15 +14,16 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import {
-    Check, X, Plus, Search, Filter, AlertTriangle, ArrowLeft, ArrowRight,
+    Check, X, Plus, UserPlus, Search, Filter, AlertTriangle, ArrowLeft, ArrowRight,
     Calculator, Save, Trash2, Calendar, ShoppingCart, Truck, CreditCard,
     FileText, User, MapPin, MoreHorizontal, FileUp, Copy,
-    RefreshCw, Tag, DollarSign, Eraser, StarOff, Percent, HelpCircle, CheckSquare,
+    RefreshCw, Tag, DollarSign, Eraser, Star, StarOff, Percent, HelpCircle, CheckSquare,
     FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { IAOrderDialog } from './IAOrderDialog';
+import { SmartOrderDialog } from './SmartOrderDialog';
 import OrderItemEntry from './OrderItemEntry';
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 import {
     Select,
     SelectContent,
@@ -31,13 +32,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
     CommandList,
 } from "@/components/ui/command";
+import DbComboBox from '@/components/DbComboBox';
+import InputField from '@/components/InputField';
+import { auxDataService } from '@/services/orders/auxDataService';
 
 // Modular imports
 import { orderService } from '@/services/orders';
@@ -96,18 +95,6 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [displayNumber, setDisplayNumber] = useState('(Novo)');
     const [activeTab, setActiveTab] = useState('F1'); // Default to F1 (Capa) to show the form fields
 
-    // Search state for comboboxes
-    const [clienteSearch, setClienteSearch] = useState("");
-    const [transpSearch, setTranspSearch] = useState("");
-    const [vendedorSearch, setVendedorSearch] = useState("");
-    const [tabelaSearch, setTabelaSearch] = useState("");
-
-    // Popover states
-    const [openCliente, setOpenCliente] = useState(false);
-    const [openTransp, setOpenTransp] = useState(false);
-    const [openVendedor, setOpenVendedor] = useState(false);
-    const [openTabela, setOpenTabela] = useState(false);
-
     // Dialog States (New Buttons)
     const [showTaxDialog, setShowTaxDialog] = useState(false);
     const [taxValues, setTaxValues] = useState({ ipi: '', st: '' });
@@ -121,6 +108,48 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
     const [openSituacao, setOpenSituacao] = useState(false);
     const [openFrete, setOpenFrete] = useState(false);
+
+    // Fetchers for DbComboBox
+    const fetchClients = async (search) => {
+        const res = await auxDataService.getClients('A', search);
+        return (res.data || []).map(c => ({
+            label: c.cli_nomred || c.cli_nome,
+            value: c.cli_codigo,
+            nomred: c.cli_nomred,
+            nome: c.cli_nome,
+            cnpj: c.cli_cnpj,
+            cidade: c.cli_cidade,
+            uf: c.cli_uf,
+            ...c
+        }));
+    };
+
+    const fetchCarriers = async (search) => {
+        const res = await auxDataService.getCarriers(search);
+        return (res.data || []).map(t => ({
+            label: t.nome || t.tra_nome,
+            value: t.codigo || t.tra_codigo,
+            ...t
+        }));
+    };
+
+    const fetchSellers = async (search) => {
+        const res = await auxDataService.getSellers(search);
+        return (res.data || []).map(s => ({
+            label: s.nome || s.ven_nome,
+            value: s.codigo || s.ven_codigo,
+            ...s
+        }));
+    };
+
+    const fetchPriceTables = async (search) => {
+        const res = await auxDataService.getPriceTables(selectedIndustry?.for_codigo, search);
+        return (res.data || []).map(t => ({
+            label: t.nome_tabela || t.tab_descricao || t.itab_nome,
+            value: t.nome_tabela || t.itab_idtabela || t.tab_codigo || t.codigo,
+            ...t
+        }));
+    };
 
     // Initial Form State
     const initialFormState = {
@@ -157,6 +186,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [showBuyerDialog, setShowBuyerDialog] = useState(false);
     const [showConditionDialog, setShowConditionDialog] = useState(false);
+    const [userParams, setUserParams] = useState({ par_qtdenter: 4 }); // Default to careful
 
     // DEBUG: Trace Render
     useEffect(() => {
@@ -170,7 +200,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [xlsPrecos, setXlsPrecos] = useState('');
     const [xlsImporting, setXlsImporting] = useState(false);
     const [xlsErrors, setXlsErrors] = useState([]); // Códigos não encontrados
-    const [importedItems, setImportedItems] = useState([]); // Itens vindos da IA
+    const [importedItems, setImportedItems] = useState([]); // Itens vindos da Sugestão Inteligente Master
     const importedItemsRef = useRef(importedItems);
 
     // Sync Ref
@@ -190,45 +220,78 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const cliIndData = useCliIndData();
     const cliAnivData = useCliAnivData();
 
-
-    // Load existing order
+    // Load user parameters on mount
     useEffect(() => {
-        if (existingOrder) {
-            // Formata a data corretamente
-            const formattedOrder = {
-                ...existingOrder,
-                ped_data: existingOrder.ped_data ? new Date(existingOrder.ped_data).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                ped_cliente: existingOrder.ped_cliente || '',
-                ped_transp: existingOrder.ped_transp || '',
-                ped_vendedor: existingOrder.ped_vendedor || '',
-            };
-
-            setFormData(prev => ({
-                ...prev,
-                ...formattedOrder,
-            }));
-            setDisplayNumber(existingOrder.ped_pedido);
-            setAllowDuplicates(existingOrder.ped_permiterepe || false);
-
-            if (existingOrder.ped_pedido) {
-                loadSummaryItems(existingOrder.ped_pedido);
+        const loadUserParams = async () => {
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    if (user && user.id) {
+                        const response = await fetch(getApiUrl(NODE_API_URL, `/api/parametros/${user.id}`));
+                        const data = await response.json();
+                        if (data.success && data.data) {
+                            setUserParams(data.data);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erro ao carregar parâmetros do usuário:', e);
+                }
             }
-        } else {
-            // Only reset if we are indeed starting a fresh new order or explicit clear.
-            // Check if we are not just in the middle of an import
-            // Check ref directly to avoid stale closures or race conditions
-            if (importedItemsRef.current.length === 0) {
-                setFormData({
-                    ...initialFormState,
-                    ped_industria: selectedIndustry?.for_codigo || '',
-                });
-                setSummaryItems([]);
-                setDisplayNumber('(Novo)');
-                setAllowDuplicates(false);
-                loadNextNumber();
+        };
+        loadUserParams();
+    }, []);
+
+    // Load existing order or initialize new one with parameters
+    useEffect(() => {
+        const initializeForm = async () => {
+            if (existingOrder) {
+                // Formata a data corretamente
+                const formattedOrder = {
+                    ...existingOrder,
+                    ped_data: existingOrder.ped_data ? new Date(existingOrder.ped_data).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                    ped_cliente: existingOrder.ped_cliente || '',
+                    ped_transp: existingOrder.ped_transp || '',
+                    ped_vendedor: existingOrder.ped_vendedor || '',
+                };
+
+                setFormData(prev => ({
+                    ...prev,
+                    ...formattedOrder,
+                }));
+                setDisplayNumber(existingOrder.ped_pedido);
+                setAllowDuplicates(existingOrder.ped_permiterepe || false);
+
+                if (existingOrder.ped_pedido) {
+                    loadSummaryItems(existingOrder.ped_pedido);
+                }
+            } else {
+                if (userParams) {
+                    // SE FOR PEDIDO NOVO, aplicamos os parâmetros carregados
+                    if (importedItemsRef.current.length === 0) {
+                        setFormData({
+                            ...initialFormState,
+                            ped_industria: selectedIndustry?.for_codigo || '',
+                            // Aplica parâmetros do usuário
+                            ped_frete: userParams.par_tipofretepadrao || 'C',
+                            ped_situacao: userParams.par_iniciapedido || 'P',
+                            ped_obs: userParams.par_obs_padrao || '',
+                        });
+
+                        if (userParams.par_itemduplicado === 'S') {
+                            setAllowDuplicates(true);
+                        }
+
+                        setSummaryItems([]);
+                        setDisplayNumber('(Novo)');
+                        loadNextNumber();
+                    }
+                }
             }
-        }
-    }, [existingOrder, selectedIndustry]); // Removed importedItems from dependency as we check ref
+        };
+
+        initializeForm();
+    }, [existingOrder, selectedIndustry, userParams]);
 
     // DEBUG: Trace ExistingOrder Effect
     useEffect(() => {
@@ -272,7 +335,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     };
 
-    // Load items when F1 or F5 tab becomes active OR when importedItems changes (IA)
+    // Load items when F1 or F5 tab becomes active OR when importedItems changes (Sugestão)
     useEffect(() => {
         if (isSaving) return;
 
@@ -287,6 +350,45 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             loadSummaryItems();
         }
     }, [activeTab, formData.ped_pedido, isSaving, importedItems]);
+
+    // Recalcular totais do pedido sempre que summaryItems mudar para manter cabeçalho sincronizado
+    useEffect(() => {
+        if (summaryItems.length > 0) {
+            const totBruto = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_totbruto) || 0), 0);
+            const totLiq = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_totliquido) || 0), 0);
+            const totIpi = summaryItems.reduce((acc, item) => {
+                const liq = parseFloat(item.ite_totliquido) || 0;
+                const cIpi = parseFloat(item.ite_valcomipi) || liq;
+                return acc + (cIpi - liq);
+            }, 0);
+            const totComImposto = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_valcomst) || 0), 0);
+
+            // Evitar loops infinitos: só atualiza se os valores realmente mudaram
+            if (
+                Math.abs((formData.ped_totbruto || 0) - totBruto) > 0.01 ||
+                Math.abs((formData.ped_totliq || 0) - totLiq) > 0.01 ||
+                Math.abs((formData.ped_totalipi || 0) - totIpi) > 0.01 ||
+                Math.abs((formData.ped_totalcomimpostos || 0) - totComImposto) > 0.01
+            ) {
+                setFormData(prev => ({
+                    ...prev,
+                    ped_totbruto: totBruto,
+                    ped_totliq: totLiq,
+                    ped_totalipi: totIpi,
+                    ped_totalcomimpostos: totComImposto
+                }));
+            }
+        } else if ((formData.ped_totbruto || 0) > 0 || (formData.ped_totliq || 0) > 0) {
+            // Se zerou a grid, zerar totais se eles não estiverem zerados
+            setFormData(prev => ({
+                ...prev,
+                ped_totbruto: 0,
+                ped_totliq: 0,
+                ped_totalipi: 0,
+                ped_totalcomimpostos: 0
+            }));
+        }
+    }, [summaryItems, formData.ped_totbruto, formData.ped_totliq, formData.ped_totalipi, formData.ped_totalcomimpostos]);
 
     // Reset relevant form fields when industry changes in Insert mode
     useEffect(() => {
@@ -420,10 +522,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             if (result.success && savedPedidoId) {
 
                 // ---------------------------------------------------------
-                // SYNC IMPORTED ITEMS (IA)
+                // SYNC IMPORTED ITEMS (SMART)
                 // ---------------------------------------------------------
                 if (importedItems.length > 0) {
-                    console.log("💾 [handleSave] Sincronizando itens importados da IA...", importedItems.length);
+                    console.log("💾 [handleSave] Sincronizando itens sugeridos...", importedItems.length);
                     try {
                         // 1. Get existing items (to determine sequence)
                         const existingResponse = await fetch(`/api/orders/${savedPedidoId}/items`);
@@ -489,9 +591,113 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     };
 
+    // Reusable handler for Smart Order suggestions (IA)
+    const handleSmartImportItems = async (items) => {
+        // 1. Ensure Order is Saved before importing items
+        let currentOrderId = formData.ped_pedido;
+        if (!currentOrderId || currentOrderId === '(Novo)') {
+            toast.info("Salvando pedido antes de processar sugestão de itens...");
+            const savedData = await handleSave({ silent: true });
+            if (savedData?.ped_pedido) {
+                currentOrderId = savedData.ped_pedido;
+            } else {
+                console.error("❌ Failed to save order. Aborting import.");
+                toast.error("Erro ao salvar o cabeçalho do pedido.");
+                return false;
+            }
+        }
+
+        try {
+            // 2. Verify price table
+            if (!formData.ped_tabela) {
+                toast.error("Selecione uma tabela de preço antes de importar.");
+                return false;
+            }
+
+            const products = priceTable?.memtable || [];
+            const finalImportItems = [];
+            const notFoundInTable = [];
+
+            // Get existing items count to assign correct sequence
+            const existingItemsRes = await fetch(`/api/orders/${currentOrderId}/items`);
+            const existingItemsResponse = existingItemsRes.ok ? await existingItemsRes.json() : {};
+            const existingItems = existingItemsResponse.success ? existingItemsResponse.data : [];
+
+            let nextSeq = existingItems.length > 0
+                ? Math.max(...existingItems.map(i => i.ite_seq || 0)) + 1
+                : 1;
+
+            for (const item of items) {
+                const product = products.find(p =>
+                    String(p.pro_codprod) === String(item.codigo || item.codigo_produto) ||
+                    String(p.pro_codigonormalizado) === String(item.codigo || item.codigo_produto)
+                );
+
+                if (!product) {
+                    notFoundInTable.push(item.codigo || item.codigo_produto || '?');
+                    continue;
+                }
+
+                const newItem = {
+                    ite_seq: nextSeq++,
+                    ite_industria: selectedIndustry?.for_codigo,
+                    ite_produto: product.pro_codprod,
+                    ite_idproduto: product.pro_id,
+                    ite_embuch: '',
+                    ite_nomeprod: product.pro_nome,
+                    ite_quant: parseFloat(item.quantidade || item.quant) || 1,
+                    ite_puni: item.preco ? parseFloat(item.preco) : parseFloat(product.itab_precobruto || 0),
+                    ite_ipi: product.itab_ipi || 0,
+                    ite_st: product.itab_st || 0,
+                    ite_des1: formData.ped_pri || 0,
+                    ite_des2: formData.ped_seg || 0,
+                    ite_des3: formData.ped_ter || 0,
+                    ite_des4: formData.ped_qua || 0,
+                    ite_des5: formData.ped_qui || 0,
+                    ite_des6: formData.ped_sex || 0,
+                    ite_des7: formData.ped_set || 0,
+                    ite_des8: formData.ped_oit || 0,
+                    ite_des9: formData.ped_nov || 0,
+                    ite_des10: 0,
+                    ite_promocao: 'N'
+                };
+
+                const calculatedItem = calculateImportedItem(newItem);
+                finalImportItems.push(calculatedItem);
+            }
+
+            if (notFoundInTable.length > 0) {
+                console.warn("❌ Items not in PriceTable:", notFoundInTable);
+                toast.warning(`${notFoundInTable.length} itens não encontrados na tabela de preços (Verifique os códigos).`);
+            }
+
+            if (finalImportItems.length === 0) {
+                toast.error("Nenhum item pôde ser importado. Os códigos do arquivo não batem com a tabela de preços.");
+                return false;
+            }
+
+            // Sync IN MEMORY and then navigate
+            const allMemItems = [...existingItems, ...finalImportItems];
+            setImportedItems(allMemItems);
+            setSummaryItems(allMemItems);
+
+            toast.success(`✨ ${finalImportItems.length} itens carregados para conferência!`);
+
+            setTimeout(() => {
+                setActiveTab('F5');
+            }, 500);
+
+            return true;
+        } catch (error) {
+            console.error('❌ [Smart Import] Error:', error);
+            toast.error('Erro ao processar importação: ' + error.message);
+            return false;
+        }
+    };
+
     // Handle tab change
     const handleTabChange = async (tab) => {
-        // Abas que manipulam itens (F2=IA, F3=Itens, F5=Conferência, XX=Import XLS) 
+        // Abas que manipulam itens (F2=Sugestão, F3=Itens, F5=Conferência, XX=Import XLS) 
         // requerem que o pedido seja salvo primeiro para garantir integridade
         const needsSave = ['F2', 'F3', 'F5', 'XX'].includes(tab);
         const isNew = !formData.ped_pedido || formData.ped_pedido === '(Novo)' || formData.ped_pedido.toString().startsWith('HS');
@@ -842,7 +1048,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     let newItem = { ...item };
 
                     // Busca produto na tabela para complementar dados (Descrição, Impostos)
-                    const product = priceTable.products?.find(p => p.pro_codprod === newItem.ite_produto);
+                    const product = priceTable.memtable?.find(p => p.pro_codprod === newItem.ite_produto);
 
                     if (product) {
                         // preenche descrição se vazia
@@ -1069,8 +1275,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 let newItem = { ...item };
 
                 // Busca o produto na tabela de preços ATUALMENTE carregada (priceTable)
-                // O hook usePriceTable já atualiza priceTable.products quando formData.ped_tabela muda
-                const product = priceTable.products?.find(p => p.pro_codprod === newItem.ite_produto);
+                // O hook usePriceTable já atualiza priceTable.memtable quando formData.ped_tabela muda
+                const product = priceTable.memtable?.find(p => p.pro_codprod === newItem.ite_produto);
 
                 if (product) {
                     // Atualiza o Preço Unitário (Bruto) com o valor da nova tabela
@@ -1098,7 +1304,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         } else if (key === '6') { // Volta Padrão (Preço Bruto)
             const updatedItems = summaryItems.map(item => {
                 let newItem = { ...item };
-                const product = priceTable.products?.find(p => p.pro_codprod === newItem.ite_produto);
+                const product = priceTable.memtable?.find(p => p.pro_codprod === newItem.ite_produto);
 
                 if (product) {
                     // "substituir todos os preços brutos pelo campo itab_precobruto mesmo que estiver em branco"
@@ -1316,30 +1522,64 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         { value: 'E', label: 'Excluído' },
     ];
 
-    // Frete options
-    const freteOptions = [
-        { value: 'C', label: 'CIF' },
-        { value: 'F', label: 'FOB' },
-    ];
 
-    const inputClasses = "h-7 text-xs font-bold border-emerald-100 focus:border-emerald-500 bg-white placeholder:text-emerald-300 shadow-sm text-black";
-    const labelClasses = "text-[10px] text-teal-700 font-bold uppercase tracking-wide mb-0.5 block";
+    const inputClasses = "h-10 text-sm font-semibold border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 bg-slate-50/50 hover:bg-white transition-all rounded-xl shadow-sm text-slate-700 placeholder:text-slate-300";
+    const labelClasses = "text-[11px] text-slate-700 font-bold uppercase tracking-wider mb-1.5 block ml-1";
 
     return (
-        <div className="flex flex-col h-full w-full bg-slate-50 relative overflow-hidden">
-            <div className="flex flex-col h-full w-full bg-gradient-to-br from-teal-50 to-emerald-50 shadow-inner flex-1 overflow-hidden border-2 border-teal-200 rounded-lg">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-xl w-full max-w-[1400px] h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/20 luxury-shadow select-none relative mesh-gradient">
+                {/* Decorative border top gradient */}
+                <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 shrink-0" />
 
-                {/* Header - Removed local title bar as requested, using Dialog header only */}
+                <div className="bg-white/40 backdrop-blur-md border-b border-white/20 px-6 py-5 flex items-center justify-between shrink-0 z-50 glass-premium">
+                    <div className="flex items-center gap-5">
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 text-white transform hover:scale-110 transition-transform duration-300 cursor-help animate-float premium-shine">
+                            <ShoppingCart className="h-6 w-6" strokeWidth={2.5} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                    PEDIDO DE VENDA
+                                    <span className="text-slate-300 font-light prose">/</span>
+                                </h1>
+                                <span className="bg-emerald-500 text-white px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm">
+                                    {selectedIndustry?.for_nomered || 'Indústria'}
+                                </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-bold flex items-center gap-4 mt-1">
+                                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50"><FileText className="h-3.5 w-3.5 text-blue-500" /> NÚMERO: <b className="text-slate-800 font-black">{displayNumber}</b></span>
+                                {formData.ped_data && (
+                                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50"><Calendar className="h-3.5 w-3.5 text-purple-500" /> EMISSÃO: <b className="text-slate-800 font-black">{new Date(formData.ped_data).toLocaleDateString()}</b></span>
+                                )}
+                                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50">
+                                    <div className={cn(
+                                        "h-2 w-2 rounded-full",
+                                        formData.ped_situacao === 'F' ? "bg-blue-500" : "bg-emerald-500 animate-pulse"
+                                    )} />
+                                    STATUS: <b className="text-slate-800 font-black uppercase">{formData.ped_situacao === 'F' ? 'FATURADO' : 'PENDENTE'}</b>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
 
-                {/* Main Content Area - Tabs Content */}
-                <div className="flex-1 overflow-hidden flex flex-col bg-slate-50 relative">
+                    <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end bg-emerald-50/50 px-4 py-1.5 rounded-2xl border border-emerald-100/50 shadow-inner">
+                            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Valor Líquido</span>
+                            <span className="text-2xl font-mono font-black text-emerald-600 tracking-tighter leading-none glow-sm">{formatCurrency(formData.ped_totliq)}</span>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div className="flex-1 relative overflow-hidden bg-slate-50/30">
 
                     {/* F1: Capa (Principal) */}
-                    <div className={cn("absolute inset-0 flex flex-col p-2 gap-2 overflow-auto", activeTab !== 'F1' && "hidden")}>
+                    <div className={cn("absolute inset-0 flex flex-col p-4 gap-4 overflow-auto animate-in slide-in-from-left duration-300", activeTab !== 'F1' && "hidden")}>
 
                         {/* Top Section: Form Fields */}
-                        <div className="bg-white border border-emerald-100 rounded-lg p-3 shadow-sm shrink-0">
-                            <div className="grid grid-cols-12 gap-3">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm shrink-0">
+                            <div className="grid grid-cols-12 gap-6">
 
                                 {/* Left Column: Client & Logistics */}
                                 <div className="col-span-12 lg:col-span-8 flex flex-col gap-2">
@@ -1385,355 +1625,159 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                                     {/* Row 2: Client */}
                                     <div className="flex flex-col gap-1.5">
-                                        <div className="flex items-center justify-between">
-                                            <Label className={labelClasses}>Cliente (F8-Pesquisar)</Label>
-                                            {formData.ped_cliente && (
-                                                <span className="text-[9px] text-teal-600 font-bold bg-teal-50 px-1.5 rounded">ID: {formData.ped_cliente}</span>
+                                        <DbComboBox
+                                            label="Cliente (F8-Pesquisar)"
+                                            placeholder="Busque por nome, CNPJ ou código..."
+                                            value={formData.ped_cliente}
+                                            initialLabel={existingOrder?.cli_nomred || existingOrder?.cli_nome || formData.ped_cliente}
+                                            fetchData={fetchClients}
+                                            onChange={async (val, client) => {
+                                                handleFieldChange('ped_cliente', val);
+                                                if (!val) return;
+
+                                                // Buscar condições CLI_IND apenas em modo INSERT
+                                                if (!existingOrder && selectedIndustry?.for_codigo) {
+                                                    try {
+                                                        const conditions = await cliIndData.fetchConditions(
+                                                            val,
+                                                            selectedIndustry.for_codigo
+                                                        );
+
+                                                        if (conditions) {
+                                                            applyCliIndConditions(conditions);
+
+                                                            // FALLBACK: Se comprador estiver vazio, buscar em CLI_ANIV
+                                                            if (!conditions.cli_comprador) {
+                                                                try {
+                                                                    const buyer = await cliAnivData.fetchBuyer(val);
+                                                                    if (buyer) {
+                                                                        handleFieldChange('ped_comprador', buyer.nome);
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error('Erro ao buscar comprador em CLI_ANIV:', error);
+                                                                }
+                                                            }
+                                                        } else {
+                                                            try {
+                                                                const buyer = await cliAnivData.fetchBuyer(val);
+                                                                if (buyer) {
+                                                                    handleFieldChange('ped_comprador', buyer.nome);
+                                                                }
+                                                            } catch (error) {
+                                                                console.error('Erro ao buscar comprador em CLI_ANIV:', error);
+                                                            }
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Erro ao buscar CLI_IND:', error);
+                                                    }
+                                                }
+                                            }}
+                                            renderItem={(item) => (
+                                                <div className="flex items-center gap-3 w-full">
+                                                    <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                                        {(item.nomred || item.nome || "?").charAt(0)}
+                                                    </div>
+                                                    <div className="flex flex-col flex-1 overflow-hidden">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="font-bold text-slate-700 truncate text-[11px]">{item.nomred || item.nome}</span>
+                                                            <span className="text-[9px] text-teal-600 font-mono font-bold bg-teal-50 px-1 rounded">ID: {item.value}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 truncate">{item.nome}</span>
+                                                        <div className="flex items-center gap-2 text-[9px] text-slate-400">
+                                                            <span>{item.cnpj || 'Sem CNPJ'}</span>
+                                                            <span className="truncate">• {item.cidade}/{item.uf}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             )}
-                                        </div>
-                                        <Popover open={openCliente} onOpenChange={setOpenCliente}>
-                                            <PopoverTrigger asChild>
-                                                <button
-                                                    className={cn(
-                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
-                                                        "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
-
-                                                    )}
-                                                >
-                                                    <span className="truncate">
-                                                        {formData.ped_cliente
-                                                            ? (auxData.clients || []).find((c) => String(c.cli_codigo) === String(formData.ped_cliente))?.cli_nome ||
-                                                            (auxData.clients || []).find((c) => String(c.cli_codigo) === String(formData.ped_cliente))?.cli_nomred ||
-                                                            `ID: ${formData.ped_cliente}`
-                                                            : "Selecione o cliente..."}
-                                                    </span>
-                                                    <div className="flex items-center gap-2">
-                                                        {auxData.loading && <div className="h-3 w-3 border-2 border-teal-600/30 border-t-teal-600 rounded-full animate-spin" />}
-                                                        <Search className="h-4 w-4 text-teal-600 hover:scale-110 transition-transform cursor-pointer" />
-                                                    </div>
-                                                </button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[600px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
-                                                <Command className="pointer-events-auto" shouldFilter={false}>
-                                                    <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
-                                                        <CommandInput
-                                                            placeholder="Digite nome, CPF/CNPJ ou código... (ESC para fechar)"
-                                                            value={clienteSearch}
-                                                            onValueChange={setClienteSearch}
-                                                            className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
-                                                            autoFocus
-                                                        />
-                                                    </div>
-                                                    <CommandList className="max-h-[300px] overflow-y-auto">
-                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
-                                                            {auxData.loading ? "Carregando clientes..." : "Nenhum cliente encontrado."}
-                                                        </CommandEmpty>
-                                                        <CommandGroup>
-                                                            {(() => {
-                                                                const filtered = (auxData.clients || []).filter(c =>
-                                                                    !clienteSearch ||
-                                                                    c.cli_nomred?.toLowerCase().includes(clienteSearch.toLowerCase()) ||
-                                                                    c.cli_nome?.toLowerCase().includes(clienteSearch.toLowerCase()) ||
-                                                                    c.cli_cnpj?.includes(clienteSearch) ||
-                                                                    c.cli_codigo?.toString().includes(clienteSearch)
-                                                                );
-
-                                                                if (filtered.length === 0 && !auxData.loading) return null;
-
-                                                                return filtered.slice(0, 80).map((client, index) => (
-                                                                    <CommandItem
-                                                                        key={`${client.cli_codigo}-${index}`}
-                                                                        value={String(client.cli_codigo)}
-                                                                        onSelect={async () => {
-                                                                            handleFieldChange('ped_cliente', client.cli_codigo);
-
-                                                                            // Buscar condições CLI_IND apenas em modo INSERT
-                                                                            if (!existingOrder && selectedIndustry?.for_codigo) {
-                                                                                try {
-                                                                                    const conditions = await cliIndData.fetchConditions(
-                                                                                        client.cli_codigo,
-                                                                                        selectedIndustry.for_codigo
-                                                                                    );
-
-                                                                                    if (conditions) {
-                                                                                        applyCliIndConditions(conditions);
-
-                                                                                        // FALLBACK: Se comprador estiver vazio, buscar em CLI_ANIV
-                                                                                        if (!conditions.cli_comprador) {
-                                                                                            try {
-                                                                                                console.log('🔄 [OrderForm] Comprador vazio, buscando em CLI_ANIV...');
-                                                                                                const buyer = await cliAnivData.fetchBuyer(client.cli_codigo);
-
-                                                                                                if (buyer) {
-                                                                                                    handleFieldChange('ped_comprador', buyer.nome);
-                                                                                                    console.log(`✅ [OrderForm] Comprador encontrado: ${buyer.nome}`);
-                                                                                                }
-                                                                                            } catch (error) {
-                                                                                                console.error('Erro ao buscar comprador em CLI_ANIV:', error);
-                                                                                            }
-                                                                                        }
-                                                                                    } else {
-                                                                                        // Se CLI_IND não retornou nada, buscar direto em CLI_ANIV
-                                                                                        try {
-                                                                                            console.log('🔄 [OrderForm] CLI_IND vazio, buscando comprador em CLI_ANIV...');
-                                                                                            const buyer = await cliAnivData.fetchBuyer(client.cli_codigo);
-
-                                                                                            if (buyer) {
-                                                                                                handleFieldChange('ped_comprador', buyer.nome);
-                                                                                                console.log(`✅ [OrderForm] Comprador encontrado: ${buyer.nome}`);
-                                                                                            }
-                                                                                        } catch (error) {
-                                                                                            console.error('Erro ao buscar comprador em CLI_ANIV:', error);
-                                                                                        }
-                                                                                    }
-                                                                                } catch (error) {
-                                                                                    console.error('Erro ao buscar CLI_IND:', error);
-                                                                                    // Continue sem condições especiais
-                                                                                }
-                                                                            }
-
-                                                                            setOpenCliente(false);
-                                                                            setClienteSearch('');
-                                                                        }}
-                                                                        className="flex items-center gap-3 p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
-                                                                    >
-                                                                        <div className={cn(
-                                                                            "w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0",
-                                                                            String(formData.ped_cliente) === String(client.cli_codigo) ? "bg-teal-500 text-white" : "bg-slate-100 text-slate-500"
-                                                                        )}>
-                                                                            {(client.cli_nomred || client.cli_nome || "?").charAt(0)}
-                                                                        </div>
-                                                                        <div className="flex flex-col flex-1 overflow-hidden">
-                                                                            <div className="flex items-center justify-between gap-2">
-                                                                                <span className="font-bold text-slate-700 truncate text-xs">{client.cli_nomred || client.cli_nome}</span>
-                                                                                <span className="text-[10px] text-teal-600 font-mono font-bold bg-teal-50 px-1 rounded whitespace-nowrap">ID: {client.cli_codigo}</span>
-                                                                            </div>
-                                                                            <span className="text-[10px] text-slate-500 truncate">{client.cli_nome}</span>
-                                                                            <div className="flex items-center gap-2 text-[9px] text-slate-400 mt-0.5">
-                                                                                <span className="font-mono">{client.cli_cnpj || 'Sem CNPJ'}</span>
-                                                                                <span className="truncate">• {client.cli_cidade}/{client.cli_uf}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                        {String(formData.ped_cliente) === String(client.cli_codigo) && (
-                                                                            <Check className="h-4 w-4 text-teal-600 shrink-0" />
-                                                                        )}
-                                                                    </CommandItem>
-                                                                ));
-                                                            })()}
-                                                        </CommandGroup>
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
+                                        />
                                     </div>
 
                                     {/* Row 3: Transporter */}
                                     <div className="flex flex-col gap-1.5">
-                                        <Label className={labelClasses}>Transportadora</Label>
-                                        <Popover open={openTransp} onOpenChange={setOpenTransp}>
-                                            <PopoverTrigger asChild>
-                                                <button
-                                                    className={cn(
-                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
-                                                        "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
-                                                        !formData.ped_transp && "text-muted-foreground italic"
-                                                    )}
-                                                >
-                                                    <span className="truncate">
-                                                        {formData.ped_transp
-                                                            ? (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.tra_nome ||
-                                                            (auxData.carriers || []).find((t) => (t.tra_codigo === formData.ped_transp || t.codigo === formData.ped_transp))?.nome ||
-                                                            formData.ped_transp
-                                                            : "Selecione a transportadora..."}
-                                                    </span>
-                                                    <Search className="h-3.5 w-3.5 opacity-50 text-teal-600" />
-                                                </button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[500px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
-                                                <Command className="pointer-events-auto">
-                                                    <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
-                                                        <CommandInput
-                                                            placeholder="Buscar transportadora..."
-                                                            value={transpSearch}
-                                                            onValueChange={setTranspSearch}
-                                                            className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
-                                                        />
-                                                    </div>
-                                                    <CommandList className="max-h-[200px]">
-                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
-                                                            {auxData.loading ? "Carregando..." : "Nenhuma transportadora encontrada."}
-                                                        </CommandEmpty>
-                                                        <CommandGroup>
-                                                            {(auxData.carriers || [])
-                                                                .filter(t =>
-                                                                    !transpSearch ||
-                                                                    (t.tra_nome || t.nome || "").toLowerCase().includes(transpSearch.toLowerCase()) ||
-                                                                    String(t.tra_codigo || t.codigo || "").includes(transpSearch)
-                                                                )
-                                                                .map((transp, index) => (
-                                                                    <CommandItem
-                                                                        key={`${transp.tra_codigo || transp.codigo}-${index}`}
-                                                                        value={String(transp.tra_codigo || transp.codigo)}
-                                                                        onSelect={() => {
-                                                                            handleFieldChange('ped_transp', transp.tra_codigo || transp.codigo);
-                                                                            setOpenTransp(false);
-                                                                            setTranspSearch('');
-                                                                        }}
-                                                                        className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
-                                                                    >
-                                                                        <div className="flex flex-col">
-                                                                            <span className="font-medium text-slate-700">{transp.tra_nome || transp.nome}</span>
-                                                                            <span className="text-[10px] text-slate-400 font-mono">ID: {transp.tra_codigo || transp.codigo}</span>
-                                                                        </div>
-                                                                        {String(formData.ped_transp) === String(transp.tra_codigo || transp.codigo) && (
-                                                                            <Check className="h-4 w-4 text-teal-600 shrink-0" />
-                                                                        )}
-                                                                    </CommandItem>
-                                                                ))}
-                                                        </CommandGroup>
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
+                                        <DbComboBox
+                                            label="Transportadora"
+                                            placeholder="Selecione a transportadora..."
+                                            value={formData.ped_transp}
+                                            initialLabel={existingOrder?.tra_nome || formData.ped_transp}
+                                            fetchData={fetchCarriers}
+                                            onChange={(val) => handleFieldChange('ped_transp', val)}
+                                        />
                                     </div>
 
-                                    {/* Row 4: Vendedor | Condições */}
-                                    <div className="grid grid-cols-12 gap-2">
-                                        <div className="col-span-8 flex flex-col gap-1.5">
-                                            <Label className={labelClasses}>Vendedor</Label>
-                                            <Popover open={openVendedor} onOpenChange={setOpenVendedor}>
-                                                <PopoverTrigger asChild>
-                                                    <button
-                                                        className={cn(
-                                                            "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 shadow-sm text-black",
-                                                            "bg-white border-emerald-100 hover:border-emerald-300 focus:ring-2 focus:ring-emerald-500/20",
-                                                            !formData.ped_vendedor && "text-muted-foreground italic"
-                                                        )}
-                                                    >
-                                                        <span className="truncate">
-                                                            {formData.ped_vendedor
-                                                                ? (auxData.sellers || []).find((s) => (s.ven_codigo === formData.ped_vendedor || s.codigo === formData.ped_vendedor))?.ven_nome ||
-                                                                (auxData.sellers || []).find((s) => (s.ven_codigo === formData.ped_vendedor || s.codigo === formData.ped_vendedor))?.nome ||
-                                                                formData.ped_vendedor
-                                                                : "Selecione o vendedor..."}
-                                                        </span>
-                                                        <Search className="h-3.5 w-3.5 opacity-50 text-teal-600" />
-                                                    </button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[400px] p-0 z-[10000] border-emerald-100 shadow-xl max-h-[300px] overflow-y-auto pointer-events-auto" align="start" sideOffset={8}>
-                                                    <Command>
-                                                        <div className="p-2 border-b border-emerald-50 bg-emerald-50/30">
-                                                            <CommandInput
-                                                                placeholder="Buscar vendedor..."
-                                                                value={vendedorSearch}
-                                                                onValueChange={setVendedorSearch}
-                                                                className="h-8 border-emerald-200 focus:ring-0 text-xs font-bold text-black"
-                                                            />
-                                                        </div>
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty className="p-4 text-center text-xs text-slate-400">
-                                                                {auxData.loading ? "Carregando..." : "Nenhum vendedor encontrado."}
-                                                            </CommandEmpty>
-                                                            <CommandGroup>
-                                                                {(auxData.sellers || [])
-                                                                    .filter(s =>
-                                                                        !vendedorSearch ||
-                                                                        (s.ven_nome || s.nome || "").toLowerCase().includes(vendedorSearch.toLowerCase()) ||
-                                                                        String(s.ven_codigo || s.codigo || "").includes(vendedorSearch)
-                                                                    )
-                                                                    .map((seller, index) => (
-                                                                        <CommandItem
-                                                                            key={`${seller.ven_codigo || seller.codigo}-${index}`}
-                                                                            value={String(seller.ven_codigo || seller.codigo)}
-                                                                            onSelect={() => {
-                                                                                handleFieldChange('ped_vendedor', seller.ven_codigo || seller.codigo);
-                                                                                setOpenVendedor(false);
-                                                                                setVendedorSearch('');
-                                                                            }}
-                                                                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
-                                                                        >
-                                                                            <div className="flex flex-col">
-                                                                                <span className="font-medium text-slate-700">{seller.ven_nome || seller.nome}</span>
-                                                                                <span className="text-[10px] text-slate-400 font-mono">ID: {seller.ven_codigo || seller.codigo}</span>
-                                                                            </div>
-                                                                            {String(formData.ped_vendedor) === String(seller.ven_codigo || seller.codigo) && (
-                                                                                <Check className="h-4 w-4 text-teal-600 shrink-0" />
-                                                                            )}
-                                                                        </CommandItem>
-                                                                    ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
+                                    {/* Unified Organized Grid for Footer Fields - Modern Floating Label Style */}
+                                    <div className="grid grid-cols-12 gap-x-4 gap-y-1 mt-1">
+                                        <div className="col-span-6">
+                                            <DbComboBox
+                                                label="VENDEDOR"
+                                                placeholder="Selecione o vendedor..."
+                                                value={formData.ped_vendedor}
+                                                initialLabel={existingOrder?.ven_nome || formData.ped_vendedor}
+                                                fetchData={fetchSellers}
+                                                onChange={(val) => handleFieldChange('ped_vendedor', val)}
+                                            />
                                         </div>
-                                        <div className="col-span-4 flex flex-col gap-1.5">
-                                            <Label className={labelClasses}>Condições</Label>
-                                            <Input
+
+                                        <div className="col-span-6">
+                                            <InputField
+                                                label="CONDIÇÕES"
                                                 value={formData.ped_conpgto || ''}
                                                 onChange={(e) => handleFieldChange('ped_conpgto', e.target.value)}
-                                                className={inputClasses}
+                                                placeholder=" "
                                             />
                                         </div>
-                                    </div>
 
-                                    {/* Row 5: Comprador | Frete */}
-                                    <div className="grid grid-cols-12 gap-2">
-                                        <div className="col-span-8">
-                                            <Label className={labelClasses}>Comprador</Label>
-                                            <div className="flex gap-1">
-                                                <Input
-                                                    value={formData.ped_comprador || ''}
-                                                    onChange={(e) => handleFieldChange('ped_comprador', e.target.value)}
-                                                    className={inputClasses}
-                                                />
-                                                <Button
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-7 w-7 shrink-0"
-                                                    onClick={() => setShowBuyerDialog(true)}
-                                                    type="button"
-                                                >
-                                                    <Plus className="h-3 w-3" />
-                                                </Button>
-                                            </div>
+                                        <div className="col-span-5">
+                                            <InputField
+                                                label="COMPRADOR"
+                                                value={formData.ped_comprador || ''}
+                                                onChange={(e) => handleFieldChange('ped_comprador', e.target.value)}
+                                                placeholder=" "
+                                            />
                                         </div>
-                                        <div className="col-span-4">
-                                            <Label className={labelClasses}>Frete</Label>
-                                            <Select
-                                                value={formData.ped_frete}
-                                                onValueChange={(value) => handleFieldChange('ped_frete', value)}
+
+                                        <div className="col-span-1 flex items-start pt-[1px]">
+                                            <Button
+                                                className="h-[50px] w-full btn-god-emerald active:scale-95 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center transition-all group border-none"
+                                                onClick={() => setShowBuyerDialog(true)}
+                                                type="button"
+                                                title="Cadastrar comprador"
                                             >
-                                                <SelectTrigger className={inputClasses}>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent className="z-[10000]" position="popper">
-                                                    {freteOptions.map((opt) => (
-                                                        <SelectItem key={opt.value} value={opt.value}>
-                                                            {opt.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                <Plus className="h-6 w-6 text-white stroke-[3.5px]" />
+                                            </Button>
                                         </div>
-                                    </div>
 
-                                    {/* Row 6: External IDs */}
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <Label className={labelClasses}>Pedido Cliente</Label>
-                                            <Input
+                                        <div className="col-span-6">
+                                            <DbComboBox
+                                                label="FRETE"
+                                                value={formData.ped_frete}
+                                                initialLabel={formData.ped_frete === 'F' ? 'FOB' : (formData.ped_frete === 'C' ? 'CIF' : '')}
+                                                fetchData={async (search) => {
+                                                    const options = [
+                                                        { label: 'CIF', value: 'C' },
+                                                        { label: 'FOB', value: 'F' }
+                                                    ];
+                                                    return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+                                                }}
+                                                onChange={(val) => handleFieldChange('ped_frete', val)}
+                                            />
+                                        </div>
+
+                                        <div className="col-span-6">
+                                            <InputField
+                                                label="PEDIDO CLIENTE"
                                                 value={formData.ped_pedcli || ''}
                                                 onChange={(e) => handleFieldChange('ped_pedcli', e.target.value)}
-                                                className={inputClasses}
+                                                placeholder=" "
                                             />
                                         </div>
-                                        <div>
-                                            <Label className={labelClasses}>Pedido Indústria</Label>
-                                            <Input
+
+                                        <div className="col-span-6">
+                                            <InputField
+                                                label="PEDIDO INDÚSTRIA"
                                                 value={formData.ped_pedindu || ''}
                                                 onChange={(e) => handleFieldChange('ped_pedindu', e.target.value)}
-                                                className={inputClasses}
+                                                placeholder=" "
                                             />
                                         </div>
                                     </div>
@@ -1757,76 +1801,15 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 {/* Right Column: Financials */}
                                 <div className="col-span-12 lg:col-span-4 flex flex-col gap-3 border-l border-dashed border-emerald-200 pl-3">
                                     <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 shadow-sm">
-                                        <Label className={labelClasses}>TABELA DE PREÇO</Label>
-                                        <Popover open={openTabela} onOpenChange={setOpenTabela}>
-                                            <PopoverTrigger asChild>
-                                                <button
-                                                    className={cn(
-                                                        "w-full flex items-center justify-between px-3 h-8 rounded-md border text-xs font-bold transition-all duration-200 mt-1 text-black",
-                                                        "bg-white border-amber-200 hover:border-amber-400 focus:ring-2 focus:ring-amber-500/20",
-                                                        !formData.ped_tabela && "text-muted-foreground italic"
-                                                    )}
-                                                >
-                                                    <span className="truncate font-bold text-amber-900">
-                                                        {formData.ped_tabela
-                                                            ? (auxData.priceTables || []).find((t) => (t.itab_idtabela === formData.ped_tabela || t.nome_tabela === formData.ped_tabela || t.codigo === formData.ped_tabela))?.nome_tabela ||
-                                                            (auxData.priceTables || []).find((t) => (t.itab_idtabela === formData.ped_tabela || t.nome_tabela === formData.ped_tabela || t.codigo === formData.ped_tabela))?.itab_nome ||
-                                                            formData.ped_tabela
-                                                            : "Selecione a tabela..."}
-                                                    </span>
-                                                    <Search className="h-3.5 w-3.5 opacity-50 text-amber-600" />
-                                                </button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[400px] p-0 z-[10000] border-amber-200 shadow-xl" align="start" sideOffset={8}>
-                                                <Command>
-                                                    <div className="p-2 border-b border-amber-50 bg-amber-50/30">
-                                                        <CommandInput
-                                                            placeholder="Buscar tabela..."
-                                                            value={tabelaSearch}
-                                                            onValueChange={setTabelaSearch}
-                                                            className="h-8 border-amber-200 focus:ring-0 text-xs font-bold text-black"
-                                                        />
-                                                    </div>
-                                                    <CommandList className="max-h-[200px]">
-                                                        <CommandEmpty className="p-4 text-center text-xs text-slate-400">
-                                                            {priceTable.loading || auxData.loading ? "Carregando..." : "Nenhuma tabela encontrada."}
-                                                        </CommandEmpty>
-                                                        <CommandGroup>
-                                                            {(auxData.priceTables || [])
-                                                                .filter(t =>
-                                                                    !tabelaSearch ||
-                                                                    (t.nome_tabela || t.itab_nome || "").toLowerCase().includes(tabelaSearch.toLowerCase()) ||
-                                                                    String(t.itab_idtabela || "").includes(tabelaSearch)
-                                                                )
-                                                                .map((table, index) => {
-                                                                    const tableId = table.nome_tabela || table.itab_idtabela; // Use name as ID if needed
-                                                                    const tableName = table.nome_tabela || table.itab_nome || tableId;
-                                                                    return (
-                                                                        <CommandItem
-                                                                            key={`${tableId}-${index}`}
-                                                                            value={String(tableId)}
-                                                                            onSelect={() => {
-                                                                                handleFieldChange('ped_tabela', tableId);
-                                                                                setOpenTabela(false);
-                                                                                setTabelaSearch('');
-                                                                            }}
-                                                                            className="flex items-center justify-between p-2 cursor-pointer hover:bg-emerald-50/50 data-[disabled]:opacity-100 data-[disabled]:pointer-events-auto"
-                                                                        >
-                                                                            <div className="flex flex-col">
-                                                                                <span className="font-medium text-slate-700">{tableName}</span>
-                                                                                <span className="text-[10px] text-slate-400 font-mono">ID: {tableId}</span>
-                                                                            </div>
-                                                                            {String(formData.ped_tabela) === String(tableId) && (
-                                                                                <Check className="h-4 w-4 text-teal-600 shrink-0" />
-                                                                            )}
-                                                                        </CommandItem>
-                                                                    );
-                                                                })}
-                                                        </CommandGroup>
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
+                                        <DbComboBox
+                                            label="TABELA DE PREÇO"
+                                            placeholder="Selecione a tabela..."
+                                            value={formData.ped_tabela}
+                                            initialLabel={existingOrder?.tab_descricao || formData.ped_tabela}
+                                            fetchData={fetchPriceTables}
+                                            onChange={(val) => handleFieldChange('ped_tabela', val)}
+                                            className="bg-white border-amber-200 text-amber-900 font-bold"
+                                        />
                                         <div className="mt-2 flex justify-between text-[10px] text-amber-600/70 font-medium px-1">
                                             <span>Preços e impostos atualizados</span>
                                             <span className="font-bold text-amber-700 bg-amber-100/50 px-1.5 rounded">
@@ -1844,55 +1827,71 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         <Label className={labelClasses}>Informe os descontos</Label>
                                         <Button size="sm" variant="ghost" className="h-5 text-[10px] text-emerald-600 px-1"><Plus className="h-3 w-3 mr-1" /> Adicionar</Button>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-1">
-                                        {[
-                                            { key: 'ped_pri', label: '1º' }, { key: 'ped_seg', label: '2º' }, { key: 'ped_ter', label: '3º' },
-                                            { key: 'ped_qua', label: '4º' }, { key: 'ped_qui', label: '5º' }, { key: 'ped_sex', label: '6º' },
-                                            { key: 'ped_set', label: '7º' }, { key: 'ped_oit', label: '8º' }
-                                        ].map((field) => (
-                                            <DiscountInput
-                                                key={field.key}
-                                                label={field.label}
-                                                value={formData[field.key]}
-                                                onChange={(val) => handleFieldChange(field.key, val)}
-                                            />
-                                        ))}
-                                        {/* 9º Desconto com botão 'Tornar Padrão' */}
-                                        <div className="col-span-2 flex gap-2 items-end">
-                                            <DiscountInput
-                                                label="9º"
-                                                value={formData.ped_nov}
-                                                onChange={(val) => handleFieldChange('ped_nov', val)}
-                                            />
-                                            <Button
-                                                size="sm"
-                                                className="h-6 mb-0 bg-emerald-600 text-white hover:bg-emerald-700 text-[10px] font-bold px-2 shadow-sm border border-emerald-700"
-                                                onClick={() => {
-                                                    setShowConditionDialog(true);
-                                                }}
-                                                type="button"
-                                            >
-                                                Tornar Padrão
-                                            </Button>
+                                    <div className="border border-blue-400 rounded-lg p-3 bg-white mb-3 shadow-sm">
+                                        <div className="grid grid-cols-4 gap-2 mb-3">
+                                            {[
+                                                { key: 'ped_pri', label: '1º' }, { key: 'ped_seg', label: '2º' }, { key: 'ped_ter', label: '3º' },
+                                                { key: 'ped_qua', label: '4º' }
+                                            ].map((field) => (
+                                                <DiscountInput
+                                                    key={field.key}
+                                                    label={field.label}
+                                                    value={formData[field.key]}
+                                                    onChange={(val) => handleFieldChange(field.key, val)}
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-2 items-center">
+                                            {[
+                                                { key: 'ped_qui', label: '5º' }, { key: 'ped_sex', label: '6º' }, { key: 'ped_set', label: '7º' },
+                                                { key: 'ped_oit', label: '8º' }, { key: 'ped_nov', label: '9º' }
+                                            ].map((field) => (
+                                                <DiscountInput
+                                                    key={field.key}
+                                                    label={field.label}
+                                                    value={formData[field.key]}
+                                                    onChange={(val) => handleFieldChange(field.key, val)}
+                                                />
+                                            ))}
                                         </div>
                                     </div>
 
+                                    <Button
+                                        className="h-10 w-full btn-god-emerald active:scale-95 rounded-xl text-xs mb-3 shadow-lg shadow-emerald-500/20"
+                                        title="Salvar dados como padrão do cliente"
+                                        onClick={() => {
+                                            setShowConditionDialog(true);
+                                        }}
+                                        type="button"
+                                    >
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Star className="h-4 w-4 text-white" />
+                                            <span className="font-black tracking-widest">TORNAR PADRÃO</span>
+                                        </div>
+                                    </Button>
 
-                                    {/* Checkbox */}
-                                    <div className="flex items-center space-x-2 my-2">
+
+                                    <div className="flex items-center space-x-3 my-4 p-2 rounded-xl bg-red-50/30 border border-red-100/50 w-fit group">
                                         <Checkbox
                                             id="allowDuplicates"
                                             checked={allowDuplicates}
                                             onCheckedChange={(checked) => {
+                                                console.log("Checkbox toggled:", checked);
                                                 setAllowDuplicates(checked);
                                                 handleFieldChange('ped_permiterepe', checked);
                                             }}
+                                            className="h-6 w-6 border-2 border-red-400 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600 transition-all cursor-pointer shadow-sm shadow-red-500/10"
                                         />
                                         <label
                                             htmlFor="allowDuplicates"
-                                            className="text-xs font-bold text-red-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            className="text-lg font-bold cursor-pointer transition-all group-hover:translate-x-1"
+                                            style={{
+                                                color: '#FF0000',
+                                                fontFamily: "'Courier New', Courier, monospace",
+                                                letterSpacing: '-0.02em'
+                                            }}
                                         >
-                                            Permitir itens repetidos?
+                                            Permitir ítens repetidos?
                                         </label>
                                     </div>
 
@@ -1916,215 +1915,54 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                         </div>
 
                         {/* Navigation Action Buttons - 2025 Modern Design Unified */}
-                        <div className="flex items-center gap-1 p-1 bg-slate-200/50 backdrop-blur-md rounded-2xl border border-slate-300/50 shadow-sm w-full mt-2 mb-1.5">
+                        <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/40 backdrop-blur-md rounded-2xl border border-slate-300/40 shadow-inner w-full mt-2 mb-1.5 overflow-x-auto no-scrollbar">
                             {[
-                                { key: 'F1', label: 'F1 - Principal', icon: LayoutDashboard, color: 'emerald' }
+                                { key: 'F1', label: 'F1 - Principal', icon: LayoutDashboard },
+                                { key: 'F2', label: 'F2 - Inteligência', isIntelligence: true },
+                                { key: 'F3', label: 'F3 - Itens', icon: ShoppingCart },
+                                { key: 'F4', label: 'F4 - Faturas', icon: CreditCard },
+                                { key: 'F5', label: 'F5 - Conferência', icon: ClipboardCheck },
+                                { key: 'F7', label: 'F7 - Faturados', icon: FileCheck },
+                                { key: 'XX', label: 'XX - Imp. XLS', icon: FileUp },
+                                { key: '01', label: '01 - LOAD XML', icon: FileCode },
                             ].map(tab => {
+                                if (tab.isIntelligence) {
+                                    return (
+                                        <div key={tab.key} className="mx-0.5">
+                                            <SmartOrderDialog
+                                                disabled={false}
+                                                orderId={formData.ped_pedido}
+                                                orderNumber={displayNumber}
+                                                onOrderGenerated={handleSmartImportItems}
+                                            />
+                                        </div>
+                                    );
+                                }
+
                                 const Icon = tab.icon;
                                 const isActive = activeTab === tab.key;
+
                                 return (
                                     <button
                                         key={tab.key}
                                         onClick={() => handleTabChange(tab.key)}
                                         className={cn(
-                                            "group relative flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-[10px] transition-all duration-300 ease-out h-[36px] border border-slate-200",
-                                            "text-[10px] font-bold uppercase tracking-tight whitespace-nowrap",
+                                            "group relative flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all duration-500 h-[42px]",
+                                            "text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
                                             isActive
-                                                ? "bg-white text-teal-700 shadow-[0_2px_8px_rgba(59,130,246,0.12)] border-blue-200 ring-1 ring-blue-100"
-                                                : "bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 hover:shadow"
+                                                ? "active-tab-glow text-blue-700 font-black shadow-xl scale-[1.05] z-20"
+                                                : "bg-white border border-blue-200/60 text-slate-700 shadow-sm hover:border-blue-400 hover:text-blue-900 hover:scale-[1.02] z-10"
                                         )}
                                     >
                                         <Icon className={cn(
-                                            "h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-6",
-                                            isActive ? "text-teal-600" : "text-slate-400 group-hover:text-blue-500"
+                                            "h-4 w-4 transition-all duration-500",
+                                            isActive
+                                                ? "text-blue-600 scale-125 rotate-[360deg]"
+                                                : "text-blue-400/70 group-hover:text-blue-500 group-hover:rotate-12"
                                         )} />
                                         <span>{tab.label}</span>
                                         {isActive && (
-                                            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-500 rounded-full" />
-                                        )}
-                                    </button>
-                                );
-                            })}
-
-                            {/* IA Order Button Replacement for F2 */}
-                            <div className="mx-1">
-                                <IAOrderDialog
-                                    disabled={false} // Always enabled to allow clicking and showing ID
-                                    orderId={formData.ped_pedido}
-                                    orderNumber={formData.ped_numero} // Pass display number
-                                    onOrderGenerated={async (items) => {
-                                        // STANDARD FLOW: Save Header -> Sync Items -> Refresh F5
-                                        // 1. Ensure Order is Saved before importing items
-                                        // 1. Ensure Order is Saved before importing items
-                                        let currentOrderId = formData.ped_pedido;
-                                        if (!currentOrderId || currentOrderId === '(Novo)') {
-                                            toast.info("Salvando pedido antes de importar itens da IA...");
-                                            const savedData = await handleSave({ silent: true });
-                                            // handleSave likely updates formData state, but we need the ID now.
-                                            // Ensure handleSave returns the backend response with ped_pedido
-                                            if (savedData?.data?.ped_pedido || savedData?.ped_pedido) {
-                                                currentOrderId = savedData.data?.ped_pedido || savedData.ped_pedido;
-                                            } else {
-                                                console.error("❌ Failed to save order. Aborting import.");
-                                                toast.error("Erro ao salvar o cabeçalho do pedido.");
-                                                return false;
-                                            }
-                                        }
-
-                                        // FINAL SAFEGUARD: If ID is still invalid, STOP.
-                                        if (!currentOrderId || currentOrderId === '(Novo)') {
-                                            console.error("❌ [IA Import] Critical Error: Invalid Order ID after save attempt:", currentOrderId);
-                                            toast.error("Erro Crítico: ID do pedido inválido. Tente salvar manualmente.");
-                                            return false;
-                                        }
-
-                                        try {
-                                            const foundItems = items;
-                                            const products = priceTable?.memtable || [];
-
-                                            if (products.length === 0) {
-                                                console.error("❌ [IA Import] Tabela de preço VAZIA.");
-                                                toast.error("Erro: A Tabela de Preço não foi carregada.");
-                                                return false;
-                                            }
-
-                                            const finalImportItems = [];
-                                            const notFoundInTable = [];
-
-                                            // Get existing items count to assign correct sequence
-                                            const existingItemsRes = await fetch(`/api/orders/${currentOrderId}/items`);
-                                            const existingItemsResponse = existingItemsRes.ok ? await existingItemsRes.json() : {};
-                                            const existingItems = existingItemsResponse.success ? existingItemsResponse.data : [];
-
-                                            let nextSeq = existingItems.length > 0
-                                                ? Math.max(...existingItems.map(i => i.ite_seq || 0)) + 1
-                                                : 1;
-
-                                            for (const item of foundItems) {
-                                                const product = products.find(p =>
-                                                    String(p.pro_codprod) === String(item.codigo) ||
-                                                    String(p.pro_codigonormalizado) === String(item.codigo)
-                                                );
-
-                                                if (!product) {
-                                                    notFoundInTable.push(item.codigo);
-                                                    continue;
-                                                }
-
-                                                const newItem = {
-                                                    ite_seq: nextSeq++,
-                                                    ite_industria: selectedIndustry?.for_codigo,
-                                                    ite_produto: product.pro_codprod,
-                                                    ite_idproduto: product.pro_id,
-                                                    ite_embuch: '',
-                                                    ite_nomeprod: product.pro_nome,
-                                                    ite_quant: parseFloat(item.quantidade) || 1,
-                                                    ite_puni: item.preco ? parseFloat(item.preco) : parseFloat(product.itab_precobruto || 0),
-                                                    ite_ipi: product.itab_ipi || 0,
-                                                    ite_st: product.itab_st || 0,
-                                                    ite_des1: formData.ped_pri || 0,
-                                                    ite_des2: formData.ped_seg || 0,
-                                                    ite_des3: formData.ped_ter || 0,
-                                                    ite_des4: formData.ped_qua || 0,
-                                                    ite_des5: formData.ped_qui || 0,
-                                                    ite_des6: formData.ped_sex || 0,
-                                                    ite_des7: formData.ped_set || 0,
-                                                    ite_des8: formData.ped_oit || 0,
-                                                    ite_des9: formData.ped_nov || 0,
-                                                    ite_des10: 0,
-                                                    ite_promocao: 'N'
-                                                };
-
-                                                const calculatedItem = calculateImportedItem(newItem);
-                                                finalImportItems.push(calculatedItem);
-                                            }
-
-                                            if (notFoundInTable.length > 0) {
-                                                console.warn("❌ Items not in PriceTable:", notFoundInTable);
-                                                toast.warning(`${notFoundInTable.length} itens não encontrados na tabela de preços.`);
-                                            }
-
-                                            if (finalImportItems.length === 0) {
-                                                toast.error("Nenhum item pôde ser importado.");
-                                                return false;
-                                            }
-
-                                            // 2. SYNC TO DB (Merge with existing)
-                                            const allItems = [...existingItems, ...finalImportItems];
-
-                                            // Sync removed (using memtable)
-                                            const syncResponse = { ok: true };
-                                            // const syncResponse = await fetch(`/api/orders/${currentOrderId}/items/sync`, {
-                                            //    method: 'POST',
-                                            // 2. STAGE IN MEMTABLE (Merge with existing)
-                                            const allMemItems = [...existingItems, ...finalImportItems];
-
-                                            console.log("📦 [IA Import] Defined final items in memory:", allMemItems.length);
-
-                                            // FORCE UPDATE BOTH STATES
-                                            importedItemsRef.current = allMemItems; // SYNC UPDATE: Critical for effect checks
-                                            setImportedItems(allMemItems);
-                                            setSummaryItems(allMemItems); // Force grid update immediately
-
-                                            // Syncing to DB is now deferred to "Save" or "Update Values" in F5
-
-                                            toast.success(
-                                                `✨ ${finalImportItems.length} itens carregados para conferência!`,
-                                                { duration: 3000 }
-                                            );
-
-                                            setTimeout(() => {
-                                                setActiveTab('F5');
-                                            }, 500);
-
-                                            return true;
-
-                                        } catch (error) {
-                                            console.error('❌ [IA Import] Error:', error);
-                                            toast.error('Erro ao processar importação IA: ' + error.message);
-                                            return false;
-                                        }
-                                    }} />
-                            </div>
-
-                            {[
-                                { key: 'F3', label: 'F3 - Itens', icon: ShoppingCart, color: 'teal' },
-                                { key: 'F4', label: 'F4 - Faturas', icon: CreditCard, color: 'blue' },
-                                { key: 'F5', label: 'F5 - Conferência', icon: ClipboardCheck, color: 'orange', highlight: true },
-                                { key: 'F7', label: 'F7 - Faturados', icon: FileCheck, color: 'violet' },
-                                { key: 'XX', label: 'XX - Imp. XLS', icon: FileUp, color: 'amber' },
-                                { key: '01', label: '01 - LOAD XML', icon: FileCode, color: 'slate' },
-                            ].map(tab => {
-                                const Icon = tab.icon;
-                                const isActive = activeTab === tab.key;
-                                const isHighlight = tab.highlight;
-                                const buttonColor = tab.color;
-
-                                return (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => handleTabChange(tab.key)}
-                                        className={cn(
-                                            "group relative flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-[10px] transition-all duration-300 ease-out h-[36px] border",
-                                            "text-[10px] font-bold uppercase tracking-tight whitespace-nowrap",
-                                            isActive
-                                                ? isHighlight
-                                                    ? "bg-orange-500 text-white border-orange-600 shadow-md ring-2 ring-orange-200" // Highlight Active (Keep Original Punch)
-                                                    : "bg-white text-teal-700 shadow-[0_2px_8px_rgba(59,130,246,0.12)] border-blue-200 ring-1 ring-blue-100" // Normal Active (White base)
-                                                : isHighlight
-                                                    ? "bg-white text-orange-600 border-orange-200 shadow-sm hover:bg-orange-50 hover:border-orange-300" // Highlight Inactive (White base with accent)
-                                                    : "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 hover:shadow" // Normal Inactive (White base)
-                                        )}
-                                    >
-                                        <Icon className={cn(
-                                            "h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-6",
-                                            isActive
-                                                ? isHighlight ? "text-white" : "text-teal-600"
-                                                : isHighlight ? "text-orange-500" : "text-slate-400 group-hover:text-blue-500"
-                                        )} />
-                                        <span>{tab.label}</span>
-                                        {isActive && !isHighlight && (
-                                            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-teal-500 rounded-full" />
+                                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-blue-500 rounded-full blur-[1.5px] animate-pulse" />
                                         )}
                                     </button>
                                 );
@@ -2143,9 +1981,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 <table className="w-full text-[11px]">
                                     <thead className="bg-[#f1f5f9] text-teal-900 sticky top-0 uppercase text-[9px] font-bold">
                                         <tr className="divide-x divide-slate-200">
-                                            <th className="p-1.5 border-b text-left">Seq</th>
-                                            <th className="p-1.5 border-b text-left">Código</th>
-                                            <th className="p-1.5 border-b text-left">Complem.</th>
+                                            <th className="p-1.5 border-b text-left whitespace-nowrap">Seq</th>
+                                            <th className="p-1.5 border-b text-left whitespace-nowrap">Código</th>
+                                            <th className="p-1.5 border-b text-left whitespace-nowrap">Complem.</th>
                                             <th className="p-1.5 border-b text-left min-w-[150px]">Descrição</th>
                                             <th className="p-1.5 border-b text-center">Quant</th>
                                             <th className="p-1.5 border-b text-right">Unitário</th>
@@ -2168,11 +2006,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                 </td>
                                             </tr>
                                         ) : (
-                                            summaryItems.map((item, idx) => (
+                                            summaryItems.slice().sort((a, b) => (b.ite_seq || 0) - (a.ite_seq || 0)).map((item, idx) => (
                                                 <tr key={idx} className="hover:bg-emerald-50/50 border-b border-slate-100 transition-colors text-[10px] divide-x divide-slate-50">
-                                                    <td className="p-1.5 text-center text-slate-500">{String(item.ite_seq).padStart(3, '0')}</td>
-                                                    <td className="p-1.5 font-bold text-blue-600">{item.ite_produto}</td>
-                                                    <td className="p-1.5 text-slate-500">{item.ite_embuch}</td>
+                                                    <td className="p-1.5 text-center text-slate-500 font-bold whitespace-nowrap">{String(item.ite_seq || (summaryItems.length - idx)).padStart(3, '0')}</td>
+                                                    <td className="p-1.5 font-bold text-blue-600 whitespace-nowrap">{item.ite_produto}</td>
+                                                    <td className="p-1.5 text-slate-500 whitespace-nowrap">{item.ite_embuch}</td>
                                                     <td className="p-1.5 truncate max-w-[200px] font-medium text-slate-700">{item.ite_nomeprod}</td>
                                                     <td className="p-1.5 text-center font-bold text-slate-900">{parseFloat(item.ite_quant || 0).toFixed(1)}</td>
                                                     <td className="p-1.5 text-right text-slate-600">{parseFloat(item.ite_totbruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -2236,7 +2074,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                             }}
                             allowDuplicates={allowDuplicates}
                             pedCliente={formData.ped_cliente}
-                            entrySpeed={4} // TODO: Get from user parameters (par_qtdenter)
+                            userParams={userParams}
                         />
                     </div>
 
@@ -2399,7 +2237,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 <tbody>
                                     {summaryItems.map((item, idx) => {
                                         // Busca info de embalagem do produto original
-                                        const product = priceTable.products?.find(p => p.pro_codprod === item.ite_produto);
+                                        const product = priceTable.memtable?.find(p => p.pro_codprod === item.ite_produto);
                                         const embalagem = product?.pro_embalagem || 0;
                                         const isPackagingError = embalagem > 1 && (item.ite_quant % embalagem !== 0);
 
@@ -2566,43 +2404,52 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 </div> {/* End of Main Content */}
 
-                {/* Bottom Toolbar - Absolute fixed at bottom of whole form */}
-                <div className="bg-slate-100 border-t border-slate-200 px-4 py-3 flex items-center justify-end gap-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] shrink-0 z-50">
-                    {activeTab === 'F1' ? (
-                        <>
+                {/* --- MODERN FOOTER --- */}
+                <div className="bg-white border-t border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 glass-premium z-50">
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Itens no Pedido</span>
+                            <span className="text-sm font-bold text-slate-700">{summaryItems.length} produtos</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {activeTab === 'F1' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={onClose}
+                                    className="btn-god-cancel h-12 px-8 rounded-2xl text-[13px] tracking-wide"
+                                >
+                                    <X className="h-5 w-5 mr-2" />
+                                    CANCELAR
+                                </Button>
+
+                                <Button
+                                    onClick={handleSave}
+                                    disabled={loading || isSaving}
+                                    className="btn-god-save h-12 px-12 rounded-2xl text-[14px] font-black tracking-widest min-w-[220px]"
+                                >
+                                    {loading || isSaving ? (
+                                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                                    ) : (
+                                        <Save className="h-5 w-5 mr-2 text-emerald-200" />
+                                    )}
+                                    {isSaving ? 'SALVANDO...' : 'SALVAR (F10)'}
+                                </Button>
+                            </>
+                        ) : (
                             <Button
-                                onClick={handleSave}
-                                disabled={loading || isSaving}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-8 shadow-md uppercase tracking-wider transition-all duration-200"
+                                onClick={() => setActiveTab('F1')}
+                                className="bg-slate-800 hover:bg-slate-900 text-white h-12 px-12 rounded-2xl text-[14px] font-black tracking-widest min-w-[220px] shadow-xl hover:scale-105 transition-all"
                             >
-                                {loading || isSaving ? (
-                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                ) : (
-                                    <Save className="h-4 w-4 mr-2" />
-                                )}
-                                Salvar (F10)
+                                <ArrowLeft className="h-5 w-5 mr-2" />
+                                VOLTAR PARA O PRINCIPAL
                             </Button>
-                            <Button
-                                variant="outline"
-                                onClick={onClose}
-                                className="border-slate-300 text-slate-600 hover:bg-slate-50 font-bold h-10 px-6 uppercase tracking-wider transition-all duration-200"
-                            >
-                                <X className="h-4 w-4 mr-2" />
-                                Cancelar (ESC)
-                            </Button>
-                        </>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            onClick={() => setActiveTab('F1')}
-                            className="mr-auto border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold h-10 px-6 uppercase tracking-wider transition-all duration-200 bg-white"
-                        >
-                            <ArrowLeft className="h-4 w-4 mr-2 text-emerald-600" />
-                            VOLTAR
-                        </Button>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </div>
+            </div >
             {/* Buyer Registration Dialog */}
             {/* Dialog de Atualização de IPI/ST (Botão 5) */}
             <Dialog open={showTaxDialog} onOpenChange={setShowTaxDialog}>

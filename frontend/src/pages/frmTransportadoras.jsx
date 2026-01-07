@@ -3,6 +3,7 @@ import { Truck } from "lucide-react";
 import { toast } from "sonner";
 import CarrierForm from "../components/forms/CarrierForm";
 import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const FrmTransportadoras = () => {
     const [carriers, setCarriers] = useState([]);
@@ -14,7 +15,8 @@ const FrmTransportadoras = () => {
     const fetchCarriers = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/v2/carriers');
+            const url = getApiUrl(NODE_API_URL, '/api/v2/carriers');
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setCarriers(data.data);
@@ -47,7 +49,8 @@ const FrmTransportadoras = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/carriers/${carrier.tra_codigo}`, {
+            const url = getApiUrl(NODE_API_URL, `/api/v2/carriers/${carrier.tra_codigo}`);
+            const response = await fetch(url, {
                 method: 'DELETE'
             });
 
@@ -68,8 +71,8 @@ const FrmTransportadoras = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedCarrier
-                ? `http://localhost:3005/api/v2/carriers/${selectedCarrier.tra_codigo}`
-                : 'http://localhost:3005/api/v2/carriers';
+                ? getApiUrl(NODE_API_URL, `/api/v2/carriers/${selectedCarrier.tra_codigo}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/carriers');
 
             const method = selectedCarrier ? 'PUT' : 'POST';
 
@@ -123,7 +126,7 @@ const FrmTransportadoras = () => {
     const filteredCarriers = searchTerm
         ? carriers.filter(carrier =>
             carrier.tra_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            carrier.tra_cnpj?.includes(searchTerm) ||
+            carrier.tra_cgc?.includes(searchTerm) ||
             carrier.tra_cidade?.toLowerCase().includes(searchTerm.toLowerCase())
         )
         : carriers;

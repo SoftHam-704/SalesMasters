@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
+import { toast } from "sonner";
 
 const ActivityAreaForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -26,7 +27,7 @@ const ActivityAreaForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.atu_descricao?.trim()) {
-            alert('Descrição é obrigatória');
+            toast.error('Descrição é obrigatória');
             return;
         }
         onSave(formData);

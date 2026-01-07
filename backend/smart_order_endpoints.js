@@ -9,7 +9,7 @@ console.log('✅ [IA MODULE] ia_order_endpoints.js LOADED!');
 // Configure upload storage
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadDir = 'uploads/ia';
+        const uploadDir = 'uploads/smart';
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
@@ -24,10 +24,10 @@ const upload = multer({ storage: storage });
 
 module.exports = function (app, pool) {
 
-    console.log('✅ [IA MODULE] registering /api/ia-order/upload route...');
+    console.log('✅ [SMART MODULE] registering /api/smart-order/upload route...');
 
-    app.post('/api/ia-order/upload', upload.single('file'), async (req, res) => {
-        console.log('🔥 [IA ORDER] ROUTE HIT! Request received.');
+    app.post('/api/smart-order/upload', upload.single('file'), async (req, res) => {
+        console.log('🔥 [SMART ORDER] ROUTE HIT! Request received.');
         try {
             if (!req.file) {
                 console.error('❌ [IA ORDER] No file in request');
@@ -100,13 +100,12 @@ module.exports = function (app, pool) {
 
             res.json({
                 success: true,
-                message: `Arquivo processado com IA (${aiProvider.name})! ${processedItems.length} itens identificados.`,
-                provider: aiProvider.name,
+                message: `Arquivo processado! ${processedItems.length} itens sugeridos.`,
                 data: processedItems
             });
 
         } catch (error) {
-            console.error('❌ [IA ORDER] Error processing file:', error);
+            console.error('❌ [SMART ORDER] Error processing file:', error);
             res.status(500).json({
                 success: false,
                 message: `Erro ao processar arquivo: ${error.message}`

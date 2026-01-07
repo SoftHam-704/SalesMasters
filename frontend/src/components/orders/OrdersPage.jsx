@@ -11,7 +11,7 @@ import {
     Factory, TrendingUp, Package, DollarSign, Calendar,
     ChevronRight, Filter, X, Sparkles, FileText, Copy, Globe,
     Receipt, FileCheck, Repeat, Building2, XCircle, ShoppingCart,
-    BarChart2, ArrowRight, Settings, Mail
+    BarChart2, ArrowRight, Settings, Mail, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import IndustryList from './IndustryList';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import PrintOrderDialog from './PrintOrderDialog';
 import { exportOrderToExcel } from '../../utils/exportOrderToExcel';
 import SendEmailDialog from './SendEmailDialog';
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 import './OrdersPage.css';
 
 const formatCurrency = (value) => {
@@ -73,6 +74,30 @@ export default function OrdersPage() {
         ticket_medio: 0
     });
 
+    const [userParams, setUserParams] = useState(null);
+
+    // Carregar parâmetros do usuário ao montar
+    useEffect(() => {
+        const loadUserParams = async () => {
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    if (user && user.id) {
+                        const response = await fetch(getApiUrl(NODE_API_URL, `/api/parametros/${user.id}`));
+                        const data = await response.json();
+                        if (data.success && data.data) {
+                            setUserParams(data.data);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erro ao carregar parâmetros do usuário:', e);
+                }
+            }
+        };
+        loadUserParams();
+    }, []);
+
     // Carregar pedidos quando indústria ou filtros mudarem
     useEffect(() => {
         if (selectedIndustry || filters.pesquisa || filters.cliente) {
@@ -96,14 +121,38 @@ export default function OrdersPage() {
                 ignorarIndustria: filters.ignorarIndustria
             });
 
-            const response = await fetch(`http://localhost:3005/api/orders?${params}`);
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders?${params}`));
+            console.log('📦 [OrdersPage] Fetching orders...', params.toString());
             const data = await response.json();
+            console.log('📦 [OrdersPage] Response:', data);
 
             if (data.success) {
-                setOrders(data.pedidos);
+                let sortedOrders = [...data.pedidos];
+                const sortType = userParams?.par_ordemped || 'D';
+
+                if (sortType === 'N') {
+                    // Ordenação Numérica Descrescente
+                    sortedOrders.sort((a, b) => {
+                        const valA = parseInt(a.ped_pedido) || 0;
+                        const valB = parseInt(b.ped_pedido) || 0;
+                        return valB - valA;
+                    });
+                } else {
+                    // Ordenação por Data Descrescente (Padrão)
+                    sortedOrders.sort((a, b) => {
+                        const dateA = new Date(a.ped_data).getTime();
+                        const dateB = new Date(b.ped_data).getTime();
+                        if (dateB !== dateA) return dateB - dateA;
+                        // Se data igual, desempata pelo número
+                        return (parseInt(b.ped_pedido) || 0) - (parseInt(a.ped_pedido) || 0);
+                    });
+                }
+
+                setOrders(sortedOrders);
+                console.log('📦 [OrdersPage] Orders loaded and sorted:', sortedOrders.length);
 
                 // Buscar estatísticas separadamente
-                const statsResponse = await fetch(`http://localhost:3005/api/orders/stats?${params}`);
+                const statsResponse = await fetch(getApiUrl(NODE_API_URL, `/api/orders/stats?${params}`));
                 const statsData = await statsResponse.json();
                 if (statsData.success) {
                     setStats(statsData.data);
@@ -158,7 +207,7 @@ export default function OrdersPage() {
     const handleOpenEmailDialog = async (orderId, industryId, sorting) => {
         try {
             setLoading(true);
-            const response = await fetch(`http://localhost:3005/api/orders/${orderId}/print-data?industria=${industryId}&sortBy=${sorting}`);
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/print-data?industria=${industryId}&sortBy=${sorting}`));
             const data = await response.json();
 
             if (data.success) {
@@ -180,7 +229,7 @@ export default function OrdersPage() {
     const savePdfInBackground = async (orderNumber, industryId, model, sorting) => {
         try {
             // Fetch order print data
-            const printDataRes = await fetch(`http://localhost:3005/api/orders/${orderNumber}/print-data?industria=${industryId}&sortBy=${sorting}`);
+            const printDataRes = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderNumber}/print-data?industria=${industryId}&sortBy=${sorting}`));
             const printData = await printDataRes.json();
 
             if (!printData.success || !printData.data) {
@@ -227,7 +276,7 @@ export default function OrdersPage() {
             const pdfBase64 = doc.output('datauristring').split(',')[1];
 
             // Send to backend to save
-            const saveRes = await fetch('http://localhost:3005/api/orders/save-pdf', {
+            const saveRes = await fetch(getApiUrl(NODE_API_URL, '/api/orders/save-pdf'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -324,10 +373,10 @@ export default function OrdersPage() {
                                 </SelectContent>
                             </Select>
 
-                            {/* Processar Button */}
+                            {/* Processar Button - Modern */}
                             <Button
                                 onClick={loadOrders}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg hover:shadow-xl transition-all"
+                                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-emerald-500/25 transition-all duration-300 whitespace-nowrap px-6 rounded-lg border-0"
                                 disabled={loading}
                             >
                                 {loading ? 'Processando...' : 'Processar'}
@@ -669,240 +718,177 @@ export default function OrdersPage() {
                     )}
                 </ScrollArea>
 
-                {/* Legacy Narrative Panel Reverted */}
-                <AnimatePresence>
-                    {selectedIndustry && (
+                {/* Bottom Premium Dashboard Area */}
+                <div className="p-6 grid grid-cols-12 gap-4 bg-slate-100/30 backdrop-blur-md border-t border-slate-200 shrink-0 z-40">
+
+                    {/* Left Panel: Insights Masters Card - EXPANDED */}
+                    <div className="col-span-12 lg:col-span-10">
                         <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: 20, opacity: 0 }}
-                            className="px-6 pb-6 pt-2"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-emerald-200/50 dark:border-white/10 rounded-2xl shadow-xl shadow-emerald-500/10 overflow-hidden flex flex-col h-[220px]"
                         >
-                            <motion.div
-                                animate={{
-                                    height: showNarrative ? 'auto' : '40px',
-                                    marginRight: showNarrative ? '8rem' : '6rem'
-                                }}
-                                className={cn(
-                                    "flex flex-col rounded-xl backdrop-blur-md border transition-all duration-300 overflow-hidden relative z-0",
-                                    showNarrative
-                                        ? "bg-emerald-50/80 dark:bg-slate-900/60 border-emerald-200/50 dark:border-white/10 p-4 shadow-lg"
-                                        : "bg-emerald-500/10 dark:bg-emerald-500/5 border-emerald-500/20 dark:border-emerald-500/10 p-0 cursor-pointer hover:bg-emerald-500/20"
-                                )}
-                                onClick={() => !showNarrative && setShowNarrative(true)}
-                            >
-                                <div className="flex items-center justify-between px-4 h-10 shrink-0">
-                                    <div className="flex items-center gap-2">
-                                        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Insights Principais</span>
+                            <div className="px-5 py-3 border-b border-emerald-100 dark:border-white/5 bg-emerald-500/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-7 w-7 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                                        <Sparkles className="h-3.5 w-3.5 text-emerald-600 animate-pulse" />
                                     </div>
-                                    {showNarrative && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={(e) => { e.stopPropagation(); setShowNarrative(false); }}
-                                            className="h-6 w-6 p-0 hover:bg-emerald-200/50 dark:hover:bg-white/10"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
-                                    )}
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Inteligência Estratégica</span>
+                                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Insights Masters</h3>
+                                    </div>
                                 </div>
-                                {showNarrative && (
-                                    <div className="px-4 pb-4 overflow-y-auto">
-                                        <p className="text-sm text-muted-foreground whitespace-pre-line">{narrative || 'Carregando insights...'}</p>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-[8px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-widest">Live Analysis</Badge>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => fetchNarrative(selectedIndustry)}
+                                        className="h-7 w-7 p-0 rounded-full hover:bg-emerald-100 dark:hover:bg-white/5"
+                                    >
+                                        <RefreshCw className={cn("h-3.5 w-3.5 text-emerald-600", loadingNarrative && "animate-spin")} />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="p-5 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-100/50">
+                                {loadingNarrative ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-3">
+                                        <div className="relative">
+                                            <div className="w-10 h-10 border-3 border-emerald-600/10 border-t-emerald-600 rounded-full animate-spin" />
+                                            <Sparkles className="absolute inset-0 m-auto h-3.5 w-3.5 text-emerald-600 animate-pulse" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 animate-pulse">PROCESSANDO DADOS ANALÍTICOS</p>
+                                            <p className="text-[9px] text-muted-foreground mt-1">Sincronizando com o cérebro digital Masters...</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="relative">
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line font-medium italic">
+                                            "{narrative || 'Selecione uma indústria para gerar insights estratégicos baseados no comportamento de pedidos.'}"
+                                        </p>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <Badge className="bg-slate-100 text-slate-600 border-0 hover:bg-slate-200 text-[10px]">#Faturamento-Positivo</Badge>
+                                            <Badge className="bg-slate-100 text-slate-600 border-0 hover:bg-slate-200 text-[10px]">#Crescimento-Mensal</Badge>
+                                            <Badge className="bg-slate-100 text-slate-600 border-0 hover:bg-slate-200 text-[10px]">#Sugestao-Mix</Badge>
+                                        </div>
                                     </div>
                                 )}
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Premium Floating Action Button - Crystal Orb */}
-                <div className="absolute bottom-[2%] right-[3%]">
-                    {/* Orbital particles */}
-                    <motion.div
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.2, duration: 0.5 }}
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ width: 72, height: 72, margin: -12 }}
-                    >
-                        <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                            className="relative w-full h-full"
-                        >
-                            {[0, 72, 144, 216, 288].map((angle, i) => (
-                                <motion.div
-                                    key={angle}
-                                    className="absolute w-1.5 h-1.5 rounded-full"
-                                    style={{
-                                        left: `calc(50% + ${Math.cos((angle * Math.PI) / 180) * 32}px - 3px)`,
-                                        top: `calc(50% + ${Math.sin((angle * Math.PI) / 180) * 32}px - 3px)`,
-                                        background: `linear-gradient(135deg, hsl(${160 + i * 8} 80% 55%), hsl(${170 + i * 8} 70% 45%))`,
-                                        boxShadow: `0 0 6px hsl(${160 + i * 8} 80% 55% / 0.6)`,
-                                    }}
-                                    animate={{
-                                        scale: [1, 1.6, 1],
-                                        opacity: [0.5, 1, 0.5],
-                                    }}
-                                    transition={{
-                                        duration: 1.8,
-                                        repeat: Infinity,
-                                        delay: i * 0.25,
-                                    }}
-                                />
-                            ))}
-                        </motion.div>
-                    </motion.div>
-
-                    {/* Main button */}
-                    <motion.button
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                        whileHover={{ scale: 1.08 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleNewOrder}
-                        className="relative group"
-                    >
-                        {/* Circle shape with glass effect */}
-                        <div className="relative w-12 h-12">
-                            {/* Background glow */}
-                            <motion.div
-                                animate={{
-                                    boxShadow: [
-                                        "0 0 15px hsl(160 84% 39% / 0.4), 0 0 30px hsl(160 84% 39% / 0.2)",
-                                        "0 0 25px hsl(160 84% 39% / 0.6), 0 0 50px hsl(160 84% 39% / 0.3)",
-                                        "0 0 15px hsl(160 84% 39% / 0.4), 0 0 30px hsl(160 84% 39% / 0.2)",
-                                    ],
-                                }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                                className="absolute inset-0 rounded-full"
-                                style={{
-                                    background: "linear-gradient(135deg, hsl(160 84% 35%) 0%, hsl(180 70% 28%) 50%, hsl(160 84% 35%) 100%)",
-                                }}
-                            />
-
-                            {/* Crystal overlay */}
-                            <div
-                                className="absolute inset-0 rounded-full overflow-hidden"
-                                style={{
-                                    background: "linear-gradient(135deg, hsl(160 84% 35%) 0%, hsl(180 70% 28%) 50%, hsl(160 84% 35%) 100%)",
-                                }}
-                            >
-                                {/* Light refraction */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent" />
-                                <motion.div
-                                    animate={{ x: ["-100%", "200%"] }}
-                                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 2 }}
-                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12"
-                                />
-                                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/15 to-transparent" />
                             </div>
+                        </motion.div>
+                    </div>
 
-                            {/* Inner border */}
-                            <div
-                                className="absolute inset-[1.5px] rounded-full border border-white/25"
-                                style={{
-                                    background: "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 50%)",
-                                }}
-                            />
-
-                            {/* Icon */}
-                            <div className="absolute inset-0 flex items-center justify-center">
+                    {/* Right Panel: Compact FAB Button - REDUCED */}
+                    <div className="col-span-12 lg:col-span-2 flex flex-col items-center justify-center">
+                        <div className="flex flex-col items-center cursor-pointer" onClick={handleNewOrder}>
+                            {/* Button with orbitals wrapper */}
+                            <div className="relative">
+                                {/* Orbital particles - centered around button */}
                                 <motion.div
-                                    whileHover={{ scale: 1.1 }}
-                                    className="relative"
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                                    className="absolute inset-[-24px] pointer-events-none"
                                 >
-                                    <FileText className="h-5 w-5 text-white drop-shadow-lg" strokeWidth={2} />
+                                    {[0, 60, 120, 180, 240, 300].map((angle, i) => (
+                                        <div
+                                            key={angle}
+                                            className="absolute w-2 h-2 rounded-full bg-emerald-400"
+                                            style={{
+                                                left: '50%',
+                                                top: '50%',
+                                                transform: `translate(-50%, -50%) rotate(${angle}deg) translateX(44px)`,
+                                                boxShadow: '0 0 8px rgba(16,185,129,0.6)',
+                                            }}
+                                        />
+                                    ))}
                                 </motion.div>
+
+                                {/* Main button */}
+                                <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="relative w-16 h-16 rounded-full flex flex-col items-center justify-center shadow-lg border-2 border-white bg-gradient-to-br from-emerald-500 to-teal-600 overflow-hidden z-10"
+                                >
+                                    <Plus className="h-6 w-6 text-white" />
+                                    <span className="text-[6px] font-bold text-white/90 tracking-wide mt-0.5 uppercase">NOVO PEDIDO</span>
+                                </motion.button>
                             </div>
 
-                            {/* Hover ring */}
-                            <motion.div
-                                initial={{ scale: 1, opacity: 0 }}
-                                whileHover={{ scale: 1.4, opacity: [0, 0.4, 0] }}
-                                transition={{ duration: 0.5 }}
-                                className="absolute inset-0 rounded-full border-2 border-emerald-400"
-                            />
+                            {/* Label below */}
+                            <div className="mt-3 text-center">
+                                <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-widest block">MASTERS</span>
+                                <span className="text-[7px] text-slate-400 uppercase tracking-wide">Engine</span>
+                            </div>
                         </div>
-
-                        {/* Tooltip */}
-                        <motion.div
-                            initial={{ opacity: 0, x: 10 }}
-                            whileHover={{ opacity: 1, x: 0 }}
-                            className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-slate-900/90 dark:bg-white/90 text-white dark:text-slate-900 text-xs font-medium rounded-md whitespace-nowrap backdrop-blur-sm pointer-events-none"
-                        >
-                            Novo Pedido
-                            <div className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-slate-900/90 dark:border-l-white/90" />
-                        </motion.div>
-                    </motion.button>
+                    </div>
                 </div>
+
+                {/* Order Dialog */}
+                <OrderDialog
+                    open={orderDialogOpen}
+                    onOpenChange={(open) => {
+                        setOrderDialogOpen(open);
+                        if (!open) setSelectedOrderObj(null); // Clear on close
+                    }}
+                    selectedIndustry={selectedIndustry}
+                    onOrderCreated={handleOrderCreated}
+                    selectedOrder={selectedOrderObj}
+                />
+
+                <PrintOrderDialog
+                    isOpen={printDialogOpen}
+                    onClose={() => setPrintDialogOpen(false)}
+                    orderNumber={orderToPrint}
+                    defaultModel={userParams?.par_pedidopadrao || 1}
+                    defaultSorting={userParams?.par_ordemimpressao === 'N' ? 'codigo' : 'digitacao'}
+                    onPrint={(model, sorting) => {
+                        console.log(`Printing order ${orderToPrint} with model ${model} and sorting ${sorting}`);
+                        const url = `/print/order/${orderToPrint}?model=${model}&sortBy=${sorting}&industria=${orderToPrintIndustry}`;
+                        // Store model and sort for email PDF generation
+                        localStorage.setItem('printModel', String(model));
+                        localStorage.setItem('printSortBy', sorting);
+
+                        // Save PDF to industry folder in the background (non-blocking)
+                        savePdfInBackground(orderToPrint, orderToPrintIndustry, model, sorting);
+
+                        // Center window on screen (like poDesktopCenter in Delphi)
+                        const width = 900;
+                        const height = 700;
+                        const left = (window.screen.width - width) / 2;
+                        const top = (window.screen.height - height) / 2;
+                        window.open(url, 'PrintPreview', `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no`);
+                        // Dialog stays open - user can try other formats or send email
+                    }}
+                    onExportExcel={async (sorting) => {
+                        try {
+                            // Fetch order data for Excel export
+                            const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderToPrint}/print-data?industria=${orderToPrintIndustry}&sortBy=${sorting}`));
+                            if (!response.ok) throw new Error('Failed to fetch order data');
+                            const data = await response.json();
+
+                            exportOrderToExcel(data.data.order, data.data.items);
+                            toast.success('Excel exportado com sucesso!');
+                            setPrintDialogOpen(false);
+                        } catch (error) {
+                            console.error('Error exporting to Excel:', error);
+                            toast.error('Erro ao exportar para Excel');
+                        }
+                    }}
+                    onSendEmail={(sorting) => handleOpenEmailDialog(orderToPrint, orderToPrintIndustry, sorting)}
+                />
+
+                <SendEmailDialog
+                    isOpen={sendEmailDialogOpen}
+                    onClose={() => setSendEmailDialogOpen(false)}
+                    orderData={orderToEmailData}
+                    onSend={async (data) => {
+                        console.log('Sending email with data:', data);
+                        // This will be connected to the real backend later
+                        return new Promise(resolve => setTimeout(resolve, 2000));
+                    }}
+                />
             </div>
-
-            {/* Order Dialog */}
-            <OrderDialog
-                open={orderDialogOpen}
-                onOpenChange={(open) => {
-                    setOrderDialogOpen(open);
-                    if (!open) setSelectedOrderObj(null); // Clear on close
-                }}
-                selectedIndustry={selectedIndustry}
-                onOrderCreated={handleOrderCreated}
-                selectedOrder={selectedOrderObj}
-            />
-
-            <PrintOrderDialog
-                isOpen={printDialogOpen}
-                onClose={() => setPrintDialogOpen(false)}
-                orderNumber={orderToPrint}
-                onPrint={(model, sorting) => {
-                    console.log(`Printing order ${orderToPrint} with model ${model} and sorting ${sorting}`);
-                    const url = `/print/order/${orderToPrint}?model=${model}&sortBy=${sorting}&industria=${orderToPrintIndustry}`;
-                    // Store model and sort for email PDF generation
-                    localStorage.setItem('printModel', String(model));
-                    localStorage.setItem('printSortBy', sorting);
-
-                    // Save PDF to industry folder in the background (non-blocking)
-                    savePdfInBackground(orderToPrint, orderToPrintIndustry, model, sorting);
-
-                    // Center window on screen (like poDesktopCenter in Delphi)
-                    const width = 900;
-                    const height = 700;
-                    const left = (window.screen.width - width) / 2;
-                    const top = (window.screen.height - height) / 2;
-                    window.open(url, 'PrintPreview', `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes,menubar=no,toolbar=no,location=no`);
-                    // Dialog stays open - user can try other formats or send email
-                }}
-                onExportExcel={async (sorting) => {
-                    try {
-                        // Fetch order data for Excel export
-                        const response = await fetch(`http://localhost:3005/api/orders/${orderToPrint}/print-data?industria=${orderToPrintIndustry}&sortBy=${sorting}`);
-                        if (!response.ok) throw new Error('Failed to fetch order data');
-                        const data = await response.json();
-
-                        exportOrderToExcel(data.data.order, data.data.items);
-                        toast.success('Excel exportado com sucesso!');
-                        setPrintDialogOpen(false);
-                    } catch (error) {
-                        console.error('Error exporting to Excel:', error);
-                        toast.error('Erro ao exportar para Excel');
-                    }
-                }}
-                onSendEmail={(sorting) => handleOpenEmailDialog(orderToPrint, orderToPrintIndustry, sorting)}
-            />
-
-            <SendEmailDialog
-                isOpen={sendEmailDialogOpen}
-                onClose={() => setSendEmailDialogOpen(false)}
-                orderData={orderToEmailData}
-                onSend={async (data) => {
-                    console.log('Sending email with data:', data);
-                    // This will be connected to the real backend later
-                    return new Promise(resolve => setTimeout(resolve, 2000));
-                }}
-            />
         </div>
     );
 }

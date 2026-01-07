@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import "./IAOrderDialog.css";
-import IAOrderButton from './IAOrderButton';
-import { iaOrderService } from '@/services/iaOrderService';
+import "./SmartOrderDialog.css";
+import SmartOrderButton from './SmartOrderButton';
+import { smartOrderService } from '@/services/smartOrderService';
 import { toast } from 'sonner';
 
-export const IAOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber }) => {
+export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber }) => {
     const [open, setOpen] = useState(false);
     const [step, setStep] = useState("upload");
     const [fileName, setFileName] = useState("");
@@ -40,18 +40,17 @@ export const IAOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber
         setStep("analyzing");
 
         try {
-            console.log("📡 [IA FRONT] Chamando iaOrderService.uploadFile...", file.name);
-            const result = await iaOrderService.uploadFile(file);
-            console.log("🔙 [IA FRONT] Resposta do Serviço:", result);
+            console.log("📡 [SMART FRONT] Chamando smartOrderService.uploadFile...", file.name);
+            const result = await smartOrderService.uploadFile(file);
+            console.log("🔙 [SMART FRONT] Resposta do Serviço:", result);
 
             if (result.success) {
-                console.log(`✅ [IA FRONT] Sucesso! ${result.data.length} itens extraídos`);
-                console.log(`🎯 [IA FRONT] Provider usado: ${result.provider}`);
+                console.log(`✅ [SMART FRONT] Sucesso! ${result.data.length} itens extraídos`);
                 // Store items for preview and move to preview step
                 setPreviewItems(result.data);
                 setStep("preview");
             } else {
-                console.error('❌ [IA FRONT] Erro:', result.message);
+                console.error('❌ [SMART FRONT] Erro:', result.message);
                 toast.error(result.message || 'Erro ao processar arquivo.');
                 setStep("upload");
             }
@@ -76,7 +75,7 @@ export const IAOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber
 
     return (
         <>
-            <IAOrderButton
+            <SmartOrderButton
                 onClick={() => {
                     if (!disabled) setOpen(true);
                 }}
@@ -93,13 +92,13 @@ export const IAOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber
                         <div className="ia-header">
                             <div className="ia-title">
                                 <span className="ia-bot">✨</span>
-                                <h3>Lançar Ítens com Inteligência Artificial</h3>
+                                <h3>Lançar Ítens com Sugestão Inteligente</h3>
                             </div>
                             <button type="button" className="close-btn" onClick={handleClose}>✕</button>
                         </div>
 
                         <p className="ia-subtitle">
-                            Envie uma foto de pedido (manuscrito), planilha ou PDF e a IA identifica os itens automaticamente.
+                            Envie uma foto de pedido, planilha ou PDF e o sistema identifica os itens automaticamente.
                         </p>
 
                         {/* CONTENT */}
@@ -139,7 +138,7 @@ export const IAOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber
                                         <div className="magnifier">
                                             🔍
                                         </div>
-                                        <h4>Analisando arquivo com IA...</h4>
+                                        <h4>Analisando arquivo...</h4>
                                         <p className="text-sm text-gray-400 mt-2">{fileName}</p>
                                     </div>
                                 </div>

@@ -17,6 +17,7 @@ import {
     CheckCircle,
     Info
 } from 'lucide-react';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Formatters
 const formatCurrency = (value) => {
@@ -61,7 +62,8 @@ const ClientesTab = ({ filters }) => {
                     uf: selectedUf !== 'Todos' ? selectedUf : null
                 };
 
-                const response = await axios.get('http://localhost:8000/api/dashboard/client-details', { params });
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/client-details');
+                const response = await axios.get(url, { params });
 
                 if (response.data && response.data.success) {
                     setData(response.data);

@@ -1,19 +1,20 @@
-const API_URL = 'http://localhost:3005/api';
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
+const API_URL = getApiUrl(NODE_API_URL, '/api');
 
-export const iaOrderService = {
+export const smartOrderService = {
     uploadFile: async (file) => {
         const formData = new FormData();
         formData.append('file', file);
 
-        console.log(`📡 [IA SERVICE] Fetching to ${API_URL}/ia-order/upload...`);
+        console.log(`📡 [SMART SERVICE] Fetching to ${API_URL}/smart-order/upload...`);
 
         try {
-            const response = await fetch(`${API_URL}/ia-order/upload`, {
+            const response = await fetch(`${API_URL}/smart-order/upload`, {
                 method: 'POST',
                 body: formData,
             });
 
-            console.log("🔙 [IA SERVICE] Fetch status:", response.status);
+            console.log("🔙 [SMART SERVICE] Fetch status:", response.status);
 
             // Check if response is OK before parsing JSON
             if (!response.ok) {
@@ -25,17 +26,17 @@ export const iaOrderService = {
                 } catch {
                     // Response is not JSON, maybe HTML error page
                     const textResponse = await response.text();
-                    console.error('❌ [IA SERVICE] Non-JSON response:', textResponse.substring(0, 200));
+                    console.error('❌ [SMART SERVICE] Non-JSON response:', textResponse.substring(0, 200));
                     errorMessage = `Erro do servidor: ${response.status}`;
                 }
                 return { success: false, message: errorMessage };
             }
 
             const data = await response.json();
-            console.log("✅ [IA SERVICE] Success! Data:", data);
+            console.log("✅ [SMART SERVICE] Success! Data:", data);
             return data;
         } catch (error) {
-            console.error('❌ [IA SERVICE] Error uploading file:', error);
+            console.error('❌ [SMART SERVICE] Error uploading file:', error);
             return { success: false, message: `Erro ao enviar arquivo: ${error.message}` };
         }
     }

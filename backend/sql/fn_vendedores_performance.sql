@@ -57,7 +57,7 @@ BEGIN
             MAX(ped_data) AS ultima_venda
         FROM pedidos
         WHERE EXTRACT(YEAR FROM ped_data) = p_ano
-          AND EXTRACT(MONTH FROM ped_data) = p_mes
+          AND (p_mes = 0 OR EXTRACT(MONTH FROM ped_data) = p_mes)  -- p_mes=0 means all months
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
         GROUP BY ped_vendedor
@@ -68,7 +68,7 @@ BEGIN
             SUM(ped_totliq) AS total
         FROM pedidos
         WHERE EXTRACT(YEAR FROM ped_data) = v_ano_anterior
-          AND EXTRACT(MONTH FROM ped_data) = v_mes_anterior
+          AND (p_mes = 0 OR EXTRACT(MONTH FROM ped_data) = v_mes_anterior)  -- p_mes=0 means compare full years
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
         GROUP BY ped_vendedor
@@ -85,19 +85,19 @@ BEGIN
         GROUP BY ped_vendedor
     ),
     clientes_novos AS (
-        -- Clientes que fizeram primeira compra neste mês
+        -- Clientes que fizeram primeira compra neste período
         SELECT 
             p.ped_vendedor,
             COUNT(DISTINCT p.ped_cliente) AS qtd
         FROM pedidos p
         WHERE EXTRACT(YEAR FROM p.ped_data) = p_ano
-          AND EXTRACT(MONTH FROM p.ped_data) = p_mes
+          AND (p_mes = 0 OR EXTRACT(MONTH FROM p.ped_data) = p_mes)  -- p_mes=0 means full year
           AND p.ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR p.ped_vendedor = p_vendedor)
           AND NOT EXISTS (
               SELECT 1 FROM pedidos p2
               WHERE p2.ped_cliente = p.ped_cliente
-                AND p2.ped_data < DATE_TRUNC('month', MAKE_DATE(p_ano, p_mes, 1))
+                AND p2.ped_data < DATE_TRUNC('year', MAKE_DATE(p_ano, COALESCE(NULLIF(p_mes, 0), 1), 1))
                 AND p2.ped_situacao IN ('P', 'F')
           )
         GROUP BY p.ped_vendedor
@@ -122,20 +122,28 @@ BEGIN
     metas AS (
         SELECT 
             met_vendedor,
-            SUM(CASE p_mes
-                WHEN 1 THEN met_jan
-                WHEN 2 THEN met_fev
-                WHEN 3 THEN met_mar
-                WHEN 4 THEN met_abr
-                WHEN 5 THEN met_mai
-                WHEN 6 THEN met_jun
-                WHEN 7 THEN met_jul
-                WHEN 8 THEN met_ago
-                WHEN 9 THEN met_set
-                WHEN 10 THEN met_out
-                WHEN 11 THEN met_nov
-                WHEN 12 THEN met_dez
-            END) AS meta_mes
+            CASE 
+                WHEN p_mes = 0 THEN  -- Full year: sum all months
+                    SUM(COALESCE(met_jan, 0) + COALESCE(met_fev, 0) + COALESCE(met_mar, 0) + 
+                        COALESCE(met_abr, 0) + COALESCE(met_mai, 0) + COALESCE(met_jun, 0) +
+                        COALESCE(met_jul, 0) + COALESCE(met_ago, 0) + COALESCE(met_set, 0) +
+                        COALESCE(met_out, 0) + COALESCE(met_nov, 0) + COALESCE(met_dez, 0))
+                ELSE
+                    SUM(CASE p_mes
+                        WHEN 1 THEN met_jan
+                        WHEN 2 THEN met_fev
+                        WHEN 3 THEN met_mar
+                        WHEN 4 THEN met_abr
+                        WHEN 5 THEN met_mai
+                        WHEN 6 THEN met_jun
+                        WHEN 7 THEN met_jul
+                        WHEN 8 THEN met_ago
+                        WHEN 9 THEN met_set
+                        WHEN 10 THEN met_out
+                        WHEN 11 THEN met_nov
+                        WHEN 12 THEN met_dez
+                    END)
+            END AS meta_mes
         FROM vend_metas
         WHERE met_ano = p_ano
           AND (p_vendedor IS NULL OR met_vendedor = p_vendedor)
@@ -147,7 +155,7 @@ BEGIN
             COUNT(*) AS total_interacoes
         FROM crm_interacao
         WHERE EXTRACT(YEAR FROM data_hora) = p_ano
-          AND EXTRACT(MONTH FROM data_hora) = p_mes
+          AND (p_mes = 0 OR EXTRACT(MONTH FROM data_hora) = p_mes)  -- p_mes=0 means full year
           AND (p_vendedor IS NULL OR ven_codigo = p_vendedor)
         GROUP BY ven_codigo
     ),

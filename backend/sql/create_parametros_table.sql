@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS parametros (
     par_emailtls            BOOLEAN DEFAULT FALSE,
     par_emailssl            BOOLEAN DEFAULT FALSE,
     par_emailalternativo    VARCHAR(80),
+    par_obs_padrao          TEXT,
     
     -- Timestamps para auditoria
     created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

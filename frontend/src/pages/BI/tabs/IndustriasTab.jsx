@@ -5,6 +5,7 @@ import NarrativesWidget from '../components/NarrativesWidget';
 import LollipopChart from '../charts/LollipopChart';
 import FunnelAreaChart from '../charts/FunnelAreaChart';
 import { BarChart, Bar, AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Helpers
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -41,7 +42,8 @@ const IndustriasTab = ({ filters }) => {
                 let targetId = null;
 
                 // 1. Fetch Top Industries list
-                const indRes = await axios.get('http://localhost:8000/api/dashboard/top-industries', {
+                const indUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/top-industries');
+                const indRes = await axios.get(indUrl, {
                     params: { ano: filters.ano, mes: monthsMap[filters.mes] || 'Todos' }
                 });
 
@@ -57,7 +59,8 @@ const IndustriasTab = ({ filters }) => {
                 }
 
                 if (targetId) {
-                    const detailsRes = await axios.get('http://localhost:8000/api/dashboard/industry-details', {
+                    const detailsUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/industry-details');
+                    const detailsRes = await axios.get(detailsUrl, {
                         params: {
                             ano: filters.ano,
                             mes: monthsMap[filters.mes] || 'Todos',

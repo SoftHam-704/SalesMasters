@@ -1,3 +1,5 @@
+import './utils/fetchInterceptor';
+import './utils/axiosInterceptor';
 import { StrictMode } from 'react'
 import '@fontsource/inter';
 import { createRoot } from 'react-dom/client'

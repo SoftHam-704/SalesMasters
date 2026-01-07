@@ -3,75 +3,157 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, DollarSign, User, Search, Loader2, Check } from 'lucide-react';
+import { Briefcase, Loader2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function NovaOportunidadeModal({ open, onClose, onSuccess }) {
-    const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
+// Custom Components
+import InputField from '@/components/InputField';
+import DbComboBox from '@/components/DbComboBox';
 
-    // Form
+export default function NovaOportunidadeModal({ open, onClose, onSuccess, opportunity = null }) {
+    const [saving, setSaving] = useState(false);
+    const isEditMode = !!opportunity;
+
+    // Form Data
     const [titulo, setTitulo] = useState('');
     const [valor, setValor] = useState('');
-    const [etapa, setEtapa] = useState('1');
-    const [selectedClient, setSelectedClient] = useState(null);
+    const [etapaId, setEtapaId] = useState(1);
+    const [clientId, setClientId] = useState(null);
+    const [clientLabel, setClientLabel] = useState('');
 
-    // Client Search
-    const [clientSearch, setClientSearch] = useState('');
-    const [clients, setClients] = useState([]);
-    const [searchingClients, setSearchingClients] = useState(false);
+    // New Fields
+    const [familiaId, setFamiliaId] = useState(null); // Industry/Supplier
+    const [familiaLabel, setFamiliaLabel] = useState('');
+    const [promotorId, setPromotorId] = useState(null); // Seller
+    const [promotorLabel, setPromotorLabel] = useState('');
 
-    // Reset when opening
+    // Reset or Populate Form
     useEffect(() => {
         if (open) {
-            setTitulo('');
-            setValor('');
-            setEtapa('1');
-            setSelectedClient(null);
-            setClientSearch('');
-            setClients([]);
-        }
-    }, [open]);
+            if (opportunity) {
+                // Edit Mode
+                setTitulo(opportunity.titulo);
+                setValor(opportunity.valor_estimado ? opportunity.valor_estimado.toString() : '');
+                setEtapaId(opportunity.etapa_id);
 
-    const searchClients = async () => {
-        if (clientSearch.length < 2) return;
-        setSearchingClients(true);
+                setClientId(opportunity.cli_codigo);
+                setClientLabel(opportunity.cli_nomred || '');
+
+                setFamiliaId(opportunity.for_codigo);
+                setFamiliaLabel(opportunity.industria_nome || '');
+
+                setPromotorId(opportunity.ven_codigo);
+                setPromotorLabel(opportunity.promotor_nome || '');
+            } else {
+                // Create Mode
+                setTitulo('');
+                setValor('');
+                setEtapaId(1);
+                setClientId(null);
+                setClientLabel('');
+                setFamiliaId(null);
+                setFamiliaLabel('');
+                setPromotorId(null);
+                setPromotorLabel('');
+            }
+        }
+    }, [open, opportunity]);
+
+    // Data Fetchers
+    const fetchClients = async (search) => {
         try {
-            const response = await fetch(`http://localhost:3005/api/clients?search=${encodeURIComponent(clientSearch)}&limit=5`);
+            const response = await fetch(`http://localhost:3005/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
             const data = await response.json();
-            if (data.success) setClients(data.data);
+            return data.success ? data.data : [];
         } catch (error) {
             console.error(error);
-        } finally {
-            setSearchingClients(false);
+            return [];
         }
     };
 
+    const fetchSuppliers = async (search) => {
+        try {
+            // Assuming endpoint supports search or generic list
+            // For now using generic list filter
+            const response = await fetch(`http://localhost:3005/api/suppliers`);
+            const data = await response.json();
+            if (!data.success) return [];
+
+            const list = data.data || [];
+            if (!search) return list.slice(0, 20);
+
+            return list.filter(s =>
+                s.nomeReduzido.toLowerCase().includes(search.toLowerCase()) ||
+                s.razaoSocial.toLowerCase().includes(search.toLowerCase())
+            ).slice(0, 20);
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    };
+
+    const fetchSellers = async (search) => {
+        try {
+            const response = await fetch(`http://localhost:3005/api/sellers`); // Correct endpoint for vendedores
+            const data = await response.json();
+            if (!data.success) return [];
+
+            const list = data.data || [];
+            if (!search) return list;
+            return list.filter(v =>
+                v.ven_nome.toLowerCase().includes(search.toLowerCase())
+            );
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    };
+
+    // ... existing fetchObterEtapas ...
+    const fetchObterEtapas = async () => {
+        return [
+            { id: 1, descricao: 'Prospecção' },
+            { id: 2, descricao: 'Qualificação' },
+            { id: 3, descricao: 'Proposta' },
+            { id: 4, descricao: 'Negociação' },
+            { id: 5, descricao: 'Fechamento' }
+        ];
+    };
+
     const handleSave = async () => {
-        if (!titulo || !selectedClient || !valor) {
+        if (!titulo || !clientId || !valor) {
             toast.error('Preencha os campos obrigatórios');
             return;
         }
 
         setSaving(true);
         try {
-            const response = await fetch('http://localhost:3005/api/crm/oportunidades', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    titulo,
-                    cli_codigo: selectedClient.cli_codigo,
-                    ven_codigo: 1, // TODO: Auth
-                    valor_estimado: parseFloat(valor.replace(',', '.')),
-                    etapa_id: parseInt(etapa)
-                })
-            });
+            const payload = {
+                titulo,
+                cli_codigo: clientId,
+                ven_codigo: promotorId || 1, // Default to 1 if not selected, or logged user
+                for_codigo: familiaId, // Industry
+                valor_estimado: parseFloat(valor.replace(',', '.')),
+                etapa_id: etapaId
+            };
+
+            let response;
+            if (isEditMode) {
+                response = await fetch(`http://localhost:3005/api/crm/oportunidades/${opportunity.oportunidade_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                response = await fetch('http://localhost:3005/api/crm/oportunidades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
 
             if (response.ok) {
-                toast.success('Oportunidade criada!');
+                toast.success(isEditMode ? 'Oportunidade atualizada!' : 'Oportunidade criada!');
                 if (onSuccess) onSuccess();
                 onClose();
             } else {
@@ -86,100 +168,102 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess }) {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-md">
-                <DialogHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 -mx-6 -mt-6 rounded-t-lg text-white">
+            <DialogContent className="max-w-md p-0 overflow-visible">
+                <DialogHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 rounded-t-lg text-white">
                     <DialogTitle className="flex items-center gap-2">
                         <Briefcase className="w-5 h-5" />
-                        Nova Oportunidade
+                        {isEditMode ? 'Editar Oportunidade' : 'Nova Oportunidade'}
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                    {/* Client Search */}
-                    <div className="space-y-2">
-                        <Label>Cliente *</Label>
-                        <div className="relative">
-                            <Input
-                                placeholder="Buscar cliente..."
-                                value={clientSearch}
-                                onChange={e => setClientSearch(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && searchClients()}
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-1 top-1/2 -translate-y-1/2"
-                                onClick={searchClients}
-                            >
-                                <Search className="w-4 h-4" />
-                            </Button>
-                        </div>
-                        {/* Results */}
-                        {clients.length > 0 && (
-                            <div className="border rounded-md shadow-sm max-h-32 overflow-y-auto">
-                                {clients.map(cli => (
-                                    <div
-                                        key={cli.cli_codigo}
-                                        className="p-2 hover:bg-slate-100 cursor-pointer text-sm"
-                                        onClick={() => {
-                                            setSelectedClient(cli);
-                                            setClientSearch(cli.cli_nomred);
-                                            setClients([]);
-                                        }}
-                                    >
-                                        {cli.cli_nomred}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {selectedClient && (
-                            <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                                <Check className="w-3 h-3" /> Selecionado: {selectedClient.cli_nomred}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Título da Oportunidade *</Label>
-                        <Input
-                            placeholder="Ex: Pedido mensal, Projeto Loja Nova..."
-                            value={titulo}
-                            onChange={e => setTitulo(e.target.value)}
+                <div className="p-6 space-y-4">
+                    {/* Client Combo - Clean & Standard */}
+                    <div className="relative z-50">
+                        <DbComboBox
+                            label="Cliente *"
+                            placeholder="Nome ou Fantasia..."
+                            value={clientId ? { cli_codigo: clientId, cli_nomred: clientLabel } : null}
+                            onChange={(val, item) => {
+                                setClientId(val);
+                                setClientLabel(item ? item.cli_nomred : '');
+                            }}
+                            fetchData={fetchClients}
+                            labelKey="cli_nomred"
+                            valueKey="cli_codigo"
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Valor Estimado (R$) *</Label>
-                        <Input
+                    {/* Promotor / Vendedor Combo */}
+                    <div className="relative z-40">
+                        <DbComboBox
+                            label="Promotor / Responsável"
+                            placeholder="Selecione o vendedor..."
+                            value={promotorId ? { id: promotorId, nome: promotorLabel } : null}
+                            onChange={(val, item) => {
+                                setPromotorId(val);
+                                setPromotorLabel(item ? item.nome : '');
+                            }}
+                            fetchData={fetchSellers}
+                            labelKey="nome"
+                            valueKey="id"
+                        />
+                    </div>
+
+                    {/* Industry Combo */}
+                    <div className="relative z-30">
+                        <DbComboBox
+                            label="Indústria / Representada"
+                            placeholder="Selecione a indústria..."
+                            value={familiaId ? { id: familiaId, nomeReduzido: familiaLabel } : null}
+                            onChange={(val, item) => {
+                                setFamiliaId(val);
+                                setFamiliaLabel(item ? item.nomeReduzido : '');
+                            }}
+                            fetchData={fetchSuppliers}
+                            labelKey="nomeReduzido"
+                            valueKey="id"
+                        />
+                    </div>
+
+                    {/* Title Input */}
+                    <InputField
+                        label="Título da Oportunidade *"
+                        placeholder="Ex: Pedido Mensal"
+                        value={titulo}
+                        onChange={(e) => setTitulo(e.target.value)}
+                    />
+
+                    {/* Value Input */}
+                    <div className="relative">
+                        <InputField
+                            label="Valor Estimado (R$) *"
                             type="number"
                             placeholder="0.00"
                             value={valor}
-                            onChange={e => setValor(e.target.value)}
+                            onChange={(e) => setValor(e.target.value)}
                         />
+                        <DollarSign className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 translate-y-1/2 pointer-events-none opacity-0" />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Etapa Inicial</Label>
-                        <Select value={etapa} onValueChange={setEtapa}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1">Prospecção</SelectItem>
-                                <SelectItem value="2">Qualificação</SelectItem>
-                                <SelectItem value="3">Proposta</SelectItem>
-                                <SelectItem value="4">Negociação</SelectItem>
-                                <SelectItem value="5">Fechamento</SelectItem>
-                            </SelectContent>
-                        </Select>
+                    {/* Stage Combo */}
+                    <div className="relative z-20">
+                        <DbComboBox
+                            label="Etapa Inicial"
+                            value={etapaId ? { id: etapaId, descricao: '' } : null} // Label handles itself via internal logic usually, but passing object helps
+                            initialLabel={['Prospecção', 'Qualificação', 'Proposta', 'Negociação', 'Fechamento'][etapaId - 1]}
+                            onChange={(val) => setEtapaId(val)}
+                            fetchData={fetchObterEtapas}
+                            labelKey="descricao"
+                            valueKey="id"
+                            initialLimit={10}
+                        />
                     </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="p-4 bg-slate-50 rounded-b-lg border-t gap-2">
                     <Button variant="outline" onClick={onClose}>Cancelar</Button>
                     <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Oportunidade'}
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEditMode ? 'Salvar Alterações' : 'Salvar Oportunidade')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

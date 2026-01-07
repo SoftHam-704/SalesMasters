@@ -29,17 +29,11 @@
 .input-field label {
     position: absolute;
     left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
     background: white;
     padding: 0 6px;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-    /* ⬅️ Premium touch */
-    color: #6b7280;
     pointer-events: none;
     transition: 0.2s;
+    /* Styles merged with bottom rule for permanent top position */
 }
 
 .input-field.large label {
@@ -48,8 +42,13 @@
 }
 
 .input-field input:focus+label,
-.input-field input:not(:placeholder-shown)+label {
+.input-field label {
     top: -8px;
     font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.input-field input:focus+label {
     color: #16a34a;
 }

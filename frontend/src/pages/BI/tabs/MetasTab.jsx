@@ -21,6 +21,7 @@ import { Bar, Scatter } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, Title, Tooltip, Legend);
 
 import MetasNarratives from '../components/MetasNarratives';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Formatters
 const formatCurrency = (value) => {
@@ -97,28 +98,28 @@ const MetasTab = ({ filters }) => {
                     resStatus,
                     resAnaliseSemanal
                 ] = await Promise.all([
-                    axios.get('http://localhost:8000/api/metas/resumo', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/resumo'), {
                         params: { ano: anoAtual, mes: mesAtual, industria }
                     }),
-                    axios.get('http://localhost:8000/api/metas/por-mes', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/por-mes'), {
                         params: { ano: anoAtual, industria }
                     }),
-                    axios.get('http://localhost:8000/api/metas/atingimento', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/atingimento'), {
                         params: { ano: anoAtual, mes_ate: mesAtual, industria }
                     }),
-                    axios.get('http://localhost:8000/api/metas/variacao', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/variacao'), {
                         params: { ano: anoAtual, mes: mesAtual, industria }
                     }),
-                    axios.get('http://localhost:8000/api/metas/analise-diaria', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/analise-diaria'), {
                         params: { ano: anoAtual, mes: mesAtual, industria }
                     }),
-                    axios.get('http://localhost:8000/api/metas/matriz-acao', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/matriz-acao'), {
                         params: { ano: anoAtual, mes_ate: mesAtual }  // Sem filtro de indústria - mostra todas
                     }),
-                    axios.get('http://localhost:8000/api/metas/status', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/status'), {
                         params: { ano: anoAtual, mes_ate: mesAtual }  // Sem filtro de indústria - mostra todas
                     }),
-                    axios.get('http://localhost:8000/api/metas/analise-semanal', {
+                    axios.get(getApiUrl(PYTHON_API_URL, '/api/metas/analise-semanal'), {
                         params: { ano: anoAtual, mes: mesAtual, industria }
                     })
                 ]);
