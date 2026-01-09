@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const Firebird = require('node-firebird');
 const { Pool } = require('pg');
 const fs = require('fs');
@@ -25,7 +26,10 @@ const pool = {
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadDir = 'C:\\SalesMasters\\Imagens';
+        // Use environment variable for Linux production, falling back to local Windows path
+        const uploadDir = process.env.UPLOAD_DIR ||
+            (process.env.NODE_ENV === 'production' ? '/var/www/html/salesmasters/uploads' : 'C:\\SalesMasters\\Imagens');
+
         // Create directory if it doesn't exist
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -40,12 +44,35 @@ const logoStorage = multer.diskStorage({
 const uploadLogo = multer({ storage: logoStorage });
 
 const app = express();
-const PORT = 3005;
+const PORT = (() => {
+    const p = parseInt(process.env.PORT, 10);
+    if (!isNaN(p) && p > 0 && p < 65536) return p;
+    console.warn('⚠️ Invalid PORT env var, falling back to 8080');
+    return 8080;
+})();
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Proxy para o BI Engine (Python na porta 8000)
+// Todas as requisições /bi-api/* são encaminhadas para o Python
+app.use('/bi-api', createProxyMiddleware({
+    target: 'http://localhost:8000',
+    changeOrigin: true,
+    pathRewrite: {
+        '^/bi-api': '' // Remove /bi-api do path antes de enviar ao Python
+    },
+    onProxyRes: (proxyRes) => {
+        // Adiciona headers CORS na resposta
+        proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+    },
+    onError: (err, req, res) => {
+        console.error('❌ [BI PROXY] Erro:', err.message);
+        res.status(502).json({ success: false, message: 'BI Engine não disponível' });
+    }
+}));
 
 // Middleware Multi-tenant: Identifica qual cliente está acessando
 app.use(dbContextMiddleware(getTenantPool));
@@ -79,14 +106,30 @@ app.get('/api/image', (req, res) => {
     res.sendFile(imagePath);
 });
 
-// Root Route
-app.get('/', (req, res) => {
-    res.json({
-        success: true,
-        message: 'SalesMasters Backend running',
-        version: '1.0.0'
+// Serve static files from the frontend
+if (process.env.NODE_ENV === 'production') {
+    // A pasta frontend/dist foi copiada para DEPLOY_READY/frontend
+    // No servidor, o backend está em ROOT/backend e o frontend em ROOT/frontend
+    const frontendPath = path.join(__dirname, '../frontend');
+    app.use(express.static(frontendPath));
+
+    app.get('*', (req, res, next) => {
+        // Se a requisição começa com /api, ignore o fallback do React
+        if (req.path.startsWith('/api')) {
+            return next();
+        }
+        res.sendFile(path.join(frontendPath, 'index.html'));
     });
-});
+} else {
+    // Root Route for development
+    app.get('/', (req, res) => {
+        res.json({
+            success: true,
+            message: 'SalesMasters Backend running',
+            version: '1.0.0'
+        });
+    });
+}
 
 // Logging Middleware
 app.use((req, res, next) => {

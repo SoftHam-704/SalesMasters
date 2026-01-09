@@ -247,58 +247,43 @@ const Login = () => {
 
       {/* TELA DE LOGIN */}
       {showLogin && (
-        <div
-          id="loginScreen"
-          style={{
-            opacity: 1,
-            visibility: 'visible',
-            display: 'flex',
-            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-            minHeight: '100vh',
-            width: '100vw',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            zIndex: 9999
-          }}
-          className="show"
-        >
+        <div id="loginScreen" className="show">
           <div className="login-card">
-            <div className="brand-header">
-              <img
-                src={iconeMasters2025}
-                alt="SalesMasters Logo"
-                style={{ width: '320px', height: 'auto', marginBottom: '20px' }}
-              />
-              <p className="brand-subtitle">Professional v2.5</p>
+            {/* LOGO */}
+            <div className="login-logo">
+              <img src={iconeMasters2025} alt="SalesMasters Logo" />
+              <div className="logo-text">SalesMasters</div>
+              <div className="logo-version">PROFESSIONAL V2.5</div>
             </div>
 
+            {/* WELCOME */}
             <div className="welcome">
               <h2>Bem-vindo</h2>
               <p>Entre com suas credenciais para acessar</p>
             </div>
 
+            {/* FORM */}
             <form id="loginForm" onSubmit={handleSubmit} autoComplete="off">
-              <div className="form-group">
-                <label htmlFor="cnpj">CNPJ da Empresa</label>
-                <input
-                  type="text"
-                  id="cnpj"
-                  name="cnpj"
-                  value={formData.cnpj}
-                  onChange={handleInputChange}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  placeholder="00.000.000/0000-00"
-                  required
-                  autoComplete="off"
-                />
-              </div>
+              <label className="login-label" htmlFor="cnpj">CNPJ da Empresa</label>
+              <input
+                className="login-input"
+                type="text"
+                id="cnpj"
+                name="cnpj"
+                value={formData.cnpj}
+                onChange={handleInputChange}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                placeholder="00.000.000/0000-00"
+                required
+                autoComplete="off"
+              />
 
-              <div className="form-group-row" style={{ display: 'flex', gap: '15px' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label htmlFor="nome">Nome</label>
+              <div className="login-row">
+                <div>
+                  <label className="login-label" htmlFor="nome">Nome</label>
                   <input
+                    className="login-input"
                     type="text"
                     id="nome"
                     name="nome"
@@ -311,9 +296,10 @@ const Login = () => {
                     autoComplete="off"
                   />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label htmlFor="sobrenome">Sobrenome</label>
+                <div>
+                  <label className="login-label" htmlFor="sobrenome">Sobrenome</label>
                   <input
+                    className="login-input"
                     type="text"
                     id="sobrenome"
                     name="sobrenome"
@@ -328,34 +314,33 @@ const Login = () => {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="password">Senha de Acesso</label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="new-password"
-                />
-              </div>
+              <label className="login-label" htmlFor="password">Senha de Acesso</label>
+              <input
+                className="login-input"
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                placeholder="••••••••"
+                required
+                autoComplete="new-password"
+              />
 
-              <div className="actions">
-                <button type="button" className="btn-secondary" onClick={handleCancel}>
-                  Limpar
+              <div className="login-actions">
+                <button type="button" className="btn-clear" onClick={handleCancel}>
+                  LIMPAR
                 </button>
-                <button type="submit" className="btn-primary" disabled={isLoading}>
-                  {isLoading ? 'Acessando...' : 'Entrar no Sistema'}
+                <button type="submit" className="btn-login" disabled={isLoading}>
+                  {isLoading ? 'ACESSANDO...' : 'ENTRAR NO SISTEMA'}
                 </button>
               </div>
             </form>
 
             <div className="login-footer">
-              <p>&copy; 2026 SoftHam Sistemas. Todos os direitos reservados.</p>
+              © 2026 SoftHam Sistemas. Todos os direitos reservados.
             </div>
           </div>
         </div>

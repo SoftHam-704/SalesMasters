@@ -11,6 +11,10 @@ backend/build/
 
 # Environment variables
 .env
+backend/.env
+bi-engine/.env
+DEPLOY_READY/backend/.env
+DEPLOY_READY/bi-engine/.env
 .env.local
 .env.*.local
 
