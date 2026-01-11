@@ -45,6 +45,7 @@ import ChartOfAccountsPage from './pages/financial/ChartOfAccountsPage';
 import CostCentersPage from './pages/financial/CostCentersPage';
 import FinancialClientsPage from './pages/financial/FinancialClientsPage';
 import FinancialSuppliersPage from './pages/financial/FinancialSuppliersPage';
+import UserManagementPage from './pages/utilitarios/UserManagementPage';
 
 import IntelligencePage from './pages/IntelligencePage';
 import Login from './components/Login/Login';
@@ -147,6 +148,7 @@ function App() {
                     <Route path="/utilitarios/parametros" element={<ParametrosPage />} />
                     <Route path="/utilitarios/jogo-dados" element={<DiceGame />} />
                     <Route path="/utilitarios/tetris" element={<TetrisGame />} />
+                    <Route path="/utilitarios/usuarios" element={<UserManagementPage />} />
                     <Route path="/intelligence" element={<IntelligencePage />} />
                     <Route path="/bi-intelligence" element={<IntelligencePage />} />
                     <Route path="/crm" element={<CRMPage />} />

@@ -1,0 +1,73 @@
+CREATE OR REPLACE FUNCTION public.fn_upsert_produto(p_industria integer, p_codprod character varying, p_nome character varying, p_peso double precision DEFAULT NULL::double precision, p_embalagem integer DEFAULT NULL::integer, p_grupo integer DEFAULT NULL::integer, p_setor character varying DEFAULT NULL::character varying, p_linha character varying DEFAULT NULL::character varying, p_ncm character varying DEFAULT NULL::character varying, p_origem character DEFAULT NULL::bpchar, p_aplicacao character varying DEFAULT NULL::character varying, p_codbarras character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_pro_id INTEGER;
+    v_codigo_normalizado VARCHAR(50);
+BEGIN
+    -- Normaliza o código
+    v_codigo_normalizado := fn_normalizar_codigo(p_codprod);
+    
+    -- Tenta buscar o produto existente
+    SELECT pro_id INTO v_pro_id
+    FROM cad_prod
+    WHERE pro_industria = p_industria 
+      AND pro_codigonormalizado = v_codigo_normalizado;
+    
+    IF v_pro_id IS NOT NULL THEN
+        -- Produto existe: ATUALIZA apenas campos fixos (não-nulos)
+        UPDATE cad_prod SET
+            pro_nome = COALESCE(p_nome, pro_nome),
+            pro_peso = COALESCE(p_peso, pro_peso),
+            pro_embalagem = COALESCE(p_embalagem, pro_embalagem),
+            pro_grupo = COALESCE(p_grupo, pro_grupo),
+            pro_setor = COALESCE(p_setor, pro_setor),
+            pro_linha = COALESCE(p_linha, pro_linha),
+            pro_ncm = COALESCE(p_ncm, pro_ncm),
+            pro_origem = COALESCE(p_origem, pro_origem),
+            pro_aplicacao = COALESCE(p_aplicacao, pro_aplicacao),
+            pro_codbarras = COALESCE(p_codbarras, pro_codbarras),
+            pro_codprod = p_codprod -- Atualiza código original se mudou formatação
+        WHERE pro_id = v_pro_id;
+    ELSE
+        -- Produto NÃO existe: INSERE novo
+        INSERT INTO cad_prod (
+            pro_industria,
+            pro_codprod,
+            pro_codigonormalizado,
+            pro_codigooriginal,
+            pro_nome,
+            pro_peso,
+            pro_embalagem,
+            pro_grupo,
+            pro_setor,
+            pro_linha,
+            pro_ncm,
+            pro_origem,
+            pro_aplicacao,
+            pro_codbarras,
+            pro_status
+        ) VALUES (
+            p_industria,
+            p_codprod,
+            v_codigo_normalizado,
+            p_codprod,
+            p_nome,
+            p_peso,
+            p_embalagem,
+            p_grupo,
+            p_setor,
+            p_linha,
+            p_ncm,
+            p_origem,
+            p_aplicacao,
+            p_codbarras,
+            true
+        )
+        RETURNING pro_id INTO v_pro_id;
+    END IF;
+    
+    RETURN v_pro_id;
+END;
+$function$

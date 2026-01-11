@@ -11,9 +11,12 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "basesales")
 
-# Encode password for URL
-encoded_pass = urllib.parse.quote_plus(DB_PASS)
-DATABASE_URL = f"postgresql://{DB_USER}:{encoded_pass}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Database setup
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    # Encode password for URL
+    encoded_pass = urllib.parse.quote_plus(DB_PASS)
+    DATABASE_URL = f"postgresql://{DB_USER}:{encoded_pass}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Debug (redacted)
 print(f"DEBUG: Connecting to {DB_USER}:***@{DB_HOST}:{DB_PORT}/{DB_NAME}")

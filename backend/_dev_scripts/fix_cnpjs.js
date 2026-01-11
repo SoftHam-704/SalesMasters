@@ -8,7 +8,7 @@ const CLOUD_CONFIG = {
     port: 13062,
     database: 'salesmasters_master',
     user: 'webadmin',
-    password: 'ytAyO0u043'
+    password: 'process.env.DB_PASSWORD'
 };
 
 async function fixCNPJs() {
@@ -31,7 +31,7 @@ async function fixCNPJs() {
         SET db_host = 'node254557-salesmaster.sp1.br.saveincloud.net.br',
             db_porta = 13062,
             db_usuario = 'webadmin',
-            db_senha = 'ytAyO0u043'
+            db_senha = 'process.env.DB_PASSWORD'
         WHERE cnpj = '00000000000191'
     `);
     console.log('✅ SoftHam atualizada para usar a nuvem');
@@ -46,3 +46,4 @@ async function fixCNPJs() {
 }
 
 fixCNPJs().catch(console.error);
+

@@ -28,13 +28,18 @@ import {
 } from 'recharts';
 import { Download, TrendingUp } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { HelpCircle, Sparkles } from 'lucide-react';
+import { Button as ShadcnButton } from '@/components/ui/button';
+import FinancialHelpModal from '@/components/financial/FinancialHelpModal';
 
 const CashFlowPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [data, setData] = useState([]);
+    const [helpOpen, setHelpOpen] = useState(false);
 
     // Filter states
     const [dataInicio, setDataInicio] = useState(() => {
@@ -56,7 +61,8 @@ const CashFlowPage = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/relatorios/fluxo-caixa', {
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/relatorios/fluxo-caixa');
+            const response = await axios.get(url, {
                 params: { dataInicio, dataFim, agrupamento }
             });
             setData(response.data.data || []);
@@ -138,6 +144,18 @@ const CashFlowPage = () => {
                         Fluxo de Caixa
                     </Typography>
                 </Box>
+                <ShadcnButton
+                    onClick={() => setHelpOpen(true)}
+                    className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group"
+                    title="Como usar o Financeiro?"
+                >
+                    <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+                    <span className="relative flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5" />
+                        <span className="text-sm text-white">Como usar...</span>
+                        <Sparkles className="w-4 h-4 text-yellow-200" />
+                    </span>
+                </ShadcnButton>
             </Box>
 
             {/* Filters */}
@@ -199,82 +217,94 @@ const CashFlowPage = () => {
                 </Grid>
             </Paper>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                    {error}
-                </Alert>
-            )}
+            {
+                error && (
+                    <Alert severity="error" sx={{ mb: 3 }}>
+                        {error}
+                    </Alert>
+                )
+            }
 
             {/* Chart */}
-            {data.length > 0 && (
-                <Paper sx={{ p: 3, mb: 3 }}>
-                    <Typography variant="h6" gutterBottom>
-                        Gráfico de Fluxo de Caixa
-                    </Typography>
-                    <ResponsiveContainer width="100%" height={400}>
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip formatter={(value) => formatCurrency(value)} />
-                            <Legend />
-                            <Line type="monotone" dataKey="Entradas" stroke="#4CAF50" strokeWidth={2} />
-                            <Line type="monotone" dataKey="Saídas" stroke="#f44336" strokeWidth={2} />
-                            <Line type="monotone" dataKey="Saldo" stroke="#2196F3" strokeWidth={3} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </Paper>
-            )}
+            {
+                data.length > 0 && (
+                    <Paper sx={{ p: 3, mb: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Gráfico de Fluxo de Caixa
+                        </Typography>
+                        <ResponsiveContainer width="100%" height={400}>
+                            <LineChart data={chartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis />
+                                <Tooltip formatter={(value) => formatCurrency(value)} />
+                                <Legend />
+                                <Line type="monotone" dataKey="Entradas" stroke="#4CAF50" strokeWidth={2} />
+                                <Line type="monotone" dataKey="Saídas" stroke="#f44336" strokeWidth={2} />
+                                <Line type="monotone" dataKey="Saldo" stroke="#2196F3" strokeWidth={3} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </Paper>
+                )
+            }
 
             {/* Data Table */}
-            {data.length > 0 && (
-                <Paper sx={{ p: 3 }}>
-                    <Typography variant="h6" gutterBottom>
-                        Detalhamento
-                    </Typography>
-                    <TableContainer>
-                        <Table>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: 'primary.main' }}>
-                                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Período</TableCell>
-                                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Entradas</TableCell>
-                                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saídas</TableCell>
-                                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo</TableCell>
-                                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo Acumulado</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {data.map((row, index) => (
-                                    <TableRow key={index} hover>
-                                        <TableCell>{row.periodo}</TableCell>
-                                        <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
-                                            {formatCurrency(row.entradas)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
-                                            {formatCurrency(row.saidas)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                                            {formatCurrency(row.saldo)}
-                                        </TableCell>
-                                        <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 700 }}>
-                                            {formatCurrency(row.saldo_acumulado)}
-                                        </TableCell>
+            {
+                data.length > 0 && (
+                    <Paper sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Detalhamento
+                        </Typography>
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: 'primary.main' }}>
+                                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Período</TableCell>
+                                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Entradas</TableCell>
+                                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saídas</TableCell>
+                                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo</TableCell>
+                                        <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Saldo Acumulado</TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Paper>
-            )}
+                                </TableHead>
+                                <TableBody>
+                                    {data.map((row, index) => (
+                                        <TableRow key={index} hover>
+                                            <TableCell>{row.periodo}</TableCell>
+                                            <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
+                                                {formatCurrency(row.entradas)}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
+                                                {formatCurrency(row.saidas)}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                                {formatCurrency(row.saldo)}
+                                            </TableCell>
+                                            <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 700 }}>
+                                                {formatCurrency(row.saldo_acumulado)}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </Paper>
+                )
+            }
 
-            {!loading && data.length === 0 && (
-                <Paper sx={{ p: 5, textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary">
-                        Nenhum dado encontrado para o período selecionado
-                    </Typography>
-                </Paper>
-            )}
-        </Box>
+            {
+                !loading && data.length === 0 && (
+                    <Paper sx={{ p: 5, textAlign: 'center' }}>
+                        <Typography variant="h6" color="text.secondary">
+                            Nenhum dado encontrado para o período selecionado
+                        </Typography>
+                    </Paper>
+                )
+            }
+            <FinancialHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+            />
+        </Box >
     );
 };
 

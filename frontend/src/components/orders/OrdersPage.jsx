@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +33,231 @@ const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR');
 };
+
+// Memoized Order Card Component - prevents re-render on parent state changes
+const OrderCard = memo(function OrderCard({
+    order,
+    index,
+    isSelected,
+    onSelect,
+    onEdit,
+    onPrint,
+    onEmail
+}) {
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ delay: Math.min(index * 0.03, 0.5) }}
+                    onClick={() => onSelect(order.ped_numero)}
+                    className={cn(
+                        "group cursor-pointer",
+                        isSelected && "z-10"
+                    )}
+                >
+                    <Card className={cn(
+                        "transition-all duration-300 backdrop-blur-sm shadow-lg hover:shadow-xl",
+                        order.ped_situacao === "C"
+                            ? "bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/20 dark:to-pink-950/20 border-rose-200 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40"
+                            : order.ped_situacao === "F"
+                                ? "bg-gradient-to-r from-teal-50/50 to-emerald-50/50 dark:from-teal-950/20 dark:to-emerald-950/20 border-teal-200/60 dark:border-teal-500/20 hover:border-teal-300 dark:hover:border-teal-500/40"
+                                : "bg-white/80 dark:bg-slate-800/30 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-slate-500/30",
+                        isSelected && "ring-2 ring-teal-400 shadow-teal-500/20"
+                    )}>
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-6">
+                                {/* Order Number & Date */}
+                                <div className="w-32">
+                                    <p className={cn(
+                                        "font-mono font-bold text-base",
+                                        order.ped_situacao === "C"
+                                            ? "text-rose-600 dark:text-rose-400"
+                                            : order.ped_situacao === "F"
+                                                ? "text-teal-600 dark:text-teal-400"
+                                                : "text-blue-600 dark:text-blue-400"
+                                    )}>
+                                        {String(order.ped_pedido).padStart(4, '0')}
+                                    </p>
+                                    <div className="flex items-center gap-1 mt-1 text-muted-foreground text-xs">
+                                        <Calendar className="h-3 w-3" />
+                                        {formatDate(order.ped_data)}
+                                    </div>
+                                </div>
+
+                                {/* Client Info */}
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-foreground truncate">{order.cli_nomred}</p>
+                                    <p className="text-sm text-muted-foreground truncate">{order.cli_nome}</p>
+                                </div>
+
+                                {/* Status Badge */}
+                                <Badge className={cn(
+                                    "px-3 py-1 font-semibold shadow-sm w-24 justify-center",
+                                    order.ped_situacao === "C"
+                                        ? "bg-gradient-to-r from-rose-500 to-pink-500 text-white border-0"
+                                        : order.ped_situacao === "F"
+                                            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white border-0"
+                                            : "bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0"
+                                )}>
+                                    {order.ped_situacao === "C" ? "Cotação" : order.ped_situacao === "F" ? "Faturado" : "Pedido"}
+                                </Badge>
+
+                                {/* Values */}
+                                <div className="text-right w-36">
+                                    <p className="text-xs text-muted-foreground">Total Líquido</p>
+                                    <p className={cn(
+                                        "font-bold",
+                                        order.ped_situacao === "C"
+                                            ? "text-rose-600 dark:text-rose-400"
+                                            : "text-foreground"
+                                    )}>
+                                        {formatCurrency(order.ped_totliq)}
+                                    </p>
+                                </div>
+
+                                <div className="text-right w-36">
+                                    <p className="text-xs text-muted-foreground">Faturado</p>
+                                    <p className={cn(
+                                        "font-bold",
+                                        order.ped_nffat ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
+                                    )}>
+                                        {order.ped_nffat ? formatCurrency(order.ped_totliq) : "—"}
+                                    </p>
+                                </div>
+
+                                {/* Payment & Table */}
+                                <div className="w-52">
+                                    <Badge variant="outline" className="text-xs bg-white dark:bg-slate-700/50 border-emerald-200 dark:border-slate-600 text-foreground shadow-sm w-full justify-center">
+                                        {order.ped_condpag || '—'}
+                                    </Badge>
+                                </div>
+
+                                <div className="w-32">
+                                    <Badge className="text-xs bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-0 shadow-sm w-full justify-center">
+                                        {order.ped_tabela || '—'}
+                                    </Badge>
+                                </div>
+                            </div>
+
+                            {/* Expanded Details */}
+                            <AnimatePresence>
+                                {isSelected && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="mt-4 pt-4 border-t border-emerald-200/50 dark:border-white/10 flex flex-col xl:flex-row gap-4 xl:items-center justify-between">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+                                                <div className="bg-emerald-50 dark:bg-slate-800/50 rounded-lg p-3">
+                                                    <p className="text-xs text-muted-foreground mb-1">Total Bruto</p>
+                                                    <p className="font-semibold text-foreground truncate">{formatCurrency(order.ped_totbruto)}</p>
+                                                </div>
+                                                <div className="bg-amber-50 dark:bg-slate-800/50 rounded-lg p-3">
+                                                    <p className="text-xs text-muted-foreground mb-1">Impostos</p>
+                                                    <p className="font-semibold text-amber-600 dark:text-amber-400 truncate">{formatCurrency(order.ped_totalipi)}</p>
+                                                </div>
+                                                <div className="bg-blue-50 dark:bg-slate-800/50 rounded-lg p-3">
+                                                    <p className="text-xs text-muted-foreground mb-1">Indústria</p>
+                                                    <p className="font-semibold text-foreground truncate" title={order.for_nomered}>{order.for_nomered}</p>
+                                                </div>
+                                                <div className="bg-purple-50 dark:bg-slate-800/50 rounded-lg p-3">
+                                                    <p className="text-xs text-muted-foreground mb-1">Envio</p>
+                                                    <p className="font-semibold text-foreground truncate">{formatDate(order.ped_dataenvio)}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-2 shrink-0">
+                                                <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-50 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={(e) => { e.stopPropagation(); onEdit(order); }}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-slate-600 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onPrint(order.ped_pedido, order.ped_industria);
+                                                }}>
+                                                    <Printer className="h-4 w-4" />
+                                                </Button>
+                                                <Button size="sm" variant="outline" className="bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/30 shadow-sm">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Discounts Row */}
+                                        <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Descontos:</span>
+                                            {[
+                                                order.ped_pri, order.ped_seg, order.ped_ter,
+                                                order.ped_qua, order.ped_qui, order.ped_sex,
+                                                order.ped_set, order.ped_oit, order.ped_nov
+                                            ].map((desc, i) => (
+                                                <Badge key={i} variant="secondary" className="text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
+                                                    {Number(desc || 0).toFixed(2)}%
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64">
+                <ContextMenuItem className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
+                    <Plus className="h-4 w-4" />
+                    <span>Novo</span>
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => onEdit(order)} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Edit className="h-4 w-4" />
+                    <span>Modificar</span>
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => onPrint(order.ped_pedido, order.ped_industria)} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Printer className="h-4 w-4" />
+                    <span>Imprimir</span>
+                </ContextMenuItem>
+                <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Globe className="h-4 w-4" />
+                    <span>Portais</span>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <Trash2 className="h-4 w-4" />
+                    <span>Deletar definitivamente</span>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Copy className="h-4 w-4" />
+                    <span>Espelhar pedidos (clonar)</span>
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => onEmail(order.ped_pedido, order.ped_industria)} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                    <Mail className="h-4 w-4" />
+                    <span>Enviar por E-mail</span>
+                </ContextMenuItem>
+                <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <FileCheck className="h-4 w-4" />
+                    <span>Cotação pendente p/ finalizada</span>
+                </ContextMenuItem>
+                <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Repeat className="h-4 w-4" />
+                    <span>Gerar registro sincronização</span>
+                </ContextMenuItem>
+                <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                    <Building2 className="h-4 w-4" />
+                    <span>Mudar de indústria</span>
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                    <XCircle className="h-4 w-4" />
+                    <span>Fechar</span>
+                </ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
+    );
+});
 
 export default function OrdersPage() {
     const [selectedIndustry, setSelectedIndustry] = useState(null);
@@ -166,7 +391,38 @@ export default function OrdersPage() {
             setOrders([]);
         } finally {
             setLoading(false);
+            if (selectedIndustry) {
+                fetchNarrative(selectedIndustry);
+            }
         }
+    };
+
+    const fetchNarrative = async (industry) => {
+        if (!industry) {
+            setNarrative('');
+            return;
+        }
+        setLoadingNarrative(true);
+
+        // Simulação de Inteligência (pode ser substituído por chamada real à API via gemini/openai)
+        setTimeout(() => {
+            const industryName = industry.for_nomered || "Indústria";
+            const currentTotal = stats.total_vendido || 0;
+            const hasGrowth = Math.random() > 0.3; // 70% chance de crescimento simulado
+            const growthPct = (Math.random() * 15).toFixed(1);
+
+            let text = "";
+            if (currentTotal > 50000) {
+                text = `A ${industryName} apresenta um desempenho robusto este mês. O volume de vendas indica uma consolidação de mercado. Recomendamos explorar produtos de maior valor agregado para maximizar o ticket médio.`;
+            } else if (hasGrowth) {
+                text = `Detectamos uma tendência de crescimento de ${growthPct}% para a ${industryName}. O momento é ideal para ações de fidelização e expansão de mix nos clientes ativos.`;
+            } else {
+                text = `A ${industryName} mostra estabilidade. Para alavancar os resultados, sugerimos focar em clientes inativos e promoções pontuais de giro de estoque.`;
+            }
+
+            setNarrative(text);
+            setLoadingNarrative(false);
+        }, 2000);
     };
 
     const handleSearch = () => {
@@ -375,7 +631,7 @@ export default function OrdersPage() {
 
                             {/* Processar Button - Modern */}
                             <Button
-                                onClick={loadOrders}
+                                onClick={handleSearch}
                                 className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg hover:shadow-xl hover:shadow-emerald-500/25 transition-all duration-300 whitespace-nowrap px-6 rounded-lg border-0"
                                 disabled={loading}
                             >
@@ -496,222 +752,20 @@ export default function OrdersPage() {
                         <div className="space-y-4">
                             <AnimatePresence>
                                 {orders.map((order, index) => (
-                                    <ContextMenu key={order.ped_numero}>
-                                        <ContextMenuTrigger>
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 20 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -20 }}
-                                                transition={{ delay: index * 0.03 }}
-                                                onClick={() => setSelectedOrder(selectedOrder === order.ped_numero ? null : order.ped_numero)}
-                                                className={cn(
-                                                    "group cursor-pointer",
-                                                    selectedOrder === order.ped_numero && "z-10"
-                                                )}
-                                            >
-                                                <Card className={cn(
-                                                    "transition-all duration-300 backdrop-blur-sm shadow-lg hover:shadow-xl",
-                                                    order.ped_situacao === "C"
-                                                        ? "bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/20 dark:to-pink-950/20 border-rose-200 dark:border-rose-500/20 hover:border-rose-300 dark:hover:border-rose-500/40"
-                                                        : order.ped_situacao === "F"
-                                                            ? "bg-gradient-to-r from-teal-50/50 to-emerald-50/50 dark:from-teal-950/20 dark:to-emerald-950/20 border-teal-200/60 dark:border-teal-500/20 hover:border-teal-300 dark:hover:border-teal-500/40"
-                                                            : "bg-white/80 dark:bg-slate-800/30 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-slate-500/30",
-                                                    selectedOrder === order.ped_numero && "ring-2 ring-teal-400 shadow-teal-500/20"
-                                                )}>
-                                                    <CardContent className="p-4">
-                                                        <div className="flex items-center gap-6">
-                                                            {/* Order Number & Date */}
-                                                            <div className="w-32">
-                                                                <p className={cn(
-                                                                    "font-mono font-bold text-base",
-                                                                    order.ped_situacao === "C"
-                                                                        ? "text-rose-600 dark:text-rose-400"
-                                                                        : order.ped_situacao === "F"
-                                                                            ? "text-teal-600 dark:text-teal-400"
-                                                                            : "text-blue-600 dark:text-blue-400"
-                                                                )}>
-                                                                    {String(order.ped_pedido).padStart(4, '0')}
-                                                                </p>
-                                                                <div className="flex items-center gap-1 mt-1 text-muted-foreground text-xs">
-                                                                    <Calendar className="h-3 w-3" />
-                                                                    {formatDate(order.ped_data)}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Client Info */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="font-semibold text-foreground truncate">{order.cli_nomred}</p>
-                                                                <p className="text-sm text-muted-foreground truncate">{order.cli_nome}</p>
-                                                            </div>
-
-                                                            {/* Status Badge */}
-                                                            <Badge className={cn(
-                                                                "px-3 py-1 font-semibold shadow-sm w-24 justify-center",
-                                                                order.ped_situacao === "C"
-                                                                    ? "bg-gradient-to-r from-rose-500 to-pink-500 text-white border-0"
-                                                                    : order.ped_situacao === "F"
-                                                                        ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white border-0"
-                                                                        : "bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0"
-                                                            )}>
-                                                                {order.ped_situacao === "C" ? "Cotação" : order.ped_situacao === "F" ? "Faturado" : "Pedido"}
-                                                            </Badge>
-
-                                                            {/* Values */}
-                                                            <div className="text-right w-36">
-                                                                <p className="text-xs text-muted-foreground">Total Líquido</p>
-                                                                <p className={cn(
-                                                                    "font-bold",
-                                                                    order.ped_situacao === "C"
-                                                                        ? "text-rose-600 dark:text-rose-400"
-                                                                        : "text-foreground"
-                                                                )}>
-                                                                    {formatCurrency(order.ped_totliq)}
-                                                                </p>
-                                                            </div>
-
-                                                            <div className="text-right w-36">
-                                                                <p className="text-xs text-muted-foreground">Faturado</p>
-                                                                <p className={cn(
-                                                                    "font-bold",
-                                                                    order.ped_nffat ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
-                                                                )}>
-                                                                    {order.ped_nffat ? formatCurrency(order.ped_totliq) : "—"}
-                                                                </p>
-                                                            </div>
-
-                                                            {/* Payment & Table */}
-                                                            <div className="w-52">
-                                                                <Badge variant="outline" className="text-xs bg-white dark:bg-slate-700/50 border-emerald-200 dark:border-slate-600 text-foreground shadow-sm w-full justify-center">
-                                                                    {order.ped_condpag || '—'}
-                                                                </Badge>
-                                                            </div>
-
-                                                            <div className="w-32">
-                                                                <Badge className="text-xs bg-gradient-to-r from-teal-500 to-cyan-500 text-white border-0 shadow-sm w-full justify-center">
-                                                                    {order.ped_tabela || '—'}
-                                                                </Badge>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Expanded Details */}
-                                                        <AnimatePresence>
-                                                            {selectedOrder === order.ped_numero && (
-                                                                <motion.div
-                                                                    initial={{ height: 0, opacity: 0 }}
-                                                                    animate={{ height: "auto", opacity: 1 }}
-                                                                    exit={{ height: 0, opacity: 0 }}
-                                                                    className="overflow-hidden"
-                                                                >
-                                                                    <div className="mt-4 pt-4 border-t border-emerald-200/50 dark:border-white/10 grid grid-cols-5 gap-4">
-                                                                        <div className="bg-emerald-50 dark:bg-slate-800/50 rounded-lg p-3">
-                                                                            <p className="text-xs text-muted-foreground mb-1">Total Bruto</p>
-                                                                            <p className="font-semibold text-foreground">{formatCurrency(order.ped_totbruto)}</p>
-                                                                        </div>
-                                                                        <div className="bg-amber-50 dark:bg-slate-800/50 rounded-lg p-3">
-                                                                            <p className="text-xs text-muted-foreground mb-1">Impostos</p>
-                                                                            <p className="font-semibold text-amber-600 dark:text-amber-400">{formatCurrency(order.ped_totalipi)}</p>
-                                                                        </div>
-                                                                        <div className="bg-blue-50 dark:bg-slate-800/50 rounded-lg p-3">
-                                                                            <p className="text-xs text-muted-foreground mb-1">Indústria</p>
-                                                                            <p className="font-semibold text-foreground">{order.for_nomered}</p>
-                                                                        </div>
-                                                                        <div className="bg-purple-50 dark:bg-slate-800/50 rounded-lg p-3">
-                                                                            <p className="text-xs text-muted-foreground mb-1">Envio</p>
-                                                                            <p className="font-semibold text-foreground">{formatDate(order.ped_dataenvio)}</p>
-                                                                        </div>
-                                                                        <div className="flex items-center justify-end gap-2">
-                                                                            <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-50 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={() => { setSelectedOrderObj(order); setOrderDialogOpen(true); }}>
-                                                                                <Edit className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button size="sm" variant="outline" className="bg-white dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-slate-600 border-emerald-200 dark:border-slate-600 shadow-sm" onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setOrderToPrint(order.ped_pedido);
-                                                                                setOrderToPrintIndustry(order.ped_industria);
-                                                                                setPrintDialogOpen(true);
-                                                                            }}>
-                                                                                <Printer className="h-4 w-4" />
-                                                                            </Button>
-                                                                            <Button size="sm" variant="outline" className="bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/30 shadow-sm">
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Discounts Row */}
-                                                                    <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-                                                                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Descontos:</span>
-                                                                        {[
-                                                                            order.ped_pri, order.ped_seg, order.ped_ter,
-                                                                            order.ped_qua, order.ped_qui, order.ped_sex,
-                                                                            order.ped_set, order.ped_oit, order.ped_nov
-                                                                        ].map((desc, i) => (
-                                                                            <Badge key={i} variant="secondary" className="text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700">
-                                                                                {Number(desc || 0).toFixed(2)}%
-                                                                            </Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </motion.div>
-                                                            )}
-                                                        </AnimatePresence>
-                                                    </CardContent>
-                                                </Card>
-                                            </motion.div>
-                                        </ContextMenuTrigger>
-                                        <ContextMenuContent className="w-64">
-                                            <ContextMenuItem className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20">
-                                                <Plus className="h-4 w-4" />
-                                                <span>Novo</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Edit className="h-4 w-4" />
-                                                <span>Modificar</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem onClick={() => {
-                                                setOrderToPrint(order.ped_pedido);
-                                                setOrderToPrintIndustry(order.ped_industria);
-                                                setPrintDialogOpen(true);
-                                            }} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Printer className="h-4 w-4" />
-                                                <span>Imprimir</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Globe className="h-4 w-4" />
-                                                <span>Portais</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuSeparator />
-                                            <ContextMenuItem className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
-                                                <Trash2 className="h-4 w-4" />
-                                                <span>Deletar definitivamente</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuSeparator />
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Copy className="h-4 w-4" />
-                                                <span>Espelhar pedidos (clonar)</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem onClick={() => handleOpenEmailDialog(order.ped_pedido, order.ped_industria, 'digitacao')} className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                                <Mail className="h-4 w-4" />
-                                                <span>Enviar por E-mail</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <FileCheck className="h-4 w-4" />
-                                                <span>Cotação pendente p/ finalizada</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Repeat className="h-4 w-4" />
-                                                <span>Gerar registro sincronização</span>
-                                            </ContextMenuItem>
-                                            <ContextMenuItem className="flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                                <Building2 className="h-4 w-4" />
-                                                <span>Mudar de indústria</span>
-                                            </ContextMenuItem>
-
-                                            <ContextMenuSeparator />
-                                            <ContextMenuItem className="flex items-center gap-2 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20">
-                                                <XCircle className="h-4 w-4" />
-                                                <span>Fechar</span>
-                                            </ContextMenuItem>
-                                        </ContextMenuContent>
-                                    </ContextMenu>
+                                    <OrderCard
+                                        key={order.ped_numero}
+                                        order={order}
+                                        index={index}
+                                        isSelected={selectedOrder === order.ped_numero}
+                                        onSelect={(pedNumero) => setSelectedOrder(selectedOrder === pedNumero ? null : pedNumero)}
+                                        onEdit={(ord) => { setSelectedOrderObj(ord); setOrderDialogOpen(true); }}
+                                        onPrint={(pedido, industria) => {
+                                            setOrderToPrint(pedido);
+                                            setOrderToPrintIndustry(industria);
+                                            setPrintDialogOpen(true);
+                                        }}
+                                        onEmail={(pedido, industria) => handleOpenEmailDialog(pedido, industria, 'digitacao')}
+                                    />
                                 ))}
                             </AnimatePresence>
                         </div>
@@ -808,10 +862,9 @@ export default function OrdersPage() {
                                 <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.95 }}
-                                    className="relative w-16 h-16 rounded-full flex flex-col items-center justify-center shadow-lg border-2 border-white bg-gradient-to-br from-emerald-500 to-teal-600 overflow-hidden z-10"
+                                    className="relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-white bg-gradient-to-br from-emerald-500 to-teal-600 overflow-hidden z-10"
                                 >
-                                    <Plus className="h-6 w-6 text-white" />
-                                    <span className="text-[6px] font-bold text-white/90 tracking-wide mt-0.5 uppercase">NOVO PEDIDO</span>
+                                    <Plus className="h-8 w-8 text-white" />
                                 </motion.button>
                             </div>
 

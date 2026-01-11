@@ -36,6 +36,7 @@ import {
     Search as SearchIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const FinancialSuppliersPage = () => {
     const [suppliers, setSuppliers] = useState([]);
@@ -70,7 +71,8 @@ const FinancialSuppliersPage = () => {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/fornecedores');
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/fornecedores');
+            const response = await axios.get(url);
             setSuppliers(response.data.data || []);
         } catch (error) {
             showSnackbar('Erro ao carregar fornecedores', 'error');
@@ -129,10 +131,12 @@ const FinancialSuppliersPage = () => {
     const handleSave = async () => {
         try {
             if (editingSupplier) {
-                await axios.put(`http://localhost:3005/api/financeiro/fornecedores/${editingSupplier.id}`, formData);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/fornecedores/${editingSupplier.id}`);
+                await axios.put(url, formData);
                 showSnackbar('Fornecedor atualizado com sucesso!', 'success');
             } else {
-                await axios.post('http://localhost:3005/api/financeiro/fornecedores', formData);
+                const url = getApiUrl(NODE_API_URL, '/api/financeiro/fornecedores');
+                await axios.post(url, formData);
                 showSnackbar('Fornecedor cadastrado com sucesso!', 'success');
             }
             handleCloseDialog();
@@ -145,7 +149,8 @@ const FinancialSuppliersPage = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Deseja realmente excluir este fornecedor?')) {
             try {
-                await axios.delete(`http://localhost:3005/api/financeiro/fornecedores/${id}`);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/fornecedores/${id}`);
+                await axios.delete(url);
                 showSnackbar('Fornecedor excluído com sucesso!', 'success');
                 fetchSuppliers();
             } catch (error) {

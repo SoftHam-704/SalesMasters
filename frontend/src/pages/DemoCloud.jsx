@@ -12,7 +12,7 @@ const DemoCloud = () => {
         const fetchEmpresas = async () => {
             const startTime = Date.now();
             try {
-                const res = await fetch('http://localhost:3005/api/master/empresas', {
+                const res = await fetch('https://salesmasters.softham.com.br/api/master/empresas', {
                     headers: { 'x-user-role': 'admin' }
                 });
                 const data = await res.json();

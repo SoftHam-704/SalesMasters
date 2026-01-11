@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import { Download, AccountBalance, KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -47,9 +48,11 @@ const AccountsReceivableReportPage = () => {
 
     const loadFilters = async () => {
         try {
+            const urlClientes = getApiUrl(NODE_API_URL, '/api/financeiro/clientes');
+            const urlCentroCusto = getApiUrl(NODE_API_URL, '/api/financeiro/centro-custo');
             const [cliResponse, ccResponse] = await Promise.all([
-                axios.get('http://localhost:3005/api/financeiro/clientes'),
-                axios.get('http://localhost:3005/api/financeiro/centro-custo')
+                axios.get(urlClientes),
+                axios.get(urlCentroCusto)
             ]);
             setClientes(cliResponse.data.data || []);
             setCentrosCusto(ccResponse.data.data || []);
@@ -69,7 +72,8 @@ const AccountsReceivableReportPage = () => {
             if (selectedCliente) params.idCliente = selectedCliente.id;
             if (selectedCentroCusto) params.idCentroCusto = selectedCentroCusto.id;
 
-            const response = await axios.get('http://localhost:3005/api/financeiro/relatorios/contas-receber', { params });
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/relatorios/contas-receber');
+            const response = await axios.get(url, { params });
 
             // Group by conta
             const grouped = {};

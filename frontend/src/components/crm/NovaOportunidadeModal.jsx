@@ -3,12 +3,15 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Briefcase, Loader2, DollarSign } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Briefcase, Loader2, DollarSign, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Custom Components
 import InputField from '@/components/InputField';
 import DbComboBox from '@/components/DbComboBox';
+import { NODE_API_URL } from '../../utils/apiConfig';
 
 export default function NovaOportunidadeModal({ open, onClose, onSuccess, opportunity = null }) {
     const [saving, setSaving] = useState(false);
@@ -26,6 +29,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
     const [familiaLabel, setFamiliaLabel] = useState('');
     const [promotorId, setPromotorId] = useState(null); // Seller
     const [promotorLabel, setPromotorLabel] = useState('');
+    const [telefoneContato, setTelefoneContato] = useState(''); // Phone for prospects
 
     // Reset or Populate Form
     useEffect(() => {
@@ -44,6 +48,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
 
                 setPromotorId(opportunity.ven_codigo);
                 setPromotorLabel(opportunity.promotor_nome || '');
+                setTelefoneContato(opportunity.telefone_contato || '');
             } else {
                 // Create Mode
                 setTitulo('');
@@ -55,6 +60,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
                 setFamiliaLabel('');
                 setPromotorId(null);
                 setPromotorLabel('');
+                setTelefoneContato('');
             }
         }
     }, [open, opportunity]);
@@ -62,7 +68,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
     // Data Fetchers
     const fetchClients = async (search) => {
         try {
-            const response = await fetch(`http://localhost:3005/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
+            const response = await fetch(`${NODE_API_URL}/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
             const data = await response.json();
             return data.success ? data.data : [];
         } catch (error) {
@@ -75,7 +81,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
         try {
             // Assuming endpoint supports search or generic list
             // For now using generic list filter
-            const response = await fetch(`http://localhost:3005/api/suppliers`);
+            const response = await fetch(`${NODE_API_URL}/api/suppliers`);
             const data = await response.json();
             if (!data.success) return [];
 
@@ -94,7 +100,7 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
 
     const fetchSellers = async (search) => {
         try {
-            const response = await fetch(`http://localhost:3005/api/sellers`); // Correct endpoint for vendedores
+            const response = await fetch(`${NODE_API_URL}/api/sellers`); // Correct endpoint for vendedores
             const data = await response.json();
             if (!data.success) return [];
 
@@ -134,18 +140,19 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
                 ven_codigo: promotorId || 1, // Default to 1 if not selected, or logged user
                 for_codigo: familiaId, // Industry
                 valor_estimado: parseFloat(valor.replace(',', '.')),
-                etapa_id: etapaId
+                etapa_id: etapaId,
+                telefone_contato: telefoneContato || null
             };
 
             let response;
             if (isEditMode) {
-                response = await fetch(`http://localhost:3005/api/crm/oportunidades/${opportunity.oportunidade_id}`, {
+                response = await fetch(`${NODE_API_URL}/api/crm/oportunidades/${opportunity.oportunidade_id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
             } else {
-                response = await fetch('http://localhost:3005/api/crm/oportunidades', {
+                response = await fetch(`${NODE_API_URL}/api/crm/oportunidades`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -243,6 +250,22 @@ export default function NovaOportunidadeModal({ open, onClose, onSuccess, opport
                             onChange={(e) => setValor(e.target.value)}
                         />
                         <DollarSign className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 translate-y-1/2 pointer-events-none opacity-0" />
+                    </div>
+
+                    {/* Phone Input for Prospects */}
+                    <div className="relative">
+                        <Label className="text-xs font-semibold text-slate-600 mb-1 block">Telefone de Contato</Label>
+                        <div className="relative">
+                            <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Input
+                                type="tel"
+                                placeholder="(11) 99999-9999"
+                                value={telefoneContato}
+                                onChange={(e) => setTelefoneContato(e.target.value)}
+                                className="pl-10 h-10"
+                            />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">Use para prospects que ainda não são clientes cadastrados</p>
                     </div>
 
                     {/* Stage Combo */}

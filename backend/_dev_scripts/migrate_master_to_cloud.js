@@ -15,7 +15,7 @@ const CLOUD_CONFIG = {
     host: 'node254557-salesmaster.sp1.br.saveincloud.net.br',
     port: 13062,
     user: 'webadmin',
-    password: 'ytAyO0u043',
+    password: 'process.env.DB_PASSWORD',
     // Primeiro conectamos no banco postgres para criar o master
     database: 'postgres'
 };
@@ -157,7 +157,7 @@ async function migrateMasterToCloud() {
             db_host: 'node254557-salesmaster.sp1.br.saveincloud.net.br',
             db_nome: 'basesales',
             db_usuario: 'webadmin',
-            db_senha: 'ytAyO0u043',
+            db_senha: 'process.env.DB_PASSWORD',
             db_porta: 13062,
             data_vencimento: '2030-12-31'
         }];
@@ -213,7 +213,8 @@ async function migrateMasterToCloud() {
     console.log('   MASTER_DB_HOST=node254557-salesmaster.sp1.br.saveincloud.net.br');
     console.log('   MASTER_DB_PORT=13062');
     console.log('   MASTER_DB_USER=webadmin');
-    console.log('   MASTER_DB_PASSWORD=ytAyO0u043');
+    console.log('   MASTER_DB_PASSWORD=process.env.DB_PASSWORD');
 }
 
 migrateMasterToCloud().catch(console.error);
+

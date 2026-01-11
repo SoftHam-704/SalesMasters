@@ -22,7 +22,7 @@ export default function OrderFilters({ filters, onFiltersChange }) {
 
     const loadClients = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/orders/clients');
+            const response = await fetch('https://salesmasters.softham.com.br/api/orders/clients');
             const data = await response.json();
 
             if (data.success) {

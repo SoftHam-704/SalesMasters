@@ -9,6 +9,8 @@ import json
 from openai import OpenAI
 import os
 import httpx
+import math
+from psycopg2.extras import execute_batch
 
 router = APIRouter(prefix="/api/price-table", tags=["price-table-import"])
 
@@ -30,12 +32,15 @@ async def get_sheets(file: UploadFile = File(...)):
         
         sheets = []
         for sheet_name in xl.sheet_names:
-            # Ler apenas primeiras linhas para estimar tamanho
-            df = pd.read_excel(xl, sheet_name=sheet_name, header=None, nrows=100)
+            # Tentar obter o número total de linhas de forma eficiente
+            sheet = xl.book[sheet_name]
+            total_rows = sheet.max_row
+            total_cols = sheet.max_column
+            
             sheets.append({
                 "name": sheet_name,
-                "rows": len(df),  # Estimativa
-                "cols": len(df.columns)
+                "rows": total_rows,
+                "cols": total_cols
             })
         
         return JSONResponse(content={
@@ -75,7 +80,8 @@ def count_data_rows(file_content: bytes, sheet_name: str, data_start_row: int):
         
         # Contar linhas após o data_start_row que não estão vazias
         data_df = df.iloc[data_start_row:]
-        non_empty = data_df.dropna(thresh=3)
+        # Mais leniente: pelo menos 1 coluna preenchida (será validado depois por código/preço)
+        non_empty = data_df.dropna(how='all')
         
         return len(non_empty)
     except:
@@ -296,7 +302,8 @@ async def import_price_table(
         
         # Pegar apenas linhas de dados
         data_df = df.iloc[data_start_row:]
-        non_empty = data_df.dropna(thresh=3)
+        # Filtro inicial leniente: remove apenas linhas totalmente vazias
+        non_empty = data_df.dropna(how='all')
         
         target_table = table_name if import_mode == 'new' else existing_table
         
@@ -313,6 +320,7 @@ async def import_price_table(
         imported_count = 0
         updated_count = 0
         errors = []
+        prices_to_batch = [] # Lista para batch de preços
         
         try:
             for idx, row in non_empty.iterrows():
@@ -373,65 +381,204 @@ async def import_price_table(
                     ipi_float = parse_percent(ipi)
                     st_float = parse_percent(st)
                     
+
+
+                    # --- LÓGICA DE PRESERVAÇÃO INTEGRAL (SMART MERGE V2) ---
+                    # REGRA DE OURO: Importação parcial NUNCA deve apagar dados existentes.
+                    # Se o Excel traz valor -> Atualiza.
+                    # Se o Excel NÃO traz (ou é inválido) -> Mantém o que está no banco.
+
+                    # 1. Busca dados atuais do Produto
+                    # Normaliza o código para garantir match mesmo com formatação diferente
+                    import re
+                    def normalize_code(val):
+                        # Remove tudo que não é dígito e remove zeros à esquerda
+                        clean = re.sub(r'\D', '', str(val)).strip()
+                        return clean.lstrip('0')
+
+                    normalized_codigo = normalize_code(codigo)
+                    cur.execute(
+                        """SELECT pro_id, pro_nome, pro_peso, pro_embalagem, pro_grupo, pro_setor, 
+                                  pro_linha, pro_ncm, pro_origem, pro_aplicacao, pro_codbarras, pro_codprod 
+                           FROM cad_prod 
+                           WHERE pro_industria = %s 
+                           AND LTRIM(REPLACE(TRIM(pro_codprod), '.', ''), '0') = %s""",
+                        (int(industry_id), normalized_codigo)
+                    )
+                    existing_prod = cur.fetchone()
+                    
+                    # Se encontrou, garantimos que vamos usar o CÓDIGO EXATO que já está no banco
+                    # para evitar que o PostgreSQL crie um duplicado por causa de pontos/zeros
+                    target_codprod = existing_prod[11] if existing_prod else codigo
+
+                    # Função Helper para decidir valor final (Imita a lógica iif da procedure)
+                    def resolve_val(new_val, old_db_idx, existing_row, default=None, is_numeric=False):
+                        # Identifica se o valor do Excel é verdadeiramente vazio
+                        is_empty = False
+                        if new_val is None: is_empty = True
+                        elif str(new_val).strip() == "": is_empty = True
+                        elif str(new_val).lower() == "nan": is_empty = True
+                        else:
+                            try:
+                                if isinstance(new_val, (float, int)) and math.isnan(new_val): is_empty = True
+                            except: pass
+                        
+                        if not is_empty:
+                             return new_val
+                        
+                        # Se estiver vazio na planilha, resgata o valor do Banco de Dados
+                        if existing_row and old_db_idx < len(existing_row):
+                            val_db = existing_row[old_db_idx]
+                            if val_db is not None:
+                                return float(val_db) if is_numeric else val_db
+                        return default
+
+                    # Extraindo valores brutos do Excel (podem ser None)
+                    excel_nome = get_value('descricao')
+                    excel_peso = get_value('peso')
+                    excel_emb = get_value('embalagem')
+                    excel_grupo = get_value('grupo')
+                    excel_setor = get_value('setor')
+                    excel_linha = get_value('linha')
+                    excel_ncm = get_value('ncm')
+                    excel_origem = get_value('origem')
+                    excel_aplicacao = get_value('aplicacao')
+                    excel_codbarras = get_value('codbarras')
+
+                    # Resolvendo valores finais do Produto usando o Helper Blindado
+                    final_nome = resolve_val(excel_nome, 1, existing_prod, default=codigo)
+                    final_peso = resolve_val(excel_peso, 2, existing_prod, is_numeric=True)
+                    final_emb = resolve_val(excel_emb, 3, existing_prod, is_numeric=True)
+                    final_grupo = resolve_val(excel_grupo, 4, existing_prod, is_numeric=True)
+                    final_setor = resolve_val(excel_setor, 5, existing_prod)
+                    final_linha = resolve_val(excel_linha, 6, existing_prod)
+                    final_ncm = resolve_val(excel_ncm, 7, existing_prod)
+                    final_origem = resolve_val(excel_origem, 8, existing_prod)
+                    final_aplicacao = resolve_val(excel_aplicacao, 9, existing_prod)
+                    final_codbarras = resolve_val(excel_codbarras, 10, existing_prod)
+
+                    # Truncar textos longos para evitar erro
+                    if final_nome: final_nome = str(final_nome)[:200]
+                    if final_aplicacao: final_aplicacao = str(final_aplicacao)[:500]
+
+
                     # 1. UPSERT produto em cad_prod via fn_upsert_produto
                     cur.execute(
                         """SELECT fn_upsert_produto(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as pro_id""",
                         (
                             int(industry_id),    # p_industria
-                            codigo,              # p_codprod
-                            str(descricao)[:200] if descricao else codigo,  # p_nome
-                            None,                # p_peso
-                            None,                # p_embalagem
-                            None,                # p_grupo
-                            None,                # p_setor
-                            None,                # p_linha
-                            None,                # p_ncm
-                            None,                # p_origem
-                            str(aplicacao)[:500] if aplicacao else None,  # p_aplicacao
-                            None                 # p_codbarras
+                            target_codprod,      # p_codprod (USAMOS O CÓDIGO QUE ESTÁ NO BANCO SE EXISTIR)
+                            final_nome,          # p_nome
+                            final_peso,          # p_peso
+                            final_emb,           # p_embalagem
+                            final_grupo,         # p_grupo
+                            final_setor,         # p_setor
+                            final_linha,         # p_linha
+                            final_ncm,           # p_ncm
+                            final_origem,        # p_origem
+                            final_aplicacao,     # p_aplicacao
+                            final_codbarras      # p_codbarras
                         )
                     )
                     
                     result = cur.fetchone()
-                    pro_id = result[0] if result else None
+                    pro_id = result[0] if result else (existing_prod[0] if existing_prod else None)
                     
                     if not pro_id:
-                        errors.append(f"Linha {idx}: Não foi possível criar produto {codigo}")
+                        errors.append(f"Linha {idx}: Não foi possível criar/identificar produto {codigo}")
                         continue
                     
-                    # 2. UPSERT preço em cad_tabelaspre via fn_upsert_preco
+                    # 2. Busca dados atuais de PREÇOS (se existir)
                     cur.execute(
-                        """SELECT fn_upsert_preco(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                        (
-                            pro_id,               # p_idprod
-                            int(industry_id),     # p_industria
-                            target_table,         # p_tabela
-                            preco_float,          # p_precobruto
-                            preco_promo_float,    # p_precopromo
-                            preco_esp_float,      # p_precoespecial
-                            ipi_float,            # p_ipi
-                            st_float,             # p_st
-                            None,                 # p_grupodesconto
-                            None,                 # p_descontoadd
-                            datetime.now().strftime('%Y-%m-%d'),  # p_datatabela
-                            None                  # p_datavencimento
-                        )
+                        """SELECT itab_precopromo, itab_precoespecial, itab_ipi, itab_st, itab_precobruto,
+                                  itab_grupodesconto, itab_descontoadd, itab_datavencimento
+                           FROM cad_tabelaspre 
+                           WHERE itab_idprod = %s AND itab_idindustria = %s AND itab_tabela = %s""",
+                        (pro_id, int(industry_id), target_table)
                     )
+                    existing_price = cur.fetchone() # [0..7]
+
+                    # Valores do Excel (podem ser None se não mapeados)
+                    # Nota: preco_float, preco_promo_float, etc já foram parseados lá em cima, mas podem ser 0.0 se falhou o parse
+                    # Precisamos diferenciar "0.0 válido" de "não informado" -> Melhor usar o get_value cru para saber se veio da planilha
+                    
+                    raw_preco = get_value('preco')
+                    raw_promo = get_value('preco_promocao')
+                    raw_especial = get_value('preco_especial')
+                    raw_ipi = get_value('ipi')
+                    raw_st = get_value('st')
+
+                    # Helper para preço e percentual
+                    def resolve_num(raw_val, parsed_val, old_db_val):
+                        # Se raw_val existe (foi mapeado e tem conteúdo), usa o parsed_val (mesmo que seja 0)
+                        # Tratar NaN (pandas) como ausente
+                        is_nan = False
+                        try:
+                            if isinstance(raw_val, float) and math.isnan(raw_val):
+                                is_nan = True
+                        except:
+                            pass
+
+                        if raw_val is not None and str(raw_val).strip() != "" and not is_nan and str(raw_val).lower() != "nan":
+                             return parsed_val
+                        # Se não veio na planilha (ou é NaN), preserva o banco
+                        if old_db_val is not None and str(old_db_val).strip() != "":
+                            try:
+                                return float(old_db_val)
+                            except:
+                                return 0.0
+                        return 0.0
+
+                    final_bruto = resolve_num(raw_preco, preco_float, existing_price[4] if existing_price else None)
+                    final_promo = resolve_num(raw_promo, preco_promo_float, existing_price[0] if existing_price else None)
+                    final_especial = resolve_num(raw_especial, preco_esp_float, existing_price[1] if existing_price else None)
+                    final_ipi = resolve_num(raw_ipi, ipi_float, existing_price[2] if existing_price else None)
+                    final_st = resolve_num(raw_st, st_float, existing_price[3] if existing_price else None)
+                    
+                    # Resolve campos opcionais preservando do banco se vierem vazios
+                    final_grupodesconto = resolve_num(get_value('grupodesconto'), None, existing_price[5] if existing_price else None)
+                    final_descontoadd = resolve_num(get_value('descontoadd'), None, existing_price[6] if existing_price else None)
+                    final_datavencimento = resolve_num(get_value('datavencimento'), None, existing_price[7] if existing_price else None)
+                    # Coletar para batch de preços
+                    prices_to_batch.append((
+                        pro_id,               # p_idprod
+                        int(industry_id),     # p_industria
+                        target_table,         # p_tabela
+                        final_bruto,          # p_precobruto (preservado)
+                        final_promo,          # p_precopromo
+                        final_especial,       # p_precoespecial
+                        final_ipi,            # p_ipi
+                        final_st,             # p_st
+                        final_grupodesconto,  # p_grupodesconto (preservado)
+                        final_descontoadd,    # p_descontoadd (preservado)
+                        datetime.now().strftime('%Y-%m-%d'),  # p_datatabela
+                        final_datavencimento   # p_datavencimento (preservado)
+                    ))
                     
                     imported_count += 1
                     
-                    # Commit a cada 100 registros para não sobrecarregar
-                    if imported_count % 100 == 0:
+                    # Executa batch a cada 500 registros para velocidade e segurança
+                    if len(prices_to_batch) >= 500:
+                        execute_batch(cur,
+                            """SELECT fn_upsert_preco(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                            prices_to_batch)
                         conn.commit()
-                        print(f"  -> Importados: {imported_count}")
+                        print(f"  -> Batch de {len(prices_to_batch)} importados (Total: {imported_count})")
+                        prices_to_batch.clear()
                         
                 except Exception as row_error:
                     errors.append(f"Linha {idx}: {str(row_error)}")
                     if len(errors) > 50:
                         break  # Para de erros excessivos
             
-            # Commit final
-            conn.commit()
+            # Batch final para o que restou
+            if prices_to_batch:
+                execute_batch(cur,
+                    """SELECT fn_upsert_preco(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    prices_to_batch)
+                conn.commit()
+                print(f"  -> Último batch de {len(prices_to_batch)} importados.")
+            
             print(f"=== IMPORTAÇÃO CONCLUÍDA ===")
             print(f"Total importados: {imported_count}")
             print(f"Erros: {len(errors)}")

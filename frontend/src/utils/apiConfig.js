@@ -8,12 +8,16 @@
 const isProduction = import.meta.env.PROD;
 
 // URL do Backend Node.js (Dashboard, Autenticação)
-export const NODE_API_URL = import.meta.env.VITE_API_URL ||
-    (isProduction ? 'https://salesmasters.softham.com.br' : 'http://localhost:3005');
+// Em DEV (localhost) usa a porta 8080 (igual Produção). Em PROD usa a URL da Cloud.
+export const NODE_API_URL = isProduction
+    ? 'https://salesmasters.softham.com.br'
+    : 'http://localhost:8080';
 
 // URL do BI Engine Python (Portfólio, Analytics, Metas)
-export const PYTHON_API_URL = import.meta.env.VITE_PYTHON_API_URL ||
-    (isProduction ? 'https://salesmasters.softham.com.br/bi-api' : 'http://localhost:8000');
+// Usando o Proxy (/bi-api) configurado no server.js
+export const PYTHON_API_URL = isProduction
+    ? 'https://salesmasters.softham.com.br/bi-api'
+    : (import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8080/bi-api');
 
 // Helper para montar URLs sem duplicar barras
 export const getApiUrl = (base, path) => {

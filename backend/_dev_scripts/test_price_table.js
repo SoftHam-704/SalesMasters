@@ -19,7 +19,7 @@ const CLOUD_CONFIG = {
     port: parseInt(process.env.DB_PORT) || 5432,
     database: 'basesales',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'ytAyO0u043'
+    password: process.env.DB_PASSWORD || 'process.env.DB_PASSWORD'
 };
 
 async function testPriceTable(config, label) {
@@ -118,3 +118,4 @@ main().catch(err => {
     console.error('Fatal error:', err);
     process.exit(1);
 });
+

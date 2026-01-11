@@ -23,6 +23,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import './ProdutosTab.css';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 ChartJS.register(
     CategoryScale,
@@ -37,7 +38,7 @@ ChartJS.register(
     Filler
 );
 
-const API_URL = import.meta.env.VITE_BI_API_URL || 'http://localhost:8000';
+const API_URL = PYTHON_API_URL;
 
 const ProdutosTab = ({ filters }) => {
     // State
@@ -86,21 +87,21 @@ const ProdutosTab = ({ filters }) => {
                     params.industria = filters.industria;
                 }
 
-                const queryParams = new URLSearchParams(params);
+                const queryParams = new URLSearchParams(params).toString();
 
                 // Fetch Ranking
-                const resRanking = await fetch(`${API_URL}/api/produtos/ranking?${queryParams}`);
+                const resRanking = await fetch(getApiUrl(API_URL, `/api/produtos/ranking?${queryParams}`));
                 const dataRanking = await resRanking.json();
                 setRankingData(dataRanking || []);
                 setFilteredRanking(dataRanking || []);
 
                 // Fetch Familias
-                const resFamilias = await fetch(`${API_URL}/api/produtos/familia-ranking?${queryParams}`);
+                const resFamilias = await fetch(getApiUrl(API_URL, `/api/produtos/familia-ranking?${queryParams}`));
                 const famData = await resFamilias.json();
                 setFamiliasData(famData || []);
 
                 // Fetch Portfolio
-                const resPort = await fetch(`${API_URL}/api/produtos/portfolio-vs-vendas?${queryParams}`);
+                const resPort = await fetch(getApiUrl(API_URL, `/api/produtos/portfolio-vs-vendas?${queryParams}`));
                 setPortfolioData(await resPort.json() || []);
 
             } catch (error) {
@@ -131,11 +132,11 @@ const ProdutosTab = ({ filters }) => {
                     ano: filters.ano,
                     mes_inicio: metricMonth === 0 ? 1 : metricMonth,
                     mes_fim: metricMonth === 0 ? 12 : metricMonth
-                });
-                const resCli = await fetch(`${API_URL}/api/produtos/${produto.id}/clientes?${queryCli}`);
+                }).toString();
+                const resCli = await fetch(getApiUrl(API_URL, `/api/produtos/${produto.id}/clientes?${queryCli}`));
                 setClientesData(await resCli.json() || []);
 
-                const resDes = await fetch(`${API_URL}/api/produtos/${produto.id}/desempenho-mensal?ano=${filters.ano}`);
+                const resDes = await fetch(getApiUrl(API_URL, `/api/produtos/${produto.id}/desempenho-mensal?ano=${filters.ano}`));
                 setDesempenhoData(await resDes.json() || []);
 
             } catch (error) {

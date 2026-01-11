@@ -14,7 +14,7 @@ const FrmAreaAtuacao = () => {
     const fetchAreas = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/v2/activity-areas');
+            const response = await fetch('https://salesmasters.softham.com.br/api/v2/activity-areas');
             const data = await response.json();
             if (data.success) {
                 setAreas(data.data);
@@ -47,7 +47,7 @@ const FrmAreaAtuacao = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/activity-areas/${area.atu_id}`, {
+            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/activity-areas/${area.atu_id}`, {
                 method: 'DELETE'
             });
 
@@ -68,8 +68,8 @@ const FrmAreaAtuacao = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedArea
-                ? `http://localhost:3005/api/v2/activity-areas/${selectedArea.atu_id}`
-                : 'http://localhost:3005/api/v2/activity-areas';
+                ? `https://salesmasters.softham.com.br/api/v2/activity-areas/${selectedArea.atu_id}`
+                : 'https://salesmasters.softham.com.br/api/v2/activity-areas';
 
             const method = selectedArea ? 'PUT' : 'POST';
 

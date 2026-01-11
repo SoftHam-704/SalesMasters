@@ -61,8 +61,8 @@ export const TabProvider = ({ children }) => {
         }
     };
 
-    const selectTab = (path) => {
-        navigate(path);
+    const selectTab = (path, options = {}) => {
+        navigate(path, options);
     };
 
     return (

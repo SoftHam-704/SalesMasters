@@ -200,15 +200,16 @@ module.exports = (pool) => {
                         await client.query('SAVEPOINT sp_produto');
 
                         // 1. UPSERT do produto (dados fixos)
+                        // Casting explícito para garantir tipos no Postgres
                         const upsertProdutoResult = await client.query(
                             `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
                             [
-                                industria,
+                                Number(industria),
                                 produto.codigo,
                                 produto.descricao,
-                                produto.peso || null,
-                                produto.embalagem || null,
-                                produto.grupo || null,
+                                produto.peso ? Number(produto.peso) : null,
+                                produto.embalagem ? Number(produto.embalagem) : null,
+                                produto.grupo ? Number(produto.grupo) : null,
                                 produto.setor || null,
                                 produto.linha || null,
                                 produto.ncm || null,
@@ -220,7 +221,7 @@ module.exports = (pool) => {
 
                         const proId = upsertProdutoResult.rows[0].fn_upsert_produto;
 
-                        // Verificar se é novo ou atualizado
+                        // Verificar se é novo ou atualizado (opcional, apenas para o resumo informativo)
                         const checkExisting = await client.query(
                             'SELECT pro_id FROM cad_prod WHERE pro_id = $1',
                             [proId]
@@ -234,21 +235,22 @@ module.exports = (pool) => {
 
                         // 2. UPSERT do preço (dados variáveis)
                         // Usa grupoDesconto do formulário se fornecido, senão usa do produto individual
-                        const grupoDescontoFinal = grupoDesconto || produto.grupodesconto || null;
+                        const grupoDeDescontoValue = grupoDesconto && grupoDesconto !== 'none' ? grupoDesconto : produto.grupodesconto;
+                        const grupoDescontoFinal = grupoDeDescontoValue ? Number(grupoDeDescontoValue) : null;
 
                         await client.query(
                             `SELECT fn_upsert_preco($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
                             [
-                                proId,
-                                industria,
+                                Number(proId),
+                                Number(industria),
                                 nomeTabela,
-                                produto.precobruto || 0,
-                                produto.precopromo || null,
-                                produto.precoespecial || null,
-                                produto.ipi || 0,
-                                produto.st || 0,
+                                Number(produto.precobruto || 0),
+                                Number(produto.precopromo || 0),
+                                Number(produto.precoespecial || 0),
+                                Number(produto.ipi || 0),
+                                Number(produto.st || 0),
                                 grupoDescontoFinal,
-                                produto.descontoadd || 0,
+                                Number(produto.descontoadd || 0),
                                 dataTabela || new Date(),
                                 dataVencimento || null
                             ]

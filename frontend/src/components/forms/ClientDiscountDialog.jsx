@@ -79,7 +79,7 @@ export function ClientDiscountDialog({
 
     const fetchSuppliers = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers?active=true&limit=1000');
+            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers?active=true&limit=1000');
             const data = await response.json();
             if (data.success) {
                 setSuppliers(data.data);
@@ -91,7 +91,7 @@ export function ClientDiscountDialog({
 
     const fetchGroups = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/discount-groups');
+            const response = await fetch('https://salesmasters.softham.com.br/api/discount-groups');
             const data = await response.json();
             console.log('Groups fetched:', data); // Debug
             setGroups(data);
@@ -110,8 +110,8 @@ export function ClientDiscountDialog({
 
         try {
             const url = discount
-                ? `http://localhost:3005/api/clients/${clientId}/discounts/${discount.cli_forcodigo}/${discount.cli_grupo}`
-                : `http://localhost:3005/api/clients/${clientId}/discounts`;
+                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/discounts/${discount.cli_forcodigo}/${discount.cli_grupo}`
+                : `https://salesmasters.softham.com.br/api/clients/${clientId}/discounts`;
 
             const method = discount ? 'PUT' : 'POST';
 

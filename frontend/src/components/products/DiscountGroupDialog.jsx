@@ -42,7 +42,7 @@ export default function DiscountGroupDialog({ open, onClose, onApply, product })
     const fetchDiscountGroups = async () => {
         try {
             setLoading(true);
-            const response = await fetch('http://localhost:3005/api/v2/discount-groups');
+            const response = await fetch('https://salesmasters.softham.com.br/api/v2/discount-groups');
             const result = await response.json();
             if (result.success) {
                 setDiscountGroups(result.data);

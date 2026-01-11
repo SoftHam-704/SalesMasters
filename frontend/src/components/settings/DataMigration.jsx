@@ -69,7 +69,7 @@ export const DataMigration = () => {
         setLogs([{ type: 'info', message: 'Iniciando importação de fornecedores...' }]);
 
         try {
-            const response = await fetch('http://localhost:3005/api/import/suppliers', {
+            const response = await fetch('https://salesmasters.softham.com.br/api/import/suppliers', {
                 method: 'POST'
             });
 
@@ -98,7 +98,7 @@ export const DataMigration = () => {
         setLogs([{ type: 'info', message: 'Iniciando importação de fornecedores (XLSX)...' }]);
 
         try {
-            const response = await fetch('http://localhost:3005/api/import/suppliers-xlsx', {
+            const response = await fetch('https://salesmasters.softham.com.br/api/import/suppliers-xlsx', {
                 method: 'POST'
             });
 

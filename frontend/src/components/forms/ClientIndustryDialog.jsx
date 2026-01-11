@@ -111,7 +111,7 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
     const fetchSuppliers = async () => {
         setLoadingSuppliers(true);
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers');
+            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers');
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : (data.data || []);
@@ -130,7 +130,7 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
     const fetchCarriers = async () => {
         setLoadingCarriers(true);
         try {
-            const response = await fetch('http://localhost:3005/api/transportadoras');
+            const response = await fetch('https://salesmasters.softham.com.br/api/transportadoras');
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : (data.data || []);
@@ -162,8 +162,8 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
         e.preventDefault();
         try {
             const url = industry
-                ? `http://localhost:3005/api/clients/${clientId}/industries/${industry.cli_lancamento}`
-                : `http://localhost:3005/api/clients/${clientId}/industries`;
+                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/industries/${industry.cli_lancamento}`
+                : `https://salesmasters.softham.com.br/api/clients/${clientId}/industries`;
 
             const method = industry ? 'PUT' : 'POST';
 

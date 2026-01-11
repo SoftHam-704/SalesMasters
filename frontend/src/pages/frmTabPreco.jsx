@@ -5,8 +5,12 @@ import { toast } from "sonner";
 import GridCadPadrao from "../components/GridCadPadrao";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useTabs } from "../contexts/TabContext";
+
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmTabPreco = () => {
+    const { selectTab } = useTabs();
     const [tables, setTables] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -15,7 +19,8 @@ const FrmTabPreco = () => {
     const fetchTables = async (page = 1) => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/price-tables`);
+            const url = getApiUrl(NODE_API_URL, "/api/price-tables");
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const result = await response.json();
@@ -119,7 +124,7 @@ const FrmTabPreco = () => {
                 pagination={pagination}
                 showActions={false} // No edit/delete actions for grouped view
                 newButtonLabel="Nova Importação"
-                onNew={() => window.location.href = '/utilitarios/importacao-precos'}
+                onNew={() => selectTab('/utilitarios/importacao-precos')}
             />
         </div>
     );

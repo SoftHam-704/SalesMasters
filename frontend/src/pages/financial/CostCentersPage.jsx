@@ -33,6 +33,7 @@ import {
     Search as SearchIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const CostCentersPage = () => {
     const [costCenters, setCostCenters] = useState([]);
@@ -55,7 +56,8 @@ const CostCentersPage = () => {
     const fetchCostCenters = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/centro-custo');
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/centro-custo');
+            const response = await axios.get(url);
             setCostCenters(response.data.data || []);
         } catch (error) {
             showSnackbar('Erro ao carregar centros de custo', 'error');
@@ -91,10 +93,12 @@ const CostCentersPage = () => {
     const handleSave = async () => {
         try {
             if (editingCenter) {
-                await axios.put(`http://localhost:3005/api/financeiro/centro-custo/${editingCenter.id}`, formData);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/centro-custo/${editingCenter.id}`);
+                await axios.put(url, formData);
                 showSnackbar('Centro de custo atualizado com sucesso!', 'success');
             } else {
-                await axios.post('http://localhost:3005/api/financeiro/centro-custo', formData);
+                const url = getApiUrl(NODE_API_URL, '/api/financeiro/centro-custo');
+                await axios.post(url, formData);
                 showSnackbar('Centro de custo cadastrado com sucesso!', 'success');
             }
             handleCloseDialog();
@@ -107,7 +111,8 @@ const CostCentersPage = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Deseja realmente excluir este centro de custo?')) {
             try {
-                await axios.delete(`http://localhost:3005/api/financeiro/centro-custo/${id}`);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/centro-custo/${id}`);
+                await axios.delete(url);
                 showSnackbar('Centro de custo excluído com sucesso!', 'success');
                 fetchCostCenters();
             } catch (error) {

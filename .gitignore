@@ -73,3 +73,9 @@ login/*.mp4
 
 # Temp Python scripts at root
 analyze_price_list.py
+
+backend/_dev_scripts/*.sql
+
+backend/_dev_scripts/*.js
+
+*.log

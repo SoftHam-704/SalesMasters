@@ -31,7 +31,9 @@ ChartJS.register(
     Filler
 );
 
-const API_URL = import.meta.env.VITE_BI_API_URL || 'http://localhost:8000';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
+
+const API_URL = PYTHON_API_URL;
 
 const EquipeTab = ({ filters }) => {
     // const { filters } = useBIFilters(); // Removido para usar prop vinda do IntelligencePage
@@ -66,7 +68,7 @@ const EquipeTab = ({ filters }) => {
     useEffect(() => {
         const fetchVendedores = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/equipe/vendedores`);
+                const response = await fetch(getApiUrl(API_URL, '/api/equipe/vendedores'));
                 const data = await response.json();
                 if (data.success) {
                     setVendedores(data.data || []);
@@ -83,7 +85,8 @@ const EquipeTab = ({ filters }) => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const url = `${API_URL}/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}${selectedVendedor ? `&vendedor=${selectedVendedor}` : ''}`;
+                // Performance Ranking should show ALL vendors, so we don't pass 'vendedor' param here
+                const url = getApiUrl(API_URL, `/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}`);
                 const response = await fetch(url);
                 const data = await response.json();
                 if (data.success) {
@@ -106,7 +109,9 @@ const EquipeTab = ({ filters }) => {
 
     const fetchIAInsights = async (vendedorId) => {
         try {
-            const response = await fetch(`${API_URL}/api/equipe/ia-insights?vendedor=${vendedorId}&ano=${filters.ano}&mes=${metricMonth}`);
+            // IA Insights (Recommendations) should be "Year-to-Date" or "Current Context", so we force mes=0 (All)
+            const url = getApiUrl(API_URL, `/api/equipe/ia-insights?vendedor=${vendedorId}&ano=${filters.ano}&mes=0`);
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setIaInsights(data.data);
@@ -125,10 +130,11 @@ const EquipeTab = ({ filters }) => {
         setRiskLoading(true);
         setRiskModalOpen(true);
         try {
-            let url = `${API_URL}/api/equipe/clientes-risco`;
+            let endpoint = '/api/equipe/clientes-risco';
             if (selectedVendedor) {
-                url += `?vendedor=${selectedVendedor}`;
+                endpoint += `?vendedor=${selectedVendedor}`;
             }
+            const url = getApiUrl(API_URL, endpoint);
             const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
@@ -147,21 +153,25 @@ const EquipeTab = ({ filters }) => {
             const vendedorParam = selectedVendedor ? `&vendedor=${selectedVendedor}` : '';
 
             // Fetch carteira resumo
-            const resumoResponse = await fetch(`${API_URL}/api/equipe/carteira-resumo?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            // Use getApiUrl for safe URL construction
+            const resumoUrl = getApiUrl(API_URL, `/api/equipe/carteira-resumo?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const resumoResponse = await fetch(resumoUrl);
             const resumoData = await resumoResponse.json();
             if (resumoData.success) {
                 setCarteiraResumo(resumoData.data);
             }
 
             // Fetch carteira por vendedor (for stacked bar chart)
-            const porVendedorResponse = await fetch(`${API_URL}/api/equipe/carteira-por-vendedor?ano=${filters.ano}&mes=${metricMonth}`);
+            const porVendedorUrl = getApiUrl(API_URL, `/api/equipe/carteira-por-vendedor?ano=${filters.ano}&mes=${metricMonth}`);
+            const porVendedorResponse = await fetch(porVendedorUrl);
             const porVendedorData = await porVendedorResponse.json();
             if (porVendedorData.success) {
                 setCarteiraPorVendedor(porVendedorData.data);
             }
 
             // Fetch novos clientes
-            const novosResponse = await fetch(`${API_URL}/api/equipe/novos-clientes?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const novosUrl = getApiUrl(API_URL, `/api/equipe/novos-clientes?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const novosResponse = await fetch(novosUrl);
             const novosData = await novosResponse.json();
             if (novosData.success) {
                 setNovosClientes(novosData.data);
@@ -176,7 +186,9 @@ const EquipeTab = ({ filters }) => {
         setNarrativasLoading(true);
         try {
             const vendedorParam = selectedVendedor ? `&vendedor=${selectedVendedor}` : '';
-            const response = await fetch(`${API_URL}/api/equipe/narrativas-ia?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            // Narratives also should depend on the general context, not a specific month filter
+            const url = getApiUrl(API_URL, `/api/equipe/narrativas-ia?ano=${filters.ano}&mes=0${vendedorParam}`);
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setNarrativasIA(data.data);
@@ -192,7 +204,8 @@ const EquipeTab = ({ filters }) => {
     const fetchEvolucaoData = async () => {
         try {
             const vendedorParam = selectedVendedor ? `&vendedor=${selectedVendedor}` : '';
-            const response = await fetch(`${API_URL}/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const url = getApiUrl(API_URL, `/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success && data.data) {
                 setEvolucaoData(data.data);
@@ -204,7 +217,8 @@ const EquipeTab = ({ filters }) => {
 
     // Initial load for carteira, narrativas and evolucao
     useEffect(() => {
-        if (filters.ano && metricMonth) {
+        // Fix: check if metricMonth is defined, allowing 0 (Todos)
+        if (filters.ano && metricMonth !== undefined && metricMonth !== null) {
             fetchCarteiraData();
             fetchNarrativasIA();
             fetchEvolucaoData();
@@ -760,7 +774,7 @@ const EquipeTab = ({ filters }) => {
                 <div className="equipe-chart-card">
                     <div className="chart-header">
                         <span className="chart-icon"><Users size={18} className="text-emerald-500" /></span>
-                        Ativos x Inativos por Vendedor
+                        Ativos x Inativos por Vendedor <span className="text-xs font-normal text-gray-400 ml-2">(Base 90 dias)</span>
                     </div>
                     <div className="chart-wrapper">
                         <Bar

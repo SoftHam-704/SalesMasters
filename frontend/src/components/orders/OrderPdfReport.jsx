@@ -175,7 +175,7 @@ const OrderPdfReport = ({ model, order, items, companyData }) => {
                 <View style={styles.header}>
                     <View style={styles.logoBox}>
                         {companyData?.logotipo && (
-                            <Image src={`http://localhost:3005/api/image?path=${encodeURIComponent(companyData.logotipo)}`} style={{ maxWidth: '90%', maxHeight: '90%' }} />
+                            <Image src={`https://salesmasters.softham.com.br/api/image?path=${encodeURIComponent(companyData.logotipo)}`} style={{ maxWidth: '90%', maxHeight: '90%' }} />
                         )}
                     </View>
                     <View style={styles.companyInfo}>

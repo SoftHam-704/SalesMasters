@@ -5,7 +5,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './PriorityActions.css';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
+
+const API_URL = PYTHON_API_URL;
 
 const PriorityActions = () => {
     const [actions, setActions] = useState([]);
@@ -17,7 +19,8 @@ const PriorityActions = () => {
 
     const fetchActions = async () => {
         try {
-            const res = await axios.get(`${API_URL}/dashboard/analytics/priority-actions`);
+            const url = getApiUrl(API_URL, '/api/dashboard/analytics/priority-actions');
+            const res = await axios.get(url);
             if (res.data.success) {
                 setActions(res.data.data);
             }

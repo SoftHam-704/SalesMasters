@@ -79,8 +79,8 @@
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
     max-height: 260px;
     overflow-y: auto;
-    z-index: 9999;
-    /* Increased z-index */
+    z-index: 10001;
+    /* Increased z-index to stay above DialogContent */
 }
 
 .dbcombo-item {

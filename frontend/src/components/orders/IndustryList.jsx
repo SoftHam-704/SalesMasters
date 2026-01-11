@@ -6,6 +6,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import SidebarCalendar from './SidebarCalendar';
 
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
+
 export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
     const [industries, setIndustries] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
 
     const loadIndustries = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/orders/industries');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/orders/industries'));
             const data = await response.json();
 
             if (data.success) {

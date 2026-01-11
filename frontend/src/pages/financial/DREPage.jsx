@@ -20,13 +20,18 @@ import {
 } from '@mui/material';
 import { Download, Assessment, TrendingUp, TrendingDown } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { HelpCircle, Sparkles } from 'lucide-react';
+import { Button as ShadcnButton } from '@/components/ui/button';
+import FinancialHelpModal from '@/components/financial/FinancialHelpModal';
 
 const DREPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
+    const [helpOpen, setHelpOpen] = useState(false);
 
     // Filter states
     const [mes, setMes] = useState(() => new Date().getMonth() + 1);
@@ -40,7 +45,8 @@ const DREPage = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/relatorios/dre', {
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/relatorios/dre');
+            const response = await axios.get(url, {
                 params: { mes, ano }
             });
             setData(response.data.data);
@@ -171,6 +177,18 @@ const DREPage = () => {
                         DRE - Demonstração do Resultado
                     </Typography>
                 </Box>
+                <ShadcnButton
+                    onClick={() => setHelpOpen(true)}
+                    className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group"
+                    title="Como usar o Financeiro?"
+                >
+                    <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+                    <span className="relative flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5" />
+                        <span className="text-sm text-white">Como usar...</span>
+                        <Sparkles className="w-4 h-4 text-yellow-200" />
+                    </span>
+                </ShadcnButton>
             </Box>
 
             {/* Filters */}
@@ -356,6 +374,10 @@ const DREPage = () => {
                     </Typography>
                 </Paper>
             )}
+            <FinancialHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+            />
         </Box>
     );
 };

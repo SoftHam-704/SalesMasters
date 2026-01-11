@@ -6,11 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "@/components/ui/select";
+import DbComboBox from '@/components/DbComboBox';
+import {
     Plus, Phone, Mail, MessageSquare, Users, Calendar,
     TrendingUp, AlertTriangle, Clock, Search, Filter,
     ChevronRight, Building2, User, Activity, Columns, List,
     Briefcase, LayoutDashboard, ArrowUpRight, Cake, Loader2,
-    ArrowRight, CheckCircle2, X
+    ArrowRight, CheckCircle2, X, HelpCircle, Sparkles,
+    Pencil, Trash2, FilterX, Scissors
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -238,7 +247,13 @@ export default function CRMPage() {
     const [novaInteracaoOpen, setNovaInteracaoOpen] = useState(false);
     const [novaOportunidadeOpen, setNovaOportunidadeOpen] = useState(false);
     const [selectedOpportunity, setSelectedOpportunity] = useState(null); // For Edit Mode
+    const [selectedInteraction, setSelectedInteraction] = useState(null); // For Edit Mode
     const [helpOpen, setHelpOpen] = useState(false);
+
+    // Filters & Lookups
+    const [filterCli, setFilterCli] = useState(null);
+    const [filterInd, setFilterInd] = useState('');
+    const [industrias, setIndustrias] = useState([]);
 
     // Fetch All Data
     const refreshData = async () => {
@@ -246,14 +261,21 @@ export default function CRMPage() {
         try {
             const venCodigo = 1; // TODO: Auth
 
+            // Build query params for interactions
+            let intUrl = `${NODE_API_URL}/api/crm/interacoes?ven_codigo=${venCodigo}`;
+            if (filterCli) intUrl += `&cli_codigo=${filterCli}`;
+            if (filterInd && filterInd !== 'all') intUrl += `&for_codigo=${filterInd}`;
+
             // Parallel Fetch
-            const [intRes, pipeRes] = await Promise.all([
-                fetch(`${NODE_API_URL}/api/crm/interacoes?ven_codigo=${venCodigo}`),
-                fetch(`${NODE_API_URL}/api/crm/pipeline?ven_codigo=${venCodigo}`)
+            const [intRes, pipeRes, indRes] = await Promise.all([
+                fetch(intUrl),
+                fetch(`${NODE_API_URL}/api/crm/pipeline?ven_codigo=${venCodigo}`),
+                fetch(`${NODE_API_URL}/api/suppliers`)
             ]);
 
             const intData = await intRes.json();
             const pipeData = await pipeRes.json();
+            const indData = await indRes.json();
 
             if (intData.success) {
                 setInteracoes(intData.data);
@@ -272,6 +294,10 @@ export default function CRMPage() {
                 setPipeline(pipeData.data);
             }
 
+            if (indData.success || Array.isArray(indData)) {
+                setIndustrias(indData.success ? indData.data : indData);
+            }
+
         } catch (error) {
             console.error(error);
             toast.error('Erro ao carregar CRM');
@@ -282,7 +308,7 @@ export default function CRMPage() {
 
     useEffect(() => {
         refreshData();
-    }, []);
+    }, [filterCli, filterInd]);
 
     // Drag & Drop Handler
     const handleDragEnd = async (event) => {
@@ -371,9 +397,11 @@ export default function CRMPage() {
     // Quick Action Handler (Zero Friction)
     const handleQuickAction = async (action, data) => {
         if (action === 'whatsapp') {
-            const phone = data.cli_fone1?.replace(/\D/g, ''); // Remove non-digits
+            // Priority: telefone_contato (from opportunity) > cli_fone1 (from client)
+            const rawPhone = data.telefone_contato || data.cli_fone1;
+            const phone = rawPhone?.replace(/\D/g, ''); // Remove non-digits
             if (!phone) {
-                toast.error('Telefone inválido');
+                toast.error('Telefone não cadastrado. Edite a oportunidade e adicione um telefone de contato.');
                 return;
             }
 
@@ -414,28 +442,57 @@ export default function CRMPage() {
         setNovaOportunidadeOpen(true);
     };
 
+    const handleEditInteraction = (interaction) => {
+        setSelectedInteraction(interaction);
+        setNovaInteracaoOpen(true);
+    };
+
+    const clearFilters = () => {
+        setFilterCli(null);
+        setFilterInd('');
+    };
+
+    const fetchClients = async (search) => {
+        try {
+            const response = await fetch(`${NODE_API_URL}/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
+            const data = await response.json();
+            return data.success ? data.data : [];
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
+    };
+
     return (
         <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-blue-100 px-8 py-4 flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                            CRM 2.0
-                        </h1>
-                        <p className="text-slate-500 text-sm">Gestão de Vendas & Relacionamento</p>
-                    </div>
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                                CRM 2.0
+                            </h1>
+                            <p className="text-slate-500 text-sm">Gestão de Vendas & Relacionamento</p>
+                        </div>
 
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setHelpOpen(true)}
-                        className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full"
-                        title="Como usar o CRM?"
-                    >
-                        <AlertTriangle className="w-6 h-6" />
-                    </Button>
+                        {/* Animated Help Button - Prominent */}
+                        <Button
+                            onClick={() => setHelpOpen(true)}
+                            className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group"
+                            title="Como usar o CRM?"
+                        >
+                            {/* Glow Effect */}
+                            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+
+                            <span className="relative flex items-center gap-2">
+                                <HelpCircle className="w-5 h-5" />
+                                <span className="text-sm">Como usar...</span>
+                                <Sparkles className="w-4 h-4 text-yellow-200" />
+                            </span>
+                        </Button>
+                    </div>
 
                     {/* View Switcher */}
                     <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -510,13 +567,55 @@ export default function CRMPage() {
                     ) : (
                         /* TIMELINE VIEW (New) */
                         <Card className="h-full bg-white/60 backdrop-blur-sm border-blue-100 flex flex-col">
-                            <CardHeader className="border-b border-blue-100 shrink-0 flex flex-row items-center justify-between py-4">
-                                <div>
-                                    <CardTitle className="text-lg text-slate-800">Linha do Tempo</CardTitle>
-                                    <p className="text-sm text-slate-500">Histórico de todas as interações e contatos</p>
+                            <CardHeader className="border-b border-blue-100 shrink-0 py-4">
+                                <div className="flex flex-row items-center justify-between mb-4">
+                                    <div>
+                                        <CardTitle className="text-lg text-slate-800">Linha do Tempo</CardTitle>
+                                        <p className="text-sm text-slate-500">Histórico de todas as interações e contatos</p>
+                                    </div>
+                                    <div className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                                        {interacoes.length} registros
+                                    </div>
                                 </div>
-                                <div className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                                    {interacoes.length} registros
+
+                                {/* Timeline Filters Bar */}
+                                <div className="flex flex-wrap items-center gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <DbComboBox
+                                            placeholder="Filtrar por cliente..."
+                                            value={filterCli}
+                                            onChange={(val) => setFilterCli(val)}
+                                            fetchData={fetchClients}
+                                            labelKey="cli_nomred"
+                                            valueKey="cli_codigo"
+                                        />
+                                    </div>
+                                    <div className="w-[180px]">
+                                        <Select value={filterInd} onValueChange={setFilterInd}>
+                                            <SelectTrigger className="h-[50px] bg-white border-blue-100 rounded-xl">
+                                                <SelectValue placeholder="Todas as Indústrias" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todas as Indústrias</SelectItem>
+                                                {industrias.map(ind => (
+                                                    <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
+                                                        {ind.nomeReduzido || ind.razaoSocial}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {(filterCli || filterInd) && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={clearFilters}
+                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
+                                        >
+                                            <FilterX className="w-4 h-4 mr-2" />
+                                            Limpar
+                                        </Button>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0 flex-1 overflow-hidden bg-slate-50/50">
@@ -550,15 +649,22 @@ export default function CRMPage() {
                                                         {/* Content Card */}
                                                         <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all group-hover:border-blue-200">
                                                             <div className="flex justify-between items-start mb-2">
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                <div className="flex-1">
+                                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                                         <span className="font-bold text-slate-700 text-sm md:text-base">
                                                                             {item.cli_nomred}
                                                                         </span>
-                                                                        {item.industria_related && ( // Assuming future support or mapped field
-                                                                            <Badge variant="secondary" className="text-[10px] h-5 bg-slate-100 text-slate-500">
-                                                                                {item.industria_related}
-                                                                            </Badge>
+                                                                        {item.industrias && item.industrias.length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {item.industrias.map(indId => {
+                                                                                    const ind = industrias.find(i => i.for_codigo == indId);
+                                                                                    return (
+                                                                                        <Badge key={indId} variant="outline" className="text-[9px] h-4 bg-white text-slate-500 border-slate-200">
+                                                                                            {ind?.nomeReduzido || 'Indústria'}
+                                                                                        </Badge>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
                                                                         )}
                                                                     </div>
                                                                     <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -579,18 +685,29 @@ export default function CRMPage() {
                                                                     </div>
                                                                 </div>
 
-                                                                <div className="text-right">
-                                                                    <div className="flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg mb-1">
-                                                                        <Calendar className="w-3 h-3 text-slate-400" />
-                                                                        {new Date(item.data_interacao).toLocaleDateString()}
-                                                                        <span className="text-slate-300">|</span>
-                                                                        <span className="text-slate-500 font-normal">
-                                                                            {new Date(item.data_interacao).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                        </span>
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className="text-right">
+                                                                        <div className="flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg mb-1">
+                                                                            <Calendar className="w-3 h-3 text-slate-400" />
+                                                                            {new Date(item.data_interacao).toLocaleDateString()}
+                                                                            <span className="text-slate-300">|</span>
+                                                                            <span className="text-slate-500 font-normal">
+                                                                                {new Date(item.data_interacao).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            </span>
+                                                                        </div>
+                                                                        <Badge className={cn("text-[10px] font-normal justify-end w-full", getResultColor(item.resultado))}>
+                                                                            {item.resultado || 'Pendente'}
+                                                                        </Badge>
                                                                     </div>
-                                                                    <Badge className={cn("text-[10px] font-normal justify-end w-full", getResultColor(item.resultado))}>
-                                                                        {item.resultado || 'Pendente'}
-                                                                    </Badge>
+
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full"
+                                                                        onClick={() => handleEditInteraction(item)}
+                                                                    >
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </Button>
                                                                 </div>
                                                             </div>
 
@@ -613,8 +730,12 @@ export default function CRMPage() {
             {/* Modals */}
             <NovaInteracaoModal
                 open={novaInteracaoOpen}
-                onClose={() => setNovaInteracaoOpen(false)}
+                onClose={() => {
+                    setNovaInteracaoOpen(false);
+                    setSelectedInteraction(null);
+                }}
                 onSuccess={refreshData}
+                editData={selectedInteraction}
             />
             <NovaOportunidadeModal
                 open={novaOportunidadeOpen}

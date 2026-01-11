@@ -111,7 +111,8 @@ const OverviewTab = ({ filters }) => {
                 };
 
                 // Evolution
-                const evolutionRes = await axios.get('http://localhost:8000/api/dashboard/evolution', { params });
+                const evolutionUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/evolution');
+                const evolutionRes = await axios.get(evolutionUrl, { params });
                 if (evolutionRes.data) setEvolutionData(evolutionRes.data);
 
                 // Pareto

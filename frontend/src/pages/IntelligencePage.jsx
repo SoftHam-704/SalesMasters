@@ -133,9 +133,10 @@ const IntelligencePage = () => {
             </div>
 
             {/* Subtitle / Quote Box - Elegant Design */}
-            <div className="relative bg-gradient-to-r from-slate-50 to-slate-100/50 border-l-4 border-l-[#0077B6] border-y border-r border-slate-200/80 rounded-r-lg py-2 px-4 max-w-2xl mb-3 group hover:border-l-indigo-500 transition-colors">
-                <p className="font-['Roboto'] text-[11px] text-slate-500 italic leading-relaxed">
-                    "Dados transformados em vantagem competitiva. <span className="text-slate-600 font-medium not-italic">Onde outros veem números, você visualiza estratégias.</span>"
+            <div className="relative py-2 pl-4 max-w-2xl mb-3 group transition-colors">
+                <div className="absolute left-0 top-1 bottom-1 w-1 bg-indigo-500 rounded-full"></div>
+                <p className="font-['Roboto'] text-[13px] text-slate-500 italic leading-relaxed">
+                    "Dados transformados em vantagem competitiva. <span className="text-indigo-600 font-bold not-italic text-[14px]">Onde outros veem números, você visualiza estratégias.</span>"
                 </p>
             </div>
 

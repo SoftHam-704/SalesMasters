@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-    Upload, FileSpreadsheet, BrainCircuit, Sparkles, CheckCircle,
+    Upload, FileSpreadsheet, Wand2, Sparkles, CheckCircle,
     AlertCircle, Loader2, CloudUpload, ArrowRight, Eye, Layers,
     PlusCircle, RefreshCw, Settings2, ChevronRight, Table2
 } from "lucide-react";
@@ -272,12 +272,12 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
             <DialogContent className="max-w-5xl max-h-[90vh] overflow-visible">
                 <DialogHeader className="pb-4 border-b">
                     <DialogTitle className="flex items-center gap-3 text-lg">
-                        <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg text-white">
-                            <BrainCircuit size={22} />
+                        <div className="p-2 bg-gradient-to-br from-amber-600 to-orange-600 rounded-lg text-white">
+                            <Wand2 size={22} />
                         </div>
                         <div>
-                            <span className="block font-bold">Importação Inteligente</span>
-                            <span className="text-xs font-normal text-slate-500">Powered by OpenAI</span>
+                            <span className="block font-bold">Magic Import</span>
+                            <span className="text-xs font-normal text-slate-500 italic">Mapeamento Dinâmico de Colunas</span>
                         </div>
                     </DialogTitle>
                 </DialogHeader>
@@ -365,8 +365,8 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                     {/* Analyzing */}
                     {step === 'analyzing' && (
                         <div className="text-center py-12">
-                            <BrainCircuit className="h-16 w-16 text-blue-500 animate-pulse mx-auto mb-4" />
-                            <h3 className="text-lg font-bold mb-2">Analisando com IA...</h3>
+                            <Wand2 className="h-16 w-16 text-amber-500 animate-pulse mx-auto mb-4" />
+                            <h3 className="text-lg font-bold mb-2">Processando Mágica...</h3>
                             <Progress value={progress} className="h-2 max-w-md mx-auto" />
                         </div>
                     )}
@@ -563,8 +563,8 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                     {step === 'sheets' && (
                         <>
                             <Button variant="outline" onClick={() => setStep('upload')}>Voltar</Button>
-                            <Button onClick={handleAnalyzeSheet} disabled={!selectedSheet} className="bg-blue-600 hover:bg-blue-700">
-                                <BrainCircuit className="mr-2 h-4 w-4" /> Analisar com IA
+                            <Button onClick={handleAnalyzeSheet} disabled={!selectedSheet} className="bg-amber-600 hover:bg-amber-700">
+                                <Wand2 className="mr-2 h-4 w-4" /> Mapeamento Mágico
                             </Button>
                         </>
                     )}

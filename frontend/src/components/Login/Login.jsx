@@ -196,6 +196,11 @@ const Login = () => {
         sessionStorage.setItem('user', JSON.stringify(data.user));
         sessionStorage.setItem('tenantConfig', JSON.stringify(data.tenantConfig));
 
+        // SALVAR TOKEN DE SESSÃO DO EQUIPAMENTO (Segurança)
+        if (data.token) {
+          localStorage.setItem('session_token', data.token);
+        }
+
         // Limpar qualquer lixo legado do localStorage
         localStorage.removeItem('user');
         localStorage.removeItem('tenantConfig');

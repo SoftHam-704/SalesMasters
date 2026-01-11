@@ -30,7 +30,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
 
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/regions/${data.reg_codigo}/cities`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities`);
             const result = await response.json();
             if (result.success) {
                 setRegionCities(result.data);
@@ -54,7 +54,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/regions/${data.reg_codigo}/cities`, {
+            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ cid_id: selectedCity.cid_codigo })
@@ -82,7 +82,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/v2/regions/${data.reg_codigo}/cities/${city.cid_codigo}`,
+                `https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities/${city.cid_codigo}`,
                 { method: 'DELETE' }
             );
 
@@ -173,7 +173,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
                                         value={selectedCity}
                                         onChange={(item) => setSelectedCity(item)}
                                         fetchData={async (search = '', limit = 20) => {
-                                            const res = await fetch(`http://localhost:3005/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`);
+                                            const res = await fetch(`https://salesmasters.softham.com.br/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`);
                                             const json = await res.json();
                                             return (json.data || []).map(city => ({
                                                 ...city,

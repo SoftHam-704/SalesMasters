@@ -622,7 +622,8 @@ module.exports = (pool) => {
                 valor_pago,
                 juros = 0,
                 desconto = 0,
-                observacoes
+                observacoes,
+                gerar_residuo = true
             } = req.body;
 
             // Update parcel
@@ -637,6 +638,23 @@ module.exports = (pool) => {
                     observacoes = $5
                 WHERE id = $6
             `, [data_pagamento, valor_pago, juros, desconto, observacoes, id_parcela]);
+
+            // Handle Partial Payment (Residue)
+            const parcelaOriginalResult = await client.query('SELECT valor FROM fin_parcelas_pagar WHERE id = $1', [id_parcela]);
+            const valorOriginal = parseFloat(parcelaOriginalResult.rows[0].valor);
+            const residual = valorOriginal - valor_pago - desconto;
+
+            if (gerar_residuo && residual > 0.01) {
+                // Get next parcel number for this account
+                const nextNumResult = await client.query('SELECT MAX(numero_parcela) as max_num FROM fin_parcelas_pagar WHERE id_conta_pagar = $1', [id]);
+                const nextNum = (nextNumResult.rows[0].max_num || 0) + 1;
+
+                // Create residue parcel (usually for the same day or next month, here we keep it as pending)
+                await client.query(`
+                    INSERT INTO fin_parcelas_pagar (id_conta_pagar, numero_parcela, valor, data_vencimento, status)
+                    VALUES ($1, $2, $3, (SELECT data_vencimento FROM fin_parcelas_pagar WHERE id = $4), 'ABERTO')
+                `, [id, nextNum, residual, id_parcela]);
+            }
 
             // Recalculate conta status
             const parcelasResult = await client.query(`
@@ -942,7 +960,8 @@ module.exports = (pool) => {
                 valor_recebido,
                 juros = 0,
                 desconto = 0,
-                observacoes
+                observacoes,
+                gerar_residuo = true
             } = req.body;
 
             // Update parcel
@@ -957,6 +976,21 @@ module.exports = (pool) => {
                     observacoes = $5
                 WHERE id = $6
             `, [data_recebimento, valor_recebido, juros, desconto, observacoes, id_parcela]);
+
+            // Handle Partial Receipt (Residue)
+            const parcelaOriginalResult = await client.query('SELECT valor FROM fin_parcelas_receber WHERE id = $1', [id_parcela]);
+            const valorOriginal = parseFloat(parcelaOriginalResult.rows[0].valor);
+            const residual = valorOriginal - valor_recebido - desconto;
+
+            if (gerar_residuo && residual > 0.01) {
+                const nextNumResult = await client.query('SELECT MAX(numero_parcela) as max_num FROM fin_parcelas_receber WHERE id_conta_receber = $1', [id]);
+                const nextNum = (nextNumResult.rows[0].max_num || 0) + 1;
+
+                await client.query(`
+                    INSERT INTO fin_parcelas_receber (id_conta_receber, numero_parcela, valor, data_vencimento, status)
+                    VALUES ($1, $2, $3, (SELECT data_vencimento FROM fin_parcelas_receber WHERE id = $4), 'ABERTO')
+                `, [id, nextNum, residual, id_parcela]);
+            }
 
             // Recalculate conta status
             const parcelasResult = await client.query(`

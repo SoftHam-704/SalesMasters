@@ -5,6 +5,7 @@ import GridCadPadrao from "@/components/GridCadPadrao";
 import { SupplierDialog } from "@/components/forms/SupplierDialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NODE_API_URL, getApiUrl } from "@/utils/apiConfig";
 
 const FrmIndustria = () => {
     const [suppliers, setSuppliers] = useState([]);
@@ -30,7 +31,8 @@ const FrmIndustria = () => {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers');
+            const url = getApiUrl(NODE_API_URL, '/api/suppliers');
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const data = await response.json();
@@ -75,13 +77,12 @@ const FrmIndustria = () => {
         fetchSuppliers();
     }, []);
 
-    // Helper to handle CRUD
     const handleSave = async (data) => {
         try {
             const isNew = !data.id;
             const url = isNew
-                ? 'http://localhost:3005/api/suppliers'
-                : `http://localhost:3005/api/suppliers/${data.id}`;
+                ? getApiUrl(NODE_API_URL, '/api/suppliers')
+                : getApiUrl(NODE_API_URL, `/api/suppliers/${data.id}`);
 
             const method = isNew ? 'POST' : 'PUT';
 
@@ -117,18 +118,20 @@ const FrmIndustria = () => {
             setDialogOpen(false);
             fetchSuppliers();
         } catch (error) {
-            toast.error(error.message);
+            toast.error(error.message || "Erro ao salvar");
         }
     };
 
     const handleDelete = async (row) => {
         if (!window.confirm(`Tem certeza que deseja excluir ${row.nomeReduzido}?`)) return;
         try {
-            await fetch(`http://localhost:3005/api/suppliers/${row.id}`, { method: 'DELETE' });
+            const url = getApiUrl(NODE_API_URL, `/api/suppliers/${row.id}`);
+            const response = await fetch(url, { method: 'DELETE' });
+            if (!response.ok) throw new Error("Erro ao excluir");
             toast.success("Excluído com sucesso");
             fetchSuppliers();
         } catch (e) {
-            toast.error("Erro ao excluir");
+            toast.error("Erro ao excluir: " + e.message);
         }
     };
 

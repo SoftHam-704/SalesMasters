@@ -284,7 +284,7 @@ const FrmProdutos = () => {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/zero-promo-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
+                `https://salesmasters.softham.com.br/api/products/zero-promo-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
                 { method: 'PUT' }
             );
 
@@ -309,7 +309,7 @@ const FrmProdutos = () => {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/zero-special-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
+                `https://salesmasters.softham.com.br/api/products/zero-special-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
                 { method: 'PUT' }
             );
 
@@ -334,7 +334,7 @@ const FrmProdutos = () => {
     const handleApplyDiscountGroup = async (groupId) => {
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/set-discount-group/${selectedIndustry}/${encodeURIComponent(selectedTable)}`,
+                getApiUrl(NODE_API_URL, `/api/products/set-discount-group/${selectedIndustry}/${encodeURIComponent(selectedTable)}`),
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -363,7 +363,7 @@ const FrmProdutos = () => {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/remove-discount-group/${selectedIndustry}/${encodeURIComponent(selectedTable)}`,
+                getApiUrl(NODE_API_URL, `/api/products/remove-discount-group/${selectedIndustry}/${encodeURIComponent(selectedTable)}`),
                 { method: 'PUT' }
             );
 
@@ -392,7 +392,7 @@ const FrmProdutos = () => {
     const handleApplyIPI = async (percentage) => {
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/update-ipi/${selectedIndustry}/${encodeURIComponent(selectedTable)}`,
+                getApiUrl(NODE_API_URL, `/api/products/update-ipi/${selectedIndustry}/${encodeURIComponent(selectedTable)}`),
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -421,7 +421,7 @@ const FrmProdutos = () => {
     const handleApplyST = async (percentage) => {
         try {
             const response = await fetch(
-                `http://localhost:3005/api/products/update-st/${selectedIndustry}/${encodeURIComponent(selectedTable)}`,
+                getApiUrl(NODE_API_URL, `/api/products/update-st/${selectedIndustry}/${encodeURIComponent(selectedTable)}`),
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -685,14 +685,14 @@ const FrmProdutos = () => {
                 {/* Spacer */}
                 <div className="flex-1"></div>
 
-                {/* Botão AI Import (Premium) */}
+                {/* Botão Magic Import (Premium) */}
                 <AIImportButton
                     onClick={() => setAiImportDialogOpen(true)}
                 />
 
                 {/* Botão Importar Tabela (Clássico) */}
                 <Button
-                    onClick={() => selectTab('/utilitarios/importacao-precos')}
+                    onClick={() => selectTab('/utilitarios/importacao-precos', { state: { industriaId: selectedIndustry } })}
                     size="sm"
                     variant="default"
                     className="h-9 text-sm bg-blue-600 hover:bg-blue-700"
@@ -722,6 +722,9 @@ const FrmProdutos = () => {
                                     <tr>
                                         <th className="text-left p-3 text-xs font-semibold text-gray-700 w-32">
                                             ID
+                                        </th>
+                                        <th className="text-left p-3 text-xs font-semibold text-gray-700 w-40">
+                                            CÓDIGO
                                         </th>
                                         <th className="text-left p-3 text-xs font-semibold text-gray-700">
                                             Produto
@@ -759,6 +762,9 @@ const FrmProdutos = () => {
                                                 <tr className="border-b hover:bg-gray-50 cursor-pointer">
                                                     <td className="p-3 text-xs text-gray-900 font-mono">
                                                         {product.itab_idprod}
+                                                    </td>
+                                                    <td className="p-3 text-xs text-blue-700 font-bold font-mono">
+                                                        {product.pro_codprod}
                                                     </td>
                                                     <td className="p-3 text-xs text-gray-900">
                                                         {product.pro_nome}

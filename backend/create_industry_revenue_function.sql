@@ -22,7 +22,7 @@ BEGIN
         AND (p_mes IS NULL OR EXTRACT(MONTH FROM p.ped_data) = p_mes)
         AND p.ped_situacao IN ('P', 'F') -- Only confirmed orders and invoiced
     WHERE 
-        f.tipo_tipo2 = 'A' -- Only active industries
+        f.for_tipo2 = 'A' -- Only active industries
     GROUP BY 
         f.for_codigo, f.for_nomered
     ORDER BY 

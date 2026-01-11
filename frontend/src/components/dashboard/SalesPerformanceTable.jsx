@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Users } from 'lucide-react';
 import './SalesPerformanceTable.css';
 
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
+
 export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -23,7 +25,8 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
                 params.append('mes', selectedMonth);
             }
 
-            const response = await fetch(`http://localhost:3005/api/dashboard/sales-performance?${params}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/sales-performance?${params}`);
+            const response = await fetch(url);
             const result = await response.json();
 
             if (result.success) {

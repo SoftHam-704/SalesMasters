@@ -120,20 +120,6 @@ export const IndustryParetoCard = ({ data, loading }) => {
                                 wrapperStyle={{ fontSize: '11px' }}
                                 iconType="line"
                             />
-                            <ReferenceLine
-                                y={80}
-                                yAxisId="right"
-                                stroke="hsl(0, 70%, 50%)"
-                                strokeDasharray="3 3"
-                                strokeWidth={2}
-                                label={{
-                                    value: '80%',
-                                    position: 'right',
-                                    fill: 'hsl(0, 70%, 50%)',
-                                    fontSize: 11,
-                                    fontWeight: 600
-                                }}
-                            />
                             <Bar
                                 yAxisId="left"
                                 dataKey="total_faturamento"
@@ -152,8 +138,8 @@ export const IndustryParetoCard = ({ data, loading }) => {
                                 type="monotone"
                                 dataKey="percentual_acumulado"
                                 stroke="hsl(25, 95%, 53%)"
-                                strokeWidth={3}
-                                dot={{ fill: 'hsl(25, 95%, 53%)', r: 4 }}
+                                strokeWidth={1}
+                                dot={{ fill: 'hsl(25, 95%, 53%)', r: 2 }}
                                 name="% Acumulado"
                             />
                         </ComposedChart>

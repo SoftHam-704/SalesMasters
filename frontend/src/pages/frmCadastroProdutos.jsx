@@ -36,7 +36,7 @@ const FrmCadastroProdutos = () => {
 
     const fetchIndustries = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers');
+            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers');
             const data = await response.json();
             if (data.success) {
                 // Remove duplicates and ensure valid IDs
@@ -61,7 +61,7 @@ const FrmCadastroProdutos = () => {
 
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/products/catalog/${industria}`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/products/catalog/${industria}`);
             const data = await response.json();
             
             if (data.success) {

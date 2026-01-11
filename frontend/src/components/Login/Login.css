@@ -5,22 +5,22 @@
    ============================================================================ */
 
 /* ==========================================================================
-   VARIÁVEIS
+   VARIÁVEIS (Escopadas para evitar conflito com Dashboard)
    ========================================================================== */
 :root {
-    --bg-main: #0b1430;
-    --bg-card: rgba(15, 28, 60, 0.85);
-    --border-card: rgba(255, 255, 255, 0.08);
+    --login-bg-main: #0b1430;
+    --login-bg-card: rgba(15, 28, 60, 0.85);
+    --login-border-card: rgba(255, 255, 255, 0.08);
 
-    --primary: #2b8cff;
-    --accent: #00c389;
+    --login-primary: #2b8cff;
+    --login-accent: #00c389;
 
-    --text-main: #f4f8ff;
-    --text-muted: rgba(255, 255, 255, 0.65);
-    --text-label: #f1d48a;
+    --login-text-main: #f4f8ff;
+    --login-text-muted: rgba(255, 255, 255, 0.65);
+    --login-text-label: #f1d48a;
 
-    --input-bg: rgba(255, 255, 255, 0.06);
-    --input-border: rgba(255, 255, 255, 0.15);
+    --login-input-bg: rgba(255, 255, 255, 0.06);
+    --login-input-border: rgba(255, 255, 255, 0.15);
 }
 
 /* ==========================================================================
@@ -98,7 +98,7 @@ body.login-page-body {
     z-index: 1000;
     background: radial-gradient(ellipse at top,
             #1a2f6f 0%,
-            var(--bg-main) 70%);
+            var(--login-bg-main) 70%);
 }
 
 #loginScreen.show {
@@ -113,9 +113,9 @@ body.login-page-body {
     width: 420px;
     max-width: 100%;
     padding: 38px 34px;
-    background: var(--bg-card);
+    background: var(--login-bg-card);
     border-radius: 18px;
-    border: 1px solid var(--border-card);
+    border: 1px solid var(--login-border-card);
     box-shadow:
         0 30px 80px rgba(0, 0, 0, 0.55),
         0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -150,7 +150,7 @@ body.login-page-body {
 
 .login-logo img,
 .brand-header img {
-    width: 120px;
+    width: 160px;
     height: auto;
     filter: drop-shadow(0 4px 12px rgba(0, 120, 255, 0.3));
 }
@@ -160,7 +160,7 @@ body.login-page-body {
     font-size: 26px;
     font-weight: 600;
     letter-spacing: 0.6px;
-    color: var(--text-main);
+    color: var(--login-text-main);
     text-shadow:
         0 2px 6px rgba(0, 60, 120, 0.45),
         0 0 14px rgba(0, 120, 255, 0.25);
@@ -171,7 +171,7 @@ body.login-page-body {
     margin-top: 6px;
     font-size: 11px;
     letter-spacing: 1.6px;
-    color: var(--text-muted);
+    color: var(--login-text-muted);
     text-transform: uppercase;
 }
 
@@ -183,14 +183,14 @@ body.login-page-body {
     margin: 26px 0 6px;
     font-size: 28px;
     font-weight: 600;
-    color: var(--text-main);
+    color: var(--login-text-main);
     text-align: center;
 }
 
 .login-subtitle,
 .welcome p {
     font-size: 14px;
-    color: var(--text-muted);
+    color: var(--login-text-muted);
     text-align: center;
     margin-bottom: 24px;
 }
@@ -209,7 +209,7 @@ body.login-page-body {
 .form-group label {
     font-size: 12px;
     font-weight: 500;
-    color: var(--text-label);
+    color: var(--login-text-label);
     margin: 18px 0 6px;
     display: block;
     text-transform: uppercase;
@@ -221,9 +221,9 @@ body.login-page-body {
     width: 100%;
     padding: 14px 16px;
     border-radius: 10px;
-    background: var(--input-bg);
-    border: 1px solid var(--input-border);
-    color: var(--text-main);
+    background: var(--login-input-bg);
+    border: 1px solid var(--login-input-border);
+    color: var(--login-text-main);
     font-size: 14px;
     font-family: inherit;
     outline: none;
@@ -232,7 +232,7 @@ body.login-page-body {
 
 .login-input:focus,
 .form-group input:focus {
-    border-color: var(--primary);
+    border-color: var(--login-primary);
     background: rgba(255, 255, 255, 0.08);
     box-shadow: 0 0 0 3px rgba(43, 140, 255, 0.15);
 }
@@ -275,7 +275,7 @@ body.login-page-body {
 .btn-secondary {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--login-text-muted);
     font-size: 13px;
     cursor: pointer;
     padding: 12px 16px;
@@ -284,7 +284,7 @@ body.login-page-body {
 
 .btn-clear:hover,
 .btn-secondary:hover {
-    color: var(--text-main);
+    color: var(--login-text-main);
 }
 
 .btn-login,
@@ -324,7 +324,7 @@ body.login-page-body {
     margin-top: 22px;
     font-size: 12px;
     text-align: center;
-    color: var(--text-muted);
+    color: var(--login-text-muted);
     padding-top: 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
@@ -345,7 +345,7 @@ body.login-page-body {
 
     .login-logo img,
     .brand-header img {
-        width: 90px;
+        width: 120px;
     }
 
     .login-title,

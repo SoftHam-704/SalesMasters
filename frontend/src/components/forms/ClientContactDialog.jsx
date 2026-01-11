@@ -66,8 +66,8 @@ export function ClientContactDialog({ open, onOpenChange, contact, clientId, onS
         try {
             const isNew = !contact?.ani_lancto;
             const url = isNew
-                ? `http://localhost:3005/api/clients/${clientId}/contacts`
-                : `http://localhost:3005/api/clients/${clientId}/contacts/${contact.ani_lancto}`;
+                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/contacts`
+                : `https://salesmasters.softham.com.br/api/clients/${clientId}/contacts/${contact.ani_lancto}`;
 
             const method = isNew ? 'POST' : 'PUT';
 

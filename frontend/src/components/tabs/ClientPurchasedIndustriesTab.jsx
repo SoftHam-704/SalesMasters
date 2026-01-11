@@ -14,7 +14,7 @@ export const ClientPurchasedIndustriesTab = ({ clientId }) => {
     const fetchPurchases = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:3005/api/clients/${clientId}/purchased-industries`);
+            const response = await axios.get(`https://salesmasters.softham.com.br/api/clients/${clientId}/purchased-industries`);
             setPurchases(response.data);
         } catch (error) {
             console.error('Error fetching purchased industries:', error);

@@ -5,7 +5,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './InsightsCard.css';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
+
+const API_URL = PYTHON_API_URL;
 
 const InsightsCard = ({ ano = 2025, industryId = null }) => {
     const [insights, setInsights] = useState([]);
@@ -24,12 +26,10 @@ const InsightsCard = ({ ano = 2025, industryId = null }) => {
         try {
             setLoading(true);
             // Construct URL with params manually to ensure correct endpoint
-            const url = `${API_URL}/dashboard/analytics/insights`;
+            const url = getApiUrl(API_URL, '/api/dashboard/analytics/insights');
             console.log('Fetching insights from:', url, { ano, industryId });
 
-            const response = await axios.get(url, {
-                params: { ano, industryId }
-            });
+            const response = await axios.get(url, { params: { ano, industryId } });
 
             if (response.data.success) {
                 let insightsData = response.data.data;

@@ -28,7 +28,7 @@ export function ClientDiscountsTab({ clientId }) {
     const fetchDiscounts = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/clients/${clientId}/discounts`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/clients/${clientId}/discounts`);
             if (!response.ok) throw new Error('Erro ao buscar descontos');
             const data = await response.json();
             setDiscounts(data);
@@ -55,7 +55,7 @@ export function ClientDiscountsTab({ clientId }) {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/clients/${clientId}/discounts/${discount.cli_forcodigo}/${discount.cli_grupo}`,
+                `https://salesmasters.softham.com.br/api/clients/${clientId}/discounts/${discount.cli_forcodigo}/${discount.cli_grupo}`,
                 { method: 'DELETE' }
             );
 

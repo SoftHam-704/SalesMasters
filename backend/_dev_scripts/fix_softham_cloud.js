@@ -14,7 +14,7 @@ async function run() {
         UPDATE empresas 
         SET db_host = 'node254557-salesmaster.sp1.br.saveincloud.net.br', 
             db_porta = 13062,
-            db_senha = 'ytAyO0u043'
+            db_senha = 'process.env.DB_PASSWORD'
         WHERE cnpj = '00000000000191'
     `);
     console.log('✅ SoftHam agora aponta para a NUVEM!');
@@ -26,3 +26,4 @@ async function run() {
 }
 
 run().catch(console.error);
+

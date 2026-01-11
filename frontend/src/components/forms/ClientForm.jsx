@@ -65,7 +65,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
         if (!data?.cli_codigo) return;
         setLoadingContacts(true);
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${data.cli_codigo}/contacts`);
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${data.cli_codigo}/contacts`);
             if (res.ok) {
                 const json = await res.json();
                 setContacts(json.data);
@@ -81,7 +81,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
         if (!data?.cli_codigo) return;
         setLoadingIndustries(true);
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${data.cli_codigo}/industries`);
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${data.cli_codigo}/industries`);
             if (res.ok) {
                 const json = await res.json();
                 setIndustries(json.data);
@@ -117,7 +117,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
         if (!confirm(`Deseja excluir o contato ${contact.ani_nome}?`)) return;
 
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${data.cli_codigo}/contacts/${contact.ani_lancto}`, {
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${data.cli_codigo}/contacts/${contact.ani_lancto}`, {
                 method: 'DELETE'
             });
             if (res.ok) {
@@ -156,7 +156,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
     const handleDeleteIndustry = async (ind) => {
         if (!window.confirm(`Tem certeza que deseja remover a indústria ${ind.fornecedor_nome}?`)) return;
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${data.cli_codigo}/industries/${ind.cli_lancamento}`, {
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${data.cli_codigo}/industries/${ind.cli_lancamento}`, {
                 method: 'DELETE'
             });
             if (res.ok) {
@@ -179,13 +179,13 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
     useEffect(() => {
         const timer = setTimeout(() => {
             if (citySearch && citySearch.length > 2) {
-                fetch(`http://localhost:3005/api/aux/cidades?search=${citySearch}`)
+                fetch(`https://salesmasters.softham.com.br/api/aux/cidades?search=${citySearch}`)
                     .then(res => res.json())
                     .then(data => setCityOptions(data))
                     .catch(e => console.error(e));
             } else if (!citySearch) {
                 // Initial load (top 10) or reset
-                fetch(`http://localhost:3005/api/aux/cidades`)
+                fetch(`https://salesmasters.softham.com.br/api/aux/cidades`)
                     .then(res => res.json())
                     .then(data => setCityOptions(data))
                     .catch(e => console.error(e));
@@ -197,7 +197,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
     // Initial Load for Edit (Fetch correct city name if ID exists)
     useEffect(() => {
         if (formData.cli_idcidade) {
-            fetch(`http://localhost:3005/api/aux/cidades?id=${formData.cli_idcidade}`)
+            fetch(`https://salesmasters.softham.com.br/api/aux/cidades?id=${formData.cli_idcidade}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.length > 0) {
@@ -219,9 +219,9 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
         setLoadingAux(true);
         try {
             const [areasRes, sellersRes, regionsRes] = await Promise.all([
-                fetch('http://localhost:3005/api/aux/areas'),
-                fetch('http://localhost:3005/api/aux/vendedores'),
-                fetch('http://localhost:3005/api/aux/regioes')
+                fetch('https://salesmasters.softham.com.br/api/aux/areas'),
+                fetch('https://salesmasters.softham.com.br/api/aux/vendedores'),
+                fetch('https://salesmasters.softham.com.br/api/aux/regioes')
             ]);
 
             if (areasRes.ok) {

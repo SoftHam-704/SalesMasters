@@ -8,7 +8,7 @@ const pool = new Pool({
     port: 13062,
     database: 'basesales',
     user: 'webadmin',
-    password: 'ytAyO0u043'
+    password: 'process.env.DB_PASSWORD'
 });
 
 async function checkAndCreateUser() {
@@ -47,3 +47,4 @@ async function checkAndCreateUser() {
 }
 
 checkAndCreateUser();
+

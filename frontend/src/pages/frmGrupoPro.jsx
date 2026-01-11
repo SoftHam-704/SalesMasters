@@ -14,7 +14,7 @@ const FrmGrupoPro = () => {
     const fetchGroups = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/v2/product-groups');
+            const response = await fetch('https://salesmasters.softham.com.br/api/v2/product-groups');
             const data = await response.json();
             if (data.success) {
                 setGroups(data.data);
@@ -47,7 +47,7 @@ const FrmGrupoPro = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/product-groups/${group.gru_codigo}`, {
+            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/product-groups/${group.gru_codigo}`, {
                 method: 'DELETE'
             });
 
@@ -68,8 +68,8 @@ const FrmGrupoPro = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedGroup
-                ? `http://localhost:3005/api/v2/product-groups/${selectedGroup.gru_codigo}`
-                : 'http://localhost:3005/api/v2/product-groups';
+                ? `https://salesmasters.softham.com.br/api/v2/product-groups/${selectedGroup.gru_codigo}`
+                : 'https://salesmasters.softham.com.br/api/v2/product-groups';
 
             const method = selectedGroup ? 'PUT' : 'POST';
 

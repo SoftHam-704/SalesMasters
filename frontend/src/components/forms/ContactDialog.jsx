@@ -92,8 +92,8 @@ export function ContactDialog({ open, onOpenChange, contact, supplierId, onSave 
 
             const isNew = !contact?.con_codigo;
             const url = isNew
-                ? `http://localhost:3005/api/suppliers/${supplierId}/contacts`
-                : `http://localhost:3005/api/suppliers/${supplierId}/contacts/${contact.con_codigo}`;
+                ? `https://salesmasters.softham.com.br/api/suppliers/${supplierId}/contacts`
+                : `https://salesmasters.softham.com.br/api/suppliers/${supplierId}/contacts/${contact.con_codigo}`;
 
             const method = isNew ? 'POST' : 'PUT';
 

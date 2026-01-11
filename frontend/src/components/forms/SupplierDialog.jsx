@@ -45,7 +45,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         if (!supplierId) return;
         setLoadingContacts(true);
         try {
-            const response = await fetch(`http://localhost:3005/api/suppliers/${supplierId}/contacts`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/suppliers/${supplierId}/contacts`);
             const result = await response.json();
             if (result.success) {
                 setContacts(result.data);
@@ -72,7 +72,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/suppliers/${supplier.id}/contacts/${contact.con_codigo}`,
+                `https://salesmasters.softham.com.br/api/suppliers/${supplier.id}/contacts/${contact.con_codigo}`,
                 { method: 'DELETE' }
             );
             const result = await response.json();
@@ -92,7 +92,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
     const loadGoals = async (supplierId, year) => {
         if (!supplierId) return;
         try {
-            const response = await fetch(`http://localhost:3005/api/suppliers/${supplierId}/goals/${year}`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/suppliers/${supplierId}/goals/${year}`);
             const result = await response.json();
             if (result.success) {
                 setGoals(result.data);
@@ -106,7 +106,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         if (!supplier?.id) return;
         try {
             const response = await fetch(
-                `http://localhost:3005/api/suppliers/${supplier.id}/goals/${selectedYear}`,
+                `https://salesmasters.softham.com.br/api/suppliers/${supplier.id}/goals/${selectedYear}`,
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },

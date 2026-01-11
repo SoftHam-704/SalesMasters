@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import { Download, Receipt, KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -47,9 +48,11 @@ const AccountsPayableReportPage = () => {
 
     const loadFilters = async () => {
         try {
+            const urlFornecedores = getApiUrl(NODE_API_URL, '/api/financeiro/fornecedores');
+            const urlCentroCusto = getApiUrl(NODE_API_URL, '/api/financeiro/centro-custo');
             const [fornResponse, ccResponse] = await Promise.all([
-                axios.get('http://localhost:3005/api/financeiro/fornecedores'),
-                axios.get('http://localhost:3005/api/financeiro/centro-custo')
+                axios.get(urlFornecedores),
+                axios.get(urlCentroCusto)
             ]);
             setFornecedores(fornResponse.data.data || []);
             setCentrosCusto(ccResponse.data.data || []);
@@ -69,7 +72,8 @@ const AccountsPayableReportPage = () => {
             if (selectedFornecedor) params.idFornecedor = selectedFornecedor.id;
             if (selectedCentroCusto) params.idCentroCusto = selectedCentroCusto.id;
 
-            const response = await axios.get('http://localhost:3005/api/financeiro/relatorios/contas-pagar', { params });
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/relatorios/contas-pagar');
+            const response = await axios.get(url, { params });
 
             // Group by conta
             const grouped = {};

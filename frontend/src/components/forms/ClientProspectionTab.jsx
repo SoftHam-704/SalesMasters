@@ -10,7 +10,7 @@ export default function ClientProspectionTab({ clientId }) {
 
     const fetchIndustries = async () => {
         try {
-            const response = await fetch(`http://localhost:3005/api/clients/${clientId}/industries`);
+            const response = await fetch(`https://salesmasters.softham.com.br/api/clients/${clientId}/industries`);
             if (!response.ok) throw new Error('Erro ao buscar indústrias');
             const data = await response.json();
             // Handle both formats: array or {success, data}
@@ -38,7 +38,7 @@ export default function ClientProspectionTab({ clientId }) {
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/clients/${clientId}/industries/${industry.cli_forcodigo}`,
+                `https://salesmasters.softham.com.br/api/clients/${clientId}/industries/${industry.cli_forcodigo}`,
                 { method: 'DELETE' }
             );
 

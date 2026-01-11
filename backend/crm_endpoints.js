@@ -21,6 +21,7 @@ module.exports = function (app, pool) {
             let query = `
                 SELECT 
                     o.*, 
+                    o.telefone_contato,
                     c.cli_nomred, 
                     c.cli_cidade, 
                     c.cli_uf,
@@ -67,7 +68,7 @@ module.exports = function (app, pool) {
     // POST - Create Opportunity
     app.post('/api/crm/oportunidades', async (req, res) => {
         try {
-            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo } = req.body;
+            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato } = req.body;
 
             // Check if for_codigo column exists implicitly by trying to insert
             // If table doesn't have the column yet, we should add it.
@@ -75,10 +76,10 @@ module.exports = function (app, pool) {
 
             const result = await pool.query(`
                 INSERT INTO crm_oportunidades 
-                (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
-            `, [titulo, cli_codigo, ven_codigo || 1, valor_estimado, etapa_id || 1, for_codigo || null]);
+            `, [titulo, cli_codigo, ven_codigo || 1, valor_estimado, etapa_id || 1, for_codigo || null, telefone_contato || null]);
 
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
@@ -115,7 +116,7 @@ module.exports = function (app, pool) {
     app.put('/api/crm/oportunidades/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo } = req.body;
+            const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato } = req.body;
 
             const result = await pool.query(`
                 UPDATE crm_oportunidades 
@@ -125,10 +126,11 @@ module.exports = function (app, pool) {
                     valor_estimado = $4, 
                     etapa_id = $5, 
                     for_codigo = $6,
+                    telefone_contato = $7,
                     atualizado_em = CURRENT_TIMESTAMP
-                WHERE oportunidade_id = $7
+                WHERE oportunidade_id = $8
                 RETURNING *
-            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, id]);
+            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato || null, id]);
 
             if (result.rows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Oportunidade não encontrada' });
@@ -147,7 +149,7 @@ module.exports = function (app, pool) {
     app.get('/api/crm/interacoes', async (req, res) => {
         console.log('📋 [CRM] Fetching interactions');
         try {
-            const { ven_codigo } = req.query;
+            const { ven_codigo, cli_codigo, for_codigo } = req.query;
 
             if (!ven_codigo) {
                 return res.status(400).json({
@@ -156,25 +158,49 @@ module.exports = function (app, pool) {
                 });
             }
 
-            const result = await pool.query(`
+            let query = `
                 SELECT 
-                    i.id AS interacao_id,
+                    i.interacao_id,
                     i.data_hora AS data_interacao,
-                    i.observacao AS descricao,
+                    i.descricao,
                     c.cli_nomred,
                     c.cli_codigo,
                     t.descricao AS tipo,
+                    t.id AS tipo_interacao_id,
                     r.descricao AS resultado,
-                    cn.descricao AS canal
+                    r.id AS resultado_id,
+                    cn.descricao AS canal,
+                    cn.id AS canal_id,
+                    (SELECT array_agg(ii.for_codigo) 
+                     FROM crm_interacao_industria ii 
+                     WHERE ii.interacao_id = i.interacao_id) as industrias
                 FROM crm_interacao i
                 JOIN clientes c ON c.cli_codigo = i.cli_codigo
                 JOIN crm_tipo_interacao t ON t.id = i.tipo_interacao_id
                 LEFT JOIN crm_resultado r ON r.id = i.resultado_id
                 LEFT JOIN crm_canal cn ON cn.id = i.canal_id
                 WHERE i.ven_codigo = $1
-                ORDER BY i.data_hora DESC
-                LIMIT 50
-            `, [ven_codigo]);
+            `;
+
+            const params = [ven_codigo];
+            let paramIndex = 2;
+
+            if (cli_codigo) {
+                query += ` AND i.cli_codigo = $${paramIndex++}`;
+                params.push(cli_codigo);
+            }
+
+            if (for_codigo) {
+                query += ` AND EXISTS (
+                    SELECT 1 FROM crm_interacao_industria ii 
+                    WHERE ii.interacao_id = i.interacao_id AND ii.for_codigo = $${paramIndex++}
+                )`;
+                params.push(for_codigo);
+            }
+
+            query += ` ORDER BY i.data_hora DESC LIMIT 100`;
+
+            const result = await pool.query(query, params);
 
             res.json({
                 success: true,
@@ -186,6 +212,29 @@ module.exports = function (app, pool) {
                 success: false,
                 message: `Erro ao buscar interações: ${error.message}`
             });
+        }
+    });
+
+    // GET - Single interaction
+    app.get('/api/crm/interacoes/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query(`
+                SELECT 
+                    i.*,
+                    (SELECT array_agg(for_codigo) FROM crm_interacao_industria WHERE interacao_id = i.interacao_id) as industrias
+                FROM crm_interacao i
+                WHERE i.interacao_id = $1
+            `, [id]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Interação não encontrada' });
+            }
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching single interaction:', error);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 
@@ -254,6 +303,67 @@ module.exports = function (app, pool) {
                 success: false,
                 message: `Erro ao criar interação: ${error.message}`
             });
+        } finally {
+            client.release();
+        }
+    });
+
+    // PUT - Update interaction
+    app.put('/api/crm/interacoes/:id', async (req, res) => {
+        const { id } = req.params;
+        console.log(`📝 [CRM] Updating interaction ${id}`);
+        const client = await pool.connect();
+
+        try {
+            const {
+                cli_codigo,
+                tipo_interacao_id,
+                canal_id,
+                resultado_id,
+                descricao,
+                industrias,
+                data_hora
+            } = req.body;
+
+            await client.query('BEGIN');
+
+            // 1. Update main record
+            await client.query(`
+                UPDATE crm_interacao SET
+                    cli_codigo = $1,
+                    tipo_interacao_id = $2,
+                    canal_id = $3,
+                    resultado_id = $4,
+                    descricao = $5,
+                    data_hora = $6
+                WHERE interacao_id = $7
+            `, [
+                cli_codigo,
+                tipo_interacao_id,
+                canal_id || null,
+                resultado_id || null,
+                descricao || '',
+                data_hora || new Date(),
+                id
+            ]);
+
+            // 2. Refresh industries
+            await client.query('DELETE FROM crm_interacao_industria WHERE interacao_id = $1', [id]);
+            if (industrias && Array.isArray(industrias) && industrias.length > 0) {
+                for (const for_codigo of industrias) {
+                    await client.query(`
+                        INSERT INTO crm_interacao_industria (interacao_id, for_codigo)
+                        VALUES ($1, $2)
+                    `, [id, for_codigo]);
+                }
+            }
+
+            await client.query('COMMIT');
+            res.json({ success: true, message: 'Interação atualizada com sucesso' });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('❌ [CRM] Error updating interaction:', error);
+            res.status(500).json({ success: false, message: error.message });
         } finally {
             client.release();
         }
@@ -492,42 +602,49 @@ module.exports = function (app, pool) {
 
     // POST - Seed initial CRM data
     app.post('/api/crm/seed', async (req, res) => {
-        console.log('🌱 [CRM] Seeding lookup data');
+        console.log('🌱 [CRM] Seeding lookup data with user specific values');
         try {
-            // Clear and insert tipos de interação
+            // Clear and insert tipos de interação (Tipo Visita)
             await pool.query(`DELETE FROM crm_tipo_interacao`);
             await pool.query(`
                 INSERT INTO crm_tipo_interacao (id, descricao, ativo) VALUES 
-                (1, 'Visita', true),
-                (2, 'Prospecção', true),
-                (3, 'Pós-venda', true),
-                (4, 'Negociação', true),
-                (5, 'Cobrança', true)
+                (1, 'Promocional Nacional', true),
+                (2, 'Promocional Regional', true),
+                (3, 'Comercial', true),
+                (4, 'Divergências', true),
+                (5, 'Prospecção', true),
+                (6, 'Garantia', true),
+                (7, 'Treinamento', true),
+                (8, 'Suporte', true)
             `);
 
-            // Clear and insert canais (as per user request)
+            // Clear and insert canais (Forma de interação)
             await pool.query(`DELETE FROM crm_canal`);
             await pool.query(`
                 INSERT INTO crm_canal (id, descricao, ativo) VALUES 
-                (1, 'Presencial', true),
-                (2, 'Telefone', true),
-                (3, 'WhatsApp', true),
-                (4, 'E-mail', true),
-                (5, 'Online', true)
+                (1, 'Ligação telefônica', true),
+                (2, 'Visita', true),
+                (3, 'E-mail', true),
+                (4, 'Whatsapp/Skype', true),
+                (5, 'Reunião', true),
+                (6, 'Outros', true)
             `);
 
-            // Clear and insert resultados (as per user request - ordem crescente)
+            // Clear and insert resultados (Status/Resultado)
+            // Using common sense for these as they weren't in the images but are needed
             await pool.query(`DELETE FROM crm_resultado`);
             await pool.query(`
-                INSERT INTO crm_resultado (id, descricao, ativo) VALUES 
-                (1, 'Negativo', true),
-                (2, 'Neutro', true),
-                (3, 'Positivo', true),
-                (4, 'Pedido gerado', true)
+                INSERT INTO crm_resultado (id, descricao, ativo, ordem) VALUES 
+                (1, 'Em aberto', true, 1),
+                (2, 'Agendado', true, 2),
+                (3, 'Realizado', true, 3),
+                (4, 'Cancelado', true, 4),
+                (5, 'Positivo', true, 5),
+                (6, 'Negativo', true, 6)
             `);
 
-            console.log('✅ [CRM] Seed data inserted');
-            res.json({ success: true, message: 'Dados iniciais inseridos com sucesso' });
+            console.log('✅ [CRM] Seed data updated successfully');
+            res.json({ success: true, message: 'Dados iniciais atualizados com sucesso' });
         } catch (error) {
             console.error('❌ [CRM] Error seeding data:', error);
             res.status(500).json({ success: false, message: error.message });
@@ -583,6 +700,89 @@ module.exports = function (app, pool) {
             res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('❌ [CRM] Error fetching sell-out:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - Sell-out Summary Metrics
+    app.get('/api/crm/sellout/summary', async (req, res) => {
+        try {
+            const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
+            const lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().substring(0, 7) + '-01';
+
+            const summaryQuery = `
+                SELECT 
+                    COALESCE(SUM(CASE WHEN periodo = $1 THEN valor ELSE 0 END), 0) as current_month_total,
+                    COALESCE(SUM(CASE WHEN periodo = $2 THEN valor ELSE 0 END), 0) as last_month_total,
+                    COUNT(DISTINCT cli_codigo) as total_customers,
+                    COUNT(DISTINCT for_codigo) as total_industries
+                FROM crm_sellout
+            `;
+
+            const result = await pool.query(summaryQuery, [currentMonth, lastMonth]);
+            const stats = result.rows[0];
+
+            // Calculate growth
+            let growth = 0;
+            if (parseFloat(stats.last_month_total) > 0) {
+                growth = ((parseFloat(stats.current_month_total) - parseFloat(stats.last_month_total)) / parseFloat(stats.last_month_total)) * 100;
+            }
+
+            // Get trend (last 6 months)
+            const trendResult = await pool.query(`
+                SELECT 
+                    TO_CHAR(periodo, 'MM/YYYY') as label,
+                    SUM(valor) as value
+                FROM crm_sellout
+                WHERE periodo >= CURRENT_DATE - INTERVAL '6 months'
+                GROUP BY periodo
+                ORDER BY periodo ASC
+            `);
+
+            res.json({
+                success: true,
+                data: {
+                    ...stats,
+                    growth: growth.toFixed(2),
+                    trend: trendResult.rows
+                }
+            });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching sell-out summary:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - Sell-out Pendencies (Who didn't report)
+    app.get('/api/crm/sellout/pendencies', async (req, res) => {
+        try {
+            const { periodo } = req.query; // YYYY-MM-01
+            const targetPeriodo = periodo || new Date().toISOString().substring(0, 7) + '-01';
+
+            // Find customers who have reported in the past (active in sell-out routine)
+            // but didn't report in the target period.
+            const query = `
+                SELECT DISTINCT
+                    c.cli_codigo,
+                    c.cli_nomred,
+                    c.cli_cidade,
+                    c.cli_uf,
+                    v.ven_nome as promotor
+                FROM clientes c
+                JOIN crm_sellout s_old ON s_old.cli_codigo = c.cli_codigo
+                LEFT JOIN vendedores v ON v.ven_codigo = c.cli_vendedor
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM crm_sellout s_new 
+                    WHERE s_new.cli_codigo = c.cli_codigo 
+                    AND s_new.periodo = $1
+                )
+                ORDER BY c.cli_nomred
+            `;
+
+            const result = await pool.query(query, [targetPeriodo]);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching sell-out pendencies:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });

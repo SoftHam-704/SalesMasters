@@ -1,15 +1,82 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, Info, Sparkles } from 'lucide-react';
 import '../FormLayout.css';
 import InputField from '../InputField';
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
+
+// Função utilitária para dividir texto em linhas respeitando aspas (padrão Excel)
+const smartSplit = (text) => {
+    if (!text) return { lines: [], adjustedCount: 0 };
+
+    // Divide inicialmente por quebras de linha para analisar o início de cada "célula"
+    const rawLines = text.split(/\r?\n/);
+    const rows = [];
+    let currentCell = '';
+    let inQuotedCell = false;
+    let adjustedCount = 0;
+
+    for (let i = 0; i < rawLines.length; i++) {
+        let line = rawLines[i];
+
+        if (!inQuotedCell) {
+            // Se a linha começa com aspas, ela é uma célula citada do Excel (pode ter novas linhas dentro)
+            if (line.trim().startsWith('"')) {
+                // Checar se ela fecha na mesma linha (e não é apenas uma aspa dupla solitária)
+                // Uma célula citada do Excel termina com uma aspa que NÃO é seguida por outra aspa (escapada)
+                // mas como estamos em uma coluna única, ela simplesmente termina com " no fim da linha
+                if (line.trim().endsWith('"') && line.trim().length > 1 && !line.trim().endsWith('""')) {
+                    rows.push(line.trim());
+                } else {
+                    inQuotedCell = true;
+                    currentCell = line;
+                }
+            } else {
+                // Linha comum, sem aspas de envolvimento
+                if (line.trim() !== '') {
+                    rows.push(line.trim());
+                }
+            }
+        } else {
+            // Estamos dentro de uma célula que foi quebrada
+            adjustedCount++;
+            currentCell += '\n' + line;
+
+            // Verifica se esta linha termina a citação
+            if (line.trim().endsWith('"') && !line.trim().endsWith('""')) {
+                inQuotedCell = false;
+                rows.push(currentCell.trim());
+                currentCell = '';
+            }
+        }
+    }
+
+    // Caso o arquivo termine sem fechar as aspas
+    if (inQuotedCell) {
+        rows.push(currentCell.trim());
+    }
+
+    const processedLines = rows.map(r => {
+        let val = r;
+        // Remove aspas externas se existirem
+        if (val.startsWith('"') && val.endsWith('"')) {
+            val = val.substring(1, val.length - 1);
+        }
+        // Desescapa aspas duplas ("" -> ") e remove a quebra de linha interna
+        return val.replace(/""/g, '"').replace(/\n/g, ' ').trim();
+    }).filter(r => r !== '');
+
+    return { lines: processedLines, adjustedCount };
+};
 
 const PriceTableImport = () => {
+    const location = useLocation();
     const [formData, setFormData] = useState({
         industria: '',
         nomeTabela: '',
@@ -29,6 +96,7 @@ const PriceTableImport = () => {
         grupo: '',
         aplicacao: '',
         embalagem: '',
+        peso: '',
         ipi: '',
         st: '',
         codigooriginal: '',
@@ -41,6 +109,7 @@ const PriceTableImport = () => {
     });
 
     const [lineCounts, setLineCounts] = useState({});
+    const [adjustments, setAdjustments] = useState({});
     const [isValid, setIsValid] = useState(false);
     const [industries, setIndustries] = useState([]);
     const [existingTables, setExistingTables] = useState([]);
@@ -52,7 +121,14 @@ const PriceTableImport = () => {
 
     // Carregar indústrias
     useEffect(() => {
-        fetch('http://localhost:3005/api/suppliers')
+        if (location.state?.industriaId) {
+            setFormData(prev => ({ ...prev, industria: location.state.industriaId.toString() }));
+        }
+    }, [location.state]);
+
+    // Carregar indústrias
+    useEffect(() => {
+        fetch(getApiUrl(NODE_API_URL, '/api/suppliers'))
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -64,7 +140,7 @@ const PriceTableImport = () => {
 
     // Carregar grupos de desconto
     useEffect(() => {
-        fetch('http://localhost:3005/api/v2/discount-groups')
+        fetch(getApiUrl(NODE_API_URL, '/api/v2/discount-groups'))
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -77,7 +153,7 @@ const PriceTableImport = () => {
     // Carregar tabelas existentes quando indústria for selecionada
     useEffect(() => {
         if (formData.industria) {
-            fetch(`http://localhost:3005/api/price-tables/${formData.industria}`)
+            fetch(getApiUrl(NODE_API_URL, `/api/price-tables/${formData.industria}`))
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -90,14 +166,17 @@ const PriceTableImport = () => {
         }
     }, [formData.industria]);
 
-    // Contar linhas em cada textarea
+    // Contar linhas em cada textarea usando o Smart Split
     useEffect(() => {
         const counts = {};
+        const adjs = {};
         Object.keys(textareas).forEach(key => {
-            const lines = textareas[key].split('\n').filter(line => line.trim() !== '');
+            const { lines, adjustedCount } = smartSplit(textareas[key]);
             counts[key] = lines.length;
+            adjs[key] = adjustedCount;
         });
         setLineCounts(counts);
+        setAdjustments(adjs);
 
         // Validar se todas as textareas com conteúdo têm o mesmo número de linhas
         const nonEmptyCounts = Object.values(counts).filter(count => count > 0);
@@ -128,33 +207,41 @@ const PriceTableImport = () => {
         setResult(null);
 
         try {
-            // 1. Montar array de produtos a partir dos textareas
-            const linhasCodigo = textareas.codigo.split('\n').filter(l => l.trim() !== '');
+            // 1. Montar array de produtos a partir dos textareas usando Smart Split
+            const { lines: linhasCodigo } = smartSplit(textareas.codigo);
             const totalProdutos = linhasCodigo.length;
 
-
+            const parseValue = (val) => {
+                if (!val) return 0;
+                const cleaned = val.toString().replace(/[^\d,.-]/g, '');
+                if (cleaned.includes(',') && cleaned.includes('.')) {
+                    return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0;
+                }
+                return parseFloat(cleaned.replace(',', '.')) || 0;
+            };
 
             const produtos = linhasCodigo.map((_, index) => {
                 const getLinha = (field) => {
-                    const linhas = textareas[field]?.split('\n') || [];
-                    return linhas[index]?.trim() || '';
+                    const { lines } = smartSplit(textareas[field]);
+                    return lines[index] || '';
                 };
 
                 return {
                     codigo: getLinha('codigo'),
                     complemento: getLinha('complemento'),
                     descricao: getLinha('nome'),
-                    precobruto: parseFloat(getLinha('precobruto').replace(',', '.')) || 0,
-                    precopromo: getLinha('precopromo') ? parseFloat(getLinha('precopromo').replace(',', '.')) : null,
-                    precoespecial: getLinha('precoespecial') ? parseFloat(getLinha('precoespecial').replace(',', '.')) : null,
+                    precobruto: parseValue(getLinha('precobruto')),
+                    precopromo: parseValue(getLinha('precopromo')),
+                    precoespecial: parseValue(getLinha('precoespecial')),
                     grupo: getLinha('grupo'),
                     aplicacao: getLinha('aplicacao'),
-                    embalagem: getLinha('embalagem'),
-                    ipi: parseFloat(getLinha('ipi').replace(',', '.')) || 0,
-                    st: parseFloat(getLinha('st').replace(',', '.')) || 0,
+                    embalagem: parseInt(getLinha('embalagem').replace(/\D/g, '')) || 1,
+                    peso: parseValue(getLinha('peso')),
+                    ipi: parseValue(getLinha('ipi')),
+                    st: parseValue(getLinha('st')),
                     codigooriginal: getLinha('codigooriginal'),
                     codbarras: getLinha('codbarras'),
-                    descontoadd: parseFloat(getLinha('descontoadd').replace(',', '.')) || 0,
+                    descontoadd: parseValue(getLinha('descontoadd')),
                     ncm: getLinha('ncm'),
                     curva: getLinha('curva'),
                     categoria: getLinha('categoria'),
@@ -201,7 +288,7 @@ const PriceTableImport = () => {
                     produtos: lote
                 };
 
-                const response = await fetch('http://localhost:3005/api/price-tables/import', {
+                const response = await fetch(getApiUrl(NODE_API_URL, '/api/price-tables/import'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -291,6 +378,12 @@ const PriceTableImport = () => {
                         {lineCounts[field] || 0} linhas
                     </div>
                 </div>
+                {adjustments[field] > 0 && (
+                    <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 font-medium animate-pulse">
+                        <Sparkles size={10} />
+                        <span>{adjustments[field]} linhas mescladas foram ajustadas</span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -312,8 +405,8 @@ const PriceTableImport = () => {
                             <div className="col-4">
                                 <label className="text-xs font-semibold text-gray-500 ml-1">Indústria *</label>
                                 <div className="h-12">
-                                    <Select 
-                                        value={formData.industria} 
+                                    <Select
+                                        value={formData.industria}
                                         onValueChange={(val) => {
                                             setFormData({ ...formData, industria: val, tabelaExistente: '', nomeTabela: '' });
                                             setUseExistingTable(false);
@@ -336,8 +429,8 @@ const PriceTableImport = () => {
                             <div className="col-8">
                                 <label className="text-xs font-semibold text-gray-500 ml-1">Grupo de Desconto (Opcional)</label>
                                 <div className="h-12">
-                                    <Select 
-                                        value={formData.grupoDesconto} 
+                                    <Select
+                                        value={formData.grupoDesconto}
                                         onValueChange={(val) => setFormData({ ...formData, grupoDesconto: val })}
                                     >
                                         <SelectTrigger className="h-[50px] rounded-xl border-gray-200">
@@ -519,6 +612,7 @@ const PriceTableImport = () => {
                         <TextareaField label="Grupo de Produtos" field="grupo" />
                         <TextareaField label="Aplicação" field="aplicacao" />
                         <TextareaField label="Embalagem" field="embalagem" />
+                        <TextareaField label="Peso" field="peso" />
                         <TextareaField label="% IPI" field="ipi" />
                         <TextareaField label="% ST" field="st" />
                         <TextareaField label="Código Original" field="codigooriginal" />

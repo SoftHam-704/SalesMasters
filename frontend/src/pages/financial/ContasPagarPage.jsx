@@ -4,13 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, DollarSign, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, Search, DollarSign, Calendar, AlertCircle, HelpCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
+import FinancialHelpModal from '@/components/financial/FinancialHelpModal';
+import NovaContaModal from '@/components/financial/NovaContaModal';
+import DetalhesContaModal from '@/components/financial/DetalhesContaModal';
 
 export default function ContasPagarPage() {
     const [contas, setContas] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
+    const [novaContaOpen, setNovaContaOpen] = useState(false);
+    const [detalhesContaId, setDetalhesContaId] = useState(null);
 
     // Filtros
     const [filtros, setFiltros] = useState({
@@ -34,7 +41,8 @@ export default function ContasPagarPage() {
                 if (value && value !== 'TODOS') params.append(key, value);
             });
 
-            const response = await fetch(`http://localhost:3005/api/financeiro/contas-pagar?${params}`);
+            const url = getApiUrl(NODE_API_URL, `/api/financeiro/contas-pagar?${params}`);
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success) {
@@ -92,10 +100,27 @@ export default function ContasPagarPage() {
                         </h1>
                         <p className="text-slate-500 text-sm">Gestão de Obrigações e Pagamentos</p>
                     </div>
-                    <Button className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Nova Conta
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={() => setHelpOpen(true)}
+                            className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group"
+                            title="Como usar o Financeiro?"
+                        >
+                            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+                            <span className="relative flex items-center gap-2">
+                                <HelpCircle className="w-5 h-5" />
+                                <span className="text-sm">Como usar...</span>
+                                <Sparkles className="w-4 h-4 text-yellow-200" />
+                            </span>
+                        </Button>
+                        <Button
+                            onClick={() => setNovaContaOpen(true)}
+                            className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700"
+                        >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Nova Conta
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -208,13 +233,15 @@ export default function ContasPagarPage() {
                                         <th className="px-4 py-3 text-right text-sm font-semibold text-slate-700">Pago</th>
                                         <th className="px-4 py-3 text-right text-sm font-semibold text-slate-700">Saldo</th>
                                         <th className="px-4 py-3 text-center text-sm font-semibold text-slate-700">Status</th>
+                                        <th className="px-4 py-3 text-right text-sm font-semibold text-slate-700">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {contas.map((conta) => (
                                         <tr
                                             key={conta.id}
-                                            className="hover:bg-slate-50 cursor-pointer transition-colors"
+                                            className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                                            onClick={() => setDetalhesContaId(conta.id)}
                                         >
                                             <td className="px-4 py-3 text-sm">
                                                 {formatDate(conta.data_vencimento)}
@@ -240,6 +267,19 @@ export default function ContasPagarPage() {
                                             <td className="px-4 py-3 text-center">
                                                 {getStatusBadge(conta.status)}
                                             </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDetalhesContaId(conta.id);
+                                                    }}
+                                                    className="h-8 group-hover:bg-red-600 group-hover:text-white transition-all"
+                                                >
+                                                    {conta.status === 'PAGO' ? 'Ver' : 'Baixar'}
+                                                </Button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -248,6 +288,25 @@ export default function ContasPagarPage() {
                     )}
                 </CardContent>
             </Card>
+            <FinancialHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+            />
+            <NovaContaModal
+                open={novaContaOpen}
+                onOpenChange={setNovaContaOpen}
+                type="PAGAR"
+                onSuccess={fetchContas}
+            />
+            {detalhesContaId && (
+                <DetalhesContaModal
+                    open={!!detalhesContaId}
+                    onOpenChange={(open) => !open && setDetalhesContaId(null)}
+                    contaId={detalhesContaId}
+                    type="PAGAR"
+                    onRefresh={fetchContas}
+                />
+            )}
         </div>
     );
 }

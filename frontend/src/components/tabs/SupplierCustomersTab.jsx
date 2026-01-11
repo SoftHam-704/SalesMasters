@@ -14,7 +14,7 @@ export const SupplierCustomersTab = ({ supplierId }) => {
     const fetchCustomers = async () => {
         try {
             setLoading(true);
-            const response = await axios.get(`http://localhost:3005/api/suppliers/${supplierId}/customers`);
+            const response = await axios.get(`https://salesmasters.softham.com.br/api/suppliers/${supplierId}/customers`);
             setCustomers(response.data);
         } catch (error) {
             console.error('Error fetching supplier customers:', error);

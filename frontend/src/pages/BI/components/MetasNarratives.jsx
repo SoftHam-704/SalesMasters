@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Sparkles, TrendingUp, AlertTriangle, CheckCircle, Info, ArrowRight } from 'lucide-react';
+import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 const MetasNarratives = ({ filters }) => {
     const [narratives, setNarratives] = useState([]);
@@ -34,7 +35,8 @@ const MetasNarratives = ({ filters }) => {
 
                 // AI endpoint might be slower, so we don't block main dashboard
                 // We could implement a manual trigger, but for now auto-fetch on filter change
-                const response = await axios.get('http://localhost:8000/api/metas/narratives', { params });
+                const narrativesUrl = getApiUrl(PYTHON_API_URL, '/api/metas/narratives');
+                const response = await axios.get(narrativesUrl, { params });
 
                 if (response.data && response.data.success && response.data.data) {
                     setNarratives(response.data.data.cards || []);

@@ -34,6 +34,7 @@ import {
     Search as SearchIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const ChartOfAccountsPage = () => {
     const [accounts, setAccounts] = useState([]);
@@ -59,7 +60,8 @@ const ChartOfAccountsPage = () => {
     const fetchAccounts = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/plano-contas');
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/plano-contas');
+            const response = await axios.get(url);
             setAccounts(response.data.data || []);
         } catch (error) {
             showSnackbar('Erro ao carregar plano de contas', 'error');
@@ -101,10 +103,12 @@ const ChartOfAccountsPage = () => {
     const handleSave = async () => {
         try {
             if (editingAccount) {
-                await axios.put(`http://localhost:3005/api/financeiro/plano-contas/${editingAccount.id}`, formData);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/plano-contas/${editingAccount.id}`);
+                await axios.put(url, formData);
                 showSnackbar('Conta atualizada com sucesso!', 'success');
             } else {
-                await axios.post('http://localhost:3005/api/financeiro/plano-contas', formData);
+                const url = getApiUrl(NODE_API_URL, '/api/financeiro/plano-contas');
+                await axios.post(url, formData);
                 showSnackbar('Conta cadastrada com sucesso!', 'success');
             }
             handleCloseDialog();
@@ -117,7 +121,8 @@ const ChartOfAccountsPage = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Deseja realmente excluir esta conta?')) {
             try {
-                await axios.delete(`http://localhost:3005/api/financeiro/plano-contas/${id}`);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/plano-contas/${id}`);
+                await axios.delete(url);
                 showSnackbar('Conta excluída com sucesso!', 'success');
                 fetchAccounts();
             } catch (error) {

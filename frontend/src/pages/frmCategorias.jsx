@@ -14,7 +14,7 @@ const FrmCategorias = () => {
     const fetchCategories = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:3005/api/v2/product-categories');
+            const response = await fetch('https://salesmasters.softham.com.br/api/v2/product-categories');
             const data = await response.json();
             if (data.success) {
                 setCategories(data.data);
@@ -47,7 +47,7 @@ const FrmCategorias = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:3005/api/v2/product-categories/${category.cat_id}`, {
+            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/product-categories/${category.cat_id}`, {
                 method: 'DELETE'
             });
 
@@ -68,8 +68,8 @@ const FrmCategorias = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedCategory
-                ? `http://localhost:3005/api/v2/product-categories/${selectedCategory.cat_id}`
-                : 'http://localhost:3005/api/v2/product-categories';
+                ? `https://salesmasters.softham.com.br/api/v2/product-categories/${selectedCategory.cat_id}`
+                : 'https://salesmasters.softham.com.br/api/v2/product-categories';
 
             const method = selectedCategory ? 'PUT' : 'POST';
 

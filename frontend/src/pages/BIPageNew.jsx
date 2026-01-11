@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Building2, BarChart2, TrendingUp, Target, UserC
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import EvolutionChart from './BI/charts/EvolutionChart';
 import BubbleChart from './BI/charts/BubbleChart';
+import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const BIPageNew = () => {
     const [metrics, setMetrics] = useState(null);
@@ -58,7 +59,8 @@ const BIPageNew = () => {
             }
 
             // 2. Evolution Data
-            const evolutionRes = await axios.get('http://localhost:8000/api/dashboard/evolution', {
+            const evolutionUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/evolution');
+            const evolutionRes = await axios.get(evolutionUrl, {
                 params: { ano: filters.ano, metrica: 'valor' }
             });
             setEvolutionData(evolutionRes.data || []);

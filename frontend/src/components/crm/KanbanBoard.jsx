@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Calendar, DollarSign, User, Building2 } from 'lucide-react';
+import { MoreHorizontal, Calendar, DollarSign, User, Building2, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 
 // --- Sortable Item (Opportunity Card) ---
@@ -41,16 +41,28 @@ function SortableItem({ id, opportunity, onClick, onQuickAction }) {
 
     const handleWhatsAppClick = (e) => {
         e.stopPropagation(); // Prevents card opening
+        e.preventDefault();
         const phone = opportunity.cli_fone1?.replace(/\D/g, '');
         if (phone && onQuickAction) {
             onQuickAction('whatsapp', opportunity);
         }
     };
 
+    const handleEditClick = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (onClick && typeof onClick === 'function') {
+            onClick(opportunity);
+        }
+    };
+
     return (
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-3 touch-none">
+        <div ref={setNodeRef} style={style} className="mb-3 touch-none">
+            {/* Drag Handle - only this area is draggable */}
             <Card
-                className="bg-white hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing border-slate-200 group relative"
+                className="bg-white hover:shadow-md transition-shadow border-slate-200 group relative"
+                {...attributes}
+                {...listeners}
                 onClick={(e) => {
                     // Prevent click when dragging
                     if (!isDragging) onClick(opportunity);
@@ -70,12 +82,23 @@ function SortableItem({ id, opportunity, onClick, onQuickAction }) {
                             </Badge>
                         )}
 
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
+                            {/* Edit Button */}
+                            <button
+                                onClick={handleEditClick}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors opacity-0 group-hover:opacity-100 shadow-sm cursor-pointer touch-none z-10"
+                                title="Editar Oportunidade"
+                            >
+                                <Pencil className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* WhatsApp Quick Action */}
-                            {opportunity.cli_fone1 && (
+                            {(opportunity.telefone_contato || opportunity.cli_fone1) && (
                                 <button
                                     onClick={handleWhatsAppClick}
-                                    className="p-1 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors opacity-0 group-hover:opacity-100"
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    className="p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors opacity-0 group-hover:opacity-100 shadow-sm cursor-pointer touch-none z-10"
                                     title="WhatsApp Rápido"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
@@ -126,14 +149,27 @@ function KanbanColumn({ id, title, items, color, onCardClick, onQuickAction }) {
     const { setNodeRef } = useSortable({ id: id, disabled: true });
 
     return (
-        <div ref={setNodeRef} className="flex-shrink-0 w-72 flex flex-col h-full bg-slate-50/50 rounded-xl border border-slate-100">
-            {/* Column Header */}
-            <div className={`p-3 border-b border-slate-100 rounded-t-xl flex justify-between items-center ${color.replace('bg-', 'bg-opacity-20 ')}`}>
-                <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${color.replace('bg-', 'bg-')}`} />
-                    <h3 className="font-semibold text-slate-700 text-sm">{title}</h3>
+        <div
+            ref={setNodeRef}
+            className="flex-shrink-0 w-72 flex flex-col h-full bg-gradient-to-b from-white to-slate-50 rounded-2xl border-2 border-slate-200 shadow-lg hover:shadow-xl transition-all duration-300"
+            style={{
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+                transform: 'perspective(1000px) rotateX(1deg)',
+            }}
+        >
+            {/* Column Header - 3D Effect */}
+            <div className={`p-4 border-b-2 border-slate-200 rounded-t-2xl flex justify-between items-center bg-gradient-to-r ${color === 'bg-blue-500' ? 'from-blue-50 to-blue-100' :
+                color === 'bg-cyan-500' ? 'from-cyan-50 to-cyan-100' :
+                    color === 'bg-amber-500' ? 'from-amber-50 to-amber-100' :
+                        color === 'bg-orange-500' ? 'from-orange-50 to-orange-100' :
+                            color === 'bg-emerald-500' ? 'from-emerald-50 to-emerald-100' :
+                                'from-slate-50 to-slate-100'
+                }`}>
+                <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded-full ${color} shadow-md ring-2 ring-white`} />
+                    <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">{title}</h3>
                 </div>
-                <Badge variant="secondary" className="bg-white text-slate-600 text-xs">
+                <Badge variant="secondary" className="bg-white text-slate-700 text-xs font-bold shadow-sm border border-slate-200 px-2.5">
                     {items.length}
                 </Badge>
             </div>

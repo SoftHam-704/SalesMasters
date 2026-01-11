@@ -54,6 +54,24 @@ const Dashboard = () => {
     const [birthdays, setBirthdays] = useState([]);
     const [loadingBirthdays, setLoadingBirthdays] = useState(true);
 
+    const [sellOutSummary, setSellOutSummary] = useState(null);
+    const [loadingSellOut, setLoadingSellOut] = useState(true);
+
+    const fetchSellOutSummary = async () => {
+        try {
+            setLoadingSellOut(true);
+            const response = await fetch(`${NODE_API_URL}/api/crm/sellout/summary`);
+            const data = await response.json();
+            if (data.success) {
+                setSellOutSummary(data.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar resumo sell-out:', error);
+        } finally {
+            setLoadingSellOut(false);
+        }
+    };
+
     const fetchBirthdays = async () => {
         try {
             setLoadingBirthdays(true);
@@ -81,6 +99,7 @@ const Dashboard = () => {
             }
         }
         fetchBirthdays();
+        fetchSellOutSummary();
     }, []);
 
     useEffect(() => {
@@ -305,11 +324,13 @@ const Dashboard = () => {
                     delay={0.3}
                 />
                 <MetricCard
-                    title="Qtd. Pedidos"
-                    value={loadingMetrics || !metrics ? "..." : parseFloat(metrics.qtd_pedidos_current || 0).toLocaleString('pt-BR')}
-                    change={loadingMetrics || !metrics ? 0 : parseFloat(metrics.pedidos_percent_change || 0)}
+                    title="Sell-Out (Mês)"
+                    value={loadingSellOut || !sellOutSummary ? "..." : `R$ ${parseFloat(sellOutSummary.current_month_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+                    change={loadingSellOut || !sellOutSummary ? 0 : parseFloat(sellOutSummary.growth || 0)}
                     icon={TrendingUp}
                     delay={0.4}
+                    onClick={() => navigate('/movimentacoes/sell-out')}
+                    subtitle="Clique para detalhes"
                 />
 
                 {(() => {
@@ -364,7 +385,7 @@ const Dashboard = () => {
                                     <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                <ResponsiveContainer width="100%" height="100%" minWidth={10}>
                                     <AreaChart data={quantitiesComparison}>
                                         <defs>
                                             <linearGradient id="colorQty2025" x1="0" y1="0" x2="0" y2="1">
@@ -451,7 +472,7 @@ const Dashboard = () => {
                                     <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                <ResponsiveContainer width="100%" height="100%" minWidth={10}>
                                     <AreaChart data={salesComparison}>
                                         <defs>
                                             <linearGradient id="color2025" x1="0" y1="0" x2="0" y2="1">

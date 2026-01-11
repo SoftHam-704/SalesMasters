@@ -56,6 +56,10 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
+// Session Heartbeat Middleware (Controle de Equipamentos)
+const activeSessionMiddleware = require('./middleware/sessionMiddleware');
+app.use(activeSessionMiddleware);
+
 // Proxy para o BI Engine (Python na porta 8000)
 // Todas as requisições /bi-api/* são encaminhadas para o Python
 app.use('/bi-api', createProxyMiddleware({
@@ -1540,6 +1544,10 @@ app.get('/api/dashboard/metrics', async (req, res) => {
 // Import products routes
 const productsRouter = require('./products_endpoints')(pool);
 app.use('/api', productsRouter);
+
+// --- GESTÃO DE USUÁRIOS E PERMISSÕES ---
+const userManagementRouter = require('./user_management_endpoints')(pool);
+app.use('/api/v2/system', userManagementRouter);
 
 // ==================== AUXILIARY ENDPOINTS ====================
 // These endpoints provide data for form dropdowns
@@ -4221,7 +4229,7 @@ app.get('/api/orders', async (req, res) => {
         p.ped_pedido ILIKE $${paramIndex} OR
                 c.cli_nomred ILIKE $${paramIndex}
     )`;
-            params.push(`% ${pesquisa}% `);
+            params.push(`%${pesquisa}%`);
             paramIndex++;
         }
 

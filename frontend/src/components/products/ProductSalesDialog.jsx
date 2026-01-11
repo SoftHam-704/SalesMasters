@@ -30,7 +30,7 @@ const ProductSalesDialog = ({ open, onClose, product, industria }) => {
         try {
             // Buscar análise de vendas
             const salesResponse = await fetch(
-                `http://localhost:3005/api/products/sales-analysis/${industria}/${encodeURIComponent(product.pro_codprod)}?dataInicio=${dataInicio}&dataFim=${dataFim}`
+                `https://salesmasters.softham.com.br/api/products/sales-analysis/${industria}/${encodeURIComponent(product.pro_codprod)}?dataInicio=${dataInicio}&dataFim=${dataFim}`
             );
             const salesResult = await salesResponse.json();
 
@@ -43,7 +43,7 @@ const ProductSalesDialog = ({ open, onClose, product, industria }) => {
 
             // Buscar clientes que compraram
             const boughtResponse = await fetch(
-                `http://localhost:3005/api/products/customers-bought/${industria}/${encodeURIComponent(product.pro_codprod)}?dataInicio=${dataInicio}&dataFim=${dataFim}`
+                `https://salesmasters.softham.com.br/api/products/customers-bought/${industria}/${encodeURIComponent(product.pro_codprod)}?dataInicio=${dataInicio}&dataFim=${dataFim}`
             );
             const boughtResult = await boughtResponse.json();
             if (boughtResult.success) {
@@ -56,7 +56,7 @@ const ProductSalesDialog = ({ open, onClose, product, industria }) => {
 
             // Buscar clientes que nunca compraram
             const neverResponse = await fetch(
-                `http://localhost:3005/api/products/customers-never-bought/${industria}/${encodeURIComponent(product.pro_codprod)}`
+                `https://salesmasters.softham.com.br/api/products/customers-never-bought/${industria}/${encodeURIComponent(product.pro_codprod)}`
             );
             const neverResult = await neverResponse.json();
             if (neverResult.success) {

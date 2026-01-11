@@ -36,7 +36,7 @@ export function ClientAreasTab({ clientId }) {
 
     const fetchClientAreas = async () => {
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${clientId}/areas`);
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${clientId}/areas`);
             const data = await res.json();
             setClientAreas(data);
         } catch (error) {
@@ -47,7 +47,7 @@ export function ClientAreasTab({ clientId }) {
 
     const fetchAvailableAreas = async () => {
         try {
-            const res = await fetch(`http://localhost:3005/api/areas`);
+            const res = await fetch(`https://salesmasters.softham.com.br/api/areas`);
             const data = await res.json();
             setAvailableAreas(data);
         } catch (error) {
@@ -59,7 +59,7 @@ export function ClientAreasTab({ clientId }) {
         if (!selectedAreaId) return;
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${clientId}/areas`, {
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${clientId}/areas`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ areaId: selectedAreaId })
@@ -83,7 +83,7 @@ export function ClientAreasTab({ clientId }) {
     const handleDelete = async (areaId) => {
         if (!window.confirm("Deseja remover esta área de atuação?")) return;
         try {
-            const res = await fetch(`http://localhost:3005/api/clients/${clientId}/areas/${areaId}`, {
+            const res = await fetch(`https://salesmasters.softham.com.br/api/clients/${clientId}/areas/${areaId}`, {
                 method: 'DELETE'
             });
             if (!res.ok) throw new Error('Erro ao remover área');

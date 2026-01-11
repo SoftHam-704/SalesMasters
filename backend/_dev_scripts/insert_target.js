@@ -8,7 +8,7 @@ const pool = new Pool({
     port: 13062,
     database: 'salesmasters_master',
     user: 'webadmin',
-    password: 'ytAyO0u043'
+    password: 'process.env.DB_PASSWORD'
 });
 
 async function insertEmpresas() {
@@ -18,7 +18,7 @@ async function insertEmpresas() {
     await pool.query(`
         INSERT INTO empresas (cnpj, razao_social, nome_fantasia, status, db_host, db_nome, db_usuario, db_senha, db_porta)
         VALUES ('33866124000103', 'TARGET REPRESENTACOES LTDA', 'Target Rep', 'ATIVO', 
-                'node254557-salesmaster.sp1.br.saveincloud.net.br', 'basesales', 'webadmin', 'ytAyO0u043', 13062)
+                'node254557-salesmaster.sp1.br.saveincloud.net.br', 'basesales', 'webadmin', 'process.env.DB_PASSWORD', 13062)
         ON CONFLICT (cnpj) DO NOTHING
     `);
     console.log('✅ Target inserida');
@@ -32,3 +32,4 @@ async function insertEmpresas() {
 }
 
 insertEmpresas().catch(console.error);
+

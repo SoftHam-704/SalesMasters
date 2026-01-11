@@ -28,6 +28,13 @@ instance.interceptors.request.use((config) => {
             console.error('Erro ao processar tenantConfig do localStorage', e);
         }
     }
+
+    // Injetar Token de Sessão (Equipamento Heartbeat)
+    const sessionToken = localStorage.getItem('session_token');
+    if (sessionToken) {
+        config.headers['x-session-token'] = sessionToken;
+    }
+
     return config;
 }, (error) => {
     return Promise.reject(error);

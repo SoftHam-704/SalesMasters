@@ -2,6 +2,11 @@
 **Data Prevista:** 08/01/2026 (Madrugada)
 **Última Atualização:** 07/01/2026 18:57
 
+## 📚 DOCUMENTAÇÃO OFICIAL (SaveInCloud)
+- **NGINX:** [Configuração HTTP](https://docs.saveincloud.com/docs/ambientes/tipos-instancias/load-balancer/nginx/http)
+- **NODEJS (PM2):** [Gerenciamento de Processos](https://docs.saveincloud.com/docs/ambientes/tipos-instancias/servidores-aplicacao/nodejs/pm2)
+- **TOMCAT:** [Requisitos Recomendados](https://docs.saveincloud.com/docs/ambientes/tipos-instancias/servidores-aplicacao/java/tomcat/deploy#-requisitos-recomendados) (Referência auxiliar)
+
 ---
 
 ## 📋 CHECKLIST PRÉ-DEPLOY
@@ -93,14 +98,14 @@ MASTER_DB_HOST=node254557-salesmaster.sp1.br.saveincloud.net.br
 MASTER_DB_PORT=13062
 MASTER_DB_NAME=basesales
 MASTER_DB_USER=webadmin
-MASTER_DB_PASSWORD=ytAyO0u043
+MASTER_DB_PASSWORD=******
 OPENAI_API_KEY=sk-xxx
 ```
 
 **BI Engine Python** (`/var/www/html/salesmasters/bi-engine/.env`):
 ```env
 ENVIRONMENT=production
-DATABASE_URL=postgresql://webadmin:ytAyO0u043@node254557-salesmaster.sp1.br.saveincloud.net.br:13062/basesales
+DATABASE_URL=postgresql://webadmin:******@node254557-salesmaster.sp1.br.saveincloud.net.br:13062/basesales
 OPENAI_API_KEY=sk-xxx
 ```
 
@@ -189,4 +194,21 @@ pm2 logs --lines 50
 
 ---
 
-*Documento criado automaticamente - Continuar de onde parou amanhã!*
+## 📝 TRABALHO REALIZADO HOJE (07/01)
+
+1.  **Importação Inteligente (IA):**
+    *   Criado diálogo de importação multi-step.
+    *   Mapeamento dinâmico de 10 campos essenciais.
+    *   Integração real com o banco via `fn_upsert_produto` e `fn_upsert_preco`.
+2.  **Relatórios em PDF:**
+    *   Migração de todos os modelos de relatórios para `@react-pdf/renderer` finalizada.
+3.  **UI/UX:**
+    *   Botão "F2 - MAGIC LOAD" (Smart Order) implementado.
+    *   Diálogo de importação com visual premium (Azul/Verde corporativo).
+4.  **Limpeza e Organização:**
+    *   Remoção de arquivos temporários e atualização do `.gitignore`.
+    *   Commit geral realizado com as últimas alterações.
+
+---
+
+*Assinado: Antigravity AI - Até amanhã de madrugada! 🚀*

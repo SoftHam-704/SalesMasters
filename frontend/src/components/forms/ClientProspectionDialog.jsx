@@ -18,7 +18,7 @@ export default function ClientProspectionDialog({ isOpen, onClose, clientId, onS
 
     const fetchSuppliers = async () => {
         try {
-            const response = await fetch('http://localhost:3005/api/suppliers');
+            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers');
             if (!response.ok) throw new Error('Erro ao buscar fornecedores');
             const data = await response.json();
             setSuppliers(data.data || []);
@@ -38,7 +38,7 @@ export default function ClientProspectionDialog({ isOpen, onClose, clientId, onS
 
         try {
             const response = await fetch(
-                `http://localhost:3005/api/clients/${clientId}/industries`,
+                `https://salesmasters.softham.com.br/api/clients/${clientId}/industries`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

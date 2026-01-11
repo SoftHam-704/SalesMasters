@@ -40,7 +40,7 @@ export const DatabaseConfig = () => {
         setFirebirdStatus(null);
 
         try {
-            const response = await fetch('http://localhost:3005/api/firebird/test', {
+            const response = await fetch('https://salesmasters.softham.com.br/api/firebird/test', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

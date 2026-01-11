@@ -18,7 +18,7 @@ import {
     Calculator, Save, Trash2, Calendar, ShoppingCart, Truck, CreditCard,
     FileText, User, MapPin, MoreHorizontal, FileUp, Copy,
     RefreshCw, Tag, DollarSign, Eraser, Star, StarOff, Percent, HelpCircle, CheckSquare,
-    FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck
+    FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck, MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SmartOrderDialog } from './SmartOrderDialog';
@@ -351,35 +351,46 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     }, [activeTab, formData.ped_pedido, isSaving, importedItems]);
 
-    // Recalcular totais do pedido sempre que summaryItems mudar para manter cabeçalho sincronizado
+    // Recalcular totais do pedido com lógica robusta (calculando impostos on-the-fly se necessário)
     useEffect(() => {
         if (summaryItems.length > 0) {
-            const totBruto = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_totbruto) || 0), 0);
-            const totLiq = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_totliquido) || 0), 0);
-            const totIpi = summaryItems.reduce((acc, item) => {
-                const liq = parseFloat(item.ite_totliquido) || 0;
-                const cIpi = parseFloat(item.ite_valcomipi) || liq;
-                return acc + (cIpi - liq);
-            }, 0);
-            const totComImposto = summaryItems.reduce((acc, item) => acc + (parseFloat(item.ite_valcomst) || 0), 0);
+            const totals = summaryItems.reduce((acc, item) => {
+                const totBruto = parseFloat(item.ite_totbruto) || 0;
+                const totLiq = parseFloat(item.ite_totliquido) || 0;
+
+                // Recalcula impostos baseado nas alíquotas para garantir precisão
+                // (mesmo que o campo ite_valcomipi venha zerado do backend)
+                const ipiRate = parseFloat(item.ite_ipi) || 0;
+                const stRate = parseFloat(item.ite_st) || 0;
+
+                const valComIpi = totLiq * (1 + ipiRate / 100);
+                const valComSt = valComIpi * (1 + stRate / 100); // Base de ST é o valor com IPI
+
+                return {
+                    bruto: acc.bruto + totBruto,
+                    liq: acc.liq + totLiq,
+                    ipi: acc.ipi + (valComIpi - totLiq),
+                    comImpostos: acc.comImpostos + valComSt
+                };
+            }, { bruto: 0, liq: 0, ipi: 0, comImpostos: 0 });
 
             // Evitar loops infinitos: só atualiza se os valores realmente mudaram
             if (
-                Math.abs((formData.ped_totbruto || 0) - totBruto) > 0.01 ||
-                Math.abs((formData.ped_totliq || 0) - totLiq) > 0.01 ||
-                Math.abs((formData.ped_totalipi || 0) - totIpi) > 0.01 ||
-                Math.abs((formData.ped_totalcomimpostos || 0) - totComImposto) > 0.01
+                Math.abs((formData.ped_totbruto || 0) - totals.bruto) > 0.01 ||
+                Math.abs((formData.ped_totliq || 0) - totals.liq) > 0.01 ||
+                Math.abs((formData.ped_totalipi || 0) - totals.ipi) > 0.01 ||
+                Math.abs((formData.ped_totalcomimpostos || 0) - totals.comImpostos) > 0.01
             ) {
                 setFormData(prev => ({
                     ...prev,
-                    ped_totbruto: totBruto,
-                    ped_totliq: totLiq,
-                    ped_totalipi: totIpi,
-                    ped_totalcomimpostos: totComImposto
+                    ped_totbruto: totals.bruto,
+                    ped_totliq: totals.liq,
+                    ped_totalipi: totals.ipi,
+                    ped_totalcomimpostos: totals.comImpostos
                 }));
             }
         } else if ((formData.ped_totbruto || 0) > 0 || (formData.ped_totliq || 0) > 0) {
-            // Se zerou a grid, zerar totais se eles não estiverem zerados
+            // Se zerou a grid, zerar totais
             setFormData(prev => ({
                 ...prev,
                 ped_totbruto: 0,
@@ -390,7 +401,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     }, [summaryItems, formData.ped_totbruto, formData.ped_totliq, formData.ped_totalipi, formData.ped_totalcomimpostos]);
 
-    // Reset relevant form fields when industry changes in Insert mode
+
     useEffect(() => {
         if (!existingOrder && selectedIndustry) {
             setFormData(prev => ({
@@ -1523,7 +1534,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     ];
 
 
-    const inputClasses = "h-10 text-sm font-semibold border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 bg-slate-50/50 hover:bg-white transition-all rounded-xl shadow-sm text-slate-700 placeholder:text-slate-300";
+    const inputClasses = "h-10 text-sm font-semibold border-slate-400 focus:border-emerald-500 focus:ring-emerald-500 bg-slate-50/50 hover:bg-white transition-all rounded-xl shadow-sm text-slate-700 placeholder:text-slate-300";
     const labelClasses = "text-[11px] text-slate-700 font-bold uppercase tracking-wider mb-1.5 block ml-1";
 
     return (
@@ -1564,9 +1575,24 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="flex flex-col items-end bg-emerald-50/50 px-4 py-1.5 rounded-2xl border border-emerald-100/50 shadow-inner">
-                            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Valor Líquido</span>
+                        {/* Total Bruto */}
+                        <div className="flex flex-col items-end bg-emerald-50/30 px-4 py-1.5 rounded-2xl border border-emerald-100/50 shadow-sm relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-emerald-100/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                            <span className="text-[10px] text-emerald-600/80 font-bold uppercase tracking-widest relative z-10">Total Bruto</span>
+                            <span className="text-xl font-mono font-bold text-emerald-700 tracking-tighter leading-none relative z-10">{formatCurrency(formData.ped_totbruto)}</span>
+                        </div>
+
+                        {/* Valor Líquido (Main) */}
+                        <div className="flex flex-col items-end bg-emerald-50 px-4 py-1.5 rounded-2xl border border-emerald-100 shadow-inner relative overflow-hidden">
+                            <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Valor Líquido</span>
                             <span className="text-2xl font-mono font-black text-emerald-600 tracking-tighter leading-none glow-sm">{formatCurrency(formData.ped_totliq)}</span>
+                        </div>
+
+                        {/* Total c/ Impostos */}
+                        <div className="flex flex-col items-end bg-emerald-50/30 px-4 py-1.5 rounded-2xl border border-emerald-100/50 shadow-sm relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-emerald-100/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                            <span className="text-[10px] text-emerald-600/80 font-bold uppercase tracking-widest relative z-10">Total c/ Imp.</span>
+                            <span className="text-xl font-mono font-bold text-emerald-700 tracking-tighter leading-none relative z-10">{formatCurrency(formData.ped_totalcomimpostos)}</span>
                         </div>
                     </div>
                 </div>
@@ -1782,20 +1808,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         </div>
                                     </div>
 
-                                    {/* Observations field integrated into F1 tab */}
-                                    <div className="flex flex-col gap-0.5 mt-1">
-                                        <Label className={labelClasses}>Observações</Label>
-                                        <textarea
-                                            value={formData.ped_obs || ''}
-                                            onChange={(e) => handleFieldChange('ped_obs', e.target.value)}
-                                            className={cn(
-                                                "w-full rounded-md border border-emerald-100 bg-white p-2 text-xs",
-                                                "focus:border-emerald-500 focus:outline-none shadow-sm min-h-[100px] resize-none text-black text-xs font-bold",
-                                                "placeholder:text-emerald-300"
-                                            )}
-                                            placeholder="Observações do pedido..."
-                                        />
-                                    </div>
+
                                 </div>
 
                                 {/* Right Column: Financials */}
@@ -1895,21 +1908,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         </label>
                                     </div>
 
-                                    {/* Totals */}
-                                    <div className="grid grid-cols-1 gap-2 mt-auto">
-                                        <div className="flex justify-between items-center border-b border-gray-100 pb-1 px-1">
-                                            <span className="text-xs text-gray-500 uppercase">Total Bruto</span>
-                                            <span className="font-bold text-gray-700">{formatCurrency(formData.ped_totbruto || 0)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center border-b border-orange-100 pb-1 bg-orange-50/30 px-1 rounded">
-                                            <span className="text-xs text-orange-600 uppercase font-bold">Total Líquido</span>
-                                            <span className="font-bold text-orange-700">{formatCurrency(formData.ped_totliq || 0)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center border-b border-emerald-100 pb-1 bg-emerald-50/30 px-1 rounded">
-                                            <span className="text-xs text-emerald-600 uppercase font-bold">TOTAL C/IMPOSTOS</span>
-                                            <span className="font-bold text-emerald-700">{formatCurrency((formData.ped_totliq || 0) + (formData.ped_totalipi || 0))}</span>
-                                        </div>
-                                    </div>
+
                                 </div>
                             </div>
                         </div>
@@ -1922,6 +1921,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 { key: 'F3', label: 'F3 - Itens', icon: ShoppingCart },
                                 { key: 'F4', label: 'F4 - Faturas', icon: CreditCard },
                                 { key: 'F5', label: 'F5 - Conferência', icon: ClipboardCheck },
+                                { key: 'F6', label: 'F6 - Obs.', icon: MessageSquare },
                                 { key: 'F7', label: 'F7 - Faturados', icon: FileCheck },
                                 { key: 'XX', label: 'XX - Imp. XLS', icon: FileUp },
                                 { key: '01', label: '01 - LOAD XML', icon: FileCode },
@@ -2390,9 +2390,46 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                             </Button>
                         </div>
                     </div>
+                    {/* F6: Observações */}
+                    <div className={cn("absolute inset-0 flex flex-col p-4 overflow-hidden", activeTab !== 'F6' && "hidden")}>
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-full relative overflow-hidden">
+                            {/* Decorative Background Icon */}
+                            <MessageSquare className="absolute -bottom-10 -right-10 w-96 h-96 text-slate-50 opacity-50 pointer-events-none" />
+
+                            <div className="flex items-center gap-3 mb-4 z-10">
+                                <div className="p-2 bg-emerald-100 rounded-xl">
+                                    <MessageSquare className="h-6 w-6 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">Observações do Pedido</h3>
+                                    <p className="text-xs text-slate-500">Informações adicionais para a nota fiscal ou separação.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 z-10">
+                                <textarea
+                                    value={formData.ped_obs || ''}
+                                    onChange={(e) => handleFieldChange('ped_obs', e.target.value)}
+                                    className={cn(
+                                        "w-full h-full rounded-xl border border-slate-200 bg-slate-50/50 p-6 text-sm",
+                                        "focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none focus:bg-white transition-all",
+                                        "shadow-inner resize-none text-slate-700 font-medium leading-relaxed",
+                                        "placeholder:text-slate-400 placeholder:italic"
+                                    )}
+                                    placeholder="Digite aqui as observações detalhadas do pedido..."
+                                />
+                            </div>
+
+                            <div className="mt-4 flex justify-end z-10">
+                                <span className="text-xs font-medium text-slate-400">
+                                    {(formData.ped_obs || '').length} caracteres
+                                </span>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Other Tabs */}
-                    {['F4', 'F6', 'F7', '01'].map(tab => (
+                    {['F4', 'F7', '01'].map(tab => (
                         <div key={tab} className={cn("absolute inset-0 flex items-center justify-center", activeTab !== tab && "hidden")}>
                             <div className="text-center text-emerald-300">
                                 <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />

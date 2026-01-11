@@ -36,6 +36,7 @@ import {
     Search as SearchIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const FinancialClientsPage = () => {
     const [clients, setClients] = useState([]);
@@ -70,7 +71,8 @@ const FinancialClientsPage = () => {
     const fetchClients = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:3005/api/financeiro/clientes');
+            const url = getApiUrl(NODE_API_URL, '/api/financeiro/clientes');
+            const response = await axios.get(url);
             setClients(response.data.data || []);
         } catch (error) {
             showSnackbar('Erro ao carregar clientes', 'error');
@@ -129,10 +131,12 @@ const FinancialClientsPage = () => {
     const handleSave = async () => {
         try {
             if (editingClient) {
-                await axios.put(`http://localhost:3005/api/financeiro/clientes/${editingClient.id}`, formData);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/clientes/${editingClient.id}`);
+                await axios.put(url, formData);
                 showSnackbar('Cliente atualizado com sucesso!', 'success');
             } else {
-                await axios.post('http://localhost:3005/api/financeiro/clientes', formData);
+                const url = getApiUrl(NODE_API_URL, '/api/financeiro/clientes');
+                await axios.post(url, formData);
                 showSnackbar('Cliente cadastrado com sucesso!', 'success');
             }
             handleCloseDialog();
@@ -145,7 +149,8 @@ const FinancialClientsPage = () => {
     const handleDelete = async (id) => {
         if (window.confirm('Deseja realmente excluir este cliente?')) {
             try {
-                await axios.delete(`http://localhost:3005/api/financeiro/clientes/${id}`);
+                const url = getApiUrl(NODE_API_URL, `/api/financeiro/clientes/${id}`);
+                await axios.delete(url);
                 showSnackbar('Cliente excluído com sucesso!', 'success');
                 fetchClients();
             } catch (error) {
