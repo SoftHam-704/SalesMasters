@@ -56,21 +56,8 @@ import './App.css';
 import { TabControl } from './components/settings/TabControl';
 import OrderReportEngine from './components/orders/OrderReportEngine';
 
-import useMobile from './hooks/useMobile';
-import MobileLayout from './mobile/MobileLayout';
-import MobileHome from './mobile/pages/MobileHome';
-import MobileClients from './mobile/pages/MobileClients';
-import MobileProducts from './mobile/pages/MobileProducts';
-import MobileCRM from './mobile/pages/MobileCRM';
-import MobileGoals from './mobile/pages/MobileGoals';
-import MobileMenu from './mobile/pages/MobileMenu';
-import MobileIndustries from './mobile/pages/MobileIndustries';
-import MobileSellOut from './mobile/pages/MobileSellOut';
-import MobileOrderWizard from './mobile/pages/MobileOrderWizard';
-import MobileOrders from './mobile/pages/MobileOrders';
 
 function App() {
-  const isMobile = useMobile();
   const isPrintView = window.location.pathname.startsWith('/print/');
   const [isAuthenticated, setIsAuthenticated] = React.useState(!!sessionStorage.getItem('user'));
 
@@ -136,21 +123,6 @@ function App() {
         element={
           !isAuthenticated ? (
             <Navigate to="/login" replace />
-          ) : isMobile ? (
-            <Routes>
-              <Route element={<MobileLayout />}>
-                <Route path="/" element={<MobileHome />} />
-                <Route path="/clientes" element={<MobileClients />} />
-                <Route path="/pedidos" element={<MobileOrderWizard />} />
-                <Route path="/pedidos/novo" element={<MobileOrderWizard />} />
-                <Route path="/pedidos/historico" element={<MobileOrders />} />
-                <Route path="/menu" element={<MobileMenu />} />                <Route path="/industrias" element={<MobileIndustries />} />
-                <Route path="/sellout" element={<MobileSellOut />} />
-                <Route path="/metas" element={<MobileGoals />} />
-                <Route path="/crm" element={<MobileCRM />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
           ) : (
             <div className="app">
               <Sidebar />
