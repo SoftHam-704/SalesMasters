@@ -3,6 +3,7 @@ import { Tag } from "lucide-react";
 import { toast } from "sonner";
 import CategoryForm from "../components/forms/CategoryForm";
 import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmCategorias = () => {
     const [categories, setCategories] = useState([]);
@@ -14,7 +15,7 @@ const FrmCategorias = () => {
     const fetchCategories = async () => {
         setLoading(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/v2/product-categories');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/product-categories'));
             const data = await response.json();
             if (data.success) {
                 setCategories(data.data);
@@ -47,7 +48,7 @@ const FrmCategorias = () => {
         }
 
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/product-categories/${category.cat_id}`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/product-categories/${category.cat_id}`), {
                 method: 'DELETE'
             });
 
@@ -68,8 +69,8 @@ const FrmCategorias = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedCategory
-                ? `https://salesmasters.softham.com.br/api/v2/product-categories/${selectedCategory.cat_id}`
-                : 'https://salesmasters.softham.com.br/api/v2/product-categories';
+                ? getApiUrl(NODE_API_URL, `/api/v2/product-categories/${selectedCategory.cat_id}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/product-categories');
 
             const method = selectedCategory ? 'PUT' : 'POST';
 

@@ -8,6 +8,7 @@ function dbContextMiddleware(getTenantPool) {
     return (req, res, next) => {
         // 1. Extrai apenas o CNPJ do header (a configuração vem do cache, não do frontend)
         const tenantCnpj = req.headers['x-tenant-cnpj'];
+        const tenantDbConfigRaw = req.headers['x-tenant-db-config'];
 
         if (tenantCnpj) {
             console.log(`📡 [CONTEXT] Request with Tenant: ${tenantCnpj} | URL: ${req.url}`);
@@ -19,12 +20,21 @@ function dbContextMiddleware(getTenantPool) {
 
         if (tenantCnpj) {
             try {
-                // Busca o pool do cache. NÃO usa config do header para evitar dados desatualizados.
-                // O pool correto é criado durante o login com dados frescos do banco Master.
+                // Tenta buscar do cache primeiro
                 pool = getTenantPool(tenantCnpj, null);
             } catch (err) {
-                // Pool não existe no cache - provavelmente usuário não está logado
-                console.warn(`⚠️ [CONTEXT] Pool não encontrado para ${tenantCnpj}. Usuário pode precisar relogar.`);
+                // Se não está no cache, mas temos a config no header, tentamos recriar
+                if (tenantDbConfigRaw) {
+                    try {
+                        console.log(`🔄 [CONTEXT] Re-instantiating pool from header for ${tenantCnpj}`);
+                        const dbConfig = JSON.parse(tenantDbConfigRaw);
+                        pool = getTenantPool(tenantCnpj, dbConfig);
+                    } catch (parseErr) {
+                        console.error(`❌ [CONTEXT] Failed to parse x-tenant-db-config for ${tenantCnpj}`);
+                    }
+                } else {
+                    console.warn(`⚠️ [CONTEXT] Pool não encontrado para ${tenantCnpj} e nenhuma config fornecida.`);
+                }
             }
         }
 

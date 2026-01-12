@@ -3,6 +3,7 @@ import { Tags } from "lucide-react";
 import { toast } from "sonner";
 import DiscountGroupForm from "../components/forms/DiscountGroupForm";
 import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmGrupoDesc = () => {
     const [groups, setGroups] = useState([]);
@@ -14,7 +15,7 @@ const FrmGrupoDesc = () => {
     const fetchGroups = async () => {
         setLoading(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/v2/discount-groups');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/discount-groups'));
             const data = await response.json();
             if (data.success) {
                 setGroups(data.data);
@@ -47,7 +48,7 @@ const FrmGrupoDesc = () => {
         }
 
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/discount-groups/${group.gde_id}`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/discount-groups/${group.gde_id}`), {
                 method: 'DELETE'
             });
 
@@ -68,8 +69,8 @@ const FrmGrupoDesc = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedGroup
-                ? `https://salesmasters.softham.com.br/api/v2/discount-groups/${selectedGroup.gde_id}`
-                : 'https://salesmasters.softham.com.br/api/v2/discount-groups';
+                ? getApiUrl(NODE_API_URL, `/api/v2/discount-groups/${selectedGroup.gde_id}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/discount-groups');
 
             const method = selectedGroup ? 'PUT' : 'POST';
 

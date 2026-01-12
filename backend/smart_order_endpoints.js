@@ -51,6 +51,7 @@ module.exports = function (app, pool) {
 
             let extractedItems = [];
 
+            console.log(`🤖 [IA ORDER] ${aiProvider.name} extraction START...`);
             if (fileExt === '.xlsx' || fileExt === '.xls') {
                 // EXCEL: Convert to string and process with AI
                 const workbook = XLSX.readFile(filePath);
@@ -69,16 +70,35 @@ module.exports = function (app, pool) {
                 console.log(`🤖 [IA ORDER] Sending Excel data to ${aiProvider.name}...`);
                 extractedItems = await aiProvider.processExcel(dataString);
 
-            } else if (['.png', '.jpg', '.jpeg', '.webp'].includes(fileExt)) {
-                // IMAGE: Process with AI vision
-                console.log(`🤖 [IA ORDER] Sending image to ${aiProvider.name} Vision...`);
-                extractedItems = await aiProvider.processImage(filePath, mimeType);
+            } else if (['.png', '.jpg', '.jpeg', '.webp', '.pdf'].includes(fileExt)) {
+                if (fileExt === '.pdf') {
+                    // PDF: Try text extraction first
+                    try {
+                        const pdfParse = require('pdf-parse');
+                        const dataBuffer = fs.readFileSync(filePath);
+                        const pdfData = await pdfParse(dataBuffer);
 
+                        if (pdfData.text && pdfData.text.trim().length > 10) {
+                            console.log(`🤖 [IA ORDER] PDF text extracted (${pdfData.text.length} chars). Sending to ${aiProvider.name}...`);
+                            extractedItems = await aiProvider.processExcel(pdfData.text); // processExcel accepts generic text
+                        } else {
+                            throw new Error("PDF sem texto extraível (pode ser uma imagem).");
+                        }
+                    } catch (pdfError) {
+                        console.warn(`⚠️ [IA ORDER] PDF text extraction failed: ${pdfError.message}. Falling back to Vision.`);
+                        // Fallback: Send to processImage (Gemini supports PDF natively)
+                        extractedItems = await aiProvider.processImage(filePath, mimeType);
+                    }
+                } else {
+                    // IMAGE: Process with AI vision
+                    console.log(`🤖 [IA ORDER] Sending ${fileExt} to ${aiProvider.name} Vision...`);
+                    extractedItems = await aiProvider.processImage(filePath, mimeType);
+                }
             } else {
-                throw new Error("Formato de arquivo não suportado. Use Excel (.xlsx, .xls) ou Imagem (.png, .jpg, .jpeg, .webp)");
+                throw new Error("Formato de arquivo não suportado. Use Excel (.xlsx, .xls), Imagem (.png, .jpg, .jpeg, .webp) ou PDF (.pdf)");
             }
 
-            console.log(`🤖 [IA ORDER] ${aiProvider.name} extracted ${extractedItems.length} items`);
+            console.log(`🤖 [IA ORDER] ${aiProvider.name} extraction DONE. Items found: ${extractedItems?.length || 0}`);
 
             // Clean up file
             try {

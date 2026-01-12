@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./SmartOrderDialog.css";
 import SmartOrderButton from './SmartOrderButton';
@@ -10,6 +10,7 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
     const [step, setStep] = useState("upload");
     const [fileName, setFileName] = useState("");
     const [file, setFile] = useState(null);
+    const fileInputRef = useRef(null);
 
     // Helper para fechar e resetar
     const handleClose = () => {
@@ -28,6 +29,14 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
         setFileName(selected.name);
     }
 
+    // Trigger file input click
+    const handleUploadClick = () => {
+        console.log("🖱️ [IA FRONT] Clicou em Selecionar Arquivo");
+        fileInputRef.current?.click();
+    };
+
+
+
     const [previewItems, setPreviewItems] = useState([]);
 
     async function startMapping() {
@@ -41,13 +50,15 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
 
         try {
             console.log("📡 [SMART FRONT] Chamando smartOrderService.uploadFile...", file.name);
+            const startTime = Date.now();
             const result = await smartOrderService.uploadFile(file);
-            console.log("🔙 [SMART FRONT] Resposta do Serviço:", result);
+            const duration = Date.now() - startTime;
+            console.log(`🔙 [SMART FRONT] Resposta do Serviço em ${duration}ms:`, result);
 
             if (result.success) {
-                console.log(`✅ [SMART FRONT] Sucesso! ${result.data.length} itens extraídos`);
+                console.log(`✅ [SMART FRONT] Sucesso! ${result.data?.length || 0} itens extraídos`);
                 // Store items for preview and move to preview step
-                setPreviewItems(result.data);
+                setPreviewItems(result.data || []);
                 setStep("preview");
             } else {
                 console.error('❌ [SMART FRONT] Erro:', result.message);
@@ -115,17 +126,16 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                                             <input
                                                 type="file"
                                                 accept="image/*,.pdf,.xlsx,.xls"
-                                                hidden
                                                 onChange={handleFile}
                                             />
                                         </label>
 
-                                        <span className="upload-types">
+                                        <p className="upload-types" style={{ marginTop: '10px' }}>
                                             Suporta: Excel, Fotos (JPG/PNG), Manuscritos
-                                        </span>
+                                        </p>
 
                                         {fileName && (
-                                            <span className="file-name">{fileName}</span>
+                                            <p className="file-name">{fileName}</p>
                                         )}
                                     </div>
                                 </div>
@@ -148,23 +158,23 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                             {step === "preview" && (
                                 <div className="ia-screen preview w-full">
                                     <h4 className="mb-2 text-sm font-semibold">Pré-visualização dos itens ({previewItems.length})</h4>
-                                    <div className="overflow-auto max-h-[200px] border rounded border-gray-200">
-                                        <table className="w-full text-xs text-left">
-                                            <thead className="bg-gray-50 sticky top-0">
+                                    <div className="preview-container">
+                                        <table className="preview-table">
+                                            <thead>
                                                 <tr>
-                                                    <th className="p-2 border-b">Código</th>
-                                                    <th className="p-2 border-b">Descrição</th>
-                                                    <th className="p-2 border-b w-16 text-center">Qtd</th>
-                                                    <th className="p-2 border-b w-20 text-right">Preço</th>
+                                                    <th>Código</th>
+                                                    <th>Descrição</th>
+                                                    <th className="w-16 text-center">Qtd</th>
+                                                    <th className="w-20 text-right">Preço</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {previewItems.map((item, idx) => (
-                                                    <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
-                                                        <td className="p-2 font-mono text-gray-600">{item.codigo || item.codigo_produto || '?'}</td>
-                                                        <td className="p-2 truncate max-w-[200px]">{item.descricao || item.produto || 'Item sem nome'}</td>
-                                                        <td className="p-2 text-center">{item.quantidade || item.quant || 1}</td>
-                                                        <td className="p-2 text-right">
+                                                    <tr key={idx}>
+                                                        <td className="code-col">{item.codigo || item.codigo_produto || '?'}</td>
+                                                        <td className="truncate max-w-[200px]">{item.descricao || item.produto || 'Item sem nome'}</td>
+                                                        <td className="text-center">{item.quantidade || item.quant || 1}</td>
+                                                        <td className="text-right">
                                                             {item.preco
                                                                 ? parseFloat(item.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                                                 : '-'}
@@ -180,11 +190,11 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                         </div>
 
                         {/* FOOTER */}
-                        <div className="ia-footer flex justify-between items-center">
-                            <div className="text-xs text-gray-400 font-mono">
+                        <div className="ia-footer">
+                            <div className="footer-info">
                                 Ped: {orderNumber || '-'} | ID: {orderId || '-'}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="action-buttons">
                                 <button type="button" className="secondary" onClick={handleClose}>
                                     Cancelar
                                 </button>
@@ -212,7 +222,6 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                                     </button>
                                 )}
                             </div>
-
                         </div>
                     </div>
                 </div>,

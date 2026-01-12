@@ -19,7 +19,8 @@ const OrderItemEntry = ({
     pedCliente, // Cliente do pedido para buscar histórico
     userParams = { par_qtdenter: 4, par_usadecimais: 'S', par_qtddecimais: 2, par_fmtpesquisa: 'D' },
     importedItems,
-    onImportComplete
+    onImportComplete,
+    importing = false
 }) => {
     const entrySpeed = userParams?.par_qtdenter || 4;
     const [products, setProducts] = useState([]);
@@ -34,6 +35,7 @@ const OrderItemEntry = ({
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [priceChoice, setPriceChoice] = useState(null); // { product, tipo: 'promo'|'especial', precoAlternativo, precoBruto }
     const codeInputRef = React.useRef(null);
+    const isImporting = React.useRef(false); // Trava para evitar que loadOrderItems sobrescreva importação em andamento
 
     const [currentItem, setCurrentItem] = useState({
         ite_produto: '',
@@ -64,88 +66,125 @@ const OrderItemEntry = ({
     });
 
     // Handle Imported Items from AI
-    // DISABLED: AI Import logic is now handled exclusively by OrderForm/F5 grid.
-    // This effect was consuming items and clearing them, causing them to disappear.
-    /*
     useEffect(() => {
-    if (importedItems && importedItems.length > 0 && products.length > 0) {
-        let addedCount = 0;
-        const newItems = [];
+        if (importedItems && importedItems.length > 0 && products.length > 0) {
+            isImporting.current = true;
+            let addedCount = 0;
+            const newItems = [];
 
-        importedItems.forEach(importItem => {
-            // Find product by Code
-            // The backend returns 'codigo' which matches pro_codprod
-            const product = products.find(p => String(p.pro_codprod) === String(importItem.codigo));
+            // Helper to normalize codes for comparison (remove special chars)
+            const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-            if (product) {
-                const precoBruto = parseFloat(product.itab_precobruto || 0);
-                const quant = parseFloat(importItem.quantidade) || 1;
+            importedItems.forEach(importItem => {
+                // Find product by Fuzzy Code Match
+                // Tenta match exato normalizado OU match numérico (ignora zeros a esquerda: 00123 == 123)
+                const product = products.find(p => {
+                    const dbCode = normalize(p.pro_codprod);
+                    const importCode = normalize(importItem.codigo);
 
-                // Build item structure
-                const rawItem = {
-                    ite_produto: product.pro_codprod,
-                    ite_idproduto: product.pro_id,
-                    ite_embuch: '',
-                    ite_nomeprod: product.pro_nome,
-                    ite_puni: precoBruto,
-                    ite_totbruto: precoBruto,
-                    ite_ipi: product.itab_ipi || 0,
-                    ite_st: product.itab_st || 0,
-                    ite_quant: quant,
-                    ite_mult: parseFloat(product.pro_mult) || 0,
-                    ite_promocao: 'N',
-                    // Apply header discounts
-                    ite_des1: headerDiscounts?.ped_pri || 0,
-                    ite_des2: headerDiscounts?.ped_seg || 0,
-                    ite_des3: headerDiscounts?.ped_ter || 0,
-                    ite_des4: headerDiscounts?.ped_qua || 0,
-                    ite_des5: headerDiscounts?.ped_qui || 0,
-                    ite_des6: headerDiscounts?.ped_sex || 0,
-                    ite_des7: headerDiscounts?.ped_set || 0,
-                    ite_des8: headerDiscounts?.ped_oit || 0,
-                    ite_des9: headerDiscounts?.ped_nov || 0,
+                    if (dbCode === importCode) return true;
 
-                    // Default fields
-                    ite_des10: 0,
-                    ite_valcomipi: 0,
-                    ite_valcomst: 0,
-                };
+                    // Comparação numérica (se ambos forem números válidos)
+                    const dbNum = parseInt(dbCode, 10);
+                    const importNum = parseInt(importCode, 10);
+                    if (!isNaN(dbNum) && !isNaN(importNum) && dbNum === importNum) return true;
 
-                // Calculate totals
-                // We need to use valid calculation logic. 
-                // To avoid duplicating 'calculateItem' logic (which depends on scope), 
-                // we can't easily call it here if it uses closure scope (which it doesn't currently seems to).
-                // Actually calculateItem IS defined in scope below. We can't use it here easily if it is defined later.
-                // But we can move calculateItem or copy logic.
-                // Since calculateItem is simple pure function of 'item', we can inline logic or move it up.
-                // For now, simpler to inline basic calculation or define calculation outside.
-
-                const calculated = calculateLogic(rawItem);
-
-                newItems.push({
-                    ...calculated,
-                    tempId: Date.now() + Math.random(),
-                    ite_industria: selectedIndustry || null,
-                    ite_seq: 0 // Will be assigned later or handled by backend/list
+                    return false;
                 });
 
-                addedCount++;
-            }
-        });
+                if (product) {
+                    const precoBruto = parseFloat(product.itab_precobruto || 0);
+                    // Prioridade: Preço da IA (se > 0) -> Preço da Tabela
+                    const precoFinal = parseFloat(importItem.preco || 0) > 0
+                        ? parseFloat(importItem.preco)
+                        : precoBruto;
 
-        if (newItems.length > 0) {
-            setOrderItems(prev => {
-                // Update sequences
-                const maxSeq = prev.length > 0 ? Math.max(...prev.map(i => i.ite_seq || 0)) : 0;
-                return [...prev, ...newItems.map((item, idx) => ({ ...item, ite_seq: maxSeq + idx + 1 }))];
+                    const quant = parseFloat(importItem.quantidade) || 1;
+
+                    // Build item structure
+                    const rawItem = {
+                        ite_produto: product.pro_codprod,
+                        ite_idproduto: product.pro_id,
+                        ite_embuch: '', // Complemento default empty
+                        ite_nomeprod: importItem.descricao || product.pro_nome, // Usa descrição da IA se houver
+                        ite_puni: precoFinal,
+                        ite_totbruto: precoFinal,
+                        ite_ipi: product.itab_ipi || 0,
+                        ite_st: product.itab_st || 0,
+                        ite_quant: quant,
+                        ite_mult: parseFloat(product.pro_mult) || 0,
+                        ite_promocao: 'N',
+                        // Apply header discounts only if using table price (not special AI price)
+                        ite_des1: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_pri || 0),
+                        ite_des2: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_seg || 0),
+                        ite_des3: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_ter || 0),
+                        ite_des4: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_qua || 0),
+                        ite_des5: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_qui || 0),
+                        ite_des6: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_sex || 0),
+                        ite_des7: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_set || 0),
+                        ite_des8: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_oit || 0),
+                        ite_des9: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_nov || 0),
+
+                        // Default fields
+                        ite_des10: 0,
+                        ite_valcomipi: 0,
+                        ite_valcomst: 0,
+                    };
+
+                    const calculated = calculateLogic(rawItem);
+
+                    newItems.push({
+                        ...calculated,
+                        tempId: Date.now() + Math.random(),
+                        ite_industria: selectedIndustry || null,
+                        ite_seq: 0 // Will be assigned later
+                    });
+
+                    addedCount++;
+                } else {
+                    console.warn(`[AI Import] Product not found for code: ${importItem.codigo}`);
+                }
             });
-            toast.success(`${addedCount} itens importados via IA!`);
-        }
 
-        if (onImportComplete) onImportComplete();
-    */
-    // }
-    // }, [importedItems, products]);
+            if (newItems.length > 0) {
+                // Filtrar itens que JÁ existem na lista para evitar duplicação ou sobrescrita acidental
+                // Se já existir um produto com mesmo código, ignora
+                const nonDuplicateNewItems = newItems.filter(newItem =>
+                    !orderItems.some(existing => existing.ite_produto === newItem.ite_produto)
+                );
+
+                if (nonDuplicateNewItems.length === 0) {
+                    console.log('[AI Import] Todos os itens já existem na lista. Passando reto.');
+                    isImporting.current = false;
+                    if (onImportComplete) onImportComplete();
+                    return;
+                }
+
+                // 1. Calculate Full List (Existing + New)
+                const maxSeq = orderItems.length > 0 ? Math.max(...orderItems.map(i => i.ite_seq || 0)) : 0;
+
+                const itemsToSync = [
+                    ...orderItems,
+                    ...nonDuplicateNewItems.map((item, idx) => ({ ...item, ite_seq: maxSeq + idx + 1 }))
+                ];
+
+                // 2. Update Local State (MemTable)
+                setOrderItems(itemsToSync);
+                toast.success(`${addedCount} itens carregados para conferência!`);
+
+                // 3. Notify Parent
+                if (onItemsChange) onItemsChange(null, itemsToSync);
+
+                // Libera e finaliza a importação local
+                isImporting.current = false;
+                if (onImportComplete) onImportComplete();
+            } else {
+                toast.warning('Nenhum produto correspondente encontrado na tabela.');
+                isImporting.current = false;
+                if (onImportComplete) onImportComplete();
+            }
+        }
+    }, [importedItems, products, pedPedido, headerDiscounts, selectedIndustry]);
 
     // Helper for calculation (duplicated from calculateItem to avoid hoisting issues or deps)
     const calculateLogic = (item) => {
@@ -240,6 +279,12 @@ const OrderItemEntry = ({
     }, [headerDiscounts]);
 
     const loadOrderItems = async () => {
+        // Se estivermos no meio de um processo de importação, NÃO sobrescreva a lista
+        if (isImporting.current || importing) {
+            console.log('[OrderItemEntry] loadOrderItems BLOCKED due to active import.');
+            return;
+        }
+
         try {
             const url = getApiUrl(NODE_API_URL, `/api/orders/${pedPedido}/items`);
             const response = await fetch(url);

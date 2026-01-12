@@ -3,6 +3,7 @@ import { Map } from "lucide-react";
 import { toast } from "sonner";
 import ActivityAreaForm from "../components/forms/ActivityAreaForm";
 import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmAreaAtuacao = () => {
     const [areas, setAreas] = useState([]);
@@ -14,7 +15,7 @@ const FrmAreaAtuacao = () => {
     const fetchAreas = async () => {
         setLoading(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/v2/activity-areas');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/activity-areas'));
             const data = await response.json();
             if (data.success) {
                 setAreas(data.data);
@@ -47,7 +48,7 @@ const FrmAreaAtuacao = () => {
         }
 
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/activity-areas/${area.atu_id}`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/activity-areas/${area.atu_id}`), {
                 method: 'DELETE'
             });
 
@@ -68,8 +69,8 @@ const FrmAreaAtuacao = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedArea
-                ? `https://salesmasters.softham.com.br/api/v2/activity-areas/${selectedArea.atu_id}`
-                : 'https://salesmasters.softham.com.br/api/v2/activity-areas';
+                ? getApiUrl(NODE_API_URL, `/api/v2/activity-areas/${selectedArea.atu_id}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/activity-areas');
 
             const method = selectedArea ? 'PUT' : 'POST';
 

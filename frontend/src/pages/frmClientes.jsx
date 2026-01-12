@@ -1,42 +1,38 @@
 import { useState, useEffect } from "react";
-import { Users } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    Users, Search, Plus, Filter,
+    RefreshCw, UserPlus, SlidersHorizontal,
+    LayoutGrid, List as ListIcon,
+    Sparkles, Target
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import GridCadPadrao from "../components/GridCadPadrao";
 import ClientForm from "../components/forms/ClientForm";
+import ClientCard from "../components/clients/ClientCard";
 import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
+import { cn } from "@/lib/utils";
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
+    const [statusFilter, setStatusFilter] = useState("true"); // 'true' = Ativos, 'false' = Inativos, 'all' = Todos
 
     const [selectedClient, setSelectedClient] = useState(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
-
-    // Format helpers
-    const formatCNPJ = (value) => {
-        if (!value) return "";
-        const raw = value.replace(/\D/g, '');
-        if (raw.length === 11) { // CPF
-            return raw.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-        }
-        if (raw.length === 14) { // CNPJ
-            return raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-        }
-        return value;
-    };
-
-
-    const [statusFilter, setStatusFilter] = useState("true"); // 'true' = Ativos, 'false' = Inativos, 'all' = Todos
+    const [viewMode, setViewMode] = useState("grid"); // grid or list
 
     const fetchClients = async (page = 1) => {
         setLoading(true);
         try {
             const query = new URLSearchParams({
                 page: page.toString(),
-                limit: '10',
+                limit: '12',
                 search: searchTerm,
                 active: statusFilter
             });
@@ -60,9 +56,11 @@ const FrmClientes = () => {
     };
 
     useEffect(() => {
-        // Trigger fetch when these change
         fetchClients(1);
-    }, [statusFilter, searchTerm]); // Added statusFilter dependency
+    }, [statusFilter]);
+
+    const handleSearch = () => fetchClients(1);
+    const handleKeyPress = (e) => { if (e.key === 'Enter') handleSearch(); };
 
     const handleNew = () => {
         setSelectedClient(null);
@@ -70,7 +68,6 @@ const FrmClientes = () => {
     };
 
     const handleSave = async (clientData) => {
-        // ... (existing handleSave)
         setLoading(true);
         try {
             const method = selectedClient ? 'PUT' : 'POST';
@@ -124,106 +121,192 @@ const FrmClientes = () => {
         }
     };
 
-    const columns = [
-        { key: 'cli_codigo', label: 'Cód', width: '80px', isId: true },
-        {
-            key: 'cli_cnpj',
-            label: 'CPF/CNPJ',
-            width: '190px',
-            render: (row) => <span className="font-bold text-sm whitespace-nowrap">{formatCNPJ(row.cli_cnpj)}</span>
-        },
-        {
-            key: 'cli_nomred',
-            label: 'Nome Reduzido',
-            width: '180px', // Reverted to fixed but smaller width as requested "diminua um pouco"
-            render: (row) => (
-                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase truncate">
-                    {row.cli_nomred}
-                </Badge>
-            )
-        },
-        {
-            key: 'cli_nome',
-            label: 'Razão Social / Nome',
-            render: (row) => (
-                <div className="flex flex-col">
-                    <span className="font-medium text-sm text-foreground truncate">{row.cli_nome}</span>
-                    {row.cli_fantasia && row.cli_fantasia !== row.cli_nome && (
-                        <span className="text-xs text-muted-foreground truncate">{row.cli_fantasia}</span>
-                    )}
-                </div>
-            )
-        },
-        {
-            key: 'cli_cidade', // Keeping key, but data now comes from JOIN or fallback
-            label: 'Cidade/UF',
-            width: '150px',
-            render: (row) => <span className="text-sm">{row.cli_cidade}/{row.cli_uf}</span>
-        },
-        {
-            key: 'cli_tipopes',
-            label: 'Situação',
-            width: '100px',
-            align: 'center',
-            render: (row) => (
-                <Badge
-                    variant={row.cli_tipopes === 'A' ? "default" : "secondary"}
-                    className={row.cli_tipopes === 'A'
-                        ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border-emerald-500/20"
-                        : "bg-slate-100 text-slate-500 border-slate-200"}
-                >
-                    {row.cli_tipopes === 'A' ? "Ativo" : "Inativo"}
-                </Badge>
-            )
-        }
-    ];
-
-    // Extra controls for the grid (Status Filter)
-    const extraControls = (
-        <select
-            className="h-9 px-3 py-1 rounded-md border border-input bg-background text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-        >
-            <option value="true">Ativos</option>
-            <option value="false">Inativos</option>
-            <option value="all">Todos</option>
-        </select>
-    );
-
     return (
-        <div className="h-full bg-slate-50 p-6">
+        <div className="flex flex-col h-screen bg-[#f5f5f5] transition-colors duration-500 overflow-hidden">
+            {/* Header Section */}
+            <motion.div
+                initial={{ y: -50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="p-6 border-b border-slate-200 bg-white z-20"
+            >
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
+                                Base de <span className="text-emerald-600">Clientes</span>
+                            </h1>
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] font-black py-0">CRM ACTIVE</Badge>
+                        </div>
+                        <p className="text-slate-400 mt-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest font-black">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                            {pagination.total} PDVS CADASTRADOS NA BASE
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {/* Search Bar */}
+                        <div className="relative group">
+                            <div className="relative flex items-center bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all duration-300">
+                                <Search className="h-4 w-4 text-slate-400 mr-3" />
+                                <input
+                                    placeholder="BUSCAR PDV POR NOME, CNPJ OU ID..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                    className="bg-transparent border-0 outline-none p-0 text-slate-800 placeholder:text-slate-400 text-[11px] font-black uppercase tracking-wider w-80"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Status Filters - White Aesthetic */}
+                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            {[
+                                { id: 'true', label: 'Vigentes' },
+                                { id: 'false', label: 'Suspensos' },
+                                { id: 'all', label: 'Todos' }
+                            ].map((filter) => (
+                                <button
+                                    key={filter.id}
+                                    onClick={() => setStatusFilter(filter.id)}
+                                    className={cn(
+                                        "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                                        statusFilter === filter.id
+                                            ? "bg-white text-emerald-600 shadow-sm border border-slate-200"
+                                            : "text-slate-400 hover:text-slate-500"
+                                    )}
+                                >
+                                    {filter.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={handleNew}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-sm"
+                        >
+                            <UserPlus size={16} />
+                            Novo Cliente
+                        </motion.button>
+                    </div>
+                </div>
+
+                {/* Sub-Filters / Stats bar */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
+                            <Target className="w-3.5 h-3.5 text-emerald-500/50" />
+                            <span className="text-[10px] font-bold text-emerald-500/40 uppercase tracking-widest">Segmentação:</span>
+                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px]">VAREJO</Badge>
+                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px]">ATACADO</Badge>
+                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px] bg-emerald-500/5">POSITIVAR</Badge>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => fetchClients(pagination.page)}
+                            className="p-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <RefreshCw size={14} />
+                        </button>
+                        <div className="h-4 w-[1px] bg-slate-200" />
+                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                            <button
+                                onClick={() => setViewMode("grid")}
+                                className={cn("p-1.5 rounded-md transition-all font-black", viewMode === "grid" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400")}
+                            >
+                                <LayoutGrid size={14} />
+                            </button>
+                            <button
+                                onClick={() => setViewMode("list")}
+                                className={cn("p-1.5 rounded-md transition-all font-black", viewMode === "list" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400")}
+                            >
+                                <ListIcon size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* Content Area */}
+            <ScrollArea className="flex-1 p-6 custom-scrollbar">
+                {loading && clients.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-40 space-y-4">
+                        <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                        <p className="text-[10px] font-black text-emerald-500/40 uppercase tracking-[0.3em] animate-pulse">Sincronizando PDVs...</p>
+                    </div>
+                ) : clients.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-40 space-y-6">
+                        <div className="p-10 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+                            <Users className="w-20 h-20 text-emerald-500/10" />
+                        </div>
+                        <div className="text-center">
+                            <p className="text-emerald-500 font-black uppercase tracking-[0.2em]">Nenhum PDV Localizado</p>
+                            <p className="text-emerald-500/30 text-[10px] mt-2 uppercase">Ajuste os filtros de busca tática ou cadastre novo</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className={cn(
+                        "pb-20",
+                        viewMode === "grid" ? "grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6" : "space-y-4"
+                    )}>
+                        <AnimatePresence>
+                            {clients.map((client, index) => (
+                                <ClientCard
+                                    key={client.cli_codigo}
+                                    client={client}
+                                    index={index}
+                                    onEdit={(row) => { setSelectedClient(row); setIsFormOpen(true); }}
+                                    onDelete={handleDelete}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                )}
+
+                {/* Pagination (Simplified for now) */}
+                {pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 py-8">
+                        <Button
+                            variant="outline"
+                            onClick={() => fetchClients(pagination.page - 1)}
+                            disabled={pagination.page === 1}
+                            className="bg-black/40 border-emerald-500/20 text-emerald-400 text-xs"
+                        >
+                            Anterior
+                        </Button>
+                        <span className="text-xs font-mono text-emerald-500/60 uppercase">Página {pagination.page} de {pagination.totalPages}</span>
+                        <Button
+                            variant="outline"
+                            onClick={() => fetchClients(pagination.page + 1)}
+                            disabled={pagination.page === pagination.totalPages}
+                            className="bg-black/40 border-emerald-500/20 text-emerald-400 text-xs"
+                        >
+                            Próxima
+                        </Button>
+                    </div>
+                )}
+            </ScrollArea>
+
+            {/* Modals and Overlays */}
             <ClientForm
                 open={isFormOpen}
                 onOpenChange={setIsFormOpen}
-                client={selectedClient} // Ensure this prop name matches usage in ClientForm (it was 'data' before, verify)
-                // Wait, ClientForm uses 'data' prop. I should fix this to 'data' here or update ClientForm. 
-                // Previous code passed 'client={selectedClient}' but let's check ClientForm definition.
-                // ClientForm definition: const ClientForm = ({ data, ... })
-                // Let's change prop name to 'data' here to be safe
                 data={selectedClient}
                 onSave={handleSave}
             />
 
-            <GridCadPadrao
-                title="Clientes"
-                subtitle="Gerencie sua base de clientes"
-                icon={Users}
-                data={clients}
-                loading={loading}
-                columns={columns}
-                searchPlaceholder="Buscar por nome, fantasia ou CNPJ..."
-                searchValue={searchTerm}
-                onSearchChange={setSearchTerm}
-                pagination={pagination}
-                onPageChange={(page) => fetchClients(page)}
-                onNew={handleNew}
-                onEdit={(row) => { setSelectedClient(row); setIsFormOpen(true); }}
-                onDelete={handleDelete}
-                onRefresh={() => fetchClients(pagination.page)}
-                newButtonLabel="Novo Cliente"
-                extraControls={extraControls}
-            />
+            {/* FAB for Mobile/Quick access */}
+            <motion.button
+                whileHover={{ scale: 1.1, translateY: -5 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleNew}
+                className="fixed bottom-8 right-8 z-50 w-16 h-16 bg-emerald-500 text-black rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] flex flex-col items-center justify-center group lg:hidden"
+            >
+                <Plus className="w-8 h-8 relative z-10" />
+            </motion.button>
         </div>
     );
 };

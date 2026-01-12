@@ -47,7 +47,7 @@ export const IndustryParetoCard = ({ data, loading }) => {
         });
     };
 
-    const paretoData = calculateParetoData(data);
+    const paretoData = calculateParetoData(data ? data.slice(0, 15) : []);
 
     return (
         <motion.div
@@ -62,7 +62,7 @@ export const IndustryParetoCard = ({ data, loading }) => {
                     Análise Pareto 80/20
                 </h3>
             </div>
-            <div className="chart-container" style={{ height: '360px', padding: '10px 0' }}>
+            <div className="chart-container" style={{ padding: '10px 0', height: '100%', minHeight: '320px' }}>
                 {loading ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                         <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
@@ -90,6 +90,7 @@ export const IndustryParetoCard = ({ data, loading }) => {
                                 tickLine={false}
                                 axisLine={false}
                                 tickFormatter={formatCompact}
+                                domain={[0, 'auto']}
                             />
                             <YAxis
                                 yAxisId="right"

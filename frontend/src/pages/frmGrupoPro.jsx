@@ -3,6 +3,7 @@ import { Package } from "lucide-react";
 import { toast } from "sonner";
 import ProductGroupForm from "../components/forms/ProductGroupForm";
 import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmGrupoPro = () => {
     const [groups, setGroups] = useState([]);
@@ -14,7 +15,7 @@ const FrmGrupoPro = () => {
     const fetchGroups = async () => {
         setLoading(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/v2/product-groups');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/product-groups'));
             const data = await response.json();
             if (data.success) {
                 setGroups(data.data);
@@ -47,7 +48,7 @@ const FrmGrupoPro = () => {
         }
 
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/product-groups/${group.gru_codigo}`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/product-groups/${group.gru_codigo}`), {
                 method: 'DELETE'
             });
 
@@ -68,8 +69,8 @@ const FrmGrupoPro = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedGroup
-                ? `https://salesmasters.softham.com.br/api/v2/product-groups/${selectedGroup.gru_codigo}`
-                : 'https://salesmasters.softham.com.br/api/v2/product-groups';
+                ? getApiUrl(NODE_API_URL, `/api/v2/product-groups/${selectedGroup.gru_codigo}`)
+                : getApiUrl(NODE_API_URL, '/api/v2/product-groups');
 
             const method = selectedGroup ? 'PUT' : 'POST';
 

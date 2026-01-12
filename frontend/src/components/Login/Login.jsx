@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './Login.css';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
-import iconeMasters2025 from '@/assets/icone_masters_2025.png';
+import logoSales from '@/assets/salesmasters_logo_v2.png';
 
 const Login = () => {
   // ============================================================================
@@ -254,11 +254,10 @@ const Login = () => {
       {showLogin && (
         <div id="loginScreen" className="show">
           <div className="login-card">
-            {/* LOGO */}
-            <div className="login-logo">
-              <img src={iconeMasters2025} alt="SalesMasters Logo" />
-              <div className="logo-text">SalesMasters</div>
-              <div className="logo-version">PROFESSIONAL V2.5</div>
+            {/* LOGO OFICIAL */}
+            <div className="login-logo flex flex-col items-center mb-6">
+              <img src={logoSales} alt="SalesMasters Official Logo" className="h-16 w-auto mb-2" />
+              <div className="logo-version text-[10px] font-bold text-blue-400 tracking-widest">PROFESSIONAL V2.5</div>
             </div>
 
             {/* WELCOME */}

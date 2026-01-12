@@ -30,8 +30,9 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
             const result = await response.json();
 
             if (result.success) {
-                setData(result.data);
+                setData(result.data || []);
             } else {
+                setData([]);
                 setError(result.message);
             }
         } catch (err) {
@@ -51,7 +52,7 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
     };
 
     const sortedData = React.useMemo(() => {
-        if (!data.length) return [];
+        if (!data || !data.length) return [];
 
         const sorted = [...data].sort((a, b) => {
             const aVal = parseFloat(a[sortConfig.key]) || 0;
@@ -130,7 +131,7 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
         );
     }
 
-    if (!data.length) {
+    if (!data || !data.length) {
         return (
             <div className="sales-performance-card">
                 <div className="card-header">

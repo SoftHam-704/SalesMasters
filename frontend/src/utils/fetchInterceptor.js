@@ -21,6 +21,12 @@ window.fetch = async (...args) => {
 
         // Tenta pegar o tenant do sessionStorage
         const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
+        const sessionToken = localStorage.getItem('session_token');
+
+        if (sessionToken) {
+            config.headers['x-access-token'] = sessionToken;
+        }
+
         if (tenantConfigRaw) {
             try {
                 const tenantConfig = JSON.parse(tenantConfigRaw);

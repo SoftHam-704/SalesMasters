@@ -46,7 +46,7 @@ const DbComboBox = ({
     useEffect(() => {
         if (!open) return;
 
-        const search = (inputValue || '').trim();
+        const search = String(inputValue || '').trim();
 
         const timer = setTimeout(async () => {
             setLoading(true);

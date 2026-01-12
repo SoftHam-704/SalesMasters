@@ -1,8 +1,9 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Package, X } from 'lucide-react';
+import { Package, X, Zap, Sparkles } from 'lucide-react';
 import OrderForm from './OrderForm';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder }) => {
     const handleClose = () => {
@@ -18,24 +19,16 @@ const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, sel
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent hideCloseButton className="w-[1350px] max-w-[98vw] p-0 gap-0 bg-transparent border-none shadow-2xl h-[85vh] flex flex-col">
-                <DialogHeader className="bg-teal-600 text-white px-4 py-2 flex flex-row items-center justify-between shrink-0 rounded-t-lg">
-                    <DialogTitle className="text-sm font-bold flex items-center gap-2">
-                        Novo Pedido <span className="text-teal-200 font-normal">• {selectedIndustry?.for_nomered}</span>
-                    </DialogTitle>
-                    <DialogDescription className="hidden">
-                        Preencha os dados do pedido
-                    </DialogDescription>
-                    <div className="flex items-center gap-2">
-                        <div className="bg-teal-700/50 rounded px-2 py-1 text-xs flex items-center gap-1">
-                            <Package className="h-3 w-3" /> Cadastro de Pedido
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-teal-700 hover:text-white" onClick={handleClose}>
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </DialogHeader>
-                <div className="flex-1 overflow-hidden bg-slate-50/50">
+            <DialogContent
+                className="w-[1450px] max-w-[98vw] p-0 gap-0 bg-white border border-slate-200 shadow-2xl h-[95vh] flex flex-col overflow-hidden rounded-[2rem] transition-all duration-700 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95"
+            >
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 z-[100]" />
+
+                <div className="flex-1 overflow-hidden relative">
+                    {/* Interior Glows */}
+                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+
                     <OrderForm
                         selectedIndustry={selectedIndustry}
                         onClose={handleClose}

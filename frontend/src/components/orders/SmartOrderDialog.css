@@ -1,185 +1,177 @@
+/* OVERLAY ESCURO COM BLUR (VIDRO FOSCO) */
 .ia-overlay {
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    /* Mais escuro */
-    backdrop-filter: blur(5px);
-    /* Desfoca o fundo da tabela */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    /* Z-index muito alto */
     pointer-events: auto;
-    /* Garante que pegue os cliques */
 }
 
-/* DIALOG */
+/* DIALOGO - VERSÃO FUNCIONAL (Fundo Claro) */
 .ia-dialog {
-    width: 520px;
-    background: #f3f4f6;
-    /* Cinza claro sólido e opaco */
-    border: 1px solid #d1d5db;
-    /* Borda sutil para delimitar */
-    border-radius: 16px;
-    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
-    /* Stronger shadow */
-    padding: 18px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    width: 900px;
+    max-width: 95vw;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    padding: 24px;
+    font-family: 'Inter', system-ui, sans-serif;
     display: flex;
     flex-direction: column;
     position: relative;
-    /* Ensure stacking context */
-    z-index: 1001;
-    /* Above overlay */
-    isolation: isolate;
-    /* Create new stacking context */
+    color: #1f2937;
+    z-index: 10000;
+    pointer-events: auto;
 }
 
 /* HEADER */
 .ia-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 16px;
 }
 
 .ia-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+}
+
+.ia-title h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    color: #111827;
 }
 
 .ia-bot {
-    font-size: 20px;
-}
-
-.ia-header h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-    color: #1f2937;
+    font-size: 24px;
 }
 
 .close-btn {
-    background: none;
+    background: transparent;
     border: none;
-    font-size: 18px;
+    color: #6b7280;
+    font-size: 24px;
     cursor: pointer;
-    color: #6b7280;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    line-height: 1;
 }
 
-/* SUBTITLE */
+.close-btn:hover {
+    color: #111827;
+}
+
 .ia-subtitle {
-    margin: 8px 0 16px;
-    font-size: 13px;
-    color: #6b7280;
+    margin: 16px 0;
+    font-size: 14px;
+    color: #4b5563;
 }
 
-/* CONTENT */
+/* CONTENT AREAS */
 .ia-content {
-    /* Removed fixed height and absolute positioning logic */
-    min-height: 220px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-/* SCREENS */
-.ia-screen {
-    /* Standard flow */
-    width: 100%;
-    margin: 0 auto;
+    min-height: 300px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    animation: fadeIn 0.3s ease-out;
+    position: relative;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+.ia-screen {
+    width: 100%;
+    /* height: 100%; */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
-/* PREVIEW SPECIFIC */
-.ia-screen.preview {
-    align-items: flex-start; /* Align list better */
-    padding: 0 10px;
-}
-
-/* UPLOAD ZONE */
+/* UPLOAD ZONE - CLEAN */
 .upload-zone {
     width: 100%;
-    padding: 28px;
-    border-radius: 14px;
-    border: 1px dashed #c7d2fe;
-    background: radial-gradient(circle at top, #eef2ff, #ffffff);
-    text-align: center;
+    height: 250px;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    background: #f9fafb;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-}
-
-.upload-text {
-    font-size: 14px;
-    color: #374151;
-    margin-bottom: 12px;
-}
-
-.upload-button {
-    display: inline-block;
-    padding: 10px 18px;
-    background: linear-gradient(180deg, #60a5fa, #2563eb);
-    color: white;
-    border-radius: 10px;
-    font-size: 14px;
-    cursor: pointer;
-    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
-    font-weight: 500;
     transition: all 0.2s;
 }
 
+.upload-zone:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.upload-text {
+    font-size: 15px;
+    color: #6b7280;
+    margin-bottom: 16px;
+    font-weight: 500;
+}
+
+.upload-button {
+    background: #3b82f6;
+    /* Azul padrao funcional */
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-block;
+    transition: background 0.2s;
+}
+
 .upload-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.4);
+    background: #2563eb;
+}
+
+/* Esconde o input padrao */
+.upload-button input {
+    display: none;
 }
 
 .upload-types {
-    display: block;
-    margin-top: 10px;
+    margin-top: 16px;
     font-size: 12px;
-    color: #6b7280;
+    color: #9ca3af;
 }
 
 .file-name {
-    display: block;
-    margin-top: 8px;
-    font-size: 12px;
-    color: #1f2937;
+    margin-top: 12px;
+    font-size: 14px;
+    color: #059669;
     font-weight: 600;
-    background: #f3f4f6;
-    padding: 4px 8px;
+    background: #ecfdf5;
+    padding: 4px 12px;
     border-radius: 4px;
 }
 
-/* ANALYZING */
+/* ANALYZING ANIMATION - SIMPLE */
 .analyzing-box {
     text-align: center;
 }
 
 .magnifier {
-    font-size: 40px;
+    font-size: 48px;
     margin-bottom: 16px;
     display: inline-block;
-    animation: float 2s ease-in-out infinite;
+    animation: bounce 1s infinite;
 }
 
-@keyframes float {
+@keyframes bounce {
 
     0%,
     100% {
@@ -191,59 +183,114 @@
     }
 }
 
-.analyzing-box h4 {
+/* PREVIEW TABLE - CLEAN */
+.ia-screen.preview {
+    align-items: flex-start;
+    height: auto;
+    width: 100%;
+}
+
+.ia-screen.preview h4 {
     font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 12px;
+}
+
+.preview-container {
+    width: 100%;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.preview-table th {
+    background: #f3f4f6;
     color: #374151;
-    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+}
+
+.preview-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #1f2937;
+    font-size: 14px;
+}
+
+.code-col {
+    font-family: monospace;
+    color: #2563eb;
     font-weight: 600;
 }
 
 /* FOOTER */
 .ia-footer {
-    margin-top: auto;
-    padding-top: 18px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.footer-info {
+    font-family: monospace;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.action-buttons {
+    display: flex;
     gap: 12px;
 }
 
 .ia-footer button {
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 13px;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 6px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-}
-
-.ia-footer .secondary {
-    background: transparent;
-    color: #6b7280;
     border: 1px solid transparent;
 }
 
-.ia-footer .secondary:hover {
-    background: #f3f4f6;
+.ia-footer .secondary {
+    background: white;
+    border-color: #d1d5db;
     color: #374151;
 }
 
+.ia-footer .secondary:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
 .ia-footer .primary {
-    background: #2563eb;
+    background: #3b82f6;
+    /* Azul functional */
     color: white;
-    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
 }
 
 .ia-footer .primary:hover:not(:disabled) {
-    background: #1d4ed8;
+    background: #2563eb;
 }
 
 .ia-footer .primary:disabled {
-    background: #93c5fd;
+    background: #9ca3af;
     cursor: not-allowed;
-    box-shadow: none;
-}
-
-.ia-footer .loading {
-    cursor: wait;
 }

@@ -161,6 +161,8 @@ export const Sidebar = () => {
     };
 
     const [dbType, setDbType] = useState(null);
+    const [syncStatus, setSyncStatus] = useState('NORMAL');
+    const [lastSync, setLastSync] = useState(null);
     const [openSectionId, setOpenSectionId] = useState('movimentacoes');
     const [userPermissions, setUserPermissions] = useState(null);
     const [isMaster, setIsMaster] = useState(false);
@@ -187,6 +189,8 @@ export const Sidebar = () => {
                 const data = await response.json();
                 if (data.success) {
                     setDbType(data.database_type);
+                    if (data.sync_status) setSyncStatus(data.sync_status);
+                    if (data.last_sync) setLastSync(data.last_sync);
                 }
             } catch (error) {
                 console.error('Error fetching system info:', error);
@@ -400,13 +404,29 @@ export const Sidebar = () => {
                         <p className="text-[11px] font-black text-blue-900 truncate tracking-tight">SoftHam Sistemas</p>
                         <p className="text-[9px] text-slate-600 font-extrabold tracking-wide mt-0.5">(67) 9.9607-8885</p>
 
-                        <div className="flex items-center gap-1.5 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                             <div className={cn(
                                 "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
                                 dbType === 'local' ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"
                             )}>
                                 <span className={cn("h-1 w-1 rounded-full animate-pulse", dbType === 'local' ? "bg-amber-500" : "bg-emerald-500")} />
                                 {dbType === 'local' ? 'LOCAL' : 'CLOUD'}
+                            </div>
+
+                            <div className={cn(
+                                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                syncStatus === 'NORMAL' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                                    syncStatus === 'WARNING' ? "bg-yellow-50 text-yellow-600 border border-yellow-100" :
+                                        syncStatus === 'DELAYED' ? "bg-rose-50 text-rose-600 border border-rose-100" :
+                                            "bg-slate-50 text-slate-600 border border-slate-100"
+                            )}>
+                                <span className={cn("h-1 w-1 rounded-full",
+                                    syncStatus === 'NORMAL' ? "bg-emerald-500" :
+                                        syncStatus === 'WARNING' ? "bg-yellow-500 animate-pulse" :
+                                            syncStatus === 'DELAYED' ? "bg-rose-500 animate-bounce" :
+                                                "bg-slate-400"
+                                )} />
+                                SYNC: {syncStatus}
                             </div>
                         </div>
                     </div>

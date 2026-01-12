@@ -11,19 +11,16 @@ module.exports = (pool) => {
 
             let query = `
                 SELECT 
-                    c.cli_codigo,
-                    c.cli_cnpj as cli_cgc, -- Aliasing to keep frontend compatibility or change frontend? Better change frontend to match DB.
-                    -- Actually, let's select as cli_cnpj and update frontend. Cleaner.
-                    c.cli_cnpj,
+                    c.cli_codigo as codigo,
+                    c.cli_cnpj as cnpj_cpf,
                     c.cli_nomred,
-                    c.cli_nome,
-                    c.cli_fantasia,
-                    c.cli_cidade as cli_cidade_manual,
-                    c.cli_uf as cli_uf_manual,
-                    coalesce(cid.cid_nome, c.cli_cidade) as cli_cidade,
-                    coalesce(cid.cid_uf, c.cli_uf) as cli_uf,
-                    c.cli_fone1,
-                    c.cli_tipopes
+                    c.cli_nome as raz_social,
+                    c.cli_fantasia as fantasia,
+                    coalesce(cid.cid_nome, c.cli_cidade) as cidade,
+                    coalesce(cid.cid_uf, c.cli_uf) as uf,
+                    c.cli_fone1 as fone,
+                    c.cli_tipopes,
+                    (c.cli_tipopes != 'A') as bloqueado
                 FROM clientes c
                 LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
                 WHERE 1=1

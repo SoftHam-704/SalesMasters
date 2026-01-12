@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmCadastroProdutos = () => {
     const [industries, setIndustries] = useState([]);
@@ -36,7 +37,7 @@ const FrmCadastroProdutos = () => {
 
     const fetchIndustries = async () => {
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/suppliers'));
             const data = await response.json();
             if (data.success) {
                 // Remove duplicates and ensure valid IDs
@@ -61,9 +62,9 @@ const FrmCadastroProdutos = () => {
 
         setLoading(true);
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/products/catalog/${industria}`);
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/products/catalog/${industria}`));
             const data = await response.json();
-            
+
             if (data.success) {
                 setProducts(data.data);
                 setFilteredProducts(data.data);

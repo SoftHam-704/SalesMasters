@@ -8,11 +8,16 @@ export const smartOrderService = {
 
         console.log(`📡 [SMART SERVICE] Fetching to ${API_URL}/smart-order/upload...`);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 130000); // 130s timeout
+
         try {
             const response = await fetch(`${API_URL}/smart-order/upload`, {
                 method: 'POST',
                 body: formData,
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
 
             console.log("🔙 [SMART SERVICE] Fetch status:", response.status);
 

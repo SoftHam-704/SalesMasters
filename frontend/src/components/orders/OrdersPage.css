@@ -1,7 +1,36 @@
+/* Custom Scrollbar for Emerald Dark Theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.4);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Base Layout (Tailwind handles most) */
 .orders-page {
   display: flex;
-  height: calc(100vh - 60px);
-  background: hsl(var(--background));
+  height: 100vh;
+  background: #f5f5f5;
 }
 
 .orders-main {

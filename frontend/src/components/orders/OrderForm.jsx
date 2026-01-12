@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+// @cortex-lock: Do not change visual styles or layout unless explicitly requested. Logic is priority.
+// @cortex-lock: Do not change visual styles or layout unless explicitly requested. Logic is priority.
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -184,6 +186,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [loading, setLoading] = useState(false);
     const [summaryItems, setSummaryItems] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [justImported, setJustImported] = useState(false); // Flag para bloquear refresh do banco após importação
     const [showBuyerDialog, setShowBuyerDialog] = useState(false);
     const [showConditionDialog, setShowConditionDialog] = useState(false);
     const [userParams, setUserParams] = useState({ par_qtdenter: 4 }); // Default to careful
@@ -313,17 +317,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
     // Load summary items
     const loadSummaryItems = async (orderId = null) => {
-        const memItems = importedItemsRef.current;
-        console.log(`📥 [loadSummaryItems] called. importedItemsRef=${memItems.length}, orderId=${orderId}`);
-        // Se houver itens importados (memoria) e não salvos, mostre-os!
-        if (memItems.length > 0) {
-            console.log("📦 [OrderForm] Usando itens importados da memória na grid F5 (via REF)");
-            setSummaryItems(memItems);
+        // Se acabamos de importar itens da IA e eles estão na MemTable, NÃO busque no banco ainda
+        if (justImported && summaryItems.length > 0) {
+            console.log("📦 [OrderForm] Mantendo itens importados na MemTable (bloqueando refresh do banco)");
             return;
         }
 
         const idToLoad = orderId || formData.ped_pedido;
-        if (!idToLoad || idToLoad === '(Novo)' || isSaving) return;
+        if (!idToLoad || idToLoad === '(Novo)' || isSaving || isImporting) return;
 
         try {
             const data = await orderService.getItems(idToLoad);
@@ -335,9 +336,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     };
 
+    // Track previous importedItems length to detect "Clear" event
+    const prevImportedLength = useRef(0);
+
     // Load items when F1 or F5 tab becomes active OR when importedItems changes (Sugestão)
     useEffect(() => {
-        if (isSaving) return;
+        if (isSaving || isImporting) return;
 
         // F1: Load items if order exists
         if (activeTab === 'F1' && formData.ped_pedido && formData.ped_pedido !== '(Novo)') {
@@ -347,8 +351,19 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         // F5: Load items (from memory or DB)
         // Checks if we are on F5 OR if we just received importedItems while on F5
         if (activeTab === 'F5') {
-            loadSummaryItems();
+            // CRITICAL FIX: If we just finished importing (length went from >0 to 0),
+            // do NOT reload from DB immediately, as onItemsChange already updated the UI
+            // and we want to avoid race conditions or overwriting with stale DB data.
+            const justFinishedImporting = prevImportedLength.current > 0 && importedItems.length === 0;
+
+            if (!justFinishedImporting) {
+                loadSummaryItems();
+            } else {
+                console.log("[OrderForm] Skipping F5 reload after import completion to preserve fresh UI state.");
+            }
         }
+
+        prevImportedLength.current = importedItems.length;
     }, [activeTab, formData.ped_pedido, isSaving, importedItems]);
 
     // Recalcular totais do pedido com lógica robusta (calculando impostos on-the-fly se necessário)
@@ -538,12 +553,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 if (importedItems.length > 0) {
                     console.log("💾 [handleSave] Sincronizando itens sugeridos...", importedItems.length);
                     try {
-                        // 1. Get existing items (to determine sequence)
                         const existingResponse = await fetch(`/api/orders/${savedPedidoId}/items`);
                         const existingJson = existingResponse.ok ? await existingResponse.json() : { data: [] };
-                        const existingItems = existingJson.data || []; // API returns { success, data }
+                        const existingItems = existingJson.data || [];
 
-                        // 2. Assign sequence numbers
                         let nextSeq = existingItems.length > 0
                             ? Math.max(...existingItems.map(i => i.ite_seq || 0)) + 1
                             : 1;
@@ -553,21 +566,21 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                             ite_seq: nextSeq + idx
                         }));
 
-                        // 3. Merge
                         const allItems = [...existingItems, ...itemsWithSeq];
 
-                        // 4. Send to Sync Endpoint
                         const syncResponse = await fetch(`/api/orders/${savedPedidoId}/items/sync`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(allItems)
                         });
 
-                        if (!syncResponse.ok) throw new Error("Falha ao salvar itens importados.");
-
-                        console.log("✅ [handleSave] Itens salvos com sucesso!");
-                        setImportedItems([]); // Clear memory
-
+                        if (syncResponse.ok) {
+                            console.log("✅ [handleSave] Itens salvos com sucesso!");
+                            setSummaryItems(allItems);
+                            setImportedItems([]);
+                        } else {
+                            throw new Error("Falha ao salvar itens importados.");
+                        }
                     } catch (syncErr) {
                         console.error("❌ [handleSave] Erro ao salvar itens:", syncErr);
                         toast.error("Pedido salvo, mas houve erro ao salvar os itens.");
@@ -586,11 +599,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 // Só chama onSave se não for silent (evita fechar o diálogo quando mudando para F3)
                 if (!silent && onSave) onSave(result.data);
 
-                // Reload items specifically to reflect changes (important if we just saved imports)
-                if (importedItems.length > 0) {
-                    loadSummaryItems(result.data.ped_pedido);
-                }
-
+                // Já atualizamos a grid acima se houver importação
                 return result.data;
             }
         } catch (error) {
@@ -604,6 +613,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
     // Reusable handler for Smart Order suggestions (IA)
     const handleSmartImportItems = async (items) => {
+        setIsImporting(true);
         // 1. Ensure Order is Saved before importing items
         let currentOrderId = formData.ped_pedido;
         if (!currentOrderId || currentOrderId === '(Novo)') {
@@ -639,10 +649,34 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 : 1;
 
             for (const item of items) {
-                const product = products.find(p =>
-                    String(p.pro_codprod) === String(item.codigo || item.codigo_produto) ||
-                    String(p.pro_codigonormalizado) === String(item.codigo || item.codigo_produto)
-                );
+                // Discovery Logic: Splits strings like "CB09187/AH S088/81-065/AOI003"
+                const rawImportCode = String(item.codigo || item.codigo_produto || '').toUpperCase();
+                const fragments = rawImportCode.split(/[/|;,\s]+/).filter(f => f.length >= 3); // Splita e ignora fragmentos muito curtos
+
+                const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const importNum = parseInt(normalize(rawImportCode), 10);
+
+                const product = products.find(p => {
+                    const dbCode = normalize(p.pro_codprod);
+                    const dbCodeNorm = normalize(p.pro_codigonormalizado);
+                    const dbNum = parseInt(dbCode, 10);
+
+                    // 1. Tenta match com qualquer um dos fragmentos (Inteligência de Similares)
+                    for (const frag of fragments) {
+                        const normFrag = normalize(frag);
+                        if (dbCode === normFrag || dbCodeNorm === normFrag) return true;
+
+                        // Comparação numérica do fragmento
+                        const fragNum = parseInt(normFrag, 10);
+                        if (!isNaN(dbNum) && !isNaN(fragNum) && dbNum === fragNum && normFrag.length >= 3) return true;
+                    }
+
+                    // 2. Fallback: Match na string cheia (caso não tenha separadores)
+                    const importCodeFull = normalize(rawImportCode);
+                    if (dbCode === importCodeFull || dbCodeNorm === importCodeFull) return true;
+
+                    return false;
+                });
 
                 if (!product) {
                     notFoundInTable.push(item.codigo || item.codigo_produto || '?');
@@ -689,13 +723,19 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
             // Sync IN MEMORY and then navigate
             const allMemItems = [...existingItems, ...finalImportItems];
-            setImportedItems(allMemItems);
+
+            // ATENÇÃO: setJustImported(true) evita que a troca de aba limpe a MemTable
+            setJustImported(true);
+            setImportedItems(items);
             setSummaryItems(allMemItems);
+
+            // Limpa a flag de 'recém importado' após alguns segundos ou no próximo save
+            setTimeout(() => setJustImported(false), 5000);
 
             toast.success(`✨ ${finalImportItems.length} itens carregados para conferência!`);
 
             setTimeout(() => {
-                setActiveTab('F5');
+                handleTabChange('F5', { skipSave: true });
             }, 500);
 
             return true;
@@ -703,26 +743,38 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             console.error('❌ [Smart Import] Error:', error);
             toast.error('Erro ao processar importação: ' + error.message);
             return false;
+        } finally {
+            setIsImporting(false);
         }
     };
 
     // Handle tab change
-    const handleTabChange = async (tab) => {
-        // Abas que manipulam itens (F2=Sugestão, F3=Itens, F5=Conferência, XX=Import XLS) 
-        // requerem que o pedido seja salvo primeiro para garantir integridade
-        const needsSave = ['F2', 'F3', 'F5', 'XX'].includes(tab);
-        const isNew = !formData.ped_pedido || formData.ped_pedido === '(Novo)' || formData.ped_pedido.toString().startsWith('HS');
+    // Handle tab change
+    const handleTabChange = async (targetTab, options = {}) => {
+        // "lembre-se que sempre que pressionar qualquer um dos F, o sistema precisa salvar o registro PAI"
+        // ALWAYS save header when navigating away from F1 to ensure integrity before loading items/details.
 
-        if (needsSave && isNew) {
-            // Salva com silent=true para não fechar o diálogo
-            const savedOrder = await handleSave({ silent: true });
-            if (savedOrder) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                setActiveTab(tab);
+        const isHeaderActive = activeTab === 'F1';
+        const isTargetF1 = targetTab === 'F1';
+        const { skipSave = false } = options;
+
+        // If we are navigating TO a functional tab (anything that isn't F1), MUST SAVE.
+        // Even if moving from F3 to F5, saving header ensures strictly up-to-date state.
+        // Skip if explicitly requested OR if already saving.
+        if (!isTargetF1 && !skipSave && !isSaving) {
+            const saved = await handleSave({ silent: true });
+            if (!saved) {
+                // Validation failed or error saving. Blocking navigation to protect integrity.
+                return;
             }
-        } else {
-            setActiveTab(tab);
+
+            // If it was a new order, wait a moment for state propagation (ID update)
+            if (!formData.ped_pedido || formData.ped_pedido === '(Novo)') {
+                await new Promise(r => setTimeout(r, 200));
+            }
         }
+
+        setActiveTab(targetTab);
     };
 
     // Handle field change
@@ -1538,8 +1590,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const labelClasses = "text-[11px] text-slate-700 font-bold uppercase tracking-wider mb-1.5 block ml-1";
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white/95 backdrop-blur-xl w-full max-w-[1400px] h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/20 luxury-shadow select-none relative mesh-gradient">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white/95 backdrop-blur-xl w-full h-full flex flex-col overflow-hidden select-none relative mesh-gradient">
                 {/* Decorative border top gradient */}
                 <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 shrink-0" />
 
@@ -2073,6 +2125,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 }
                             }}
                             allowDuplicates={allowDuplicates}
+                            importing={isImporting}
                             pedCliente={formData.ped_cliente}
                             userParams={userParams}
                         />

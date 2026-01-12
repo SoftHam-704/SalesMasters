@@ -13,6 +13,12 @@ axios.interceptors.request.use(
         if (url.includes('salesmasters.softham.com.br') || url.includes('localhost') || url.startsWith('/api')) {
             // Tenta pegar o tenant do sessionStorage
             const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
+            const sessionToken = localStorage.getItem('session_token');
+
+            if (sessionToken) {
+                config.headers['x-access-token'] = sessionToken;
+            }
+
             if (tenantConfigRaw) {
                 try {
                     const tenantConfig = JSON.parse(tenantConfigRaw);

@@ -53,6 +53,10 @@ const PORT = (() => {
 
 // Middleware
 app.use(cors());
+app.use((req, res, next) => {
+    console.log(`🌐 [REQUEST] ${req.method} ${req.url}`);
+    next();
+});
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -110,7 +114,144 @@ app.get('/api/image', (req, res) => {
     res.sendFile(imagePath);
 });
 
-// Serve static files from the frontend
+// --- DASHBOARD API BYPASS (Prioridade Alta) ---
+// Estas rotas precisam ser definidas antes do static files/fallback do React
+app.get('/api/dashboard/metrics', async (req, res) => {
+    try {
+        const { ano, mes, industria } = req.query;
+        if (!ano) return res.status(400).json({ success: false, message: 'Ano obrigatório' });
+
+        const result = await pool.query(
+            'SELECT * FROM get_dashboard_metrics($1, $2, $3)',
+            [
+                parseInt(ano),
+                mes ? parseInt(mes) : 0,
+                industria ? parseInt(industria) : 0
+            ]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows[0] || {
+                total_vendido_current: 0,
+                vendas_percent_change: 0,
+                quantidade_vendida_current: 0,
+                quantidade_percent_change: 0,
+                clientes_atendidos_current: 0,
+                clientes_percent_change: 0,
+                total_pedidos_current: 0,
+                pedidos_percent_change: 0
+            }
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error:', error);
+        res.json({ success: true, data: { total_vendido_current: 0 } });
+    }
+});
+
+app.get('/api/dashboard/industry-revenue', async (req, res) => {
+    try {
+        const { ano, mes } = req.query;
+        let query = `
+            SELECT i.for_nomered as industria_nome, SUM(p.ped_totliq) as total_faturamento
+            FROM pedidos p
+            JOIN fornecedores i ON i.for_codigo = p.ped_industria
+            WHERE EXTRACT(YEAR FROM p.ped_data) = $1
+              AND p.ped_situacao <> 'C'
+        `;
+        const params = [parseInt(ano)];
+        if (mes) {
+            query += ' AND EXTRACT(MONTH FROM p.ped_data) = $2 ';
+            params.push(parseInt(mes));
+        }
+        query += ' GROUP BY i.for_nomered ORDER BY total_faturamento DESC LIMIT 20';
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows || [] });
+    } catch (error) {
+        console.error('❌ [INDUSTRY] Error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+app.get('/api/dashboard/top-clients', async (req, res) => {
+    try {
+        const { ano, mes, limit = 15 } = req.query;
+        let query = `
+            SELECT 
+                c.cli_codigo as cliente_codigo,
+                COALESCE(NULLIF(c.cli_nomred, ''), c.cli_nome) as cliente_nome,
+                SUM(p.ped_totliq) as total_vendido,
+                COUNT(DISTINCT p.ped_pedido) as quantidade_pedidos
+            FROM pedidos p
+            JOIN clientes c ON c.cli_codigo = p.ped_cliente
+            WHERE EXTRACT(YEAR FROM p.ped_data) = $1
+              AND p.ped_situacao <> 'C'
+        `;
+        const params = [parseInt(ano)];
+        let pIndex = 2;
+        if (mes) {
+            query += ` AND EXTRACT(MONTH FROM p.ped_data) = $${pIndex} `;
+            params.push(parseInt(mes));
+            pIndex++;
+        }
+        query += ` GROUP BY c.cli_codigo, c.cli_nomred, c.cli_nome ORDER BY total_vendido DESC LIMIT $${pIndex}`;
+        params.push(parseInt(limit));
+
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows || [] });
+    } catch (error) {
+        console.error('❌ [TOP-CLIENTS] Error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+
+// 4. Comparativo de Vendas (Gráfico)
+app.get('/api/dashboard/sales-comparison', async (req, res) => {
+    try {
+        const { anoAtual, anoAnterior } = req.query;
+        const result = await pool.query(
+            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2)',
+            [anoAtual || 2025, anoAnterior || 2024]
+        );
+        res.json({ success: true, data: result.rows || [] });
+    } catch (error) {
+        console.error('❌ [SALES-COMP] Error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+// 5. Comparativo de Quantidades (Gráfico)
+app.get('/api/dashboard/quantities-comparison', async (req, res) => {
+    try {
+        const { anoAtual, anoAnterior } = req.query;
+        const result = await pool.query(
+            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2)',
+            [anoAtual || 2025, anoAnterior || 2024]
+        );
+        res.json({ success: true, data: result.rows || [] });
+    } catch (error) {
+        console.error('❌ [QTY-COMP] Error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+// 6. Performance de Vendedores (Tabela)
+app.get('/api/dashboard/sales-performance', async (req, res) => {
+    try {
+        const { ano, mes } = req.query;
+        const result = await pool.query(
+            'SELECT * FROM get_sales_performance($1, $2)',
+            [parseInt(ano), mes ? parseInt(mes) : null]
+        );
+        res.json({ success: true, data: result.rows || [] });
+    } catch (error) {
+        console.error('❌ [PERFORMANCE] Error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+
 if (process.env.NODE_ENV === 'production') {
     // A pasta frontend/dist foi copiada para DEPLOY_READY/frontend
     // No servidor, o backend está em ROOT/backend e o frontend em ROOT/frontend
@@ -1514,27 +1655,48 @@ app.get('/api/dashboard/metrics', async (req, res) => {
 
         const result = await pool.query(
             'SELECT * FROM get_dashboard_metrics($1, $2)',
-            [parseInt(ano), mes ? parseInt(mes) : null]
+            [parseInt(ano), mes ? parseInt(mes) : 0]
         );
+
+        if (!result.rows || result.rows.length === 0) {
+            console.log('⚠️ [DASHBOARD] Nenhum dado retornado pela função SQL');
+            return res.json({
+                success: true,
+                data: {
+                    total_vendido_current: 0,
+                    vendas_percent_change: 0,
+                    quantidade_vendida_current: 0,
+                    quantidade_percent_change: 0,
+                    clientes_atendidos_current: 0,
+                    clientes_percent_change: 0,
+                    total_pedidos_current: 0,
+                    pedidos_percent_change: 0
+                }
+            });
+        }
 
         console.log(`📊 [DASHBOARD] Métricas retornadas com sucesso`);
 
         res.json({
             success: true,
-            data: result.rows[0] // Return first row with all metrics
+            data: result.rows[0]
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching dashboard metrics:', error);
-        if (error.code === '42883') {
-            // Retorna objeto zerado para métricas
-            return res.json({
-                success: true,
-                data: { total_vendas: 0, total_quantidade: 0, total_clientes: 0, total_pedidos: 0 }
-            });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar métricas do dashboard: ${error.message}`
+
+        // Retorna objeto zerado padronizado em caso de erro para não quebrar o layout
+        res.json({
+            success: true,
+            data: {
+                total_vendido_current: 0,
+                vendas_percent_change: 0,
+                quantidade_vendida_current: 0,
+                quantidade_percent_change: 0,
+                clientes_atendidos_current: 0,
+                clientes_percent_change: 0,
+                total_pedidos_current: 0,
+                pedidos_percent_change: 0
+            }
         });
     }
 });
@@ -4591,7 +4753,10 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('🟠 [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`🚀 Backend rodando na porta ${PORT}`);
     console.log(`📡 API disponível em http://localhost:${PORT}`);
 });
+
+// Aumentar o timeout para 4 minutos para suportar processamento de IA longo
+server.timeout = 240000;

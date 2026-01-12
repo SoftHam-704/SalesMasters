@@ -39,7 +39,7 @@ export const IndustryRevenueCard = ({ data, loading }) => {
                     Faturamento por Indústria
                 </h3>
             </div>
-            <div className="chart-container" style={{ height: '320px', padding: '10px 0' }}>
+            <div className="chart-container" style={{ padding: '10px 0', height: '100%', minHeight: '320px' }}>
                 {loading ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                         <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
@@ -47,7 +47,7 @@ export const IndustryRevenueCard = ({ data, loading }) => {
                 ) : data && data.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <BarChart
-                            data={data}
+                            data={data.slice(0, 6)}
                             layout="vertical"
                             margin={{ top: 5, right: 80, left: 10, bottom: 5 }}
                         >
@@ -58,6 +58,7 @@ export const IndustryRevenueCard = ({ data, loading }) => {
                                 tickLine={false}
                                 axisLine={false}
                                 hide
+                                domain={[0, 'auto']}
                             />
                             <YAxis
                                 type="category"

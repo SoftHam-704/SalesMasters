@@ -37,7 +37,7 @@ const activities = [
 const Dashboard = () => {
     const navigate = useNavigate();
     const currentYear = new Date().getFullYear();
-    const [selectedYear, setSelectedYear] = useState(2025); // Forçado em 2025 para visualização inicial
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(null); // null = ano todo
     const [salesComparison, setSalesComparison] = useState([]);
     const [quantitiesComparison, setQuantitiesComparison] = useState([]);
@@ -78,8 +78,8 @@ const Dashboard = () => {
             const response = await fetch(`${NODE_API_URL}/api/crm/stats/birthdays`);
             const data = await response.json();
             if (data.success) {
-                setBirthdayCount(data.data.length);
-                setBirthdays(data.data);
+                setBirthdayCount(data.data?.length || 0);
+                setBirthdays(data.data || []);
             }
         } catch (error) {
             console.error('Erro ao buscar aniversariantes:', error);
@@ -118,8 +118,8 @@ const Dashboard = () => {
             const response = await fetch(url);
             const data = await response.json();
 
-            if (data.success) {
-                console.log(`✅ [DASHBOARD] Vendas recebidas:`, data.data?.length || 0, 'meses');
+            if (data.success && Array.isArray(data.data)) {
+                console.log(`✅ [DASHBOARD] Vendas recebidas:`, data.data.length, 'meses');
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
                     mes: item.mes_nome ? item.mes_nome.substring(0, 3) : '???',
@@ -128,7 +128,7 @@ const Dashboard = () => {
                 }));
                 setSalesComparison(chartData);
             } else {
-                console.error('❌ [DASHBOARD] Erro na API de vendas:', data.message);
+                setSalesComparison([]);
             }
         } catch (error) {
             console.error('❌ [DASHBOARD] Erro ao buscar comparação de vendas:', error);
@@ -143,14 +143,16 @@ const Dashboard = () => {
             const url = getApiUrl(NODE_API_URL, `/api/dashboard/quantities-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
             const response = await fetch(url);
             const data = await response.json();
-            if (data.success) {
+            if (data.success && Array.isArray(data.data)) {
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
-                    mes: item.mes_nome.substring(0, 3),
-                    [selectedYear]: parseFloat(item.quantidade_ano_atual),
-                    [previousYear]: parseFloat(item.quantidade_ano_anterior)
+                    mes: item.mes_nome ? item.mes_nome.substring(0, 3) : '???',
+                    [selectedYear]: parseFloat(item.quantidade_ano_atual || 0),
+                    [previousYear]: parseFloat(item.quantidade_ano_anterior || 0)
                 }));
                 setQuantitiesComparison(chartData);
+            } else {
+                setQuantitiesComparison([]);
             }
         } catch (error) {
             console.error('Erro ao buscar comparação de quantidades:', error);
@@ -176,7 +178,7 @@ const Dashboard = () => {
             const data = await response.json();
 
             if (data.success) {
-                setTopClients(data.data);
+                setTopClients(data.data || []);
             }
         } catch (error) {
             console.error('Erro ao buscar top clientes:', error);
@@ -228,7 +230,7 @@ const Dashboard = () => {
 
             if (data.success) {
                 console.log(`✅ [DASHBOARD] Métricas recebidas:`, data.data);
-                setMetrics(data.data);
+                setMetrics(data.data || null);
             }
         } catch (error) {
             console.error('Erro ao buscar métricas do dashboard:', error);
@@ -359,7 +361,7 @@ const Dashboard = () => {
             {/* Main Content Grid */}
             <div className="content-grid">
                 {/* Column 1: Both Line Charts Stacked */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="dashboard-column">
                     {/* Quantities Chart */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -559,15 +561,19 @@ const Dashboard = () => {
                 />
 
                 {/* Column 3: Industry Revenue + Pareto */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <IndustryRevenueCard
-                        data={industryRevenue}
-                        loading={loadingIndustry}
-                    />
-                    <IndustryParetoCard
-                        data={industryRevenue}
-                        loading={loadingIndustry}
-                    />
+                <div className="dashboard-column">
+                    <div style={{ flex: 1 }}>
+                        <IndustryRevenueCard
+                            data={industryRevenue}
+                            loading={loadingIndustry}
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <IndustryParetoCard
+                            data={industryRevenue}
+                            loading={loadingIndustry}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

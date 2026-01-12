@@ -18,17 +18,22 @@ let cachedProvider = null;
  * Prompt padrão para extração de dados de pedidos
  */
 const EXTRACTION_PROMPT = `
-Analise os dados de uma planilha ou imagem de pedido.
-Identifique inteligentemente quais campos representam o CÓDIGO do produto e a QUANTIDADE.
+Analise os dados de uma planilha, imagem ou texto extraído de PDF de um pedido.
+Identifique inteligentemente quais campos representam o CÓDIGO do produto, a DESCRIÇÃO, a QUANTIDADE e o PREÇO UNITÁRIO (se houver).
 
-Regras:
-- O Código é geralmente alfanumérico (ex: HBT107, 789, PROD-01)
-- A Quantidade é numérica
-- Ignore linhas de cabeçalho (como "CODIGO", "QTD", "DESCRICAO")
-- Ignore linhas de rodapé ou totais
+Regras de Extração:
+1. CÓDIGO: Geralmente alfanumérico (ex: HBT107, 789, PROD-01). Se houver códigos EAN (13 dígitos) e códigos internos, prefira o código interno curto.
+2. DESCRIÇÃO: Nome do produto. Se não houver, tente inferir ou deixe em branco.
+3. QUANTIDADE: Valor numérico inteiro ou decimal.
+4. PREÇO: Valor unitário. Ignore símbolos de moeda (R$, $). Converta vírgula decimal para ponto.
 
-Retorne APENAS um JSON array no formato:
-[{ "codigo": "string", "quantidade": number }]
+Regras de Limpeza:
+- Ignore linhas de cabeçalho (ex: "CODIGO", "QTD", "DESCRICAO").
+- Ignore linhas de rodapé, totais, ou dados da empresa (CNPJ, Endereço).
+- Ignore linhas vazias.
+
+Retorne APENAS um JSON array válido, sem markdown, neste formato:
+[{ "codigo": "string", "descricao": "string", "quantidade": number, "preco": number }]
 `;
 
 /**
@@ -65,16 +70,72 @@ class AIProvider {
      */
     parseJSONResponse(text) {
         try {
-            // Remove markdown code blocks se existirem
-            const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            // Remove markdown code blocks and handle potentially incomplete JSON
+            let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            // Se o texto contém JSON mas cercado por lixo (ex: "Aqui está o JSON: {...}"), tenta extrair
+            if (!cleanText.startsWith('{') && !cleanText.startsWith('[')) {
+                const firstBrace = cleanText.indexOf('{');
+                const firstBracket = cleanText.indexOf('[');
+                let startPos = -1;
+
+                if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+                    startPos = firstBrace;
+                } else if (firstBracket !== -1) {
+                    startPos = firstBracket;
+                }
+
+                if (startPos !== -1) {
+                    cleanText = cleanText.substring(startPos);
+                }
+            }
+
+            // Tenta achar o final do JSON se houver lixo depois
+            if (cleanText.endsWith('}') || cleanText.endsWith(']')) {
+                // Ok
+            } else {
+                const lastBrace = cleanText.lastIndexOf('}');
+                const lastBracket = cleanText.lastIndexOf(']');
+                let endPos = -1;
+
+                if (lastBrace !== -1 && (lastBracket === -1 || lastBrace > lastBracket)) {
+                    endPos = lastBrace;
+                } else if (lastBracket !== -1) {
+                    endPos = lastBracket;
+                }
+
+                if (endPos !== -1) {
+                    cleanText = cleanText.substring(0, endPos + 1);
+                }
+            }
+
             return JSON.parse(cleanText);
         } catch (e) {
-            // Tenta parsejar direto se começar com [
-            if (text.trim().startsWith('[')) {
-                return JSON.parse(text);
+            console.warn('⚠️ [AI] Falha no parse primário, tentando extração por regex...', e.message);
+
+            // Fallback: busca por blocos [ ... ] ou { ... }
+            const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (arrayMatch) {
+                try { return JSON.parse(arrayMatch[0]); } catch (i) { }
             }
+
+            const objectMatch = text.match(/\{\s*[\s\S]*\s*\}/);
+            if (objectMatch) {
+                try { return JSON.parse(objectMatch[0]); } catch (i) { }
+            }
+
             throw new Error(`Falha ao parsear JSON da resposta: ${e.message}`);
         }
+    }
+
+    /**
+     * Executa com timeout
+     */
+    async withTimeout(promise, timeoutMs = 120000) {
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timeout na resposta da IA (${timeoutMs / 1000}s)`)), timeoutMs)
+        );
+        return Promise.race([promise, timeoutPromise]);
     }
 }
 
@@ -93,7 +154,7 @@ class GeminiProvider extends AIProvider {
 
     async test() {
         const model = this.genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
         const result = await model.generateContent('Return JSON: {"status":"ok"}');
@@ -103,12 +164,12 @@ class GeminiProvider extends AIProvider {
 
     async processExcel(dataString) {
         const model = this.genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
         const prompt = `${EXTRACTION_PROMPT}\n\nDados da Planilha:\n${dataString}`;
-        const result = await model.generateContent(prompt);
+        const result = await this.withTimeout(model.generateContent(prompt));
         const response = await result.response;
         const text = response.text();
 
@@ -118,14 +179,14 @@ class GeminiProvider extends AIProvider {
     async processImage(imagePath, mimeType) {
         const fs = require('fs');
         const model = this.genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: "gemini-2.0-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
         const imageData = fs.readFileSync(imagePath);
         const base64Image = imageData.toString('base64');
 
-        const result = await model.generateContent([
+        const result = await this.withTimeout(model.generateContent([
             {
                 inlineData: {
                     data: base64Image,
@@ -133,7 +194,7 @@ class GeminiProvider extends AIProvider {
                 }
             },
             EXTRACTION_PROMPT
-        ]);
+        ]));
 
         const response = await result.response;
         const text = response.text();
@@ -164,7 +225,7 @@ class OpenAIProvider extends AIProvider {
     }
 
     async processExcel(dataString) {
-        const completion = await this.openai.chat.completions.create({
+        const completion = await this.withTimeout(this.openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
                 {
@@ -173,7 +234,7 @@ class OpenAIProvider extends AIProvider {
                 }
             ],
             response_format: { type: "json_object" }
-        });
+        }));
 
         const text = completion.choices[0].message.content;
         console.log('🔍 [OpenAI] Raw response:', text.substring(0, 200) + '...');
@@ -181,19 +242,36 @@ class OpenAIProvider extends AIProvider {
         const parsed = this.parseJSONResponse(text);
 
         // OpenAI with json_object returns an object, not array directly
-        // Extract the array from the object
+        // Extração robusta do array de itens
         if (Array.isArray(parsed)) {
             return parsed;
-        } else if (parsed && typeof parsed === 'object') {
-            // Find the array in the object (could be under 'items', 'products', 'data', etc.)
-            const arrayKey = Object.keys(parsed).find(key => Array.isArray(parsed[key]));
+        }
+
+        if (parsed && typeof parsed === 'object') {
+            // 1. Procura por FIELD que seja um array (ordem de probabilidade)
+            const arrayKey = Object.keys(parsed).find(key =>
+                Array.isArray(parsed[key]) && parsed[key].length > 0
+            ) || Object.keys(parsed).find(key => Array.isArray(parsed[key]));
+
             if (arrayKey) {
-                console.log(`🔍 [OpenAI] Extracted array from key: ${arrayKey}`);
+                console.log(`🔍 [OpenAI] Array extraído da chave: ${arrayKey}`);
                 return parsed[arrayKey];
+            }
+
+            // 2. Se o objeto em si parece ser UM item (tem código e descrição), retorna como array de 1
+            if ((parsed.codigo || parsed.id) && (parsed.descricao || parsed.nome)) {
+                console.log('🔍 [OpenAI] Objeto único detectado como item.');
+                return [parsed];
+            }
+
+            // 3. Verifica se há mensagem de erro explicativa da IA
+            if (parsed.erro || parsed.mensagem || parsed.reason) {
+                throw new Error(parsed.erro || parsed.mensagem || parsed.reason);
             }
         }
 
-        throw new Error('OpenAI response is not an array and does not contain an array field');
+        console.error('❌ [OpenAI] Estrutura inválida retornada:', JSON.stringify(parsed));
+        throw new Error('A IA retornou um formato inesperado. Tente novamente ou verifique se a imagem está legível.');
     }
 
     async processImage(imagePath, mimeType) {
@@ -201,7 +279,7 @@ class OpenAIProvider extends AIProvider {
         const imageData = fs.readFileSync(imagePath);
         const base64Image = imageData.toString('base64');
 
-        const completion = await this.openai.chat.completions.create({
+        const completion = await this.withTimeout(this.openai.chat.completions.create({
             model: "gpt-4o-mini", // Suporta visão
             messages: [
                 {
@@ -218,24 +296,40 @@ class OpenAIProvider extends AIProvider {
                 }
             ],
             response_format: { type: "json_object" }
-        });
+        }));
 
         const text = completion.choices[0].message.content;
         console.log('🔍 [OpenAI Image] Raw response:', text.substring(0, 200) + '...');
 
         const parsed = this.parseJSONResponse(text);
 
-        // Extract array from JSON object
+        // Extração robusta do array de itens do objeto retornado
         if (Array.isArray(parsed)) {
             return parsed;
-        } else if (parsed && typeof parsed === 'object') {
-            const arrayKey = Object.keys(parsed).find(key => Array.isArray(parsed[key]));
+        }
+
+        if (parsed && typeof parsed === 'object') {
+            const arrayKey = Object.keys(parsed).find(key =>
+                Array.isArray(parsed[key]) && parsed[key].length > 0
+            ) || Object.keys(parsed).find(key => Array.isArray(parsed[key]));
+
             if (arrayKey) {
+                console.log(`🔍 [OpenAI Image] Array extraído da chave: ${arrayKey}`);
                 return parsed[arrayKey];
+            }
+
+            if ((parsed.codigo || parsed.id) && (parsed.descricao || parsed.nome)) {
+                console.log('🔍 [OpenAI Image] Objeto único detectado como item.');
+                return [parsed];
+            }
+
+            if (parsed.erro || parsed.mensagem || parsed.reason) {
+                throw new Error(parsed.erro || parsed.mensagem || parsed.reason);
             }
         }
 
-        throw new Error('OpenAI response is not an array and does not contain an array field');
+        console.error('❌ [OpenAI Image] Estrutura inválida retornada:', JSON.stringify(parsed));
+        throw new Error('A IA não conseguiu identificar itens nesta imagem. Tente uma foto mais nítida.');
     }
 }
 
@@ -355,14 +449,25 @@ async function getWorkingProvider() {
         try {
             console.log(`🧪 [AI] Testando ${providerName}...`);
             const provider = createProvider(providerName);
-            await provider.test();
+
+            // Timeout de 10s para o teste de conectividade
+            const testPromise = provider.test();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout de conectividade (10s)')), 10000)
+            );
+
+            await Promise.race([testPromise, timeoutPromise]);
 
             console.log(`✅ [AI] ${providerName} está DISPONÍVEL!`);
             cachedProvider = provider; // Cache para próximas requisições
+
+            // Auto-limpa o cache em 1 hora para re-testar saúde
+            setTimeout(() => { cachedProvider = null; }, 3600000);
+
             return provider;
 
         } catch (error) {
-            console.log(`❌ [AI] ${providerName} falhou: ${error.message}`);
+            console.log(`❌ [AI] ${providerName} falhou ou timed out: ${error.message}`);
             continue;
         }
     }

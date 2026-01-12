@@ -284,7 +284,7 @@ const FrmProdutos = () => {
 
         try {
             const response = await fetch(
-                `https://salesmasters.softham.com.br/api/products/zero-promo-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
+                getApiUrl(NODE_API_URL, `/api/products/zero-promo-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`),
                 { method: 'PUT' }
             );
 
@@ -309,7 +309,7 @@ const FrmProdutos = () => {
 
         try {
             const response = await fetch(
-                `https://salesmasters.softham.com.br/api/products/zero-special-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`,
+                getApiUrl(NODE_API_URL, `/api/products/zero-special-price/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`),
                 { method: 'PUT' }
             );
 
