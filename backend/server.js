@@ -258,7 +258,7 @@ if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../frontend');
     app.use(express.static(frontendPath));
 
-    app.get('*', (req, res, next) => {
+    app.get(/(.*)/, (req, res, next) => {
         // Se a requisição começa com /api, ignore o fallback do React
         if (req.path.startsWith('/api')) {
             return next();
@@ -2125,8 +2125,9 @@ app.post('/api/suppliers', async (req, res) => {
                 for_fone, for_fone2, for_fax, for_cgc, for_inscricao, for_email,
                 for_codrep, for_percom, for_des1, for_des2, for_des3, for_des4, for_des5,
                 for_des6, for_des7, for_des8, for_des9, for_des10, for_homepage,
-                for_contatorep, for_nomered, for_tipo2, for_locimagem, gid, for_tipofrete
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
+                for_contatorep, for_nomered, for_tipo2, for_locimagem, gid, for_tipofrete,
+                for_logotipo
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
             RETURNING *
         `;
 
@@ -2162,7 +2163,8 @@ app.post('/api/suppliers', async (req, res) => {
             supplier.for_tipo2 || 'A',
             supplier.for_locimagem || '',
             supplier.gid || '',
-            supplier.for_tipofrete || ''
+            supplier.for_tipofrete || '',
+            supplier.for_logotipo || ''
         ];
 
         const result = await pool.query(query, values);
@@ -2196,8 +2198,8 @@ app.put('/api/suppliers/:id', async (req, res) => {
                 for_uf = $5, for_cep = $6, for_fone = $7, for_fone2 = $8,
                 for_fax = $9, for_inscricao = $10, for_email = $11,
                 for_tipo2 = $12, for_nomered = $13, for_obs2 = $14,
-                for_homepage = $15, for_locimagem = $16
-            WHERE for_cgc = $17
+                for_homepage = $15, for_locimagem = $16, for_logotipo = $17
+            WHERE for_cgc = $18
             RETURNING *
         `;
 
@@ -2218,6 +2220,7 @@ app.put('/api/suppliers/:id', async (req, res) => {
             supplier.for_obs2 || '',
             supplier.for_homepage || '',
             supplier.for_locimagem || '',
+            supplier.for_logotipo || '',
             supplier.for_cgc // The Key
         ];
 

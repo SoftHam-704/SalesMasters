@@ -9,12 +9,13 @@ frontend/build/
 backend/dist/
 backend/build/
 
+# Deploy artifacts
+DEPLOY_READY/
+
 # Environment variables
 .env
 backend/.env
 bi-engine/.env
-DEPLOY_READY/backend/.env
-DEPLOY_READY/bi-engine/.env
 .env.local
 .env.*.local
 

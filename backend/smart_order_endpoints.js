@@ -105,13 +105,13 @@ module.exports = function (app, pool) {
                 fs.unlinkSync(filePath);
             } catch (err) { console.error('Error deleting temp file:', err); }
 
-            // Post-process items: Normalize codes but DO NOT filter by DB (Frontend will validate against MemTable)
+            // Post-process items: Keep separators (/, |) for frontend to split and test each code
             const processedItems = extractedItems.map(item => {
-                // Normalize function: remove special chars, spaces, uppercase
-                const normalize = (str) => String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                // Preserve slashes, pipes, spaces for splitting - only uppercase
+                const preserveForSplit = (str) => String(str || '').toUpperCase();
 
                 return {
-                    codigo: normalize(item.codigo),
+                    codigo: preserveForSplit(item.codigo), // Keep "ABC-7829 / XPR-451 / 34-069"
                     originalCode: item.codigo,
                     quantidade: parseFloat(item.quantidade) || 1,
                     descricao: item.descricao || 'Item importado via IA',

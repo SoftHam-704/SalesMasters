@@ -5,24 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Settings, CheckCircle2, AlertCircle, Database, Building2, Image, FolderOpen, Search, Crown } from 'lucide-react';
+import { Settings, CheckCircle2, AlertCircle, Building2, Image, Search, Crown, Loader2 } from 'lucide-react';
 import MasterPanel from '@/components/settings/MasterPanel';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
-const DatabaseConfig = () => {
-    const [activeTab, setActiveTab] = useState('postgres');
+export const DatabaseConfig = () => {
+    const [activeTab, setActiveTab] = useState('company');
 
-    // PostgreSQL Config State
-    const [config, setConfig] = useState({
-        host: 'localhost',
-        port: 5432,
-        database: 'basesales',
-        user: 'postgres',
-        password: '',
-        ssl: false
-    });
-
-    // Company Config State
+    // Company Config State - Apenas dados comerciais conforme solicitado
     const [companyConfig, setCompanyConfig] = useState({
         situacao: 'A',
         nome: 'SOFTHAM SISTEMAS - LOCAL',
@@ -35,17 +25,10 @@ const DatabaseConfig = () => {
         inscricao: '',
         fones: '(19) 3203-8600',
         logotipo: 'C:\\SalesMasters\\Imagens\\Softham1.png',
-        baseDadosLocal: 'C:\\SalesMasters\\Dados50\\Nova\\BASESALES.FDB',
-        host: 'localhost',
-        porta: 3070,
-        username: 'SYSDBA',
-        password: '',
-        pastaBasica: 'C:\\SalesMasters\\'
+        // Campos de conexão removidos pois não são mais necessários
     });
 
     const [testing, setTesting] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [result, setResult] = useState(null);
     const [companyResult, setCompanyResult] = useState(null);
     const [companySaving, setCompanySaving] = useState(false);
 
@@ -55,15 +38,6 @@ const DatabaseConfig = () => {
 
     // Carregar configuração atual
     useEffect(() => {
-        fetch(getApiUrl(NODE_API_URL, '/api/config/database'))
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    setConfig(prev => ({ ...prev, ...data.config }));
-                }
-            })
-            .catch(err => console.error('Erro ao carregar configuração:', err));
-
         // Carregar configuração da empresa
         fetch(getApiUrl(NODE_API_URL, '/api/config/company'))
             .then(res => res.json())
@@ -74,58 +48,6 @@ const DatabaseConfig = () => {
             })
             .catch(err => console.error('Erro ao carregar configuração da empresa:', err));
     }, []);
-
-    const handleTest = async () => {
-        setTesting(true);
-        setResult(null);
-
-        try {
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/database/test'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-
-            const data = await response.json();
-            setResult({
-                success: data.success,
-                message: data.message
-            });
-        } catch (error) {
-            setResult({
-                success: false,
-                message: `Erro ao testar conexão: ${error.message}`
-            });
-        } finally {
-            setTesting(false);
-        }
-    };
-
-    const handleSave = async () => {
-        setSaving(true);
-        setResult(null);
-
-        try {
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/database/save'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-
-            const data = await response.json();
-            setResult({
-                success: data.success,
-                message: data.message
-            });
-        } catch (error) {
-            setResult({
-                success: false,
-                message: `Erro ao salvar configuração: ${error.message}`
-            });
-        } finally {
-            setSaving(false);
-        }
-    };
 
     const handleSaveCompany = async () => {
         setCompanySaving(true);
@@ -164,11 +86,7 @@ const DatabaseConfig = () => {
                 </CardHeader>
                 <CardContent>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className={`grid w-full mb-6 ${isHamilton ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                            <TabsTrigger value="postgres" className="flex items-center gap-2">
-                                <Database className="w-4 h-4" />
-                                Dados PostgreSQL
-                            </TabsTrigger>
+                        <TabsList className={`grid w-full mb-6 ${isHamilton ? 'grid-cols-2' : 'grid-cols-1'}`}>
                             <TabsTrigger value="company" className="flex items-center gap-2">
                                 <Building2 className="w-4 h-4" />
                                 Dados da Empresa
@@ -181,115 +99,6 @@ const DatabaseConfig = () => {
                             )}
                         </TabsList>
 
-                        {/* PostgreSQL Tab */}
-                        <TabsContent value="postgres" className="space-y-6">
-                            <Alert className="border-blue-200 bg-blue-50">
-                                <Database className="h-4 w-4 text-blue-600" />
-                                <AlertDescription className="text-blue-800">
-                                    Configure as credenciais de conexão com o banco de dados PostgreSQL.
-                                    Funciona tanto para banco local quanto em nuvem.
-                                </AlertDescription>
-                            </Alert>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="host">Host / Servidor *</Label>
-                                    <Input
-                                        id="host"
-                                        value={config.host}
-                                        onChange={(e) => setConfig({ ...config, host: e.target.value })}
-                                        placeholder="localhost ou IP do servidor"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="port">Porta *</Label>
-                                    <Input
-                                        id="port"
-                                        type="number"
-                                        value={config.port}
-                                        onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) })}
-                                        placeholder="5432"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="database">Nome do Banco *</Label>
-                                    <Input
-                                        id="database"
-                                        value={config.database}
-                                        onChange={(e) => setConfig({ ...config, database: e.target.value })}
-                                        placeholder="basesales"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="user">Usuário *</Label>
-                                    <Input
-                                        id="user"
-                                        value={config.user}
-                                        onChange={(e) => setConfig({ ...config, user: e.target.value })}
-                                        placeholder="postgres"
-                                    />
-                                </div>
-
-                                <div className="space-y-2 col-span-2">
-                                    <Label htmlFor="password">Senha *</Label>
-                                    <Input
-                                        id="password"
-                                        type="password"
-                                        value={config.password}
-                                        onChange={(e) => setConfig({ ...config, password: e.target.value })}
-                                        placeholder="Digite a senha do banco"
-                                    />
-                                </div>
-
-                                <div className="space-y-2 col-span-2">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            id="ssl"
-                                            checked={config.ssl}
-                                            onChange={(e) => setConfig({ ...config, ssl: e.target.checked })}
-                                            className="w-4 h-4"
-                                        />
-                                        <Label htmlFor="ssl" className="cursor-pointer">
-                                            Usar SSL (recomendado para conexões em nuvem)
-                                        </Label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {result && (
-                                <Alert className={result.success ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}>
-                                    {result.success ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                    ) : (
-                                        <AlertCircle className="h-4 w-4 text-red-600" />
-                                    )}
-                                    <AlertDescription className={result.success ? 'text-green-800' : 'text-red-800'}>
-                                        <strong>{result.message}</strong>
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-
-                            <div className="flex gap-3 justify-end">
-                                <Button
-                                    variant="outline"
-                                    onClick={handleTest}
-                                    disabled={testing || !config.host || !config.database || !config.user || !config.password}
-                                >
-                                    {testing ? 'Testando...' : '🔍 Testar Conexão'}
-                                </Button>
-                                <Button
-                                    onClick={handleSave}
-                                    disabled={saving || !config.host || !config.database || !config.user || !config.password}
-                                >
-                                    {saving ? 'Salvando...' : '💾 Salvar Configuração'}
-                                </Button>
-                            </div>
-                        </TabsContent>
-
                         {/* Company Tab */}
                         <TabsContent value="company" className="space-y-6">
                             <Alert className="border-emerald-200 bg-emerald-50">
@@ -300,6 +109,76 @@ const DatabaseConfig = () => {
                             </Alert>
 
                             <div className="grid grid-cols-2 gap-4">
+                                {/* CNPJ e Busca - PRIMEIRO LUGAR */}
+                                <div className="space-y-2 col-span-2">
+                                    <Label htmlFor="cnpj">CNPJ</Label>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            id="cnpj"
+                                            value={companyConfig.cnpj}
+                                            onChange={(e) => {
+                                                const raw = e.target.value.replace(/\D/g, '');
+                                                let formatted = raw;
+                                                if (raw.length <= 14) {
+                                                    formatted = raw.replace(/^(\d{2})(\d)/, '$1.$2')
+                                                        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                                                        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+                                                        .replace(/(\d{4})(\d)/, '$1-$2');
+                                                }
+                                                setCompanyConfig({ ...companyConfig, cnpj: formatted });
+                                            }}
+                                            placeholder="00.000.000/0000-00"
+                                            maxLength={18}
+                                            className="font-mono field-cnpj"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={async () => {
+                                                if (!companyConfig.cnpj || companyConfig.cnpj.length < 14) {
+                                                    setCompanyResult({ success: false, message: 'Digite um CNPJ válido da empresa.' });
+                                                    return;
+                                                }
+                                                setTesting(true);
+                                                try {
+                                                    const cleanCnpj = companyConfig.cnpj.replace(/\D/g, '');
+                                                    console.log('Buscando CNPJ:', cleanCnpj);
+
+                                                    // Usando endpoint público ou interno
+                                                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+
+                                                    if (response.ok) {
+                                                        const data = await response.json();
+                                                        // Preenche os dados
+                                                        setCompanyConfig(prev => ({
+                                                            ...prev,
+                                                            nome: data.razao_social || prev.nome,
+                                                            endereco: `${data.logradouro}, ${data.numero} ${data.complemento || ''}`.trim(),
+                                                            bairro: data.bairro || prev.bairro,
+                                                            cidade: data.municipio || prev.cidade,
+                                                            uf: data.uf || prev.uf,
+                                                            cep: data.cep || prev.cep,
+                                                            fones: data.ddd_telefone_1 || prev.fones
+                                                        }));
+                                                        setCompanyResult({ success: true, message: 'Dados encontrados na Receita!' });
+                                                    } else {
+                                                        setCompanyResult({ success: false, message: 'CNPJ não encontrado na base pública.' });
+                                                    }
+                                                } catch (error) {
+                                                    console.error(error);
+                                                    setCompanyResult({ success: false, message: 'Erro ao buscar CNPJ.' });
+                                                } finally {
+                                                    setTesting(false);
+                                                }
+                                            }}
+                                            disabled={testing}
+                                            title="Buscar dados do CNPJ"
+                                        >
+                                            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-slate-600" />}
+                                        </Button>
+                                    </div>
+                                </div>
+
                                 {/* Situação e Nome da Empresa */}
                                 <div className="space-y-2">
                                     <Label htmlFor="situacao">Situação</Label>
@@ -380,17 +259,7 @@ const DatabaseConfig = () => {
                                     />
                                 </div>
 
-                                {/* CNPJ e Inscrição */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="cnpj">CNPJ</Label>
-                                    <Input
-                                        id="cnpj"
-                                        value={companyConfig.cnpj}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, cnpj: e.target.value })}
-                                        placeholder="00.000.000/0000-00"
-                                    />
-                                </div>
-
+                                {/* Inscrição Estadual */}
                                 <div className="space-y-2">
                                     <Label htmlFor="inscricao">Inscrição Estadual</Label>
                                     <Input
@@ -402,7 +271,7 @@ const DatabaseConfig = () => {
                                 </div>
 
                                 {/* Telefones */}
-                                <div className="space-y-2 col-span-2">
+                                <div className="space-y-2">
                                     <Label htmlFor="fones">Telefones</Label>
                                     <Input
                                         id="fones"
@@ -490,78 +359,6 @@ const DatabaseConfig = () => {
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* Base de Dados Local */}
-                                <div className="space-y-2 col-span-2">
-                                    <Label htmlFor="baseDadosLocal" className="flex items-center gap-2">
-                                        <Database className="w-4 h-4" />
-                                        Base de Dados Local (Firebird)
-                                    </Label>
-                                    <Input
-                                        id="baseDadosLocal"
-                                        value={companyConfig.baseDadosLocal}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, baseDadosLocal: e.target.value })}
-                                        placeholder="C:\SalesMasters\Dados\BASESALES.FDB"
-                                    />
-                                </div>
-
-                                {/* Host e Porta */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="companyHost">Host</Label>
-                                    <Input
-                                        id="companyHost"
-                                        value={companyConfig.host}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, host: e.target.value })}
-                                        placeholder="localhost"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="porta">Porta</Label>
-                                    <Input
-                                        id="porta"
-                                        type="number"
-                                        value={companyConfig.porta}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, porta: parseInt(e.target.value) || 3070 })}
-                                        placeholder="3070"
-                                    />
-                                </div>
-
-                                {/* Username e Password (para banco offline) */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="username">Usuário (BD Local)</Label>
-                                    <Input
-                                        id="username"
-                                        value={companyConfig.username}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, username: e.target.value })}
-                                        placeholder="SYSDBA"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="companyPassword">Senha (BD Local)</Label>
-                                    <Input
-                                        id="companyPassword"
-                                        type="password"
-                                        value={companyConfig.password}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, password: e.target.value })}
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-
-                                {/* Pasta Básica */}
-                                <div className="space-y-2 col-span-2">
-                                    <Label htmlFor="pastaBasica" className="flex items-center gap-2">
-                                        <FolderOpen className="w-4 h-4" />
-                                        Pasta Básica
-                                    </Label>
-                                    <Input
-                                        id="pastaBasica"
-                                        value={companyConfig.pastaBasica}
-                                        onChange={(e) => setCompanyConfig({ ...companyConfig, pastaBasica: e.target.value })}
-                                        placeholder="C:\SalesMasters\"
-                                    />
                                 </div>
                             </div>
 

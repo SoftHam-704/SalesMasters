@@ -1,26 +1,38 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importGrupos() {
     try {
-        console.log('📂 Importando grupos de produtos...\n');
+        console.log(`🚀 IMPORTANDO GRUPOS -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../data/grupos.xlsx');
+        const filePath = path.join(__dirname, '../../data/grupos.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
+
         const workbook = XLSX.readFile(filePath);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        console.log(`✅ ${data.length} grupos encontrados\n`);
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
 
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
+
+        // Como a tabela está sem PK, vamos apenas inserir.
+        // Se precisar rodar de novo, o usuário pode truncar a tabela.
         let imported = 0;
         for (const row of data) {
             try {
@@ -28,26 +40,22 @@ async function importGrupos() {
                     INSERT INTO grupos (gru_codigo, gru_nome, gru_percomiss, gid)
                     VALUES ($1, $2, $3, $4)
                 `, [
-                    row.GRU_CODIGO || 0,
-                    row.GRU_NOME || '',
-                    row.GRU_PERCOMISS || 0,
-                    row.GID || ''
+                    row.GRU_CODIGO || row.gru_codigo || 0,
+                    row.GRU_NOME || row.gru_nome || '',
+                    row.GRU_PERCOMISS || row.gru_percomiss || 0,
+                    row.GID || row.gid || ''
                 ]);
                 imported++;
             } catch (err) {
-                console.error(`❌ Erro: ${err.message}`);
+                console.error(`❌ Erro no grupo [${row.GRU_NOME}]: ${err.message}`);
             }
         }
 
-        console.log(`✅ Importação concluída!`);
+        console.log(`\n✅ Carga concluída!`);
         console.log(`   Total: ${data.length} | Importados: ${imported}\n`);
 
-        const result = await pool.query('SELECT * FROM grupos ORDER BY gru_codigo');
-        console.log('📋 Grupos importados:');
-        console.table(result.rows);
-
-    } catch (error) {
-        console.error('❌ Erro:', error.message);
+    } catch (err) {
+        console.error('❌ Erro fatal:', err.message);
     } finally {
         await pool.end();
     }

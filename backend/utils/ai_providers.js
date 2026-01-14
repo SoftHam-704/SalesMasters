@@ -19,20 +19,23 @@ let cachedProvider = null;
  */
 const EXTRACTION_PROMPT = `
 Analise os dados de uma planilha, imagem ou texto extraído de PDF de um pedido.
-Identifique inteligentemente quais campos representam o CÓDIGO do produto, a DESCRIÇÃO, a QUANTIDADE e o PREÇO UNITÁRIO (se houver).
+Identifique TODOS os itens listados, extraindo CÓDIGO, DESCRIÇÃO, QUANTIDADE e PREÇO UNITÁRIO.
 
 Regras de Extração:
-1. CÓDIGO: Geralmente alfanumérico (ex: HBT107, 789, PROD-01). Se houver códigos EAN (13 dígitos) e códigos internos, prefira o código interno curto.
-2. DESCRIÇÃO: Nome do produto. Se não houver, tente inferir ou deixe em branco.
-3. QUANTIDADE: Valor numérico inteiro ou decimal.
-4. PREÇO: Valor unitário. Ignore símbolos de moeda (R$, $). Converta vírgula decimal para ponto.
+1. CÓDIGO: 
+   - Se a linha tiver UM código, retorne-o normalmente.
+   - Se a linha tiver MÚLTIPLOS códigos separados por barra (/) ou outro separador (ex: "ABC-7829 / XPR-451 / 34-069 / WXY-7162"), 
+     retorne TODOS eles exatamente como aparecem, mantendo as barras: "ABC-7829 / XPR-451 / 34-069 / WXY-7162".
+     NÃO escolha apenas um código. Retorne a string completa com todos.
+2. DESCRIÇÃO: Nome do produto. Se não houver descrição, deixe em branco.
+3. QUANTIDADE: Valor numérico. Se não especificado, assuma 1.
+4. PREÇO: Valor unitário sem símbolo de moeda.
 
 Regras de Limpeza:
-- Ignore linhas de cabeçalho (ex: "CODIGO", "QTD", "DESCRICAO").
-- Ignore linhas de rodapé, totais, ou dados da empresa (CNPJ, Endereço).
+- Ignore linhas de cabeçalho, rodapé, totais ou dados da empresa.
 - Ignore linhas vazias.
 
-Retorne APENAS um JSON array válido, sem markdown, neste formato:
+Retorne APENAS um JSON array válido, sem markdown:
 [{ "codigo": "string", "descricao": "string", "quantidade": number, "preco": number }]
 `;
 

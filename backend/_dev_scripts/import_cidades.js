@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
@@ -8,78 +9,78 @@ const pool = new Pool({
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importCidades() {
     try {
-        console.log('📂 Lendo arquivo cidades.xlsx...');
-        const workbook = XLSX.readFile('../data/cidades.xlsx', {
-            cellDates: true,
-            sheetRows: 0  // 0 = read all rows
-        });
-        const sheetName = workbook.SheetNames[0];
-        console.log(`📄 Lendo aba: ${sheetName}`);
-        const worksheet = workbook.Sheets[sheetName];
+        console.log(`🚀 IMPORTANDO CIDADES -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        // Get the range to see how many rows we have
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
-        console.log(`📊 Range detectado: ${range.s.r} a ${range.e.r} (${range.e.r + 1} linhas)`);
+        const filePath = path.join(__dirname, '../../data/cidades.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
 
-        const data = XLSX.utils.sheet_to_json(worksheet, {
-            defval: null,
-            raw: false,
-            range: 0  // Start from first row
-        });
+        const workbook = XLSX.readFile(filePath);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet);
 
-        console.log(`📊 Encontrados ${data.length} registros`);
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
 
-        // Limpar tabela
-        console.log('🗑️  Limpando tabela cidades...');
-        await pool.query('DELETE FROM cidades');
-        console.log('✅ Tabela limpa');
+        // Set search path to target schema
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
-        // Inserir dados
-        console.log('📥 Importando dados...');
+        // Limpar tabela (opcional, mas como o script original tinha, vou manter se necessário ou usar UPSERT)
+        // console.log('🗑️ Limpando tabela cidades...');
+        // await pool.query('DELETE FROM cidades');
+
         let imported = 0;
         let errors = 0;
 
         for (const row of data) {
             try {
-                // Mapear colunas da planilha para campos do banco
-                const cid_codigo = row.CODIGO || row.cid_codigo;
-                const cid_nome = row.NOME || row.cid_nome;
-                const cid_uf = row.UF || row.cid_uf;
-                const cid_ibge = row.CODMUN || row.cid_ibge;
-                const cid_ativo = true; // Sempre ativo por padrão
-                const cid_cod_origem = row.CODIGO || row.cid_cod_origem || null;
+                const cid_codigo = row.CODIGO || row.cid_codigo || row.cid_cod_origem;
+                const cid_nome = row.NOME || row.cid_nome || row.NOMMUN;
+                const cid_uf = row.UF || row.cid_uf || row.ESTADO;
+                const cid_ibge = row.CODMUN || row.cid_ibge || row.IBGE;
+                const cid_ativo = true;
+                const cid_cod_origem = cid_codigo;
 
                 if (!cid_codigo || !cid_nome) {
-                    console.log(`⚠️  Linha ignorada (dados incompletos):`, row);
-                    errors++;
                     continue;
                 }
 
                 await pool.query(
-                    'INSERT INTO cidades (cid_codigo, cid_nome, cid_uf, cid_ibge, cid_ativo, cid_cod_origem) VALUES ($1, $2, $3, $4, $5, $6)',
+                    `INSERT INTO cidades (cid_codigo, cid_nome, cid_uf, cid_ibge, cid_ativo, cid_cod_origem) 
+                     VALUES ($1, $2, $3, $4, $5, $6)
+                     ON CONFLICT (cid_codigo) DO UPDATE SET 
+                        cid_nome = EXCLUDED.cid_nome,
+                        cid_uf = EXCLUDED.cid_uf,
+                        cid_ibge = EXCLUDED.cid_ibge`,
                     [cid_codigo, cid_nome, cid_uf, cid_ibge, cid_ativo, cid_cod_origem]
                 );
                 imported++;
 
-                if (imported % 100 === 0) {
-                    console.log(`   Importados: ${imported}...`);
+                if (imported % 500 === 0) {
+                    process.stdout.write(`\r🚀 Processando: ${imported}/${data.length}`);
                 }
-            } catch (error) {
-                console.error(`❌ Erro ao importar linha:`, row, error.message);
+            } catch (err) {
                 errors++;
+                console.error(`\n❌ Erro na cidade [${row.NOME || row.CODIGO}]: ${err.message}`);
             }
         }
 
-        console.log(`\n✅ Importação concluída!`);
-        console.log(`   - Registros importados: ${imported}`);
-        console.log(`   - Erros: ${errors}`);
+        console.log(`\n\n✅ Importação concluída!`);
+        console.log(`   Total: ${data.length} | Sucesso: ${imported} | Erros: ${errors}\n`);
 
-    } catch (error) {
-        console.error('❌ Erro na importação:', error);
+        const result = await pool.query('SELECT * FROM cidades ORDER BY cid_nome LIMIT 5');
+        console.table(result.rows);
+
+    } catch (err) {
+        console.error('❌ Erro fatal:', err.message);
     } finally {
         await pool.end();
     }

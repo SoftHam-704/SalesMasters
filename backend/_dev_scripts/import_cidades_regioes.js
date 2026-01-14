@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
@@ -8,25 +9,29 @@ const pool = new Pool({
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importCidadesRegioes() {
     try {
-        console.log('📂 Lendo arquivo cidades_regioes.xlsx...');
-        const workbook = XLSX.readFile('../data/cidades_regioes.xlsx');
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        console.log(`🚀 IMPORTANDO VÍNCULO CIDADES-REGIÕES -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        console.log(`📊 Encontrados ${data.length} registros`);
+        const filePath = path.join(__dirname, '../../data/cidades_regioes.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
 
-        // Limpar tabela
-        console.log('🗑️  Limpando tabela cidades_regioes...');
-        await pool.query('DELETE FROM cidades_regioes');
-        console.log('✅ Tabela limpa');
+        const workbook = XLSX.readFile(filePath);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        // Inserir dados
-        console.log('📥 Importando dados...');
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
+
+        // Set search path to target schema
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
+
         let imported = 0;
         let errors = 0;
 
@@ -35,29 +40,30 @@ async function importCidadesRegioes() {
                 const reg_id = row.reg_id || row.REG_ID;
                 const cid_id = row.cid_id || row.CID_ID;
 
-                if (!reg_id || !cid_id) {
-                    console.log(`⚠️  Linha ignorada (dados incompletos):`, row);
-                    errors++;
-                    continue;
-                }
+                if (!reg_id || !cid_id) continue;
 
                 await pool.query(
-                    'INSERT INTO cidades_regioes (reg_id, cid_id) VALUES ($1, $2)',
+                    `INSERT INTO cidades_regioes (reg_id, cid_id) 
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING`, // Evita duplicados
                     [reg_id, cid_id]
                 );
                 imported++;
-            } catch (error) {
-                console.error(`❌ Erro ao importar linha:`, row, error.message);
+
+                if (imported % 100 === 0) {
+                    process.stdout.write(`\r🚀 Processando: ${imported}/${data.length}`);
+                }
+            } catch (err) {
                 errors++;
+                console.error(`\n❌ Erro no vínculo [REG: ${row.REG_ID} CID: ${row.CID_ID}]: ${err.message}`);
             }
         }
 
-        console.log(`\n✅ Importação concluída!`);
-        console.log(`   - Registros importados: ${imported}`);
-        console.log(`   - Erros: ${errors}`);
+        console.log(`\n\n✅ Importação concluída!`);
+        console.log(`   Total: ${data.length} | Sucesso: ${imported} | Erros: ${errors}\n`);
 
-    } catch (error) {
-        console.error('❌ Erro na importação:', error);
+    } catch (err) {
+        console.error('❌ Erro fatal:', err.message);
     } finally {
         await pool.end();
     }

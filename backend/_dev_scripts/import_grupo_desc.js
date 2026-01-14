@@ -1,25 +1,35 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importGrupoDesc() {
     try {
-        console.log('📊 Importando descontos por grupo (grupo_desc)...\n');
+        console.log(`🚀 IMPORTANDO DESCONTOS POR GRUPO -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../data/grupo_desc.xlsx');
+        const filePath = path.join(__dirname, '../../data/grupo_desc.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
+
         const workbook = XLSX.readFile(filePath);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        console.log(`✅ ${data.length} grupos de desconto encontrados\n`);
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
+
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
         for (const row of data) {
@@ -30,8 +40,8 @@ async function importGrupoDesc() {
                         gde_desc6, gde_desc7, gde_desc8, gde_desc9
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 `, [
-                    String(row.GRU_CODIGO || 0), // Ensure string for GID
-                    row.GDE_NOME || '',
+                    String(row.GRU_CODIGO || row.gid || row.GID || 0),
+                    row.GDE_NOME || row.gde_nome || row.GRU_NOME || '',
                     row.GDE_DESC1 || row.GRU_DESC1 || 0,
                     row.GDE_DESC2 || row.GRU_DESC2 || 0,
                     row.GDE_DESC3 || row.GRU_DESC3 || 0,
@@ -44,16 +54,12 @@ async function importGrupoDesc() {
                 ]);
                 imported++;
             } catch (err) {
-                console.error(`❌ Erro: ${err.message}`);
+                console.error(`❌ Erro no desconto [${row.GDE_NOME}]: ${err.message}`);
             }
         }
 
-        console.log(`\n✅ Importação concluída!`);
+        console.log(`\n✅ Carga concluída!`);
         console.log(`   Total: ${data.length} | Importados: ${imported}\n`);
-
-        const result = await pool.query('SELECT * FROM grupo_desc ORDER BY gru_codigo');
-        console.log('📋 Descontos por grupo:');
-        console.table(result.rows);
 
     } catch (err) {
         console.error('❌ Erro fatal:', err.message);

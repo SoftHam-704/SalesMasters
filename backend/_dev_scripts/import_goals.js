@@ -1,39 +1,35 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo',
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importGoals() {
     try {
-        console.log('📊 Iniciando importação de metas...\n');
+        console.log(`🚀 IMPORTANDO METAS -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        // Read XLSX file
-        const filePath = path.join(__dirname, '../data/ind_metas.xlsx');
-        console.log(`Lendo arquivo: ${filePath}`);
+        const filePath = path.join(__dirname, '../../data/ind_metas.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
 
         const workbook = XLSX.readFile(filePath);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        console.log(`✅ Arquivo lido: ${data.length} registros encontrados\n`);
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
 
-        // First, add PRIMARY KEY constraint
-        console.log('🔑 Adicionando PRIMARY KEY...');
-        try {
-            await pool.query('ALTER TABLE ind_metas DROP CONSTRAINT IF EXISTS ind_metas_pkey');
-            await pool.query('ALTER TABLE ind_metas ADD PRIMARY KEY (met_ano, met_industria)');
-            console.log('✅ PRIMARY KEY adicionada\n');
-        } catch (err) {
-            console.log('⚠️  PRIMARY KEY já existe ou erro:', err.message, '\n');
-        }
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
         let errors = 0;
@@ -64,50 +60,34 @@ async function importGoals() {
                 const values = [
                     row.MET_ANO || new Date().getFullYear(),
                     row.MET_INDUSTRIA || 0,
-                    row.MET_JAN || 0,
-                    row.MET_FEV || 0,
-                    row.MET_MAR || 0,
-                    row.MET_ABR || 0,
-                    row.MET_MAI || 0,
-                    row.MET_JUN || 0,
-                    row.MET_JUL || 0,
-                    row.MET_AGO || 0,
-                    row.MET_SET || 0,
-                    row.MET_OUT || 0,
-                    row.MET_NOV || 0,
-                    row.MET_DEZ || 0
+                    parseFloat(row.MET_JAN || 0),
+                    parseFloat(row.MET_FEV || 0),
+                    parseFloat(row.MET_MAR || 0),
+                    parseFloat(row.MET_ABR || 0),
+                    parseFloat(row.MET_MAI || 0),
+                    parseFloat(row.MET_JUN || 0),
+                    parseFloat(row.MET_JUL || 0),
+                    parseFloat(row.MET_AGO || 0),
+                    parseFloat(row.MET_SET || 0),
+                    parseFloat(row.MET_OUT || 0),
+                    parseFloat(row.MET_NOV || 0),
+                    parseFloat(row.MET_DEZ || 0)
                 ];
 
                 await pool.query(query, values);
                 imported++;
 
-                if (imported % 10 === 0) {
-                    process.stdout.write(`\rImportados: ${imported}/${data.length}`);
-                }
             } catch (err) {
                 errors++;
-                console.error(`\n❌ Erro ao importar meta ${row.MET_ANO}/${row.MET_INDUSTRIA}: ${err.message}`);
+                console.error(`\n❌ Erro na meta [${row.MET_ANO} - IND: ${row.MET_INDUSTRIA}]: ${err.message}`);
             }
         }
 
         console.log(`\n\n✅ Importação concluída!`);
-        console.log(`   📊 Total: ${data.length} registros`);
-        console.log(`   ✅ Importados: ${imported}`);
-        console.log(`   ❌ Erros: ${errors}`);
-
-        // Show sample data
-        const sample = await pool.query(`
-            SELECT * FROM ind_metas 
-            WHERE met_industria = 20
-            ORDER BY met_ano DESC 
-            LIMIT 3
-        `);
-        console.log('\n📋 Amostra dos dados importados (Fornecedor 20):');
-        console.table(sample.rows);
+        console.log(`   Total: ${data.length} | Sucesso: ${imported} | Erros: ${errors}\n`);
 
     } catch (err) {
         console.error('❌ Erro fatal:', err.message);
-        console.error(err.stack);
     } finally {
         await pool.end();
     }

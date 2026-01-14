@@ -1,64 +1,58 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importAreaAtu() {
     try {
-        console.log('📊 Importando áreas de atuação (area_atu)...\n');
+        console.log(`🚀 IMPORTANDO ÁREAS DE ATUAÇÃO -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../data/area_atu.xlsx');
+        const filePath = path.join(__dirname, '../../data/area_atu.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
+
         const workbook = XLSX.readFile(filePath);
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(worksheet);
 
-        console.log(`✅ ${data.length} áreas encontradas\n`);
+        console.log(`📊 ${data.length} registros encontrados no Excel\n`);
 
-        // 1. Criar sequence se não existir
-        await pool.query(`
-            CREATE SEQUENCE IF NOT EXISTS area_atu_atu_id_seq
-            START WITH 1 INCREMENT BY 1
-        `);
-
-        // 2. Configurar como default
-        await pool.query(`
-            ALTER TABLE area_atu 
-            ALTER COLUMN atu_id 
-            SET DEFAULT nextval('area_atu_atu_id_seq'::regclass)
-        `);
-
-        // 3. Associar sequence à coluna
-        await pool.query(`
-            ALTER SEQUENCE area_atu_atu_id_seq OWNED BY area_atu.atu_id
-        `);
-
-        console.log('✅ Sequence configurada\n');
+        // Set search path to target schema
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
         for (const row of data) {
             try {
+                // Remove ID if present to let DB generate via sequence
+                const descricao = row.ATU_DESCRICAO || row.atu_descricao || row.DESCRICAO || '';
+
                 await pool.query(`
                     INSERT INTO area_atu (atu_descricao)
                     VALUES ($1)
-                `, [row.ATU_DESCRICAO || row.atu_descricao || '']);
+                `, [descricao]);
                 imported++;
             } catch (err) {
-                console.error(`❌ Erro: ${err.message}`);
+                console.error(`❌ Erro no registro [${row.ATU_DESCRICAO || 'sem nome'}]: ${err.message}`);
             }
         }
 
-        console.log(`\n✅ Importação concluída!`);
+        console.log(`\n✅ Carga concluída!`);
         console.log(`   Total: ${data.length} | Importados: ${imported}\n`);
 
         const result = await pool.query('SELECT * FROM area_atu ORDER BY atu_id');
-        console.log('📋 Áreas de atuação importadas:');
         console.table(result.rows);
 
     } catch (err) {

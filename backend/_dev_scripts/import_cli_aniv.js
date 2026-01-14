@@ -1,25 +1,35 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = 'ro_consult';
 
 async function importCliAniv() {
     try {
-        console.log('📊 Importando contatos de clientes (cli_aniv)...\n');
+        console.log(`🚀 IMPORTANDO CONTATOS DE CLIENTES (CLI_ANIV) -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../data/cli_aniv.xlsx');
+        const filePath = path.join(__dirname, '../../data/cli_aniv.xlsx');
+        if (!require('fs').existsSync(filePath)) {
+            console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
+            return;
+        }
+
         const workbook = XLSX.readFile(filePath);
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(worksheet);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        console.log(`✅ ${data.length} contatos encontrados\n`);
+        console.log(`📊 ${data.length} contatos encontrados no Excel\n`);
+
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
         let errors = 0;
@@ -54,35 +64,16 @@ async function importCliAniv() {
                 imported++;
 
                 if (imported % 100 === 0) {
-                    process.stdout.write(`\rImportados: ${imported}/${data.length}`);
+                    process.stdout.write(`\r🚀 Processando: ${imported}/${data.length}`);
                 }
             } catch (err) {
                 errors++;
-                if (errors <= 3) {
-                    console.error(`\n❌ Erro: ${err.message}`);
-                }
+                // Silently ignore duplicates if any, or log if unique constraint exists
             }
         }
 
         console.log(`\n\n✅ Importação concluída!`);
-        console.log(`   Total: ${data.length}`);
-        console.log(`   Importados: ${imported}`);
-        console.log(`   Erros: ${errors}\n`);
-
-        const count = await pool.query('SELECT COUNT(*) FROM cli_aniv');
-        console.log(`📊 Total de contatos no banco: ${count.rows[0].count}`);
-
-        const sample = await pool.query(`
-            SELECT ca.ani_nome, ca.ani_funcao, c.cli_nomred as cliente,
-                   ca.ani_diaaniv, ca.ani_mes, ca.ani_niver
-            FROM cli_aniv ca
-            LEFT JOIN clientes c ON c.cli_codigo = ca.ani_cliente
-            WHERE ca.ani_niver IS NOT NULL
-            ORDER BY ca.ani_mes, ca.ani_diaaniv
-            LIMIT 5
-        `);
-        console.log('\n📋 Amostra com aniversários:');
-        console.table(sample.rows);
+        console.log(`   Total: ${data.length} | Sucesso: ${imported} | Erros: ${errors}\n`);
 
     } catch (err) {
         console.error('❌ Erro fatal:', err.message);

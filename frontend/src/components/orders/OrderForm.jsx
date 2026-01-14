@@ -197,6 +197,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         console.log(`Render: activeTab=${activeTab}, summaryItems=${summaryItems.length}, importedItems=${importedItems.length}`);
     });
 
+    // Names state for DbComboBox display
+    const [selectedClientName, setSelectedClientName] = useState('');
+    const [selectedTranspName, setSelectedTranspName] = useState('');
+    const [selectedSellerName, setSelectedSellerName] = useState('');
+
     // Excel Import state (XX tab)
     const [xlsCodigos, setXlsCodigos] = useState('');
     const [xlsComplementos, setXlsComplementos] = useState('');
@@ -265,6 +270,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 }));
                 setDisplayNumber(existingOrder.ped_pedido);
                 setAllowDuplicates(existingOrder.ped_permiterepe || false);
+
+                // Set initial names
+                setSelectedClientName(existingOrder.cli_nomred || existingOrder.cli_nome || '');
+                setSelectedTranspName(existingOrder.tra_nome || '');
+                setSelectedSellerName(existingOrder.ven_nome || '');
 
                 if (existingOrder.ped_pedido) {
                     loadSummaryItems(existingOrder.ped_pedido);
@@ -1707,11 +1717,16 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             label="Cliente (F8-Pesquisar)"
                                             placeholder="Busque por nome, CNPJ ou código..."
                                             value={formData.ped_cliente}
-                                            initialLabel={existingOrder?.cli_nomred || existingOrder?.cli_nome || formData.ped_cliente}
+                                            initialLabel={selectedClientName || formData.ped_cliente}
                                             fetchData={fetchClients}
                                             onChange={async (val, client) => {
                                                 handleFieldChange('ped_cliente', val);
-                                                if (!val) return;
+                                                if (client) setSelectedClientName(client.label || client.nome || client.nomred);
+
+                                                if (!val) {
+                                                    setSelectedClientName('');
+                                                    return;
+                                                }
 
                                                 // Buscar condições CLI_IND apenas em modo INSERT
                                                 if (!existingOrder && selectedIndustry?.for_codigo) {
@@ -1777,9 +1792,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             label="Transportadora"
                                             placeholder="Selecione a transportadora..."
                                             value={formData.ped_transp}
-                                            initialLabel={existingOrder?.tra_nome || formData.ped_transp}
+                                            initialLabel={selectedTranspName || formData.ped_transp}
                                             fetchData={fetchCarriers}
-                                            onChange={(val) => handleFieldChange('ped_transp', val)}
+                                            onChange={(val, item) => {
+                                                handleFieldChange('ped_transp', val);
+                                                if (item) setSelectedTranspName(item.label || item.nome);
+                                            }}
                                         />
                                     </div>
 
@@ -1790,9 +1808,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                 label="VENDEDOR"
                                                 placeholder="Selecione o vendedor..."
                                                 value={formData.ped_vendedor}
-                                                initialLabel={existingOrder?.ven_nome || formData.ped_vendedor}
+                                                initialLabel={selectedSellerName || formData.ped_vendedor}
                                                 fetchData={fetchSellers}
-                                                onChange={(val) => handleFieldChange('ped_vendedor', val)}
+                                                onChange={(val, item) => {
+                                                    handleFieldChange('ped_vendedor', val);
+                                                    if (item) setSelectedSellerName(item.label || item.nome);
+                                                }}
                                             />
                                         </div>
 

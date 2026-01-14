@@ -11,7 +11,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Plus, Pencil, Trash2, Radio } from "lucide-react";
+import { FileText, Save, Plus, Pencil, Trash2, Radio, Search, Image } from "lucide-react";
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { toast } from "sonner";
 import { ContactDialog } from "./ContactDialog";
 import { SupplierCustomersTab } from "../tabs/SupplierCustomersTab";
@@ -355,17 +356,78 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                     onChange={(e) => handleChange('homepage', e.target.value)}
                                 />
                             </div>
+
+                            {/* Novo Campo de Logotipo */}
                             <div>
-                                <Label className="text-[10px] text-muted-foreground">Logotipo</Label>
-                                <Input
-                                    className="h-7 text-xs bg-muted/10"
-                                    value={formData.locimagem || ''}
-                                    onChange={(e) => handleChange('locimagem', e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-[10px] text-muted-foreground">Observações</Label>
-                                <Textarea className="h-24 resize-none text-xs bg-muted/10" />
+                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <Image size={12} /> Logotipo (Indústria)
+                                </Label>
+                                <div className="space-y-2 mt-1">
+                                    <div className="relative">
+                                        <Input
+                                            className="h-7 text-xs pr-8"
+                                            value={formData.for_logotipo || ''}
+                                            readOnly
+                                            placeholder="Selecione uma imagem..."
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => document.getElementById('supplierLogoInput')?.click()}
+                                            className="absolute right-1 top-1 text-gray-400 hover:text-emerald-600"
+                                            title="Carregar Imagem"
+                                        >
+                                            <Search size={14} />
+                                        </button>
+                                        <input
+                                            type="file"
+                                            id="supplierLogoInput"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    try {
+                                                        const dataForm = new FormData();
+                                                        dataForm.append('logo', file);
+
+                                                        // Usando endpoint existente de upload de logo da empresa como base
+                                                        // O ideal seria ter um endpoint específico ou genérico, mas vamos usar o existente por hora
+                                                        // ou criar um novo se necessário. 
+                                                        // Como o backend espera 'logo' no body, vamos manter.
+
+                                                        const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company/upload-logo'), {
+                                                            method: 'POST',
+                                                            body: dataForm
+                                                        });
+
+                                                        const data = await response.json();
+                                                        if (data.success) {
+                                                            handleChange('for_logotipo', data.path);
+                                                            toast.success('Logotipo carregado com sucesso!');
+                                                        } else {
+                                                            toast.error('Erro ao enviar imagem: ' + data.message);
+                                                        }
+                                                    } catch (error) {
+                                                        console.error(error);
+                                                        toast.error('Erro ao processar imagem.');
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="w-full h-32 border rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                                        {formData.for_logotipo ? (
+                                            <img
+                                                src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_logotipo)}`)}
+                                                alt="Logo"
+                                                className="max-h-full max-w-full object-contain"
+                                                onError={(e) => e.target.style.display = 'none'}
+                                            />
+                                        ) : (
+                                            <Image className="text-gray-300" size={24} />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -394,6 +456,12 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* Observações movido pra cá */}
+                            <div>
+                                <Label className="text-[10px] text-muted-foreground">Observações</Label>
+                                <Textarea className="h-20 resize-none text-xs bg-muted/10" />
                             </div>
                         </div>
                     </div>
