@@ -26,18 +26,23 @@ const pool = {
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Use environment variable for Linux production, falling back to local Windows path
+        // Fallback robusto para múltiplos ambientes
         const uploadDir = process.env.UPLOAD_DIR ||
-            (process.env.NODE_ENV === 'production' ? '/var/www/html/salesmasters/uploads' : 'C:\\SalesMasters\\Imagens');
+            (process.platform === 'win32'
+                ? 'C:\\SalesMasters\\Imagens'
+                : path.join(process.cwd(), 'uploads'));
 
-        // Create directory if it doesn't exist
         if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+            try {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            } catch (err) {
+                console.error('❌ Erro ao criar diretório de upload:', err);
+                return cb(err);
+            }
         }
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        // Keep original filename
         cb(null, file.originalname);
     }
 });
@@ -1343,8 +1348,11 @@ app.get('/api/config/company', async (req, res) => {
 
 // POST save company configuration to PostgreSQL
 app.post('/api/config/company/save', async (req, res) => {
+    const config = req.body;
+
     try {
-        const config = req.body;
+        // Garantir que a coluna emp_logotipo é TEXT para suportar Base64
+        await pool.query(`ALTER TABLE empresa_status ALTER COLUMN emp_logotipo TYPE TEXT`).catch(() => { });
 
         // Verificar se existe registro
         const checkResult = await pool.query('SELECT emp_id FROM empresa_status WHERE emp_id = 1');
@@ -1446,7 +1454,8 @@ app.post('/api/config/company/upload-logo', uploadLogo.single('logo'), (req, res
             });
         }
 
-        const fullPath = path.join('C:\\SalesMasters\\Imagens', req.file.originalname);
+        // Retorna o caminho onde foi realmente salvo
+        const fullPath = path.join(req.file.destination, req.file.originalname);
 
         console.log('✅ Logo uploaded:', fullPath);
 
@@ -1460,7 +1469,7 @@ app.post('/api/config/company/upload-logo', uploadLogo.single('logo'), (req, res
         console.error('Erro ao fazer upload do logo:', error);
         res.status(500).json({
             success: false,
-            message: `Erro ao fazer upload: ${error.message}`
+            message: `Erro no upload: ${error.message}`
         });
     }
 });
@@ -2119,6 +2128,10 @@ app.post('/api/suppliers', async (req, res) => {
     try {
         const supplier = req.body;
 
+        // Garantir que a coluna de imagem suporte Base64 (TEXT)
+        await pool.query(`ALTER TABLE fornecedores ALTER COLUMN for_locimagem TYPE TEXT`).catch(() => { });
+        await pool.query(`ALTER TABLE fornecedores ALTER COLUMN for_logotipo TYPE TEXT`).catch(() => { });
+
         const query = `
             INSERT INTO fornecedores (
                 for_codigo, for_nome, for_endereco, for_bairro, for_cidade, for_uf, for_cep,
@@ -2187,6 +2200,10 @@ app.put('/api/suppliers/:id', async (req, res) => {
     try {
         const { id } = req.params; // We might ignore this if using CNPJ from body, but keeping route same
         const supplier = req.body;
+
+        // Garantir que a coluna de imagem suporte Base64 (TEXT)
+        await pool.query(`ALTER TABLE fornecedores ALTER COLUMN for_locimagem TYPE TEXT`).catch(() => { });
+        await pool.query(`ALTER TABLE fornecedores ALTER COLUMN for_logotipo TYPE TEXT`).catch(() => { });
 
         if (!supplier.for_cgc) {
             return res.status(400).json({ success: false, message: 'CNPJ é obrigatório para atualização' });
@@ -2619,34 +2636,58 @@ app.delete('/api/clients/:clientId/contacts/:contactId', async (req, res) => {
     }
 });
 
-// ==================== CRUD CLIENTES ====================
-
 // GET - Listar todos os clientes
 app.get('/api/clients', async (req, res) => {
     try {
         const { search, active, page = 1, limit = 10 } = req.query;
 
-        let query = 'SELECT * FROM clientes WHERE 1=1';
+        let query = `
+            SELECT 
+                c.cli_codigo,
+                c.cli_cnpj,
+                c.cli_nomred,
+                c.cli_nome,
+                c.cli_fantasia,
+                COALESCE(cid.cid_nome, c.cli_cidade) as cli_cidade,
+                COALESCE(cid.cid_uf, c.cli_uf) as cli_uf,
+                c.cli_fone1 as cli_fone,
+                c.cli_email,
+                c.cli_redeloja,
+                c.cli_vendedor,
+                c.cli_tipopes,
+                CASE WHEN c.cli_tipopes = 'A' THEN true ELSE false END as cli_status
+            FROM clientes c
+            LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
+            WHERE 1=1
+        `;
         const params = [];
         let paramCount = 1;
 
         // Filtro de busca
         if (search) {
-            query += ` AND (cli_nome ILIKE $${paramCount} OR cli_fantasia ILIKE $${paramCount} OR cli_cnpj ILIKE $${paramCount})`;
+            query += ` AND (
+                c.cli_nome ILIKE $${paramCount} OR 
+                c.cli_fantasia ILIKE $${paramCount} OR 
+                c.cli_nomred ILIKE $${paramCount} OR 
+                c.cli_cnpj ILIKE $${paramCount} OR
+                c.cli_redeloja ILIKE $${paramCount} OR
+                CAST(c.cli_codigo AS TEXT) ILIKE $${paramCount} OR
+                COALESCE(cid.cid_nome, c.cli_cidade) ILIKE $${paramCount}
+            )`;
             params.push(`%${search}%`);
             paramCount++;
         }
 
-        // Filtro ativo/inativo (CLI_TIPOPES: 'A' = Ativo, 'I' = Inativo)
-        // Note: The user mentioned CLI_TIPOPES stores A/I.
-        if (active !== undefined) {
-            query += ` AND cli_tipopes = $${paramCount}`;
-            params.push(active === 'true' ? 'A' : 'I');
-            paramCount++;
+        // Filtro ativo/inativo
+        if (active === 'true') {
+            query += ` AND c.cli_tipopes = 'A'`;
+        } else if (active === 'false') {
+            query += ` AND c.cli_tipopes = 'I'`;
         }
+        // active === 'all' não filtra
 
         // Ordenação
-        query += ' ORDER BY cli_nome';
+        query += ' ORDER BY c.cli_nomred';
 
         // Paginação
         const offset = (page - 1) * limit;
@@ -2656,19 +2697,31 @@ app.get('/api/clients', async (req, res) => {
         const result = await pool.query(query, params);
 
         // Contar total
-        let countQuery = 'SELECT COUNT(*) FROM clientes WHERE 1=1';
+        let countQuery = `
+            SELECT COUNT(*) FROM clientes c 
+            LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
+            WHERE 1=1
+        `;
         const countParams = [];
         let countParamCount = 1;
 
         if (search) {
-            countQuery += ` AND (cli_nome ILIKE $${countParamCount} OR cli_fantasia ILIKE $${countParamCount} OR cli_cnpj ILIKE $${countParamCount})`;
+            countQuery += ` AND (
+                c.cli_nome ILIKE $${countParamCount} OR 
+                c.cli_fantasia ILIKE $${countParamCount} OR 
+                c.cli_nomred ILIKE $${countParamCount} OR 
+                c.cli_cnpj ILIKE $${countParamCount} OR
+                c.cli_redeloja ILIKE $${countParamCount} OR
+                COALESCE(cid.cid_nome, c.cli_cidade) ILIKE $${countParamCount}
+            )`;
             countParams.push(`%${search}%`);
             countParamCount++;
         }
 
-        if (active !== undefined) {
-            countQuery += ` AND cli_tipopes = $${countParamCount}`;
-            countParams.push(active === 'true' ? 'A' : 'I');
+        if (active === 'true') {
+            countQuery += ` AND c.cli_tipopes = 'A'`;
+        } else if (active === 'false') {
+            countQuery += ` AND c.cli_tipopes = 'I'`;
         }
 
         const countResult = await pool.query(countQuery, countParams);

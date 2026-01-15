@@ -366,7 +366,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                     <div className="relative">
                                         <Input
                                             className="h-7 text-xs pr-8"
-                                            value={formData.for_logotipo || ''}
+                                            value={formData.for_locimagem?.startsWith('data:') ? 'IMAGEM CARREGADA (Base64)' : (formData.for_locimagem || '')}
                                             readOnly
                                             placeholder="Selecione uma imagem..."
                                         />
@@ -386,42 +386,33 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                             onChange={async (e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file) {
-                                                    try {
-                                                        const dataForm = new FormData();
-                                                        dataForm.append('logo', file);
-
-                                                        // Usando endpoint existente de upload de logo da empresa como base
-                                                        // O ideal seria ter um endpoint específico ou genérico, mas vamos usar o existente por hora
-                                                        // ou criar um novo se necessário. 
-                                                        // Como o backend espera 'logo' no body, vamos manter.
-
-                                                        const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company/upload-logo'), {
-                                                            method: 'POST',
-                                                            body: dataForm
-                                                        });
-
-                                                        const data = await response.json();
-                                                        if (data.success) {
-                                                            handleChange('for_logotipo', data.path);
-                                                            toast.success('Logotipo carregado com sucesso!');
-                                                        } else {
-                                                            toast.error('Erro ao enviar imagem: ' + data.message);
-                                                        }
-                                                    } catch (error) {
-                                                        console.error(error);
-                                                        toast.error('Erro ao processar imagem.');
+                                                    // Validar tamanho (ex: 1MB para indústrias para não pesar demais o grid)
+                                                    if (file.size > 1024 * 1024) {
+                                                        toast.error('A imagem é muito grande. O limite é 1MB.');
+                                                        return;
                                                     }
+
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        const base64String = reader.result;
+                                                        handleChange('for_locimagem', base64String);
+                                                        toast.success('Logotipo carregado localmente!');
+                                                    };
+                                                    reader.readAsDataURL(file);
                                                 }
                                             }}
                                         />
                                     </div>
                                     <div className="w-full h-32 border rounded bg-gray-50 flex items-center justify-center overflow-hidden">
-                                        {formData.for_logotipo ? (
+                                        {formData.for_locimagem ? (
                                             <img
-                                                src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_logotipo)}`)}
+                                                src={formData.for_locimagem.startsWith('data:') ? formData.for_locimagem : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_locimagem)}`)}
                                                 alt="Logo"
                                                 className="max-h-full max-w-full object-contain"
-                                                onError={(e) => e.target.style.display = 'none'}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                                }}
                                             />
                                         ) : (
                                             <Image className="text-gray-300" size={24} />

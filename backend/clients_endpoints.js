@@ -11,16 +11,19 @@ module.exports = (pool) => {
 
             let query = `
                 SELECT 
-                    c.cli_codigo as codigo,
-                    c.cli_cnpj as cnpj_cpf,
+                    c.cli_codigo,
+                    c.cli_cnpj,
                     c.cli_nomred,
-                    c.cli_nome as raz_social,
-                    c.cli_fantasia as fantasia,
-                    coalesce(cid.cid_nome, c.cli_cidade) as cidade,
-                    coalesce(cid.cid_uf, c.cli_uf) as uf,
-                    c.cli_fone1 as fone,
+                    c.cli_nome,
+                    c.cli_fantasia,
+                    coalesce(cid.cid_nome, c.cli_cidade) as cli_cidade,
+                    coalesce(cid.cid_uf, c.cli_uf) as cli_uf,
+                    c.cli_fone1 as cli_fone,
+                    c.cli_email,
+                    c.cli_redeloja,
+                    c.cli_vendedor,
                     c.cli_tipopes,
-                    (c.cli_tipopes != 'A') as bloqueado
+                    CASE WHEN c.cli_tipopes = 'A' THEN true ELSE false END as cli_status
                 FROM clientes c
                 LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
                 WHERE 1=1
@@ -34,7 +37,9 @@ module.exports = (pool) => {
                     c.cli_fantasia ILIKE $${paramIndex} OR 
                     c.cli_nomred ILIKE $${paramIndex} OR 
                     c.cli_cnpj ILIKE $${paramIndex} OR
-                    cid.cid_nome ILIKE $${paramIndex}
+                    c.cli_redeloja ILIKE $${paramIndex} OR
+                    cid.cid_nome ILIKE $${paramIndex} OR
+                    CAST(c.cli_codigo AS TEXT) ILIKE $${paramIndex}
                 )`;
                 params.push(`%${search}%`);
                 paramIndex++;

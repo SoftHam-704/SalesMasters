@@ -161,7 +161,7 @@ export const Sidebar = () => {
     };
 
     const [dbType, setDbType] = useState(null);
-    const [syncStatus, setSyncStatus] = useState('NORMAL');
+    const [companyName, setCompanyName] = useState('');
     const [lastSync, setLastSync] = useState(null);
     const [openSectionId, setOpenSectionId] = useState('movimentacoes');
     const [userPermissions, setUserPermissions] = useState(null);
@@ -189,11 +189,28 @@ export const Sidebar = () => {
                 const data = await response.json();
                 if (data.success) {
                     setDbType(data.database_type);
-                    if (data.sync_status) setSyncStatus(data.sync_status);
-                    if (data.last_sync) setLastSync(data.last_sync);
                 }
             } catch (error) {
                 console.error('Error fetching system info:', error);
+            }
+        };
+
+        const fetchCompanyConfig = async () => {
+            try {
+                const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company'));
+                const data = await response.json();
+                if (data.success && data.config?.nome) {
+                    // Pegar apenas a primeira parte do nome (antes da primeira vírgula ou 30 chars)
+                    const fullName = data.config.nome;
+                    const shortName = fullName.includes(' - ')
+                        ? fullName.split(' - ')[0].trim()
+                        : fullName.length > 25
+                            ? fullName.substring(0, 25) + '...'
+                            : fullName;
+                    setCompanyName(shortName);
+                }
+            } catch (error) {
+                console.error('Error fetching company config:', error);
             }
         };
 
@@ -217,6 +234,7 @@ export const Sidebar = () => {
         };
 
         fetchSystemInfo();
+        fetchCompanyConfig();
         fetchUserPermissions();
     }, []);
 
@@ -413,21 +431,12 @@ export const Sidebar = () => {
                                 {dbType === 'local' ? 'LOCAL' : 'CLOUD'}
                             </div>
 
-                            <div className={cn(
-                                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                syncStatus === 'NORMAL' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                                    syncStatus === 'WARNING' ? "bg-yellow-50 text-yellow-600 border border-yellow-100" :
-                                        syncStatus === 'DELAYED' ? "bg-rose-50 text-rose-600 border border-rose-100" :
-                                            "bg-slate-50 text-slate-600 border border-slate-100"
-                            )}>
-                                <span className={cn("h-1 w-1 rounded-full",
-                                    syncStatus === 'NORMAL' ? "bg-emerald-500" :
-                                        syncStatus === 'WARNING' ? "bg-yellow-500 animate-pulse" :
-                                            syncStatus === 'DELAYED' ? "bg-rose-500 animate-bounce" :
-                                                "bg-slate-400"
-                                )} />
-                                SYNC: {syncStatus}
-                            </div>
+                            {companyName && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-100 max-w-[120px]">
+                                    <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
+                                    <span className="truncate" title={companyName}>{companyName}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -66,7 +66,8 @@
 }
 
 .search-wrapper {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
     position: relative;
 }
 
@@ -83,6 +84,7 @@
 
 .search-input {
     padding-left: 2.5rem;
+    width: 100%;
     background: rgba(255, 255, 255, 0.5);
     border: 1px solid rgba(229, 231, 235, 0.5);
     transition: all 0.2s;
@@ -138,6 +140,55 @@
 
 .grid-th:last-child {
     border-right: none;
+}
+
+/* Sortable Header Styles (cxDbGrid-like) */
+.grid-th.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.grid-th.sortable-header:hover {
+    background: rgba(16, 185, 129, 0.15);
+    color: #065f46;
+}
+
+.grid-th.sorted {
+    background: rgba(16, 185, 129, 0.2);
+    color: #065f46;
+    font-weight: 800;
+}
+
+.th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.th-content span {
+    flex: 1;
+}
+
+.sort-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.sort-icon.inactive {
+    opacity: 0.3;
+}
+
+.sort-icon.active {
+    opacity: 1;
+    color: #065f46;
+}
+
+.grid-th.sortable-header:hover .sort-icon.inactive {
+    opacity: 0.6;
 }
 
 /* Table Body */
@@ -244,8 +295,13 @@
 
 /* Animations */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fadeInDown {
@@ -253,6 +309,7 @@
         opacity: 0;
         transform: translateY(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -264,6 +321,7 @@
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

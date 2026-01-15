@@ -295,10 +295,11 @@ export const DatabaseConfig = () => {
                                             <div className="relative">
                                                 <Input
                                                     id="logotipo"
-                                                    value={companyConfig.logotipo}
+                                                    value={companyConfig.logotipo?.startsWith('data:') ? 'IMAGEM CARREGADA (Base64)' : companyConfig.logotipo}
                                                     onChange={(e) => setCompanyConfig({ ...companyConfig, logotipo: e.target.value })}
-                                                    placeholder="C:\SalesMasters\Imagens\logo.png"
+                                                    placeholder="Selecione um arquivo de imagem..."
                                                     className="pr-10"
+                                                    readOnly={companyConfig.logotipo?.startsWith('data:')}
                                                 />
                                                 <button
                                                     type="button"
@@ -316,25 +317,18 @@ export const DatabaseConfig = () => {
                                                     onChange={async (e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file) {
-                                                            try {
-                                                                const formData = new FormData();
-                                                                formData.append('logo', file);
-
-                                                                const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company/upload-logo'), {
-                                                                    method: 'POST',
-                                                                    body: formData
-                                                                });
-
-                                                                const data = await response.json();
-
-                                                                if (data.success) {
-                                                                    setCompanyConfig({ ...companyConfig, logotipo: data.path });
-                                                                } else {
-                                                                    alert('Erro ao enviar logo: ' + data.message);
-                                                                }
-                                                            } catch (error) {
-                                                                alert('Erro ao enviar logo: ' + error.message);
+                                                            // Validar tamanho (ex: 2MB)
+                                                            if (file.size > 2 * 1024 * 1024) {
+                                                                alert('A imagem é muito grande. O limite é 2MB.');
+                                                                return;
                                                             }
+
+                                                            const reader = new FileReader();
+                                                            reader.onloadend = () => {
+                                                                const base64String = reader.result;
+                                                                setCompanyConfig({ ...companyConfig, logotipo: base64String });
+                                                            };
+                                                            reader.readAsDataURL(file);
                                                         }
                                                     }}
                                                 />
@@ -344,7 +338,7 @@ export const DatabaseConfig = () => {
                                         <div className="w-40 h-28 border border-gray-300 rounded-md flex items-center justify-center bg-gray-50 overflow-hidden flex-shrink-0">
                                             {companyConfig.logotipo ? (
                                                 <img
-                                                    src={getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`)}
+                                                    src={companyConfig.logotipo.startsWith('data:') ? companyConfig.logotipo : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`)}
                                                     alt="Logotipo"
                                                     className="max-w-full max-h-full object-contain"
                                                     onError={(e) => {

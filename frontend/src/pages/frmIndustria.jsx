@@ -202,7 +202,7 @@ const FrmIndustria = () => {
                 onEdit={(row) => { setSelectedSupplier(row); setDialogOpen(true); }}
                 onDelete={handleDelete}
                 searchValue={searchTerm}
-                onSearchChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+                onSearchChange={(value) => { setSearchTerm(typeof value === 'string' ? value : value?.target?.value || ''); setPage(1); }}
                 pagination={{
                     page,
                     limit: ITEMS_PER_PAGE,

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, RefreshCw, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Search, RefreshCw, Plus, Pencil, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,11 +16,12 @@ import './GridCadPadrao.css';
 /**
  * GridCadPadrao - Componente de Grid Padrão para Cadastros
  * Equivalente visual modernizado para listagens de dados
+ * Com suporte a ordenação clicável nas colunas (estilo cxDbGrid DevExpress)
  * 
  * @param {Object} props
  * @param {Array} props.data - Array de registros
  * @param {Boolean} props.loading - Estado de carregamento
- * @param {Array} props.columns - Definição das colunas [{ key, label, width, align, render, isId }]
+ * @param {Array} props.columns - Definição das colunas [{ key, label, width, align, render, isId, sortable }]
  * @param {Function} props.onNew - Callback para novo registro
  * @param {Function} props.onEdit - Callback para editar
  * @param {Function} props.onDelete - Callback para deletar
@@ -35,6 +36,9 @@ import './GridCadPadrao.css';
  * @param {String} props.newButtonLabel - Label do botão "Novo"
  * @param {Boolean} props.showActions - Mostrar coluna de ações (default: true)
  * @param {Function} props.onRefresh - Callback para refresh
+ * @param {Object} props.sortConfig - { key, direction } configuração de ordenação externa
+ * @param {Function} props.onSortChange - Callback para mudança de ordenação (se não passado, usa ordenação local)
+ * @param {Boolean} props.enableLocalSort - Habilita ordenação local (default: true)
  */
 const GridCadPadrao = ({
     data = [],
@@ -54,8 +58,76 @@ const GridCadPadrao = ({
     newButtonLabel = 'Novo',
     showActions = true,
     onRefresh,
-    extraControls = null
+    extraControls = null,
+    sortConfig: externalSortConfig = null,
+    onSortChange = null,
+    enableLocalSort = true
 }) => {
+    // Estado local de ordenação (usado quando onSortChange não é fornecido)
+    const [localSortConfig, setLocalSortConfig] = useState({ key: null, direction: 'asc' });
+
+    // Usa configuração externa se fornecida, senão usa local
+    const sortConfig = externalSortConfig || localSortConfig;
+
+    // Função para alternar ordenação de uma coluna
+    const handleSort = (column) => {
+        // Verifica se a coluna é ordenável (default: true se não especificado)
+        if (column.sortable === false) return;
+
+        let newDirection = 'asc';
+        if (sortConfig.key === column.key) {
+            // Se já está ordenando por esta coluna, alterna a direção
+            newDirection = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+        }
+
+        const newSortConfig = { key: column.key, direction: newDirection };
+
+        if (onSortChange) {
+            // Usa callback externo se fornecido
+            onSortChange(newSortConfig);
+        } else {
+            // Usa ordenação local
+            setLocalSortConfig(newSortConfig);
+        }
+    };
+
+    // Ordenar dados localmente se habilitado e não há callback externo
+    const sortedData = useMemo(() => {
+        if (!enableLocalSort || onSortChange || !sortConfig.key) return data;
+
+        return [...data].sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+
+            // Tratar valores nulos/undefined
+            if (aValue === null || aValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1;
+            if (bValue === null || bValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1;
+
+            // Comparar strings
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                const comparison = aValue.localeCompare(bValue, 'pt-BR', { sensitivity: 'base' });
+                return sortConfig.direction === 'asc' ? comparison : -comparison;
+            }
+
+            // Comparar números ou outros tipos
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [data, sortConfig, enableLocalSort, onSortChange]);
+
+    // Renderiza o ícone de ordenação
+    const renderSortIcon = (column) => {
+        if (column.sortable === false) return null;
+
+        if (sortConfig.key === column.key) {
+            return sortConfig.direction === 'asc'
+                ? <ArrowUp className="sort-icon active" />
+                : <ArrowDown className="sort-icon active" />;
+        }
+        return <ArrowUpDown className="sort-icon inactive" />;
+    };
+
     // Formata ID com 5 dígitos
     const formatId = (value) => {
         if (value === null || value === undefined || value === '') return '—';
@@ -77,6 +149,9 @@ const GridCadPadrao = ({
 
         return value || '—';
     };
+
+    // Usar dados ordenados
+    const displayData = enableLocalSort && !onSortChange ? sortedData : data;
 
     return (
         <div className="grid-cad-padrao">
@@ -154,10 +229,14 @@ const GridCadPadrao = ({
                             {columns.map((column, index) => (
                                 <TableHead
                                     key={column.key}
-                                    className={`grid-th ${column.align === 'right' ? 'text-right' : ''}`}
+                                    className={`grid-th ${column.align === 'center' ? 'text-center' : column.align === 'right' ? 'text-right' : ''} ${column.sortable !== false ? 'sortable-header' : ''} ${sortConfig.key === column.key ? 'sorted' : ''}`}
                                     style={{ width: column.width }}
+                                    onClick={() => handleSort(column)}
                                 >
-                                    {column.label}
+                                    <div className={`th-content ${column.align === 'center' ? 'justify-center' : ''}`}>
+                                        <span>{column.label}</span>
+                                        {renderSortIcon(column)}
+                                    </div>
                                 </TableHead>
                             ))}
                             {showActions && (
@@ -174,14 +253,14 @@ const GridCadPadrao = ({
                                     Carregando dados...
                                 </TableCell>
                             </TableRow>
-                        ) : data.length === 0 ? (
+                        ) : displayData.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={columns.length + (showActions ? 1 : 0)} className="h-24 text-center text-muted-foreground">
                                     Nenhum registro encontrado.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            data.map((row, rowIndex) => (
+                            displayData.map((row, rowIndex) => (
                                 <TableRow
                                     key={row.id || rowIndex}
                                     className="grid-body-row"
@@ -189,7 +268,7 @@ const GridCadPadrao = ({
                                     {columns.map((column) => (
                                         <TableCell
                                             key={column.key}
-                                            className={`grid-td ${column.isId ? 'id-cell' : ''} ${column.cellClass || ''}`}
+                                            className={`grid-td ${column.isId ? 'id-cell' : ''} ${column.align === 'center' ? 'text-center' : column.align === 'right' ? 'text-right' : ''} ${column.cellClass || ''}`}
                                         >
                                             {renderCell(row, column)}
                                         </TableCell>

@@ -1,54 +1,84 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    Users, Search, Plus, Filter,
-    RefreshCw, UserPlus, SlidersHorizontal,
-    LayoutGrid, List as ListIcon,
-    Sparkles, Target
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useEffect, useMemo } from "react";
+import { Users, Plus } from "lucide-react";
 import { toast } from "sonner";
+import GridCadPadrao from "@/components/GridCadPadrao";
 import ClientForm from "../components/forms/ClientForm";
-import ClientCard from "../components/clients/ClientCard";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
-import { cn } from "@/lib/utils";
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
-    const [statusFilter, setStatusFilter] = useState("true"); // 'true' = Ativos, 'false' = Inativos, 'all' = Todos
+    const [page, setPage] = useState(1);
+    const [showInactive, setShowInactive] = useState(false);
+    const ITEMS_PER_PAGE = 15;
 
     const [selectedClient, setSelectedClient] = useState(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [viewMode, setViewMode] = useState("grid"); // grid or list
 
-    const fetchClients = async (page = 1) => {
+    const formatCNPJ = (value) => {
+        if (!value) return "";
+        const raw = String(value).replace(/\D/g, '');
+        if (raw.length === 14) {
+            return raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+        } else if (raw.length === 11) {
+            return raw.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+        }
+        return value;
+    };
+
+    const fetchClients = async () => {
         setLoading(true);
         try {
             const query = new URLSearchParams({
-                page: page.toString(),
-                limit: '12',
-                search: searchTerm,
-                active: statusFilter
+                page: '1',
+                limit: '5000', // Carrega todos para filtro/ordenação local
+                search: '',
+                active: 'all'
             });
 
             const url = getApiUrl(NODE_API_URL, `/api/clients?${query.toString()}`);
+            console.log('[Clientes] Buscando de:', url);
+
             const response = await fetch(url);
+            console.log('[Clientes] Response status:', response.status);
+
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const result = await response.json();
+            console.log('[Clientes] Resultado:', result);
 
-            if (result.success) {
-                setClients(result.data);
-                setPagination(result.pagination);
+            if (result.success && Array.isArray(result.data)) {
+                // Adaptar dados para o grid
+                const adaptedData = result.data.map(item => ({
+                    id: item.cli_codigo,
+                    codigo: item.cli_codigo,
+                    cnpj: item.cli_cnpj || '',
+                    nome: item.cli_nome || '',
+                    nomered: item.cli_nomred || item.cli_nomered || '',
+                    cidade: item.cli_cidade || '',
+                    uf: item.cli_uf || '',
+                    vendedor: item.cli_vendedor || '',
+                    redelojas: item.cli_redeloja || '',
+                    telefone: item.cli_fone || '',
+                    email: item.cli_email || '',
+                    situacao: item.cli_status === true || item.cli_status === 'true' || item.cli_status === 1 ? "Ativo" : "Inativo",
+                    _original: item
+                }));
+
+                // Ordenar por nome reduzido
+                adaptedData.sort((a, b) => (a.nomered || a.nome || '').localeCompare(b.nomered || b.nome || ''));
+
+                console.log('[Clientes] Dados adaptados:', adaptedData.length);
+                setClients(adaptedData);
+            } else {
+                console.warn('[Clientes] Resposta inesperada:', result);
+                toast.warning("Nenhum dado retornado pela API");
             }
         } catch (error) {
-            console.error("Erro:", error);
+            console.error("[Clientes] Erro:", error);
             toast.error("Erro ao carregar clientes: " + error.message);
         } finally {
             setLoading(false);
@@ -56,23 +86,15 @@ const FrmClientes = () => {
     };
 
     useEffect(() => {
-        fetchClients(1);
-    }, [statusFilter]);
-
-    const handleSearch = () => fetchClients(1);
-    const handleKeyPress = (e) => { if (e.key === 'Enter') handleSearch(); };
-
-    const handleNew = () => {
-        setSelectedClient(null);
-        setIsFormOpen(true);
-    };
+        fetchClients();
+    }, []);
 
     const handleSave = async (clientData) => {
         setLoading(true);
         try {
             const method = selectedClient ? 'PUT' : 'POST';
             const url = selectedClient
-                ? getApiUrl(NODE_API_URL, `/api/clients/${selectedClient.cli_codigo}`)
+                ? getApiUrl(NODE_API_URL, `/api/clients/${selectedClient.cli_codigo || selectedClient.id}`)
                 : getApiUrl(NODE_API_URL, '/api/clients');
 
             const response = await fetch(url, {
@@ -86,7 +108,7 @@ const FrmClientes = () => {
             if (result.success) {
                 toast.success(result.message);
                 setIsFormOpen(false);
-                fetchClients(pagination.page);
+                fetchClients();
             } else {
                 toast.error(result.message);
             }
@@ -98,11 +120,11 @@ const FrmClientes = () => {
     };
 
     const handleDelete = async (row) => {
-        if (!confirm(`Deseja realmente excluir o cliente ${row.cli_nomred}?`)) return;
+        if (!confirm(`Deseja realmente excluir o cliente ${row.nomered || row.nome}?`)) return;
 
         setLoading(true);
         try {
-            const url = getApiUrl(NODE_API_URL, `/api/clients/${row.cli_codigo}`);
+            const url = getApiUrl(NODE_API_URL, `/api/clients/${row.id}`);
             const response = await fetch(url, {
                 method: 'DELETE'
             });
@@ -110,7 +132,7 @@ const FrmClientes = () => {
 
             if (result.success) {
                 toast.success(result.message);
-                fetchClients(pagination.page);
+                fetchClients();
             } else {
                 toast.error(result.message);
             }
@@ -121,192 +143,165 @@ const FrmClientes = () => {
         }
     };
 
-    return (
-        <div className="flex flex-col h-screen bg-[#f5f5f5] transition-colors duration-500 overflow-hidden">
-            {/* Header Section */}
-            <motion.div
-                initial={{ y: -50, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="p-6 border-b border-slate-200 bg-white z-20"
-            >
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
-                                Base de <span className="text-emerald-600">Clientes</span>
-                            </h1>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] font-black py-0">CRM ACTIVE</Badge>
-                        </div>
-                        <p className="text-slate-400 mt-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest font-black">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                            {pagination.total} PDVS CADASTRADOS NA BASE
-                        </p>
-                    </div>
+    // Filter and Pagination
+    const filteredData = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        return clients.filter(c => {
+            const matchesSearch =
+                (c.nomered || '').toLowerCase().includes(term) ||
+                (c.nome || '').toLowerCase().includes(term) ||
+                (c.cnpj || '').includes(term) ||
+                (c.redelojas || '').toLowerCase().includes(term) ||
+                (c.cidade || '').toLowerCase().includes(term) ||
+                String(c.codigo || '').includes(term);
 
-                    <div className="flex items-center gap-4">
-                        {/* Search Bar */}
-                        <div className="relative group">
-                            <div className="relative flex items-center bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all duration-300">
-                                <Search className="h-4 w-4 text-slate-400 mr-3" />
-                                <input
-                                    placeholder="BUSCAR PDV POR NOME, CNPJ OU ID..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    onKeyPress={handleKeyPress}
-                                    className="bg-transparent border-0 outline-none p-0 text-slate-800 placeholder:text-slate-400 text-[11px] font-black uppercase tracking-wider w-80"
-                                />
-                            </div>
-                        </div>
+            const matchesStatus = showInactive ? true : c.situacao === "Ativo";
 
-                        {/* Status Filters - White Aesthetic */}
-                        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                            {[
-                                { id: 'true', label: 'Vigentes' },
-                                { id: 'false', label: 'Suspensos' },
-                                { id: 'all', label: 'Todos' }
-                            ].map((filter) => (
-                                <button
-                                    key={filter.id}
-                                    onClick={() => setStatusFilter(filter.id)}
-                                    className={cn(
-                                        "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                                        statusFilter === filter.id
-                                            ? "bg-white text-emerald-600 shadow-sm border border-slate-200"
-                                            : "text-slate-400 hover:text-slate-500"
-                                    )}
-                                >
-                                    {filter.label}
-                                </button>
-                            ))}
-                        </div>
+            return matchesSearch && matchesStatus;
+        });
+    }, [clients, searchTerm, showInactive]);
 
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={handleNew}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-sm"
-                        >
-                            <UserPlus size={16} />
-                            Novo Cliente
-                        </motion.button>
-                    </div>
-                </div>
+    const paginatedData = useMemo(() => {
+        const start = (page - 1) * ITEMS_PER_PAGE;
+        return filteredData.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredData, page]);
 
-                {/* Sub-Filters / Stats bar */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                            <Target className="w-3.5 h-3.5 text-emerald-500/50" />
-                            <span className="text-[10px] font-bold text-emerald-500/40 uppercase tracking-widest">Segmentação:</span>
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px]">VAREJO</Badge>
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px]">ATACADO</Badge>
-                            <Badge variant="outline" className="border-emerald-500/20 text-emerald-400/60 text-[9px] bg-emerald-500/5">POSITIVAR</Badge>
-                        </div>
-                    </div>
+    const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => fetchClients(pagination.page)}
-                            className="p-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                            <RefreshCw size={14} />
-                        </button>
-                        <div className="h-4 w-[1px] bg-slate-200" />
-                        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                            <button
-                                onClick={() => setViewMode("grid")}
-                                className={cn("p-1.5 rounded-md transition-all font-black", viewMode === "grid" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400")}
-                            >
-                                <LayoutGrid size={14} />
-                            </button>
-                            <button
-                                onClick={() => setViewMode("list")}
-                                className={cn("p-1.5 rounded-md transition-all font-black", viewMode === "list" ? "bg-white shadow-sm text-emerald-600" : "text-slate-400")}
-                            >
-                                <ListIcon size={14} />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Content Area */}
-            <ScrollArea className="flex-1 p-6 custom-scrollbar">
-                {loading && clients.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-40 space-y-4">
-                        <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                        <p className="text-[10px] font-black text-emerald-500/40 uppercase tracking-[0.3em] animate-pulse">Sincronizando PDVs...</p>
-                    </div>
-                ) : clients.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-40 space-y-6">
-                        <div className="p-10 rounded-full bg-emerald-500/5 border border-emerald-500/10">
-                            <Users className="w-20 h-20 text-emerald-500/10" />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-emerald-500 font-black uppercase tracking-[0.2em]">Nenhum PDV Localizado</p>
-                            <p className="text-emerald-500/30 text-[10px] mt-2 uppercase">Ajuste os filtros de busca tática ou cadastre novo</p>
-                        </div>
-                    </div>
+    // Definição das colunas (estilo cxDbGrid)
+    const columns = [
+        {
+            key: 'codigo',
+            label: 'Código',
+            isId: true,
+            width: '100px',
+            render: (row) => (
+                <span className="font-mono text-sm text-slate-600 font-bold">
+                    #{String(row.codigo).padStart(5, '0')}
+                </span>
+            )
+        },
+        {
+            key: 'cnpj',
+            label: 'CNPJ/CPF',
+            width: '160px',
+            render: (row) => (
+                <span className="font-mono text-xs text-slate-500">
+                    {formatCNPJ(row.cnpj)}
+                </span>
+            )
+        },
+        {
+            key: 'nomered',
+            label: 'Nome Reduzido',
+            width: '200px',
+            align: 'center',
+            render: (row) => (
+                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase text-xs py-1" title={row.nomered || row.nome}>
+                    {row.nomered || row.nome}
+                </Badge>
+            )
+        },
+        {
+            key: 'nome',
+            label: 'Razão Social',
+            width: '280px',
+            render: (row) => (
+                <span className="text-xs text-slate-500 truncate block max-w-[280px]" title={row.nome}>
+                    {row.nome}
+                </span>
+            )
+        },
+        {
+            key: 'redelojas',
+            label: 'Rede/Lojas',
+            width: '150px',
+            render: (row) => (
+                row.redelojas ? (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs truncate max-w-[140px]" title={row.redelojas}>
+                        {row.redelojas}
+                    </Badge>
                 ) : (
-                    <div className={cn(
-                        "pb-20",
-                        viewMode === "grid" ? "grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6" : "space-y-4"
-                    )}>
-                        <AnimatePresence>
-                            {clients.map((client, index) => (
-                                <ClientCard
-                                    key={client.cli_codigo}
-                                    client={client}
-                                    index={index}
-                                    onEdit={(row) => { setSelectedClient(row); setIsFormOpen(true); }}
-                                    onDelete={handleDelete}
-                                />
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                )}
+                    <span className="text-slate-300 text-xs">—</span>
+                )
+            )
+        },
+        {
+            key: 'cidade',
+            label: 'Cidade/UF',
+            width: '160px',
+            render: (row) => (
+                <span className="text-sm text-slate-600">
+                    {row.cidade ? `${row.cidade}/${row.uf || ''}` : '—'}
+                </span>
+            )
+        },
+        {
+            key: 'situacao',
+            label: 'Status',
+            width: '100px',
+            align: 'center',
+            render: (row) => (
+                <Badge
+                    variant={row.situacao === "Ativo" ? "default" : "secondary"}
+                    className={row.situacao === "Ativo"
+                        ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25"
+                        : "bg-slate-100 text-slate-500"
+                    }
+                >
+                    {row.situacao}
+                </Badge>
+            )
+        }
+    ];
 
-                {/* Pagination (Simplified for now) */}
-                {pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-4 py-8">
-                        <Button
-                            variant="outline"
-                            onClick={() => fetchClients(pagination.page - 1)}
-                            disabled={pagination.page === 1}
-                            className="bg-black/40 border-emerald-500/20 text-emerald-400 text-xs"
-                        >
-                            Anterior
-                        </Button>
-                        <span className="text-xs font-mono text-emerald-500/60 uppercase">Página {pagination.page} de {pagination.totalPages}</span>
-                        <Button
-                            variant="outline"
-                            onClick={() => fetchClients(pagination.page + 1)}
-                            disabled={pagination.page === pagination.totalPages}
-                            className="bg-black/40 border-emerald-500/20 text-emerald-400 text-xs"
-                        >
-                            Próxima
-                        </Button>
-                    </div>
-                )}
-            </ScrollArea>
-
-            {/* Modals and Overlays */}
+    return (
+        <div className="h-full bg-slate-50 p-6">
             <ClientForm
                 open={isFormOpen}
                 onOpenChange={setIsFormOpen}
-                data={selectedClient}
+                data={selectedClient?._original || selectedClient}
                 onSave={handleSave}
             />
 
-            {/* FAB for Mobile/Quick access */}
-            <motion.button
-                whileHover={{ scale: 1.1, translateY: -5 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={handleNew}
-                className="fixed bottom-8 right-8 z-50 w-16 h-16 bg-emerald-500 text-black rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] flex flex-col items-center justify-center group lg:hidden"
-            >
-                <Plus className="w-8 h-8 relative z-10" />
-            </motion.button>
+            <GridCadPadrao
+                title="Base de Clientes"
+                subtitle={`Gerencie seus clientes (${filteredData.length} exibidos de ${clients.length} carregados)`}
+                icon={Users}
+                data={paginatedData}
+                loading={loading}
+                columns={columns}
+                onNew={() => { setSelectedClient(null); setIsFormOpen(true); }}
+                onEdit={(row) => { setSelectedClient(row); setIsFormOpen(true); }}
+                onDelete={handleDelete}
+                searchPlaceholder="Buscar por nome, CNPJ, código, cidade ou rede..."
+                searchValue={searchTerm}
+                onSearchChange={(value) => { setSearchTerm(value); setPage(1); }}
+                pagination={{
+                    page,
+                    limit: ITEMS_PER_PAGE,
+                    total: filteredData.length,
+                    totalPages
+                }}
+                onPageChange={setPage}
+                onRefresh={fetchClients}
+                newButtonLabel="Novo Cliente"
+                extraControls={
+                    <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
+                        <Checkbox
+                            id="showInactive"
+                            checked={showInactive}
+                            onCheckedChange={setShowInactive}
+                        />
+                        <label
+                            htmlFor="showInactive"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-slate-600"
+                        >
+                            Mostrar inativos
+                        </label>
+                    </div>
+                }
+            />
         </div>
     );
 };

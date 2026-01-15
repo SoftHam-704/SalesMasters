@@ -32,10 +32,22 @@ async def db_context_middleware(request: Request, call_next):
             port = db_config.get("port")
             dbname = db_config.get("database")
             
+            # Suporte a multi-tenancy por SCHEMA
+            schema = db_config.get("schema", "public")
+            
             db_url = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
             
-            # Cria o engine (em produção idealmente usaríamos um pool cacheado)
-            engine = create_engine(db_url, pool_pre_ping=True, pool_recycle=3600)
+            # Cria o engine com search_path configurado para o schema do tenant
+            connect_args = {}
+            if schema and schema != "public":
+                connect_args["options"] = f"-c search_path={schema},public"
+            
+            engine = create_engine(
+                db_url, 
+                pool_pre_ping=True, 
+                pool_recycle=3600,
+                connect_args=connect_args
+            )
             
             print(f"📡 [BI-ENGINE] Conectado ao tenant: {cnpj} em {host}")
             

@@ -175,7 +175,12 @@ const OrderPdfReport = ({ model, order, items, companyData }) => {
                 <View style={styles.header}>
                     <View style={styles.logoBox}>
                         {companyData?.logotipo && (
-                            <Image src={`https://salesmasters.softham.com.br/api/image?path=${encodeURIComponent(companyData.logotipo)}`} style={{ maxWidth: '90%', maxHeight: '90%' }} />
+                            <Image
+                                src={companyData.logotipo.startsWith('data:')
+                                    ? companyData.logotipo
+                                    : `https://salesmasters.softham.com.br/api/image?path=${encodeURIComponent(companyData.logotipo)}`}
+                                style={{ maxWidth: '90%', maxHeight: '90%' }}
+                            />
                         )}
                     </View>
                     <View style={styles.companyInfo}>
@@ -184,7 +189,14 @@ const OrderPdfReport = ({ model, order, items, companyData }) => {
                         <Text style={{ fontSize: 7 }}>{companyData?.endereco} {companyData?.bairro} - {companyData?.cidade}/{companyData?.uf}</Text>
                     </View>
                     <View style={styles.logoBox}>
-                        <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{order.for_nomered || 'IND'}</Text>
+                        {order.for_logotipo || order.for_locimagem ? (
+                            <Image
+                                src={(order.for_logotipo?.startsWith('data:') ? order.for_logotipo : (order.for_locimagem?.startsWith('data:') ? order.for_locimagem : `https://salesmasters.softham.com.br/api/image?path=${encodeURIComponent(order.for_logotipo || order.for_locimagem)}`))}
+                                style={{ maxWidth: '90%', maxHeight: '90%' }}
+                            />
+                        ) : (
+                            <Text style={{ fontSize: 8, fontWeight: 'bold' }}>{order.for_nomered || 'IND'}</Text>
+                        )}
                     </View>
                 </View>
 
