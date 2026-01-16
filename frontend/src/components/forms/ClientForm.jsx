@@ -46,6 +46,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
     const [cityOptions, setCityOptions] = useState([]); // For async search
     const [sellers, setSellers] = useState([]);
     const [regions, setRegions] = useState([]);
+    const [sectors, setSectors] = useState([]);
     const [openSeller, setOpenSeller] = useState(false);
     const [loadingAux, setLoadingAux] = useState(false);
 
@@ -216,6 +217,27 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
         }
     }, [formData.cli_idcidade]);
 
+    // Fetch sectors when city changes
+    useEffect(() => {
+        if (formData.cli_idcidade) {
+            fetch(getApiUrl(NODE_API_URL, `/api/v2/sectors?city_id=${formData.cli_idcidade}`))
+                .then(res => res.json())
+                .then(json => {
+                    if (json.success) {
+                        setSectors(json.data);
+                    } else {
+                        setSectors([]);
+                    }
+                })
+                .catch(e => {
+                    console.error('Erro ao buscar setores', e);
+                    setSectors([]);
+                });
+        } else {
+            setSectors([]);
+        }
+    }, [formData.cli_idcidade]);
+
     const loadAuxData = async () => {
         setLoadingAux(true);
         try {
@@ -270,7 +292,8 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
             ...prev,
             cli_idcidade: city.cid_codigo,
             cli_cidade: city.cid_nome,
-            cli_uf: city.cid_uf
+            cli_uf: city.cid_uf,
+            cli_setor_id: null // Reset sector when city changes
         }));
         setCityOpen(false);
     };
@@ -480,6 +503,28 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                     className="h-7 text-xs"
                                 />
                             </div>
+                            <div className="flex-1">
+                                <Label className="text-[10px]">Setor / Bairro (Rota)</Label>
+                                <Select
+                                    value={formData.cli_setor_id?.toString()}
+                                    onValueChange={(val) => handleChange('cli_setor_id', parseInt(val))}
+                                    disabled={!formData.cli_idcidade || sectors.length === 0}
+                                >
+                                    <SelectTrigger className="h-7 text-xs w-full border-blue-200 bg-blue-50/50">
+                                        <SelectValue placeholder={!formData.cli_idcidade ? "Selecione a cidade" : sectors.length === 0 ? "Nenhum setor cadastrado" : "Selecione o setor..."} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-[9999]">
+                                        {sectors.map((sector) => (
+                                            <SelectItem key={sector.set_codigo} value={sector.set_codigo.toString()}>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: sector.set_cor || '#ccc' }} />
+                                                    {sector.set_descricao}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div className="w-20">
                                 <Label className="text-[10px]">CEP</Label>
                                 <Input
@@ -678,6 +723,40 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                         <SelectItem value="Regime Especial">Regime Especial</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+
+                        {/* Row Geo: Latitude | Longitude | Mapa */}
+                        <div className="flex gap-1.5 items-end bg-gray-50/50 p-1 rounded border border-gray-100">
+                            <div className="flex-1">
+                                <Label className="text-[10px] text-gray-500 font-medium">Latitude</Label>
+                                <Input
+                                    value={formData.cli_latitude || ''}
+                                    onChange={(e) => handleChange('cli_latitude', e.target.value)}
+                                    className="h-7 text-xs bg-white"
+                                    placeholder="-00.000000"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <Label className="text-[10px] text-gray-500 font-medium">Longitude</Label>
+                                <Input
+                                    value={formData.cli_longitude || ''}
+                                    onChange={(e) => handleChange('cli_longitude', e.target.value)}
+                                    className="h-7 text-xs bg-white"
+                                    placeholder="-00.000000"
+                                />
+                            </div>
+                            <div className="w-auto">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-7 w-9 text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                                    title="Ver no Google Maps"
+                                    disabled={!formData.cli_latitude || !formData.cli_longitude}
+                                    onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${formData.cli_latitude},${formData.cli_longitude}`, '_blank')}
+                                >
+                                    <MapPin size={14} />
+                                </Button>
                             </div>
                         </div>
 

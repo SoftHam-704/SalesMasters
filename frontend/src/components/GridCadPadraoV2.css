@@ -58,11 +58,38 @@
     gap: 0.75rem;
 }
 
+/* Header Row specific styling */
+.gridv2-row.header-row {
+    background-color: #f8fafc !important;
+    /* Slate 50 background for header */
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+}
+
+.gridv2-row.header-row div {
+    color: #475569;
+    /* Slate 600 */
+    font-weight: 800;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Data Rows Styling */
 .gridv2-row {
     background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    /* Light separator */
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    /* Flat rows */
+    padding: 1.25rem 1.5rem;
+    /* Increased padding */
     display: grid;
     /* Default for Card Mode, overridden inline for Table Mode */
     grid-template-columns: auto 1fr auto auto;
@@ -72,22 +99,23 @@
     cursor: default;
 }
 
+.gridv2-row:last-child {
+    border-bottom: none;
+    border-radius: 0 0 8px 8px;
+    /* Rounded bottom for last item */
+}
+
 /* Specific override for card mode explicitly if needed */
 .gridv2-row.card-mode {
     grid-template-columns: auto 1fr auto auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
 }
 
 .gridv2-row:hover {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-    border-color: #cbd5e1;
-}
-
-/* Header Row specific styling */
-.gridv2-row.header-row {
-    padding-bottom: 0.5rem;
-    padding-top: 0.5rem;
-    margin-bottom: -0.5rem;
-    /* Pull rows closer to header */
+    background-color: #f8fafc;
+    /* Slight hover effect */
 }
 
 

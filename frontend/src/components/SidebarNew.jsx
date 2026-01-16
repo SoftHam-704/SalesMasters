@@ -32,7 +32,10 @@ import {
     FileText,
     BookOpen,
     Gamepad2,
-    Home
+    Home,
+    MessageCircle,
+    Route,
+    Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -167,6 +170,15 @@ export const Sidebar = () => {
     const [userPermissions, setUserPermissions] = useState(null);
     const [isMaster, setIsMaster] = useState(false);
     const [isGerencia, setIsGerencia] = useState(false);
+    const [isBiEnabled, setIsBiEnabled] = useState(false);
+    const [chatNaoLidas, setChatNaoLidas] = useState(0);
+
+    // Escutar eventos de novas mensagens do chat para atualizar o badge
+    React.useEffect(() => {
+        const handleBadge = (e) => setChatNaoLidas(e.detail);
+        window.addEventListener('chat:badge', handleBadge);
+        return () => window.removeEventListener('chat:badge', handleBadge);
+    }, []);
 
     const handleToggleSection = (sectionId) => {
         setOpenSectionId(prev => prev === sectionId ? null : sectionId);
@@ -219,6 +231,9 @@ export const Sidebar = () => {
                 const userJson = sessionStorage.getItem('user');
                 if (!userJson) return;
                 const user = JSON.parse(userJson);
+
+                // Pegar se o BI está habilitado para a empresa (definido no login pelo banco Master)
+                setIsBiEnabled(user.biEnabled === true);
 
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/system/my-permissions?userId=${user.id}`));
                 const data = await response.json();
@@ -278,7 +293,7 @@ export const Sidebar = () => {
                         onClick={() => navigate("/")}
                     />
 
-                    {(isMaster || isGerencia) && (
+                    {isBiEnabled && (isMaster || isGerencia) && (
                         <NavItem
                             icon={BarChart2}
                             label="Business Intelligence"
@@ -288,6 +303,15 @@ export const Sidebar = () => {
                             badgeClassName="bg-amber-100 text-amber-700 border-amber-200"
                         />
                     )}
+
+                    <NavItem
+                        icon={Calendar}
+                        label="Minha Agenda"
+                        active={isActive("/agenda")}
+                        onClick={() => navigate("/agenda")}
+                        badge="PRO"
+                        badgeClassName="bg-emerald-100 text-emerald-700 border-emerald-200"
+                    />
                 </div>
 
                 {/* CADASTROS */}
@@ -307,6 +331,8 @@ export const Sidebar = () => {
                         {canAccess(104) && <NavItem icon={Tags} label="Grupos de Produtos" active={isActive("/cadastros/grupos-produtos")} onClick={() => navigate("/cadastros/grupos-produtos")} />}
                         {canAccess(118) && <NavItem icon={DollarSign} label="Grupos Descontos" active={isActive("/cadastros/grupos-descontos")} onClick={() => navigate("/cadastros/grupos-descontos")} />}
                         {canAccess(113) && <NavItem icon={Map} label="Regiões" active={isActive("/cadastros/regioes")} onClick={() => navigate("/cadastros/regioes")} />}
+                        {canAccess(113) && <NavItem icon={MapPin} label="Setores / Bairros" active={isActive("/cadastros/setores")} onClick={() => navigate("/cadastros/setores")} />}
+                        {canAccess(113) && <NavItem icon={Route} label="Itinerários de Visita" active={isActive("/cadastros/itinerarios")} onClick={() => navigate("/cadastros/itinerarios")} badge="NOVO" badgeClassName="bg-emerald-100 text-emerald-700" />}
                         {canAccess(114) && <NavItem icon={Map} label="Área Atuação" active={isActive("/cadastros/area-atuacao")} onClick={() => navigate("/cadastros/area-atuacao")} />}
                         {canAccess(106) && <NavItem icon={Truck} label="Transportadoras" active={isActive("/cadastros/transportadoras")} onClick={() => navigate("/cadastros/transportadoras")} />}
                         {canAccess(111) && <NavItem icon={FileText} label="Tabelas Preços" active={isActive("/cadastros/tabelas-precos")} onClick={() => navigate("/cadastros/tabelas-precos")} />}
@@ -323,6 +349,7 @@ export const Sidebar = () => {
                         accentColor="#059669"
                     >
                         {canAccess(207) && <NavItem icon={ShoppingCart} label="Pedidos de Venda" active={isActive("/pedidos")} onClick={() => navigate("/pedidos")} />}
+                        {canAccess(207) && <NavItem icon={Target} label="Campanhas & Metas" active={isActive("/vendas/campanhas")} onClick={() => navigate("/vendas/campanhas")} badge="BETA" badgeClassName="bg-purple-100 text-purple-700 font-bold" />}
                         {canAccess(205) && <NavItem icon={FileText} label="Baixa via XML" active={isActive("/movimentacoes/baixa-xml")} onClick={() => navigate("/movimentacoes/baixa-xml")} />}
                         {canAccess(208) && <NavItem icon={TrendingUp} label="SELL-OUT" active={isActive("/movimentacoes/sell-out")} onClick={() => navigate("/movimentacoes/sell-out")} />}
                         {canAccess(206) && <NavItem icon={Users} label="CRM / Atendimentos" active={isActive("/crm")} onClick={() => navigate("/crm")} />}
@@ -395,7 +422,32 @@ export const Sidebar = () => {
             </nav>
 
             {/* Footer - Logout and SoftHam Branding */}
-            <div className="px-3 pb-6 pt-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-md relative z-10">
+            <div className="px-3 pb-6 pt-4 border-t border-slate-200/60 bg-white/40 backdrop-blur-md relative z-10 text-left">
+                {/* Botão do Chat Pro */}
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => window.dispatchEvent(new CustomEvent('chat:toggle'))}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-300 group mb-2 border border-emerald-100/50 bg-emerald-50/30 relative"
+                >
+                    <div className="relative">
+                        <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        {chatNaoLidas > 0 && (
+                            <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white animate-pulse">
+                                {chatNaoLidas}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex flex-col items-start translate-y-[-1px]">
+                        <span className="text-[11px] font-black uppercase tracking-[0.15em]">SalesMaster Chat</span>
+                        <span className="text-[9px] font-bold text-emerald-500/70 tracking-wider">MENSAGENS INTERNAS</span>
+                    </div>
+                    <div className="ml-auto">
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500 text-[8px] font-black text-white">
+                            PRO
+                        </div>
+                    </div>
+                </motion.button>
+
                 {/* Botão de Sair */}
                 <motion.button
                     whileTap={{ scale: 0.95 }}

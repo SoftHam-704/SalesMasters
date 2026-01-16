@@ -396,7 +396,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                                     reader.onloadend = () => {
                                                         const base64String = reader.result;
                                                         handleChange('for_locimagem', base64String);
-                                                        toast.success('Logotipo carregado localmente!');
+                                                        toast.success('Logotipo carregado! Clique em Salvar para gravar permanentemente.');
                                                     };
                                                     reader.readAsDataURL(file);
                                                 }

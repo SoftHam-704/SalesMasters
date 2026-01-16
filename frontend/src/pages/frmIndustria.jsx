@@ -56,7 +56,8 @@ const FrmIndustria = () => {
                 fax: item.for_fax || '',
                 obs2: item.for_obs2 || '',
                 homepage: item.for_homepage || '',
-                locimagem: item.for_locimagem || '',
+                for_locimagem: item.for_locimagem || '',
+                for_logotipo: item.for_logotipo || '',
                 situacao: (item.for_tipo2 === 'A' || item.situacao === 'A' || item.situacao === 'Ativo') ? "Ativo" : "Inativo",
                 _original: item
             }));
@@ -101,9 +102,10 @@ const FrmIndustria = () => {
                 for_cgc: data.cnpj?.replace(/\D/g, ''),
                 for_inscricao: data.inscricao,
                 for_fax: data.fax,
-                for_obs2: data.obs2 || '',
-                for_homepage: data.homepage || '',
-                for_locimagem: data.locimagem || ''
+                for_obs2: data.for_obs2 || data.obs2 || '',
+                for_homepage: data.for_homepage || data.homepage || '',
+                for_locimagem: data.for_locimagem || '',
+                for_logotipo: data.for_logotipo || ''
             };
 
             const response = await fetch(url, {
@@ -114,7 +116,7 @@ const FrmIndustria = () => {
 
             if (!response.ok) throw new Error("Erro ao salvar dados");
 
-            toast.success(isNew ? "Fornecedor criado!" : "Fornecedor atualizado!");
+            toast.success(isNew ? "Indústria criada!" : "Indústria atualizada!");
             setDialogOpen(false);
             fetchSuppliers();
         } catch (error) {
@@ -160,18 +162,18 @@ const FrmIndustria = () => {
     // Columns Definition
     const columns = [
         { key: 'id', label: 'ID', isId: true, width: '80px' },
-        { key: 'cnpj', label: 'CNPJ', width: '150px', render: (row) => <span className="font-mono text-xs">{formatCNPJ(row.cnpj)}</span> },
+        { key: 'cnpj', label: 'CNPJ', width: '150px', render: (row) => <span className="font-mono text-sm text-black font-medium">{formatCNPJ(row.cnpj)}</span> },
         {
             key: 'nomeReduzido',
             label: 'NOME REDUZIDO',
             width: '180px',
             render: (row) => (
-                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase">
+                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase text-sm py-1">
                     {row.nomeReduzido}
                 </Badge>
             )
         },
-        { key: 'razaoSocial', label: 'Razão Social', width: '250px', render: (row) => <span className="text-xs text-slate-500 truncate block max-w-[250px]">{row.razaoSocial}</span> },
+        { key: 'razaoSocial', label: 'Razão Social', width: '250px', render: (row) => <span className="text-xs text-black truncate block max-w-[250px]">{row.razaoSocial}</span> },
         { key: 'cidade', label: 'Cidade/UF', width: '150px', render: (row) => <span className="text-xs">{row.cidade}/{row.uf}</span> },
         {
             key: 'situacao', label: 'Situação', width: '100px', align: 'center', render: (row) => (
@@ -192,8 +194,8 @@ const FrmIndustria = () => {
             />
 
             <GridCadPadrao
-                title="Fornecedores"
-                subtitle={`Gerencie seus fornecedores (${filteredData.length} exibidos de ${suppliers.length} carregados)`}
+                title="Indústrias"
+                subtitle={`Gerencie suas indústrias (${filteredData.length} exibidos de ${suppliers.length} carregados)`}
                 icon={Building2}
                 data={paginatedData}
                 loading={loading}

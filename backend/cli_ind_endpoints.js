@@ -10,12 +10,8 @@ module.exports = function (pool) {
     /**
      * GET /api/cli-ind/:clientCode/:supplierCode
      * Busca condições especiais de um cliente para uma indústria específica
-     * 
-     * @param {string} clientCode - Código do cliente (cli_codigo)
-     * @param {string} supplierCode - Código da indústria/fornecedor (cli_forcodigo)
-     * @returns {object} Condições especiais ou null se não encontrado
      */
-    router.get('/cli-ind/:clientCode/:supplierCode', async (req, res) => {
+    router.get('/:clientCode/:supplierCode', async (req, res) => {
         try {
             const { clientCode, supplierCode } = req.params;
 
@@ -83,7 +79,7 @@ module.exports = function (pool) {
      * POST /api/cli-ind
      * Cria ou atualiza condições especiais de um cliente para uma indústria
      */
-    router.post('/api/cli-ind', async (req, res) => {
+    router.post('/', async (req, res) => {
         try {
             const {
                 clientCode,
@@ -113,13 +109,16 @@ module.exports = function (pool) {
                 LIMIT 1
             `;
             const checkResult = await pool.query(checkQuery, [clientCode, supplierCode]);
+            const existingRecord = checkResult.rows && checkResult.rows.length > 0 ? checkResult.rows[0] : null;
 
             let query;
             let values;
 
-            if (checkResult.rows.length > 0) {
+            const d = discounts || {};
+
+            if (existingRecord) {
                 // UPDATE
-                console.log(`🔄 [CLI_IND] Atualizando registro existente (ID: ${checkResult.rows[0].cli_lancamento})`);
+                console.log(`🔄 [CLI_IND] Atualizando registro existente (ID: ${existingRecord.cli_lancamento})`);
                 query = `
                     UPDATE cli_ind SET
                         cli_desc1 = $1, cli_desc2 = $2, cli_desc3 = $3, 
@@ -135,9 +134,9 @@ module.exports = function (pool) {
                     RETURNING cli_lancamento
                 `;
                 values = [
-                    discounts.desc1 || 0, discounts.desc2 || 0, discounts.desc3 || 0,
-                    discounts.desc4 || 0, discounts.desc5 || 0, discounts.desc6 || 0,
-                    discounts.desc7 || 0, discounts.desc8 || 0, discounts.desc9 || 0,
+                    d.desc1 || 0, d.desc2 || 0, d.desc3 || 0,
+                    d.desc4 || 0, d.desc5 || 0, d.desc6 || 0,
+                    d.desc7 || 0, d.desc8 || 0, d.desc9 || 0,
                     paymentTerm || '',
                     priceTable || '',
                     carrierCode || null,
@@ -150,13 +149,9 @@ module.exports = function (pool) {
             } else {
                 // INSERT
                 console.log(`➕ [CLI_IND] Criando novo registro`);
-                // Precisamos de um novo ID para cli_lancamento se não for serial. 
-                // Assumindo que o banco não gerencia o ID automaticamente se não configurado como SERIAL/SEQUENCE.
-                // Vou usar max(cli_lancamento) + 1 por segurança ou um sequence se soubesse.
-                // Como vi no migrate que é INTEGER PRIMARY KEY e não SERIAL, vou pegar o Max.
 
-                const maxIdQuery = 'SELECT COALESCE(MAX(cli_lancamento), 0) + 1 as next_id FROM cli_ind';
-                const maxIdResult = await pool.query(maxIdQuery);
+                // Get next ID
+                const maxIdResult = await pool.query('SELECT COALESCE(MAX(cli_lancamento), 0) + 1 as next_id FROM cli_ind');
                 const nextId = maxIdResult.rows[0].next_id;
 
                 query = `
@@ -178,9 +173,9 @@ module.exports = function (pool) {
                     nextId,
                     clientCode,
                     supplierCode,
-                    discounts.desc1 || 0, discounts.desc2 || 0, discounts.desc3 || 0,
-                    discounts.desc4 || 0, discounts.desc5 || 0, discounts.desc6 || 0,
-                    discounts.desc7 || 0, discounts.desc8 || 0, discounts.desc9 || 0,
+                    d.desc1 || 0, d.desc2 || 0, d.desc3 || 0,
+                    d.desc4 || 0, d.desc5 || 0, d.desc6 || 0,
+                    d.desc7 || 0, d.desc8 || 0, d.desc9 || 0,
                     paymentTerm || '',
                     priceTable || '',
                     carrierCode || null,
@@ -190,11 +185,12 @@ module.exports = function (pool) {
                 ];
             }
 
-            await pool.query(query, values);
+            const result = await pool.query(query, values);
 
             res.json({
                 success: true,
-                message: 'Condições comerciais salvas com sucesso!'
+                message: 'Condições comerciais salvas com sucesso!',
+                data: result.rows[0]
             });
 
         } catch (error) {

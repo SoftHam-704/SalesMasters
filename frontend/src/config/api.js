@@ -1,7 +1,7 @@
-import { NODE_API_URL } from '../utils/apiConfig';
+import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 // API Configuration
-export const API_BASE_URL = NODE_API_URL;
+export const API_BASE_URL = getApiUrl(NODE_API_URL, 'api');
 
 // API Endpoints
 export const API_ENDPOINTS = {

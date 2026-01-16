@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../../lib/axios';
 import { Target, Loader2 } from 'lucide-react';
 import BubbleChart from '../charts/BubbleChart';
 import EvolutionChart from '../charts/EvolutionChart';

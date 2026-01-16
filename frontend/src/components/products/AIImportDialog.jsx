@@ -379,25 +379,27 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                                 {analysis.detected_columns?.length || 0} colunas detectadas. Ajuste o mapeamento se necessário:
                             </div>
 
-                            {/* Mapping Grid - Simples */}
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
+                            {/* Mapping Grid - Premium Style */}
+                            <div className="grid grid-cols-3 gap-5 p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
                                 {SYSTEM_FIELDS.map(field => (
-                                    <div key={field.key} className="space-y-1">
-                                        <Label className="text-xs font-semibold text-slate-700">
-                                            {field.label} {field.required && <span className="text-red-500">*</span>}
+                                    <div key={field.key} className="flex flex-col">
+                                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            {field.label}
+                                            {field.required && <span className="text-red-500 text-sm">*</span>}
                                         </Label>
                                         <Select
                                             value={mapping[field.key]?.toString() || 'none'}
                                             onValueChange={(val) => handleMappingChange(field.key, val)}
                                         >
-                                            <SelectTrigger className="h-9 text-sm bg-white">
+                                            <SelectTrigger className="h-12 text-sm bg-slate-50 border-2 border-slate-200 rounded-xl font-medium hover:border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent className="z-[9999]" position="popper" sideOffset={4}>
-                                                <SelectItem value="none">-- Não importar --</SelectItem>
+                                            <SelectContent className="z-[9999] rounded-xl border-2" position="popper" sideOffset={4}>
+                                                <SelectItem value="none" className="text-slate-400">-- Não importar --</SelectItem>
                                                 {analysis.detected_columns?.map((col, idx) => (
-                                                    <SelectItem key={idx} value={idx.toString()}>
-                                                        Col {idx + 1}: {String(col || '').substring(0, 25)}
+                                                    <SelectItem key={idx} value={idx.toString()} className="py-2.5">
+                                                        <span className="font-mono text-xs text-slate-400 mr-2">Col {idx + 1}:</span>
+                                                        <span className="font-medium">{String(col || '').substring(0, 30)}</span>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

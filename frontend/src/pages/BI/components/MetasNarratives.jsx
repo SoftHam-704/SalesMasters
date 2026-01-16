@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../../lib/axios';
 import { Sparkles, TrendingUp, AlertTriangle, CheckCircle, Info, ArrowRight } from 'lucide-react';
 import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 

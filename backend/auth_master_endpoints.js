@@ -26,17 +26,29 @@ router.post('/master-login', async (req, res) => {
     }
 
     try {
-        const CNPJ_TESTE = '00000000000191';
+        const CNPJ_TESTE = '17504829000124';
         let empresa;
         let dbConfig;
 
         // 1. BUSCAR EMPRESA NO MASTER
         const isDev = process.env.NODE_ENV !== 'production';
 
-        if (rawCnpj === CNPJ_TESTE && isDev) {
+        const masterQuery = `
+            SELECT id, cnpj, razao_social, status, db_host, db_nome, db_schema, db_usuario, db_senha, db_porta, 
+                   COALESCE(limite_sessoes, 999) as limite_sessoes, 
+                   COALESCE(bloqueio_ativo, 'N') as bloqueio_ativo
+            FROM empresas 
+            WHERE cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $1
+        `;
+        const masterResult = await masterPool.query(masterQuery, [rawCnpj]);
+
+        if (masterResult.rows.length > 0) {
+            empresa = masterResult.rows[0];
+        } else if (rawCnpj === CNPJ_TESTE && isDev) {
+            // Bypass apenas para desenvolvimento local se não estiver na tabela
             console.log('🔧 [AUTH] MODO TESTE (Bypass): Empresa SoftHam Local');
             empresa = {
-                id: 1, // Assumimos que SoftHam é ID 1
+                id: 1,
                 cnpj: CNPJ_TESTE,
                 razao_social: 'SOFTHAM SISTEMAS LTDA',
                 status: 'ATIVO',
@@ -46,23 +58,13 @@ router.post('/master-login', async (req, res) => {
                 db_usuario: 'postgres',
                 db_senha: '@12Pilabo',
                 db_porta: 5432,
-                limite_sessoes: 999, // Sem limite no teste
+                limite_sessoes: 999,
                 bloqueio_ativo: 'N'
             };
-        } else {
-            const masterQuery = `
-                SELECT id, cnpj, razao_social, status, db_host, db_nome, db_schema, db_usuario, db_senha, db_porta, 
-                       COALESCE(limite_sessoes, 3) as limite_sessoes, 
-                       COALESCE(bloqueio_ativo, 'S') as bloqueio_ativo
-                FROM empresas 
-                WHERE cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $1
-            `;
-            const masterResult = await masterPool.query(masterQuery, [rawCnpj]);
+        }
 
-            if (masterResult.rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'Empresa não encontrada com este CNPJ no cadastro Master.' });
-            }
-            empresa = masterResult.rows[0];
+        if (!empresa) {
+            return res.status(404).json({ success: false, message: 'Empresa não encontrada ou CNPJ não autorizado.' });
         }
 
         if (empresa.status !== 'ATIVO') {
@@ -157,7 +159,8 @@ router.post('/master-login', async (req, res) => {
                     email: email || '',
                     role: isHamilton ? 'superadmin' : (dbUser.e_admin ? 'admin' : (dbUser.gerencia ? 'manager' : 'user')),
                     empresa: empresa.razao_social,
-                    cnpj: empresa.cnpj
+                    cnpj: empresa.cnpj,
+                    biEnabled: empresa.bloqueio_ativo === 'S'
                 },
                 tenantConfig: { cnpj: empresa.cnpj, dbConfig }
             });
@@ -198,7 +201,8 @@ router.post('/master-login', async (req, res) => {
                 email: masterUser.email,
                 role: isHamilton ? 'superadmin' : (masterUser.e_admin ? 'admin' : 'user'),
                 empresa: empresa.razao_social,
-                cnpj: empresa.cnpj
+                cnpj: empresa.cnpj,
+                biEnabled: empresa.bloqueio_ativo === 'S'
             },
             tenantConfig: {
                 cnpj: empresa.cnpj,
@@ -215,7 +219,12 @@ router.post('/master-login', async (req, res) => {
 
     } catch (error) {
         console.error('❌ [AUTH MASTER] Erro crítico no login:', error);
-        res.status(500).json({ success: false, message: 'Erro interno ao processar login.' });
+        res.status(500).json({
+            success: false,
+            message: 'Erro interno ao processar login.',
+            debug: error.message,
+            stack: error.stack
+        });
     }
 });
 

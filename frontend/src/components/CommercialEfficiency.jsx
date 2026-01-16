@@ -1,6 +1,6 @@
 // CommercialEfficiency.jsx
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../lib/axios';
 import './CommercialEfficiency.css';
 
 import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';

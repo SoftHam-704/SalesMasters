@@ -6,7 +6,7 @@ require('dotenv').config();
 const masterPool = new Pool({
     host: process.env.MASTER_DB_HOST || 'node254557-salesmaster.sp1.br.saveincloud.net.br',
     port: process.env.MASTER_DB_PORT || 13062,
-    database: 'salesmasters_master',
+    database: process.env.MASTER_DB_DATABASE || 'basesales',
     user: process.env.MASTER_DB_USER || 'webadmin',
     password: process.env.MASTER_DB_PASSWORD
 });
@@ -20,29 +20,6 @@ const tenantPools = {};
  * @param {string} tenantKey - Chave única do cliente (ex: CNPJ ou ID)
  */
 function getTenantPool(tenantKey, config = null) {
-    // ============================================================
-    // BYPASS PERMANENTE: CNPJ de TESTE → Conecta direto no banco LOCAL
-    // Funciona mesmo se o servidor reiniciar (cache vazio)
-    // ============================================================
-    const CNPJ_TESTE = '00000000000191';
-    if (tenantKey === CNPJ_TESTE && !tenantPools[tenantKey]) {
-        console.log('🔧 [DB] MODO TESTE (Bypass): Criando pool LOCAL para CNPJ 00.000.000/0001-91');
-
-        const newPool = new Pool({
-            host: 'localhost',
-            port: 5432,
-            database: 'basesales',
-            user: 'postgres',
-            password: '@12Pilabo',
-            max: 20,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 5000,
-        });
-
-        tenantPools[tenantKey] = newPool;
-        return newPool;
-    }
-
     // Se temos config, SEMPRE recria o pool (para garantir dados atualizados)
     if (config) {
         // Remove pool antigo se existir

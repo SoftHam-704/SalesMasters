@@ -10,6 +10,7 @@ import { IndustryRevenueCard } from '../components/dashboard/IndustryRevenueCard
 import { IndustryParetoCard } from '../components/dashboard/IndustryParetoCard';
 import { SalesPerformanceTable } from '../components/dashboard/SalesPerformanceTable';
 import { BirthdayCard } from '../components/dashboard/BirthdayCard';
+import DashboardAlertPanel from '../components/dashboard/DashboardAlertPanel';
 import {
     DollarSign,
     Users,
@@ -50,6 +51,7 @@ const Dashboard = () => {
     const [loadingMetrics, setLoadingMetrics] = useState(true);
     const [industryRevenue, setIndustryRevenue] = useState([]);
     const [userName, setUserName] = useState('Usuário');
+    const [userInitials, setUserInitials] = useState('US');
     const [birthdayCount, setBirthdayCount] = useState(0);
     const [birthdays, setBirthdays] = useState([]);
     const [loadingBirthdays, setLoadingBirthdays] = useState(true);
@@ -93,7 +95,14 @@ const Dashboard = () => {
         if (savedUser) {
             try {
                 const user = JSON.parse(savedUser);
-                if (user.nome) setUserName(user.nome);
+                if (user.nome) {
+                    setUserName(user.nome);
+                    // Gerar iniciais
+                    const nome = user.nome || '';
+                    const sobrenome = user.sobrenome || '';
+                    const initials = (nome.charAt(0) + (sobrenome.charAt(0) || nome.charAt(1) || '')).toUpperCase();
+                    setUserInitials(initials);
+                }
             } catch (e) {
                 console.error('Erro ao ler usuário do sessionStorage', e);
             }
@@ -248,30 +257,44 @@ const Dashboard = () => {
 
     return (
         <div className="dashboard-lovable-page">
-            {/* Welcome Section */}
+            {/* Welcome Section with Alert Panel */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="welcome-section"
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}
             >
-                <div className="welcome-header">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <h1 className="welcome-title">
-                            {getGreeting()}, {userName}!
-                        </h1>
-                        <motion.span
-                            animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
-                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                            className="wave-emoji"
-                        >
-                            👋
-                        </motion.span>
+                <div>
+                    <div className="welcome-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <h1 className="welcome-title">
+                                {getGreeting()}, {userName}!
+                            </h1>
+                            <motion.span
+                                animate={{ rotate: [0, 14, -8, 14, -4, 10, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                                className="wave-emoji"
+                            >
+                                👋
+                            </motion.span>
+                        </div>
+                    </div>
+                    <div className="welcome-subtitle">
+                        <Flame className="flame-icon" />
+                        <span className="welcome-slogan">Inteligência comercial que guia decisões.</span>
                     </div>
                 </div>
-                <div className="welcome-subtitle">
-                    <Flame className="flame-icon" />
-                    <span className="welcome-slogan">Inteligência comercial que guia decisões.</span>
-                </div>
+
+                {/* Painel de Alertas + Avatar */}
+                <DashboardAlertPanel
+                    userName={userName}
+                    userInitials={userInitials}
+                    onLogout={() => {
+                        sessionStorage.clear();
+                        navigate('/login');
+                    }}
+                    onOpenAgenda={() => navigate('/agenda')}
+                />
             </motion.div>
 
             {/* Year/Month Filters */}

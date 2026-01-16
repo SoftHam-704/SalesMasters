@@ -6,7 +6,10 @@ import FrmIndustria from './pages/frmIndustria';
 import FrmClientes from './pages/frmClientes';
 import FrmVendedores from './pages/frmVendedores';
 import FrmRegioes from './pages/frmRegioes';
+import FrmSetores from './pages/frmSetores';
+import FrmItinerarios from './pages/frmItinerarios';
 import FrmAreaAtuacao from './pages/frmAreaAtuacao';
+import FrmCampanhas from './pages/frmCampanhas';
 import FrmProdutos from './pages/frmProdutos';
 import FrmGrupoPro from './pages/frmGrupoPro';
 import FrmCategorias from './pages/frmCategorias';
@@ -46,6 +49,7 @@ import CostCentersPage from './pages/financial/CostCentersPage';
 import FinancialClientsPage from './pages/financial/FinancialClientsPage';
 import FinancialSuppliersPage from './pages/financial/FinancialSuppliersPage';
 import UserManagementPage from './pages/utilitarios/UserManagementPage';
+import AgendaPage from './pages/AgendaPage';
 
 import IntelligencePage from './pages/IntelligencePage';
 import Login from './components/Login/Login';
@@ -55,6 +59,7 @@ import './App.css';
 
 import { TabControl } from './components/settings/TabControl';
 import OrderReportEngine from './components/orders/OrderReportEngine';
+import ChatWidget from './components/chat/ChatWidget';
 
 
 function App() {
@@ -131,6 +136,9 @@ function App() {
                 <div className="flex-1 overflow-auto bg-gray-50">
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
+                    {/* VENDAS */}
+                    <Route path="/vendas/pedidos" element={<OrdersPage />} /> {/* Assuming OrdersPage for /vendas/pedidos as FrmPedidos is not imported */}
+                    <Route path="/vendas/campanhas" element={<FrmCampanhas />} />
                     <Route path="/industrias" element={<FrmIndustria />} />
                     <Route path="/clientes" element={<FrmClientes />} />
                     <Route path="/vendedores" element={<FrmVendedores />} />
@@ -141,6 +149,8 @@ function App() {
                     <Route path="/cadastros/grupos-descontos" element={<FrmGrupoDesc />} />
                     <Route path="/cadastros/transportadoras" element={<FrmTransportadoras />} />
                     <Route path="/cadastros/regioes" element={<FrmRegioes />} />
+                    <Route path="/cadastros/setores" element={<FrmSetores />} />
+                    <Route path="/cadastros/itinerarios" element={<FrmItinerarios />} />
                     <Route path="/cadastros/area-atuacao" element={<FrmAreaAtuacao />} />
                     <Route path="/cadastros/tabelas-precos" element={<FrmTabPreco />} />
                     <Route path="/utilitarios/importacao-precos" element={<FrmImportacaoPrecos />} />
@@ -150,6 +160,7 @@ function App() {
                     <Route path="/utilitarios/jogo-dados" element={<DiceGame />} />
                     <Route path="/utilitarios/tetris" element={<TetrisGame />} />
                     <Route path="/utilitarios/usuarios" element={<UserManagementPage />} />
+                    <Route path="/agenda" element={<AgendaPage />} />
                     <Route path="/intelligence" element={<IntelligencePage />} />
                     <Route path="/bi-intelligence" element={<IntelligencePage />} />
                     <Route path="/crm" element={<CRMPage />} />
@@ -185,6 +196,7 @@ function App() {
                   </Routes>
                 </div>
               </main>
+              <ChatWidget />
             </div>
           )
         }

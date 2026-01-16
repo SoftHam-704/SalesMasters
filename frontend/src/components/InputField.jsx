@@ -24,18 +24,17 @@ const InputField = ({
   };
 
   return (
-    <div className={`input-field ${large ? 'large' : ''}`}>
+    <div className={`input-field ${large ? 'large' : ''} ${className || ''}`}>
+      {label && <label>{label}</label>}
       <input
         ref={inputRef}
         type={type}
         value={value}
         onChange={onChange}
         onFocus={handleFocus}
-        placeholder={placeholder || " "}
-        className={className}
+        placeholder={placeholder}
         {...props}
       />
-      <label>{label}</label>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import axios from '../../../lib/axios';
 import {
     Target, TrendingUp, TrendingDown, BarChart3, Calendar,
     ArrowUpRight, ArrowDownRight, Activity, CheckCircle, AlertTriangle,

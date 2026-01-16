@@ -12,7 +12,7 @@ export const cliIndService = {
     async getClientConditions(clientCode, supplierCode) {
         try {
             const response = await fetch(
-                `${API_BASE_URL}/cli-ind/${clientCode}/${supplierCode}`
+                getApiUrl(NODE_API_URL, `/api/cli-ind/${clientCode}/${supplierCode}`)
             );
 
             if (!response.ok) {

@@ -431,13 +431,13 @@ export default function OrdersPage() {
                         <div>
                             <div className="flex items-center gap-3">
                                 <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
-                                    Status <span className="text-emerald-600">De Operação</span>
+                                    PEDIDOS <span className="text-emerald-600">DE VENDAS</span>
                                 </h1>
                                 <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] font-black py-0">LIVE CONTROL</Badge>
                             </div>
                             {selectedIndustry && (
-                                <p className="text-slate-400 mt-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest font-black">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                <p className="mt-2 flex items-center gap-2 font-mono text-sm uppercase tracking-wide font-black text-emerald-700 bg-emerald-50 w-fit px-3 py-1 rounded-lg border border-emerald-100/50 shadow-sm">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></span>
                                     {selectedIndustry.for_nomered}
                                 </p>
                             )}
@@ -445,19 +445,19 @@ export default function OrdersPage() {
 
                         <div className="flex items-center gap-4">
                             {/* Date Picker Section Re-inserted */}
-                            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
                                 <input
                                     type="date"
                                     value={filters.dataInicio}
                                     onChange={(e) => setFilters({ ...filters, dataInicio: e.target.value })}
-                                    className="bg-transparent border-0 outline-none text-[10px] font-black uppercase text-slate-600 px-2"
+                                    className="bg-transparent border-0 outline-none text-xs font-bold uppercase text-slate-700 px-2"
                                 />
-                                <span className="text-slate-300">/</span>
+                                <span className="text-slate-300 font-bold">/</span>
                                 <input
                                     type="date"
                                     value={filters.dataFim}
                                     onChange={(e) => setFilters({ ...filters, dataFim: e.target.value })}
-                                    className="bg-transparent border-0 outline-none text-[10px] font-black uppercase text-slate-600 px-2"
+                                    className="bg-transparent border-0 outline-none text-xs font-bold uppercase text-slate-700 px-2"
                                 />
                             </div>
 

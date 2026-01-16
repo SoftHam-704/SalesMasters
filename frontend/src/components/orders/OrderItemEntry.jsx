@@ -77,12 +77,14 @@ const OrderItemEntry = ({
 
             importedItems.forEach(importItem => {
                 // Find product by Fuzzy Code Match
-                // Tenta match exato normalizado OU match numérico (ignora zeros a esquerda: 00123 == 123)
                 const product = products.find(p => {
                     const dbCode = normalize(p.pro_codprod);
-                    const importCode = normalize(importItem.codigo);
+                    const dbNormRec = normalize(p.pro_codigonormalizado);
 
-                    if (dbCode === importCode) return true;
+                    // Suporta os dois formatos: o da IA (.codigo) e o do OrderForm manual (.ite_produto)
+                    const importCode = normalize(importItem.codigo || importItem.ite_produto);
+
+                    if (dbCode === importCode || dbNormRec === importCode) return true;
 
                     // Comparação numérica (se ambos forem números válidos)
                     const dbNum = parseInt(dbCode, 10);
@@ -93,39 +95,36 @@ const OrderItemEntry = ({
                 });
 
                 if (product) {
+                    // Prioridade: Preço da IA (.preco) ou Preço do OrderForm (.ite_puni)
+                    const precoManual = parseFloat(importItem.preco || importItem.ite_puni || 0);
                     const precoBruto = parseFloat(product.itab_precobruto || 0);
-                    // Prioridade: Preço da IA (se > 0) -> Preço da Tabela
-                    const precoFinal = parseFloat(importItem.preco || 0) > 0
-                        ? parseFloat(importItem.preco)
-                        : precoBruto;
+                    const precoFinal = precoManual > 0 ? precoManual : precoBruto;
 
-                    const quant = parseFloat(importItem.quantidade) || 1;
+                    const quant = parseFloat(importItem.quantidade || importItem.ite_quant) || 1;
 
                     // Build item structure
                     const rawItem = {
                         ite_produto: product.pro_codprod,
                         ite_idproduto: product.pro_id,
-                        ite_embuch: '', // Complemento default empty
-                        ite_nomeprod: importItem.descricao || product.pro_nome, // Usa descrição da IA se houver
+                        ite_embuch: importItem.ite_embuch || '',
+                        ite_nomeprod: importItem.descricao || importItem.ite_nomeprod || product.pro_nome,
                         ite_puni: precoFinal,
                         ite_totbruto: precoFinal,
                         ite_ipi: product.itab_ipi || 0,
                         ite_st: product.itab_st || 0,
                         ite_quant: quant,
                         ite_mult: parseFloat(product.pro_mult) || 0,
-                        ite_promocao: 'N',
-                        // Apply header discounts only if using table price (not special AI price)
-                        ite_des1: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_pri || 0),
-                        ite_des2: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_seg || 0),
-                        ite_des3: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_ter || 0),
-                        ite_des4: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_qua || 0),
-                        ite_des5: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_qui || 0),
-                        ite_des6: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_sex || 0),
-                        ite_des7: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_set || 0),
-                        ite_des8: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_oit || 0),
-                        ite_des9: parseFloat(importItem.preco || 0) > 0 ? 0 : (headerDiscounts?.ped_nov || 0),
-
-                        // Default fields
+                        ite_promocao: importItem.ite_promocao || 'N',
+                        // Se o preço foi manual, zera descontos de tabela pra não aplicar por cima
+                        ite_des1: precoManual > 0 ? 0 : (headerDiscounts?.ped_pri || 0),
+                        ite_des2: precoManual > 0 ? 0 : (headerDiscounts?.ped_seg || 0),
+                        ite_des3: precoManual > 0 ? 0 : (headerDiscounts?.ped_ter || 0),
+                        ite_des4: precoManual > 0 ? 0 : (headerDiscounts?.ped_qua || 0),
+                        ite_des5: precoManual > 0 ? 0 : (headerDiscounts?.ped_qui || 0),
+                        ite_des6: precoManual > 0 ? 0 : (headerDiscounts?.ped_sex || 0),
+                        ite_des7: precoManual > 0 ? 0 : (headerDiscounts?.ped_set || 0),
+                        ite_des8: precoManual > 0 ? 0 : (headerDiscounts?.ped_oit || 0),
+                        ite_des9: precoManual > 0 ? 0 : (headerDiscounts?.ped_nov || 0),
                         ite_des10: 0,
                         ite_valcomipi: 0,
                         ite_valcomst: 0,
@@ -137,12 +136,12 @@ const OrderItemEntry = ({
                         ...calculated,
                         tempId: Date.now() + Math.random(),
                         ite_industria: selectedIndustry || null,
-                        ite_seq: 0 // Will be assigned later
+                        ite_seq: 0
                     });
 
                     addedCount++;
                 } else {
-                    console.warn(`[AI Import] Product not found for code: ${importItem.codigo}`);
+                    console.warn(`[AI Import] Product not found for code: ${importItem.codigo || importItem.ite_produto}`);
                 }
             });
 
@@ -279,11 +278,13 @@ const OrderItemEntry = ({
     }, [headerDiscounts]);
 
     const loadOrderItems = async () => {
-        // Se estivermos no meio de um processo de importação, NÃO sobrescreva a lista
-        if (isImporting.current || importing) {
-            console.log('[OrderItemEntry] loadOrderItems BLOCKED due to active import.');
+        // Trava crítica: Se estivermos importando, NÃO podemos carregar do banco, senão limpamos a memória
+        if (isImporting.current || importing || (importedItems && importedItems.length > 0)) {
+            console.log('🛡️ [OrderItemEntry] loadOrderItems BLOQUEADO (Importação em curso)...');
             return;
         }
+
+        console.log(`📡 [OrderItemEntry] Carregando itens do banco para o pedido: ${pedPedido}...`);
 
         try {
             const url = getApiUrl(NODE_API_URL, `/api/orders/${pedPedido}/items`);

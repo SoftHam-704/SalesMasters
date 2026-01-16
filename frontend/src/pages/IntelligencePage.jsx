@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../lib/axios';
 import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity } from 'lucide-react';
 import OverviewTab from './BI/tabs/OverviewTab';
 import IndustriasTab from './BI/tabs/IndustriasTab';

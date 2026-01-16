@@ -28,7 +28,8 @@ router.get('/empresas', checkMasterAdmin, async (req, res) => {
             SELECT 
                 id, cnpj, razao_social, nome_fantasia,
                 status, data_vencimento, valor_mensalidade,
-                limite_usuarios, db_host, db_nome, db_porta,
+                limite_usuarios, limite_sessoes, bloqueio_ativo,
+                db_host, db_nome, db_porta,
                 data_adesao, email_contato, telefone
             FROM empresas
             ORDER BY razao_social
@@ -139,14 +140,16 @@ router.post('/empresas', checkMasterAdmin, async (req, res) => {
             INSERT INTO empresas (
                 cnpj, razao_social, nome_fantasia, email_contato, telefone,
                 status, data_vencimento, valor_mensalidade, limite_usuarios,
+                limite_sessoes, bloqueio_ativo,
                 db_host, db_nome, db_usuario, db_senha, db_porta
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *
         `;
 
         const values = [
             cnpjLimpo, razao_social, nome_fantasia, email_contato, telefone,
             status || 'ATIVO', data_vencimento, valor_mensalidade, limite_usuarios || 1,
+            req.body.limite_sessoes || 3, req.body.bloqueio_ativo || 'S',
             db_host, db_nome, db_usuario, db_senha, db_porta || 5432
         ];
 
@@ -177,32 +180,40 @@ router.put('/empresas/:id', checkMasterAdmin, async (req, res) => {
         const values = [];
         let paramCount = 1;
 
-        if (razao_social) { updates.push(`razao_social = $${paramCount++}`); values.push(razao_social); }
-        if (nome_fantasia !== undefined) { updates.push(`nome_fantasia = $${paramCount++}`); values.push(emptyToNull(nome_fantasia)); }
-        if (email_contato !== undefined) { updates.push(`email_contato = $${paramCount++}`); values.push(emptyToNull(email_contato)); }
-        if (telefone !== undefined) { updates.push(`telefone = $${paramCount++}`); values.push(emptyToNull(telefone)); }
-        if (status) { updates.push(`status = $${paramCount++}`); values.push(status); }
-        if (data_vencimento) { updates.push(`data_vencimento = $${paramCount++}`); values.push(data_vencimento); }
+        if (razao_social) { updates.push(`razao_social = $${paramCount++} `); values.push(razao_social); }
+        if (nome_fantasia !== undefined) { updates.push(`nome_fantasia = $${paramCount++} `); values.push(emptyToNull(nome_fantasia)); }
+        if (email_contato !== undefined) { updates.push(`email_contato = $${paramCount++} `); values.push(emptyToNull(email_contato)); }
+        if (telefone !== undefined) { updates.push(`telefone = $${paramCount++} `); values.push(emptyToNull(telefone)); }
+        if (status) { updates.push(`status = $${paramCount++} `); values.push(status); }
+        if (data_vencimento) { updates.push(`data_vencimento = $${paramCount++} `); values.push(data_vencimento); }
         if (valor_mensalidade && valor_mensalidade !== '') {
-            updates.push(`valor_mensalidade = $${paramCount++}`);
+            updates.push(`valor_mensalidade = $${paramCount++} `);
             values.push(parseFloat(valor_mensalidade) || null);
         }
         if (limite_usuarios && limite_usuarios !== '') {
-            updates.push(`limite_usuarios = $${paramCount++}`);
+            updates.push(`limite_usuarios = $${paramCount++} `);
             values.push(parseInt(limite_usuarios) || 1);
         }
-        if (db_host) { updates.push(`db_host = $${paramCount++}`); values.push(db_host); }
-        if (db_nome) { updates.push(`db_nome = $${paramCount++}`); values.push(db_nome); }
-        if (db_usuario) { updates.push(`db_usuario = $${paramCount++}`); values.push(db_usuario); }
-        if (db_senha) { updates.push(`db_senha = $${paramCount++}`); values.push(db_senha); }
-        if (db_porta) { updates.push(`db_porta = $${paramCount++}`); values.push(db_porta); }
+        if (req.body.limite_sessoes && req.body.limite_sessoes !== '') {
+            updates.push(`limite_sessoes = $${paramCount++} `);
+            values.push(parseInt(req.body.limite_sessoes) || 3);
+        }
+        if (req.body.bloqueio_ativo !== undefined) {
+            updates.push(`bloqueio_ativo = $${paramCount++} `);
+            values.push(req.body.bloqueio_ativo);
+        }
+        if (db_host) { updates.push(`db_host = $${paramCount++} `); values.push(db_host); }
+        if (db_nome) { updates.push(`db_nome = $${paramCount++} `); values.push(db_nome); }
+        if (db_usuario) { updates.push(`db_usuario = $${paramCount++} `); values.push(db_usuario); }
+        if (db_senha) { updates.push(`db_senha = $${paramCount++} `); values.push(db_senha); }
+        if (db_porta) { updates.push(`db_porta = $${paramCount++} `); values.push(db_porta); }
 
         if (updates.length === 0) {
             return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar.' });
         }
 
         values.push(id);
-        const query = `UPDATE empresas SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+        const query = `UPDATE empresas SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING * `;
         const result = await masterPool.query(query, values);
 
         if (result.rows.length === 0) {
@@ -233,7 +244,7 @@ router.patch('/empresas/:id/status', checkMasterAdmin, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Empresa não encontrada.' });
         }
 
-        res.json({ success: true, message: `Status alterado para ${status}`, data: result.rows[0] });
+        res.json({ success: true, message: `Status alterado para ${status} `, data: result.rows[0] });
     } catch (error) {
         console.error('❌ [MASTER] Erro ao alterar status:', error);
         res.status(500).json({ success: false, message: 'Erro ao alterar status.' });
@@ -308,7 +319,7 @@ router.post('/switch-tenant', checkMasterAdmin, async (req, res) => {
         getTenantPool(empresa.cnpj, dbConfig);
         res.json({
             success: true,
-            message: `Conectado a: ${empresa.razao_social}`,
+            message: `Conectado a: ${empresa.razao_social} `,
             tenantConfig: { cnpj: empresa.cnpj, dbConfig },
             empresa: { id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social, status: empresa.status }
         });
@@ -331,7 +342,7 @@ router.get('/empresas/:id/usuarios', checkMasterAdmin, async (req, res) => {
             FROM usuarios 
             WHERE empresa_id = $1
             ORDER BY nome
-        `, [id]);
+            `, [id]);
 
         const normalizedData = result.rows.map(u => ({
             codigo: u.id,
@@ -357,10 +368,10 @@ router.post('/empresas/:id/usuarios', checkMasterAdmin, async (req, res) => {
         if (!nome || !email) return res.status(400).json({ success: false, message: 'Nome e Email são obrigatórios.' });
 
         const result = await masterPool.query(`
-            INSERT INTO usuarios (empresa_id, nome, sobrenome, email, senha, e_admin, ativo)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO usuarios(empresa_id, nome, sobrenome, email, senha, e_admin, ativo)
+        VALUES($1, $2, $3, $4, $5, $6, $7)
             RETURNING id, nome, email
-        `, [id, nome, sobrenome, email, senha || '123456', master || false, ativo !== undefined ? ativo : true]);
+            `, [id, nome, sobrenome, email, senha || '123456', master || false, ativo !== undefined ? ativo : true]);
 
         res.json({ success: true, message: 'Usuário criado no Master!', data: result.rows[0] });
     } catch (error) {
@@ -379,12 +390,12 @@ router.put('/empresas/:id/usuarios/:codigo', checkMasterAdmin, async (req, res) 
         const values = [];
         let paramCount = 1;
 
-        if (nome) { updates.push(`nome = $${paramCount++}`); values.push(nome); }
-        if (sobrenome) { updates.push(`sobrenome = $${paramCount++}`); values.push(sobrenome); }
-        if (senha) { updates.push(`senha = $${paramCount++}`); values.push(senha); }
-        if (email) { updates.push(`email = $${paramCount++}`); values.push(email); }
-        if (master !== undefined) { updates.push(`e_admin = $${paramCount++}`); values.push(master); }
-        if (ativo !== undefined) { updates.push(`ativo = $${paramCount++}`); values.push(ativo); }
+        if (nome) { updates.push(`nome = $${paramCount++} `); values.push(nome); }
+        if (sobrenome) { updates.push(`sobrenome = $${paramCount++} `); values.push(sobrenome); }
+        if (senha) { updates.push(`senha = $${paramCount++} `); values.push(senha); }
+        if (email) { updates.push(`email = $${paramCount++} `); values.push(email); }
+        if (master !== undefined) { updates.push(`e_admin = $${paramCount++} `); values.push(master); }
+        if (ativo !== undefined) { updates.push(`ativo = $${paramCount++} `); values.push(ativo); }
 
         if (updates.length === 0) return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar.' });
 

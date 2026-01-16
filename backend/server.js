@@ -739,6 +739,598 @@ app.delete('/api/v2/regions/:regionId/cities/:cityId', async (req, res) => {
 });
 
 
+// --- SETORES (Subdivisões de Cidades) ---
+
+// GET - List all sectors (optionally filtered by city)
+app.get('/api/v2/sectors', async (req, res) => {
+    try {
+        const { city_id } = req.query;
+
+        let query = `
+            SELECT s.*, c.cid_nome, c.cid_uf 
+            FROM setores s
+            LEFT JOIN cidades c ON s.set_cidade_id = c.cid_codigo
+            WHERE s.set_ativo = true
+        `;
+        const params = [];
+
+        if (city_id) {
+            query += ' AND s.set_cidade_id = $1';
+            params.push(city_id);
+        }
+
+        query += ' ORDER BY s.set_ordem, s.set_descricao';
+
+        const result = await pool.query(query, params);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Get sector by ID
+app.get('/api/v2/sectors/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT s.*, c.cid_nome, c.cid_uf 
+            FROM setores s
+            LEFT JOIN cidades c ON s.set_cidade_id = c.cid_codigo
+            WHERE s.set_codigo = $1
+        `, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Setor não encontrado' });
+        }
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create new sector
+app.post('/api/v2/sectors', async (req, res) => {
+    try {
+        const { set_descricao, set_cidade_id, set_ordem, set_cor, set_observacao } = req.body;
+
+        if (!set_descricao || !set_cidade_id) {
+            return res.status(400).json({ success: false, message: 'Descrição e Cidade são obrigatórios' });
+        }
+
+        const query = `
+            INSERT INTO setores (set_descricao, set_cidade_id, set_ordem, set_cor, set_observacao)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+        `;
+        const result = await pool.query(query, [
+            set_descricao,
+            set_cidade_id,
+            set_ordem || 0,
+            set_cor || '#3B82F6',
+            set_observacao || null
+        ]);
+
+        res.json({ success: true, data: result.rows[0], message: 'Setor criado com sucesso!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// PUT - Update sector
+app.put('/api/v2/sectors/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { set_descricao, set_cidade_id, set_ordem, set_cor, set_observacao, set_ativo } = req.body;
+
+        const query = `
+            UPDATE setores SET
+                set_descricao = COALESCE($1, set_descricao),
+                set_cidade_id = COALESCE($2, set_cidade_id),
+                set_ordem = COALESCE($3, set_ordem),
+                set_cor = COALESCE($4, set_cor),
+                set_observacao = $5,
+                set_ativo = COALESCE($6, set_ativo),
+                updated_at = NOW()
+            WHERE set_codigo = $7
+            RETURNING *
+        `;
+        const result = await pool.query(query, [
+            set_descricao,
+            set_cidade_id,
+            set_ordem,
+            set_cor,
+            set_observacao,
+            set_ativo,
+            id
+        ]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Setor não encontrado' });
+        }
+
+        res.json({ success: true, data: result.rows[0], message: 'Setor atualizado!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// DELETE - Delete sector (soft delete)
+app.delete('/api/v2/sectors/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Check if sector has clients
+        const clientCheck = await pool.query('SELECT COUNT(*) as cnt FROM clientes WHERE cli_setor_id = $1', [id]);
+        if (parseInt(clientCheck.rows[0].cnt) > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Setor possui ${clientCheck.rows[0].cnt} cliente(s) vinculado(s). Remova-os primeiro.`
+            });
+        }
+
+        const result = await pool.query('DELETE FROM setores WHERE set_codigo = $1 RETURNING *', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Setor não encontrado' });
+        }
+
+        res.json({ success: true, message: 'Setor excluído!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - List clients in a sector
+app.get('/api/v2/sectors/:id/clients', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT cli_codigo, cli_nome, cli_endereco, cli_telefone, cli_cidade
+            FROM clientes
+            WHERE cli_setor_id = $1 AND cli_ativo = true
+            ORDER BY cli_nome
+        `, [id]);
+
+        res.json({ success: true, data: result.rows, count: result.rows.length });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// --- ITINERÁRIOS (Rotas de Visita) ---
+
+// GET - List all itineraries
+app.get('/api/v2/itineraries', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT i.*, v.ven_nome 
+            FROM itinerarios i
+            LEFT JOIN vendedores v ON i.iti_vendedor_id = v.ven_codigo
+            WHERE i.iti_ativo = true
+            ORDER BY i.iti_descricao
+        `);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Get itinerary details (with items)
+app.get('/api/v2/itineraries/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Header
+        const headerRes = await pool.query('SELECT * FROM itinerarios WHERE iti_codigo = $1', [id]);
+        if (headerRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Itinerário não encontrado' });
+        }
+
+        // Items
+        const itemsRes = await pool.query(`
+            SELECT it.*, c.cid_nome, c.cid_uf, s.set_descricao, s.set_cor
+            FROM itinerarios_itens it
+            LEFT JOIN cidades c ON it.ite_cidade_id = c.cid_codigo
+            LEFT JOIN setores s ON it.ite_setor_id = s.set_codigo
+            WHERE it.ite_itinerario_id = $1
+            ORDER BY it.ite_ordem
+        `, [id]);
+
+        res.json({
+            success: true,
+            data: {
+                ...headerRes.rows[0],
+                items: itemsRes.rows
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create itinerary with items
+app.post('/api/v2/itineraries', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { iti_descricao, iti_vendedor_id, iti_frequencia, iti_observacao, items } = req.body;
+
+        // 1. Create Header
+        const headerRes = await client.query(`
+            INSERT INTO itinerarios (iti_descricao, iti_vendedor_id, iti_frequencia, iti_observacao)
+            VALUES ($1, $2, $3, $4)
+            RETURNING iti_codigo
+        `, [iti_descricao, iti_vendedor_id, iti_frequencia || 'SEMANAL', iti_observacao]);
+
+        const itiId = headerRes.rows[0].iti_codigo;
+
+        // 2. Create Items
+        if (items && items.length > 0) {
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                await client.query(`
+                    INSERT INTO itinerarios_itens (ite_itinerario_id, ite_tipo, ite_cidade_id, ite_setor_id, ite_ordem)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [itiId, item.ite_tipo, item.ite_cidade_id, item.ite_setor_id, i]);
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'Itinerário criado com sucesso!', id: itiId });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// PUT - Update itinerary
+app.put('/api/v2/itineraries/:id', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const { id } = req.params;
+        const { iti_descricao, iti_vendedor_id, iti_frequencia, iti_observacao, iti_ativo, items } = req.body;
+
+        // 1. Update Header
+        await client.query(`
+            UPDATE itinerarios SET
+                iti_descricao = COALESCE($1, iti_descricao),
+                iti_vendedor_id = $2,
+                iti_frequencia = COALESCE($3, iti_frequencia),
+                iti_observacao = $4,
+                iti_ativo = COALESCE($5, iti_ativo),
+                updated_at = NOW()
+            WHERE iti_codigo = $6
+        `, [iti_descricao, iti_vendedor_id, iti_frequencia, iti_observacao, iti_ativo, id]);
+
+        // 2. Replace Items (Delete all and re-insert) - Simplest strategy
+        if (items) {
+            await client.query('DELETE FROM itinerarios_itens WHERE ite_itinerario_id = $1', [id]);
+
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                await client.query(`
+                    INSERT INTO itinerarios_itens (ite_itinerario_id, ite_tipo, ite_cidade_id, ite_setor_id, ite_ordem)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [id, item.ite_tipo, item.ite_cidade_id, item.ite_setor_id, i]);
+            }
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'Itinerário atualizado!' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// DELETE - Delete itinerary
+app.delete('/api/v2/itineraries/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Cascade delete will handle items
+        await pool.query('DELETE FROM itinerarios WHERE iti_codigo = $1', [id]);
+        res.json({ success: true, message: 'Itinerário excluído!' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// --- CAMPAIGN MANAGER (Campanhas Promocionais) ---
+
+// POST - Simulate Campaign (Calculates historical averages and projects targets)
+app.post('/api/v2/campaigns/simulate', async (req, res) => {
+    try {
+        const {
+            client_id,
+            industry_id,
+            base_start,
+            base_end,
+            campaign_start,
+            campaign_end,
+            growth_percent
+        } = req.body;
+
+        if (!client_id || !industry_id || !base_start || !base_end) {
+            return res.status(400).json({ success: false, message: 'Dados insuficientes para simulação.' });
+        }
+
+        // 1. Calculate History (Baseline)
+        const historyQuery = `
+            SELECT 
+                COALESCE(SUM(i.ite_totliquido), 0) as total_value,
+                COALESCE(SUM(i.ite_quantidade), 0) as total_qty
+            FROM itens_ped i
+            JOIN pedidos p ON i.ite_pedido = p.ped_pedido
+            WHERE p.ped_cliente = $1
+              AND i.ite_industria = $2
+              AND p.ped_emissao BETWEEN $3 AND $4
+              AND p.ped_situacao != 'C' -- Ignore cancelled
+        `;
+
+        const historyRes = await pool.query(historyQuery, [client_id, industry_id, base_start, base_end]);
+        const baseValue = parseFloat(historyRes.rows[0].total_value);
+        const baseQty = parseFloat(historyRes.rows[0].total_qty);
+
+        // 2. Calculate Days
+        const diffBase = new Date(base_end) - new Date(base_start);
+        const baseDays = Math.max(1, Math.ceil(diffBase / (1000 * 60 * 60 * 24)) + 1); // +1 inc
+
+        const diffCamp = new Date(campaign_end) - new Date(campaign_start);
+        const campDays = Math.max(1, Math.ceil(diffCamp / (1000 * 60 * 60 * 24)) + 1);
+
+        // 3. Averages
+        const dailyAvgVal = baseValue / baseDays;
+        const dailyAvgQty = baseQty / baseDays;
+
+        // 4. Projections (Targets)
+        const growthFactor = 1 + (parseFloat(growth_percent || 0) / 100);
+
+        const targetDailyVal = dailyAvgVal * growthFactor;
+        const targetDailyQty = dailyAvgQty * growthFactor;
+
+        const targetTotalVal = targetDailyVal * campDays;
+        const targetTotalQty = targetDailyQty * campDays;
+
+        res.json({
+            success: true,
+            data: {
+                base: {
+                    days: baseDays,
+                    total_value: baseValue,
+                    total_qty: baseQty,
+                    daily_avg_value: dailyAvgVal,
+                    daily_avg_qty: dailyAvgQty
+                },
+                projection: {
+                    days: campDays,
+                    growth_percent: parseFloat(growth_percent || 0),
+                    target_daily_value: targetDailyVal,
+                    target_daily_qty: targetDailyQty,
+                    target_total_value: targetTotalVal,
+                    target_total_qty: targetTotalQty
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// POST - Create Campaign
+app.post('/api/v2/campaigns', async (req, res) => {
+    try {
+        const {
+            cmp_descricao,
+            cmp_cliente_id,
+            cmp_industria_id,
+            cmp_promotor_id,
+            cmp_periodo_base_ini,
+            cmp_periodo_base_fim,
+            cmp_campanha_ini,
+            cmp_campanha_fim,
+            cmp_perc_crescimento,
+            simulation_data, // Data from the simulation step
+            cmp_observacao
+        } = req.body;
+
+        // Extract simulation metrics directly to ensure consistency
+        const { base, projection } = simulation_data;
+
+        const result = await pool.query(`
+            INSERT INTO campanhas_promocionais (
+                cmp_descricao, cmp_cliente_id, cmp_industria_id, cmp_promotor_id,
+                cmp_periodo_base_ini, cmp_periodo_base_fim, cmp_campanha_ini, cmp_campanha_fim,
+                cmp_base_dias_kpi, cmp_base_valor_total, cmp_base_qtd_total,
+                cmp_base_media_diaria_val, cmp_base_media_diaria_qtd,
+                cmp_perc_crescimento,
+                cmp_meta_valor_total, cmp_meta_qtd_total,
+                cmp_meta_diaria_val, cmp_meta_diaria_qtd,
+                cmp_observacao
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            ) RETURNING cmp_codigo
+        `, [
+            cmp_descricao, cmp_cliente_id, cmp_industria_id, cmp_promotor_id,
+            cmp_periodo_base_ini, cmp_periodo_base_fim, cmp_campanha_ini, cmp_campanha_fim,
+            base.days, base.total_value, base.total_qty,
+            base.daily_avg_value, base.daily_avg_qty,
+            cmp_perc_crescimento,
+            projection.target_total_value, projection.target_total_qty,
+            projection.target_daily_value, projection.target_daily_qty,
+            cmp_observacao
+        ]);
+
+        res.json({ success: true, message: "Campanha criada com sucesso!", id: result.rows[0].cmp_codigo });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - List Campaigns
+app.get('/api/v2/campaigns', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT 
+                c.*,
+                cli.cli_nome, cli.cli_fantasia,
+                f.for_nome as industria_nome
+            FROM campanhas_promocionais c
+            LEFT JOIN clientes cli ON c.cmp_cliente_id = cli.cli_codigo
+            LEFT JOIN fornecedores f ON c.cmp_industria_id = f.for_codigo
+            ORDER BY c.cmp_codigo DESC
+        `);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// --- GEOLOCALIZAÇÃO & ROTEIRIZAÇÃO ---
+
+// Helper: Haversine Formula (Calcular distância em Metros)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+}
+
+// POST - Check-in Visita (Com validação de Raio)
+app.post('/api/visitas/checkin', async (req, res) => {
+    try {
+        const { promotor_id, cliente_id, itinerario_id, latitude, longitude } = req.body;
+
+        // 1. Get Client Coordinates
+        const clientRes = await pool.query('SELECT cli_latitude, cli_longitude, cli_raio_permitido FROM clientes WHERE cli_codigo = $1', [cliente_id]);
+
+        if (clientRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Cliente não encontrado' });
+        }
+
+        const client = clientRes.rows[0];
+        let distancia = null;
+        let valido = true; // Default true if client has no coords yet (first visit sets it?)
+        let obs = '';
+
+        // 2. Calculate Distance (if client has coords)
+        if (client.cli_latitude && client.cli_longitude) {
+            distancia = calculateDistance(latitude, longitude, parseFloat(client.cli_latitude), parseFloat(client.cli_longitude));
+            const raio = client.cli_raio_permitido || 300;
+
+            if (distancia > raio) {
+                valido = false;
+                obs = `Check-in fora do raio permitido. Distância: ${Math.round(distancia)}m (Limite: ${raio}m)`;
+            } else {
+                obs = `Check-in válido. Distância: ${Math.round(distancia)}m`;
+            }
+        } else {
+            obs = 'Primeira visita geo-referenciada. Coordenadas do cliente atualizadas.';
+            // Configurable: Update client coords on first visit? Let's assume YES for now to build base
+            // await pool.query('UPDATE clientes SET cli_latitude = $1, cli_longitude = $2 WHERE cli_codigo = $3', [latitude, longitude, cliente_id]);
+        }
+
+        // 3. Register Visit
+        await pool.query(`
+            INSERT INTO registro_visitas 
+            (vis_promotor_id, vis_cliente_id, vis_itinerario_id, vis_latitude_checkin, vis_longitude_checkin, vis_distancia_metros, vis_valido, vis_observacao)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [promotor_id, cliente_id, itinerario_id, latitude, longitude, distancia ? Math.round(distancia) : 0, valido, obs]);
+
+        res.json({
+            success: true,
+            valido,
+            distancia: distancia ? Math.round(distancia) : 0,
+            message: valido ? 'Check-in realizado com sucesso!' : 'ALERTA: Você está longe do local cadastrado.'
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET - Sugestão de Rota (Nearest Neighbor das Cidades)
+app.get('/api/roteirizacao/sugestao', async (req, res) => {
+    try {
+        const { origem_cidade_id } = req.query;
+
+        // 1. Get "Center of Gravity" for all cities with active clients
+        // We calculate the AVG lat/long of clients in each city to find where the city "is"
+        const citiesRes = await pool.query(`
+            SELECT 
+                c.cid_codigo, 
+                c.cid_nome, 
+                c.cid_uf,
+                AVG(cli.cli_latitude) as lat,
+                AVG(cli.cli_longitude) as long,
+                COUNT(cli.cli_codigo) as total_clientes
+            FROM clientes cli
+            JOIN cidades c ON cli.cli_idcidade = c.cid_codigo
+            WHERE cli.cli_tipopes = 'A' 
+              AND cli.cli_latitude IS NOT NULL
+            GROUP BY c.cid_codigo, c.cid_nome, c.cid_uf
+            HAVING AVG(cli.cli_latitude) IS NOT NULL
+        `);
+
+        let cities = citiesRes.rows.map(c => ({
+            ...c,
+            lat: parseFloat(c.lat),
+            long: parseFloat(c.long),
+            total_clientes: parseInt(c.total_clientes)
+        }));
+
+        // 2. Find Origin
+        const origin = cities.find(c => c.cid_codigo === parseInt(origem_cidade_id));
+
+        if (!origin) {
+            // Se a cidade de origem não tem geolocalização ainda, retornamos lista simples
+            return res.json({ success: false, message: 'Cidade de origem sem coordenadas suficientes para cálculo.' });
+        }
+
+        // 3. Simple Nearest Sort (Greedy)
+        // Sort other cities by distance from Origin
+        const suggestions = cities
+            .filter(c => c.cid_codigo !== origin.cid_codigo)
+            .map(c => ({
+                ...c,
+                distancia_estimada: calculateDistance(origin.lat, origin.long, c.lat, c.long) / 1000 // Km
+            }))
+            .sort((a, b) => a.distancia_estimada - b.distancia_estimada)
+            .slice(0, 10); // Top 10 nearest cities
+
+        res.json({
+            success: true,
+            origem: origin,
+            sugestoes: suggestions
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
 // --- ACTIVITY AREAS (V2) ---
 
 // GET - List all activity areas
@@ -1065,20 +1657,7 @@ require('./order_print_endpoints')(app, pool);
 
 // ==================== PRICE TABLES ENDPOINTS ====================
 
-// ==================== CLI_IND ENDPOINTS ====================
-// Import CLI_IND routes for special client conditions
-const cliIndRouter = require('./cli_ind_endpoints')(pool);
-app.use('/api', cliIndRouter);
-
-// ==================== CLI_ANIV ENDPOINTS ====================
-// Import CLI_ANIV routes for buyer lookup
-const cliAnivRouter = require('./cli_aniv_endpoints')(pool);
-app.use('/api', cliAnivRouter);
-
-// ==================== PARAMETROS ENDPOINTS ====================
-// Import parametros routes for system configuration
-const parametrosRouter = require('./parametros_endpoints')(pool);
-app.use('/api', parametrosRouter);
+// Endpoints are registered at the end of the file starting from line 4790
 
 // ==================== USERS ENDPOINTS ====================
 // Import users routes for user management
@@ -4792,6 +5371,8 @@ app.use('/api/financeiro', require('./financial_endpoints')(pool)); // Financial
 app.use('/api', require('./login_endpoints')(pool));
 app.use('/api', require('./parametros_endpoints')(pool));
 app.use('/api', require('./price_tables_endpoints')(pool)); // Register Price Tables Endpoints
+app.use('/api/cli-ind', require('./cli_ind_endpoints')(pool)); // Register CLI_IND Endpoints (Special conditions)
+app.use('/api', require('./cli_aniv_endpoints')(pool)); // Register CLI_ANIV Endpoints (Buyer lookup)
 
 app.use('/api/suppliers', require('./suppliers_endpoints')(pool));
 app.use('/api/clients', require('./clients_endpoints')(pool));
@@ -4799,6 +5380,8 @@ app.use('/api/sellers', require('./vendedores_endpoints')(pool));
 app.use('/api/reports', require('./reports_endpoints')(pool));
 app.use('/api/metas', require('./metas_endpoints')(pool)); // Dashboard de Metas
 require('./narratives_endpoints')(app);
+app.use('/api/agenda', require('./agenda_endpoints')(pool)); // Agenda Pro
+app.use('/api/chat', require('./chat_endpoints')(pool)); // Chat Pro
 
 // --- GLOBAL ERROR HANDLING (PREVENT CRASH) ---
 process.on('uncaughtException', (err) => {

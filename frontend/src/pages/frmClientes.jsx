@@ -186,7 +186,7 @@ const FrmClientes = () => {
             label: 'CNPJ/CPF',
             width: '160px',
             render: (row) => (
-                <span className="font-mono text-xs text-slate-500">
+                <span className="font-mono text-sm text-black font-medium">
                     {formatCNPJ(row.cnpj)}
                 </span>
             )
@@ -197,7 +197,7 @@ const FrmClientes = () => {
             width: '200px',
             align: 'center',
             render: (row) => (
-                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase text-xs py-1" title={row.nomered || row.nome}>
+                <Badge variant="outline" className="w-full justify-center font-bold text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100 uppercase text-sm py-1" title={row.nomered || row.nome}>
                     {row.nomered || row.nome}
                 </Badge>
             )
@@ -207,7 +207,7 @@ const FrmClientes = () => {
             label: 'Razão Social',
             width: '280px',
             render: (row) => (
-                <span className="text-xs text-slate-500 truncate block max-w-[280px]" title={row.nome}>
+                <span className="text-xs text-black truncate block max-w-[280px]" title={row.nome}>
                     {row.nome}
                 </span>
             )

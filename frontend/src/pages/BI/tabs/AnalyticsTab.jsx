@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import axios from '../../../lib/axios';
 import {
     AlertTriangle, TrendingUp, TrendingDown, Target, Zap,
     ArrowRight, UserCheck, Package, DollarSign, BarChart2,

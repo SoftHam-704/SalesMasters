@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../../lib/axios';
 import { Loader2, TrendingUp, TrendingDown, Package, ShoppingCart, Users, Archive, AlertCircle } from 'lucide-react';
 import NarrativesWidget from '../components/NarrativesWidget';
 import LollipopChart from '../charts/LollipopChart';

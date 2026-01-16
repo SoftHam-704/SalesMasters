@@ -1,54 +1,67 @@
 .input-field {
-    position: relative;
+    display: flex;
+    flex-direction: column;
     width: 100%;
-    margin-bottom: 14px;
-    /* ⬅️ respiro consistente */
+    margin-bottom: 16px;
+    position: relative;
 }
 
+/* Label Styling - The "Student App" Look */
+.input-field label {
+    font-size: 0.75rem; /* 12px */
+    font-weight: 800; /* Extra bold */
+    text-transform: uppercase;
+    color: #475569; /* Slate 600 - High contrast but not black */
+    margin-bottom: 6px;
+    letter-spacing: 0.05em; /* Tracking wider */
+    display: block;
+    user-select: none;
+}
+
+/* Input Styling */
 .input-field input {
     width: 100%;
-    padding: 14px 14px;
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    background: #fff;
-    font-size: 14px;
+    height: 48px; /* Taller inputs (h-12) */
+    padding: 0 16px;
+    border-radius: 8px; /* Slightly less rounded than before for a sharper look */
+    border: 1px solid #cbd5e1; /* Slate 300 - Visible border */
+    background: #ffffff;
+    
+    font-size: 0.95rem; /* ~15px */
+    font-weight: 500;
+    color: #1e293b; /* Slate 800 - Almost black text */
+    
     outline: none;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Subtle inner shadow for depth */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.input-field.large input {
-    font-size: 16px;
-    padding: 16px;
+.input-field input::placeholder {
+    color: #94a3b8; /* Slate 400 */
+    font-weight: 400;
 }
 
+/* Focus State - Green Pop */
 .input-field input:focus {
-    border-color: #22c55e;
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+    border-color: #10b981; /* Emerald 500 */
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+    background: #ffffff;
 }
 
-.input-field label {
-    position: absolute;
-    left: 14px;
-    background: white;
-    padding: 0 6px;
-    pointer-events: none;
-    transition: 0.2s;
-    /* Styles merged with bottom rule for permanent top position */
+/* Read Only / Disabled */
+.input-field input:disabled,
+.input-field input[readonly] {
+    background-color: #f8fafc; /* Slate 50 */
+    border-color: #e2e8f0;
+    color: #64748b;
+    cursor: not-allowed;
 }
 
-.input-field.large label {
-    font-size: 14px;
-    /* ⬅️ Destaque extra para campos main */
-}
-
-.input-field input:focus+label,
-.input-field label {
-    top: -8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #374151;
-}
-
-.input-field input:focus+label {
-    color: #16a34a;
+/* Large Variant (if needed) */
+.input-field.large input {
+    height: 56px;
+    font-size: 1.125rem;
+    padding: 0 20px;
 }

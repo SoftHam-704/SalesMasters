@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Save, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { API_BASE_URL } from '@/config/api';
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const ConditionRegistrationDialog = ({
     open,
@@ -102,7 +102,7 @@ const ConditionRegistrationDialog = ({
                 buyerEmail: localData.buyerEmail
             };
 
-            const response = await fetch(`${API_BASE_URL}/cli-ind`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/cli-ind'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -135,11 +135,13 @@ const ConditionRegistrationDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px] border-emerald-100 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-emerald-800">
-                        <Save className="h-5 w-5" />
-                        Definir Padrão do Cliente
-                    </DialogTitle>
-                    <DialogDescription>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Save className="h-5 w-5 text-emerald-600" />
+                        <DialogTitle className="text-emerald-800 text-xl font-black">
+                            Definir Padrão do Cliente
+                        </DialogTitle>
+                    </div>
+                    <DialogDescription className="text-slate-500">
                         Revise e edite as condições comerciais que serão salvas como padrão para este cliente.
                     </DialogDescription>
                 </DialogHeader>

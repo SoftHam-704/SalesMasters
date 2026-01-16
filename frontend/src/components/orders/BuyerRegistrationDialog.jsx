@@ -96,8 +96,8 @@ export function BuyerRegistrationDialog({ open, onOpenChange, clientCode, buyerN
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Cadastrar Comprador</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="text-xl font-black text-slate-800">Cadastrar Comprador</DialogTitle>
+                    <DialogDescription className="text-slate-500">
                         Preencha os dados abaixo para cadastrar um novo comprador para este cliente.
                     </DialogDescription>
                 </DialogHeader>

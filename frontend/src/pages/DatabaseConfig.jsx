@@ -32,9 +32,10 @@ export const DatabaseConfig = () => {
     const [companyResult, setCompanyResult] = useState(null);
     const [companySaving, setCompanySaving] = useState(false);
 
-    // Verificar se é o Hamilton (Super Admin)
+    // Verificar se é o Hamilton (Super Admin) ou usuário Master da SoftHam
     const user = JSON.parse(sessionStorage.getItem('user') || '{}');
-    const isHamilton = user.role === 'superadmin';
+    const userCnpj = (user.cnpj || '').replace(/\D/g, '');
+    const isHamilton = user.role === 'superadmin' || userCnpj === '17504829000124';
 
     // Carregar configuração atual
     useEffect(() => {
@@ -335,22 +336,29 @@ export const DatabaseConfig = () => {
                                             </div>
                                         </div>
                                         {/* Preview do Logotipo */}
-                                        <div className="w-40 h-28 border border-gray-300 rounded-md flex items-center justify-center bg-gray-50 overflow-hidden flex-shrink-0">
-                                            {companyConfig.logotipo ? (
+                                        <div className="w-40 h-28 border border-gray-300 rounded-md flex items-center justify-center bg-gray-50 overflow-hidden flex-shrink-0 relative">
+                                            {companyConfig.logotipo && (
                                                 <img
-                                                    src={companyConfig.logotipo.startsWith('data:') ? companyConfig.logotipo : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`)}
+                                                    key={companyConfig.logotipo} // Força re-render ao mudar a string base64 ou path
+                                                    src={companyConfig.logotipo.startsWith('data:')
+                                                        ? companyConfig.logotipo
+                                                        : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(companyConfig.logotipo)}`)}
                                                     alt="Logotipo"
                                                     className="max-w-full max-h-full object-contain"
+                                                    onLoad={(e) => {
+                                                        e.target.style.display = 'block';
+                                                    }}
                                                     onError={(e) => {
                                                         e.target.style.display = 'none';
-                                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
                                                     }}
                                                 />
-                                            ) : null}
-                                            <div className={`text-xs text-gray-400 text-center ${companyConfig.logotipo ? 'hidden' : 'flex'} flex-col items-center`}>
-                                                <Image className="w-8 h-8 mb-1 text-gray-300" />
-                                                <span>Preview</span>
-                                            </div>
+                                            )}
+                                            {(!companyConfig.logotipo || companyConfig.logotipo === '') && (
+                                                <div className="text-xs text-gray-400 text-center flex flex-col items-center">
+                                                    <Image className="w-8 h-8 mb-1 text-gray-300" />
+                                                    <span>Preview</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -228,8 +228,41 @@ module.exports = function (pool) {
     router.post('/users', async (req, res) => {
         try {
             const { codigo, nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo } = req.body;
+            const tenantCnpj = req.headers['x-tenant-cnpj'];
 
-            if (codigo) {
+            if (!codigo) {
+                // INSERT - Verificar limite de usuários no Master
+                if (tenantCnpj) {
+                    const { masterPool } = require('./utils/db');
+                    const masterQuery = 'SELECT limite_usuarios FROM empresas WHERE cnpj = $1';
+                    const masterRes = await masterPool.query(masterQuery, [tenantCnpj.replace(/\D/g, '')]);
+
+                    if (masterRes.rows.length > 0) {
+                        const limite = masterRes.rows[0].limite_usuarios || 999;
+
+                        // Contar usuários atuais no Tenant
+                        const countQuery = 'SELECT COUNT(*) as total FROM user_nomes';
+                        const countRes = await pool.query(countQuery);
+                        const totalAtual = parseInt(countRes.rows[0].total);
+
+                        if (totalAtual >= limite) {
+                            return res.status(403).json({
+                                success: false,
+                                message: `Limite de usuários atingido (${limite}). Entre em contato com o suporte para aumentar seu plano.`
+                            });
+                        }
+                    }
+                }
+
+                // Prosseguir com INSERT
+                const query = `
+                    INSERT INTO user_nomes (nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING *
+                `;
+                const result = await pool.query(query, [nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo]);
+                return res.json({ success: true, data: result.rows[0], message: 'Usuário criado!' });
+            } else {
                 // UPDATE
                 const query = `
                     UPDATE user_nomes 
@@ -244,15 +277,6 @@ module.exports = function (pool) {
 
                 const result = await pool.query(query, params);
                 return res.json({ success: true, data: result.rows[0], message: 'Usuário atualizado!' });
-            } else {
-                // INSERT
-                const query = `
-                    INSERT INTO user_nomes (nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    RETURNING *
-                `;
-                const result = await pool.query(query, [nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo]);
-                return res.json({ success: true, data: result.rows[0], message: 'Usuário criado!' });
             }
         } catch (error) {
             console.error('Erro ao salvar usuário:', error);

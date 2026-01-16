@@ -2,7 +2,7 @@
 // Componente específico para o card azul de insights
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../lib/axios';
 import './InsightsCard.css';
 
 import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';

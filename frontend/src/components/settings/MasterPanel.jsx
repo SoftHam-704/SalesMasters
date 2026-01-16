@@ -365,6 +365,7 @@ const MasterPanel = () => {
         setFormData({
             cnpj: '', razao_social: '', nome_fantasia: '', email_contato: '', telefone: '',
             status: 'ATIVO', data_vencimento: '', valor_mensalidade: '',
+            limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S',
             db_host: '', db_nome: '', db_usuario: '', db_senha: '', db_porta: 5432
         });
     };
@@ -380,6 +381,9 @@ const MasterPanel = () => {
             status: empresa.status || 'ATIVO',
             data_vencimento: empresa.data_vencimento?.split('T')[0] || '',
             valor_mensalidade: empresa.valor_mensalidade || '',
+            limite_usuarios: empresa.limite_usuarios || 1,
+            limite_sessoes: empresa.limite_sessoes || 3,
+            bloqueio_ativo: empresa.bloqueio_ativo || 'S',
             db_host: empresa.db_host || '',
             db_nome: empresa.db_nome || '',
             db_usuario: empresa.db_usuario || '',
@@ -591,6 +595,35 @@ const MasterPanel = () => {
                                     step="0.01"
                                     placeholder="0,00"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Limite Usuários</Label>
+                                <Input
+                                    type="number"
+                                    value={formData.limite_usuarios}
+                                    onChange={e => setFormData({ ...formData, limite_usuarios: e.target.value })}
+                                    className="border-slate-300"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Limite Sessões</Label>
+                                <Input
+                                    type="number"
+                                    value={formData.limite_sessoes}
+                                    onChange={e => setFormData({ ...formData, limite_sessoes: e.target.value })}
+                                    className="border-slate-300"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Módulo BI Intelligence</Label>
+                                <select
+                                    value={formData.bloqueio_ativo}
+                                    onChange={e => setFormData({ ...formData, bloqueio_ativo: e.target.value })}
+                                    className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="S">✅ HABILITADO</option>
+                                    <option value="N">❌ DESABILITADO</option>
+                                </select>
                             </div>
                         </div>
 

@@ -327,9 +327,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
     // Load summary items
     const loadSummaryItems = async (orderId = null) => {
-        // Se acabamos de importar itens da IA e eles estão na MemTable, NÃO busque no banco ainda
-        if (justImported && summaryItems.length > 0) {
-            console.log("📦 [OrderForm] Mantendo itens importados na MemTable (bloqueando refresh do banco)");
+        // Se acabamos de importar itens da IA/XLS e eles estão na MemTable, NÃO busque no banco ainda
+        // removida condição de length > 0 porque na importação inicial a grid pode estar vazia no banco
+        if (justImported) {
+            console.log("📦 [OrderForm] Mantendo itens importados na MemTable (BLOQUEANDO refresh do banco de dados)");
             return;
         }
 
@@ -843,6 +844,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
 
         setXlsImporting(true);
+        setIsImporting(true); // Trava global contra reloads do banco
         setXlsErrors([]);
 
         // Ensure order is saved
@@ -872,11 +874,45 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 const quantStr = quantidades[i] || '1';
                 const precoStr = precos[i] || '';
 
-                // Find product in price table
-                const product = products.find(p =>
-                    p.pro_codprod === codigo ||
-                    p.pro_codigonormalizado === codigo
-                );
+                // Find product in price table - Lógica Robusta de Normalização (v2 Ultra)
+                const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const codigoNorm = normalize(codigo);
+                const codigoNum = parseInt(codigoNorm, 10);
+
+                // Fragmentos para casos compostos ou sujos (ex "REF: 123", "401.1119-95", "COD1/COD2")
+                const fragments = String(codigo).split(/[/|;,\s-]+/).filter(f => f.length >= 3);
+
+                const product = products.find(p => {
+                    // Strategy 1: Exact Match (Fastest)
+                    if (p.pro_codprod === codigo || p.pro_codigonormalizado === codigo) return true;
+
+                    // Strategy 2: Normalized Match (Remove special chars)
+                    const dbNorm = normalize(p.pro_codprod);
+                    const dbNormRec = normalize(p.pro_codigonormalizado);
+
+                    if (dbNorm === codigoNorm || (dbNormRec && dbNormRec === codigoNorm)) return true;
+
+                    // Strategy 3: Numeric Match (Ignore leading zeros)
+                    const dbNum = parseInt(dbNorm, 10);
+                    if (!isNaN(codigoNum) && !isNaN(dbNum) && codigoNum === dbNum) return true;
+
+                    // Strategy 4: Fragments Match (Inteligência para códigos parciais ou compostos)
+                    if (fragments.length > 0) {
+                        for (const frag of fragments) {
+                            const fragNorm = normalize(frag);
+                            if (fragNorm.length < 3) continue; // Ignora fragmentos curtos para evitar falsos positivos
+
+                            // Fragmento bate com código normalizado do banco?
+                            if (dbNorm === fragNorm || (dbNormRec && dbNormRec === fragNorm)) return true;
+
+                            // Fragmento bate numericamente?
+                            const fragNum = parseInt(fragNorm, 10);
+                            if (!isNaN(fragNum) && !isNaN(dbNum) && fragNum === dbNum) return true;
+                        }
+                    }
+
+                    return false;
+                });
 
                 if (!product) {
                     notFoundCodes.push(codigo);
@@ -894,6 +930,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 // Create item with header discounts
                 const newItem = {
+                    // COMPATIBILITY FIELDS for OrderItemEntry (AI Import Flow)
+                    codigo: product.pro_codprod, // Critical: this enables OrderItemEntry to match the product again
+                    quantidade: quant,
+                    preco: precoStr ? precoUnitario : 0, // Pass custom price logic
+                    descricao: product.pro_nome,
+
                     ite_industria: selectedIndustry?.for_codigo,
                     ite_produto: product.pro_codprod,
                     ite_idproduto: product.pro_id,
@@ -961,7 +1003,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 // Navigate to F5 (Conferência) if no errors, otherwise stay to show errors
                 if (notFoundCodes.length === 0) {
+                    setJustImported(true); // Impede que o refresh do banco apague a memória ao mudar de aba
                     setActiveTab('F5');
+
+                    // Limpa a flag após 3 segundos (tempo suficiente para o React terminar de renderizar tudo)
+                    setTimeout(() => setJustImported(false), 3000);
                 }
             } else if (notFoundCodes.length > 0) {
                 toast.error('Nenhum código encontrado na tabela de preços');
@@ -971,6 +1017,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             toast.error('Erro ao importar itens: ' + error.message);
         } finally {
             setXlsImporting(false);
+            setIsImporting(false); // Limpa trava global
         }
     };
 
@@ -2020,7 +2067,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         key={tab.key}
                                         onClick={() => handleTabChange(tab.key)}
                                         className={cn(
-                                            "group relative flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all duration-500 h-[42px]",
+                                            "group relative flex-shrink-0 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all duration-500 h-[42px]",
                                             "text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
                                             isActive
                                                 ? "active-tab-glow text-blue-700 font-black shadow-xl scale-[1.05] z-20"
@@ -2287,25 +2334,25 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     <div className={cn("absolute inset-0 flex flex-col overflow-hidden", activeTab !== 'F5' && "hidden")}>
                         {/* Grid Container */}
                         <div className="flex-1 overflow-auto border border-slate-300 rounded-lg shadow-sm bg-white">
-                            <table className="w-full text-xs relative border-collapse">
-                                <thead className="bg-slate-100 sticky top-0 z-10 font-semibold text-slate-700 h-9 shadow-sm">
+                            <table className="w-full text-[13px] relative border-collapse">
+                                <thead className="bg-slate-100 sticky top-0 z-10 font-bold text-slate-800 h-10 shadow-sm">
                                     <tr>
-                                        <th className="px-2 py-1 text-center border-b border-r border-slate-300 w-[40px]">Seq</th>
-                                        <th className="px-2 py-1 text-left border-b border-r border-slate-300 w-[80px]">Código</th>
-                                        <th className="px-2 py-1 text-left border-b border-r border-slate-300 w-[120px]">Complemento</th>
-                                        <th className="px-2 py-1 text-left border-b border-r border-slate-300 min-w-[150px]">Descrição</th>
-                                        <th className="px-2 py-1 text-center border-b border-r border-slate-300 w-[60px]">Quant</th>
-                                        <th className="px-2 py-1 text-right border-b border-r border-slate-300 min-w-[110px]">Bruto</th>
-                                        <th className="px-2 py-1 text-right border-b border-r border-slate-300 min-w-[110px]">Líquido</th>
-                                        <th className="px-2 py-1 text-right border-b border-r border-slate-300 min-w-[110px]">Total</th>
-                                        <th className="px-2 py-1 text-right border-b border-r border-slate-300 min-w-[110px]">Final</th>
+                                        <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[45px]">Seq</th>
+                                        <th className="px-3 py-2 text-left border-b border-r border-slate-300 whitespace-nowrap">Código</th>
+                                        <th className="px-3 py-2 text-left border-b border-r border-slate-300 w-[130px]">Complemento</th>
+                                        <th className="px-3 py-2 text-left border-b border-r border-slate-300 min-w-[200px]">Descrição</th>
+                                        <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[70px]">Quant</th>
+                                        <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Bruto</th>
+                                        <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Líquido</th>
+                                        <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Total</th>
+                                        <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Final</th>
                                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                                            <th key={n} className="px-1 py-1 text-center font-semibold text-blue-600 border-b border-r border-slate-300 min-w-[60px]">{n}º</th>
+                                            <th key={n} className="px-1 py-1 text-center font-bold text-blue-700 border-b border-r border-slate-300 min-w-[65px]">{n}º</th>
                                         ))}
-                                        <th className="px-1 py-1 text-center font-semibold text-amber-600 border-b border-r border-slate-300 min-w-[60px]">ADD %</th>
-                                        <th className="px-1 py-1 text-center font-semibold text-slate-600 border-b border-r border-slate-300 min-w-[60px]">IPI %</th>
-                                        <th className="px-1 py-1 text-center font-semibold text-slate-600 border-b border-r border-slate-300 min-w-[60px]">ST %</th>
-                                        <th className="px-1 py-1 text-center border-b w-[30px]" title="Promocional">P</th>
+                                        <th className="px-1 py-1 text-center font-bold text-amber-700 border-b border-r border-slate-300 min-w-[65px]">ADD %</th>
+                                        <th className="px-1 py-1 text-center font-bold text-slate-700 border-b border-r border-slate-300 min-w-[65px]">IPI %</th>
+                                        <th className="px-1 py-1 text-center font-bold text-slate-700 border-b border-r border-slate-300 min-w-[65px]">ST %</th>
+                                        <th className="px-1 py-1 text-center border-b w-[35px]" title="Promocional">P</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2324,18 +2371,18 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                     isPackagingError && "bg-red-50 hover:bg-red-100 ring-1 ring-inset ring-red-200"
                                                 )}
                                             >
-                                                <td className="px-2 py-0 text-center text-slate-500 border-r border-slate-300/50">{item.ite_seq || idx + 1}</td>
-                                                <td className="px-2 py-0 font-medium border-r border-slate-300/50">{item.ite_produto}</td>
+                                                <td className="px-3 py-1 text-slate-500 border-r border-slate-300/50">{item.ite_seq || idx + 1}</td>
+                                                <td className="px-3 py-1 font-bold border-r border-slate-300/50 whitespace-nowrap text-blue-700">{item.ite_produto}</td>
                                                 <td className="px-1 py-0 border-r border-slate-300/50">
                                                     <input
                                                         type="text"
                                                         value={item.ite_embuch || ''}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_embuch', e.target.value)}
-                                                        className="w-full text-xs px-1 h-6 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded" // Fundo transparente
+                                                        className="w-full text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium" // Fundo transparente
                                                     />
                                                 </td>
-                                                <td className="px-2 py-0 truncate max-w-[150px] border-r border-slate-300/50" title={item.ite_nomeprod}>
-                                                    {item.ite_nomeprod}
+                                                <td className="px-3 py-1 border-r border-slate-300/50 font-medium text-slate-800 whitespace-nowrap truncate max-w-[280px]" title={item.ite_nomeprod}>
+                                                    {item.ite_nomeprod ? (item.ite_nomeprod.length > 35 ? item.ite_nomeprod.substring(0, 35) + '...' : item.ite_nomeprod) : ''}
                                                 </td>
                                                 <td className="px-1 py-0 text-center relative border-r border-slate-300/50">
                                                     <input
@@ -2343,13 +2390,13 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         value={typeof item.ite_quant === 'number' ? item.ite_quant.toFixed(2) : (item.ite_quant ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_quant', e.target.value)}
                                                         className={cn(
-                                                            "w-full text-center text-xs px-1 h-6 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-semibold",
-                                                            isPackagingError ? "text-red-600" : "text-slate-700"
+                                                            "w-full text-center text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-black",
+                                                            isPackagingError ? "text-red-600" : "text-slate-900"
                                                         )}
                                                     />
                                                     {isPackagingError && (
                                                         <div className="absolute right-1 top-1/2 -translate-y-1/2" title={`Quantidade deve ser múltiplo de ${embalagem}`}>
-                                                            <AlertTriangle className="h-3 w-3 text-red-500" />
+                                                            <AlertTriangle className="h-4 w-4 text-red-500" />
                                                         </div>
                                                     )}
                                                 </td>
@@ -2359,29 +2406,28 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         value={typeof item.ite_puni === 'number' ? item.ite_puni.toFixed(2) : (item.ite_puni ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_puni', e.target.value)}
                                                         onBlur={(e) => handleGridEdit(idx, 'ite_puni', parseFloat(e.target.value || 0).toFixed(2))}
-                                                        className="w-full text-right text-xs px-1 h-6 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded"
+                                                        className="w-full text-right text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium"
                                                     />
                                                 </td>
-                                                <td className="px-2 py-0 text-right font-medium text-slate-700 border-r border-slate-300/50">
+                                                <td className="px-3 py-1 text-right font-bold text-slate-900 border-r border-slate-300/50">
                                                     {parseFloat(item.ite_puniliq || 0).toFixed(2)}
                                                 </td>
-                                                <td className="px-2 py-0 text-right text-slate-500 border-r border-slate-300/50">
+                                                <td className="px-3 py-1 text-right text-slate-600 border-r border-slate-300/50 font-medium">
                                                     {parseFloat(item.ite_totliquido || 0).toFixed(2)}
                                                 </td>
-                                                <td className="px-2 py-0 text-right font-bold text-slate-800 border-r border-slate-300/50">
+                                                <td className="px-3 py-1 text-right font-black text-emerald-700 border-r border-slate-300/50 bg-emerald-50/20">
                                                     {parseFloat(item.ite_valcomst || 0).toFixed(2)}
                                                 </td>
 
-                                                {/* Descontos 1-9 */}
                                                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
-                                                    <td key={n} className="px-0 py-0 text-center bg-blue-50/30 relative min-w-[60px] border-r border-slate-300/50">
+                                                    <td key={n} className="px-0 py-0 text-center bg-blue-50/20 relative min-w-[65px] border-r border-slate-300/50">
                                                         <div className="flex items-center justify-center px-1">
                                                             <input
                                                                 type="text"
                                                                 value={typeof item[`ite_des${n}`] === 'number' ? item[`ite_des${n}`].toFixed(2) : (item[`ite_des${n}`] ?? '')}
                                                                 onChange={(e) => handleGridEdit(idx, `ite_des${n}`, e.target.value)}
                                                                 onBlur={(e) => handleGridEdit(idx, `ite_des${n}`, parseFloat(e.target.value || 0).toFixed(2))}
-                                                                className="w-full text-right text-xs h-6 bg-transparent text-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-500 border-none p-0 pr-0.5"
+                                                                className="w-full text-right text-[13px] h-8 bg-transparent text-blue-700 font-bold focus:bg-white focus:ring-1 focus:ring-blue-500 border-none p-0 pr-0.5"
                                                             />
                                                             <span className="text-xs text-blue-600/70 ml-0.5">%</span>
                                                         </div>
@@ -2389,14 +2435,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                 ))}
 
                                                 {/* ADD */}
-                                                <td className="px-0 py-0 text-center bg-amber-50/30 relative min-w-[60px] border-r border-slate-300/50">
+                                                <td className="px-0 py-0 text-center bg-amber-50/20 relative min-w-[65px] border-r border-slate-300/50">
                                                     <div className="flex items-center justify-center px-1">
                                                         <input
                                                             type="text"
                                                             value={typeof item.ite_des10 === 'number' ? item.ite_des10.toFixed(2) : (item.ite_des10 ?? '')}
                                                             onChange={(e) => handleGridEdit(idx, 'ite_des10', e.target.value)}
                                                             onBlur={(e) => handleGridEdit(idx, 'ite_des10', parseFloat(e.target.value || 0).toFixed(2))}
-                                                            className="w-full text-right text-xs h-6 bg-transparent text-amber-600 focus:bg-white focus:ring-1 focus:ring-amber-500 border-none p-0 pr-0.5"
+                                                            className="w-full text-right text-[13px] h-8 bg-transparent text-amber-700 font-bold focus:bg-white focus:ring-1 focus:ring-amber-500 border-none p-0 pr-0.5"
                                                         />
                                                         <span className="text-xs text-amber-600/70 ml-0.5">%</span>
                                                     </div>
@@ -2552,10 +2598,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                         ) : (
                             <Button
                                 onClick={() => setActiveTab('F1')}
-                                className="bg-slate-800 hover:bg-slate-900 text-white h-12 px-12 rounded-2xl text-[14px] font-black tracking-widest min-w-[220px] shadow-xl hover:scale-105 transition-all"
+                                className="bg-[#1e293b] hover:bg-slate-900 h-10 px-8 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 border border-slate-700"
                             >
-                                <ArrowLeft className="h-5 w-5 mr-2" />
-                                VOLTAR PARA O PRINCIPAL
+                                <ArrowLeft className="h-5 w-5 text-emerald-400" />
+                                <span className="text-white text-[12px] font-black tracking-widest">
+                                    VOLTAR PARA O PRINCIPAL
+                                </span>
                             </Button>
                         )}
                     </div>
