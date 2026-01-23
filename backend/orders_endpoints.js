@@ -27,6 +27,44 @@ module.exports = function (app, pool) {
             });
         }
     });
+    // POST - Criar novo pedido (cabeçalho)
+    app.post('/api/orders', async (req, res) => {
+        try {
+            const {
+                ped_cliente,
+                ped_industria,
+                ped_tabela,
+                ped_totbruto,
+                ped_totliq,
+                ped_totalipi,
+                ped_obs
+            } = req.body;
+
+            const query = `
+                INSERT INTO pedidos (
+                    ped_data,
+                    ped_situacao,
+                    ped_cliente,
+                    ped_industria,
+                    ped_tabela,
+                    ped_totbruto,
+                    ped_totliq,
+                    ped_totalipi,
+                    ped_obs
+                ) VALUES (
+                    CURRENT_DATE,
+                    'R',
+                    $1, $2, $3, $4, $5, $6, $7
+                ) RETURNING *
+            `;
+            const values = [ped_cliente, ped_industria, ped_tabela, ped_totbruto, ped_totliq, ped_totalipi, ped_obs];
+            const result = await pool.query(query, values);
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [ORDERS] Error creating order:', error);
+            res.status(500).json({ success: false, message: `Erro ao criar pedido: ${error.message}` });
+        }
+    });
 
     // Narratives are now handled by narratives_endpoints.js
 };
