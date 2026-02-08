@@ -2,7 +2,7 @@ from services.database import execute_query
 import pandas as pd
 from datetime import datetime, timedelta
 
-def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'valor'):
+def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'valor', startDate: str = None, endDate: str = None):
     """
     Fetch comprehensive details for the Single Industry Dashboard.
     """
@@ -18,33 +18,28 @@ def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'v
             except:
                 pass
 
-        # Current Date Context for "Last Month" comparison
-        # If 'Todos', we compare Year vs Last Year. If Month, we compare Month vs Last Month of same Year.
-        # But for 'Funnel', usually we want current status. Let's assume standard 'Month' view if selected, or YTD if Todos.
-        
-        is_ytd = (mes == 'Todos')
-        
         # 2. Funnel KPIs (Sales, Qty, Units, Orders, Portfolio)
-        funnel = get_funnel_kpi(ano, month_int, industry_id)
+        funnel = get_funnel_kpi(ano, month_int, industry_id, startDate, endDate)
         
         # 3. Funnel Sparkline (Daily Sales for selected period)
-        sparkline = get_funnel_sparkline(ano, month_int, industry_id)
+        sparkline = get_funnel_sparkline(ano, month_int, industry_id, startDate, endDate)
         
         # 4. Client Analysis (Lollipop & Churn)
-        client_metrics = get_client_analysis(ano, industry_id)
+        # Churn analysis usually needs a full reference year, but we can make it more flexible later.
+        # For now, we'll keep it by year but can pass start/end for filtering current active clients.
+        client_metrics = get_client_analysis(ano, industry_id, startDate, endDate)
         
         # 5. Main Chart (Monthly Sales with YoY Flag) - NOW WITH METRIC SUPPORT
-        monthly_sales = get_monthly_sales_chart(ano, industry_id, metrica)
+        monthly_sales = get_monthly_sales_chart(ano, industry_id, metrica, startDate, endDate)
         
         # 6. Recent Orders Table
-        # 6. Recent Orders Table
-        orders_table = get_recent_orders(ano, month_int, industry_id)
+        orders_table = get_recent_orders(ano, month_int, industry_id, startDate, endDate)
 
         # 7. Metadata (Name, Share, etc.)
-        metadata = get_industry_metadata(ano, month_int, industry_id)
+        metadata = get_industry_metadata(ano, month_int, industry_id, startDate, endDate)
 
         # 8. Narrative / Performance Insights
-        narrative = get_industry_narrative(ano, industry_id)
+        narrative = get_industry_narrative(ano, industry_id, startDate, endDate)
 
         return {
             "success": True,
@@ -62,11 +57,15 @@ def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'v
         return {"error": str(e), "success": False}
 
 
-def get_industry_metadata(ano, mes, ind_id):
+def get_industry_metadata(ano: int, mes: int, ind_id: int, startDate: str = None, endDate: str = None):
     """Fetch Industry Name, Logo and Calculate Market Share"""
-    date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-    if mes:
-        date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+    
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    else:
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+        if mes:
+            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
         
     # 1. Get Industry Info + Sales
     query_ind = f"""
@@ -108,7 +107,7 @@ def get_industry_metadata(ano, mes, ind_id):
     }
 
 
-def get_industry_narrative(ano, ind_id):
+def get_industry_narrative(ano, ind_id, startDate=None, endDate=None):
     """Generate intelligent narrative for industry performance analysis"""
     
     MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -120,7 +119,7 @@ def get_industry_narrative(ano, ind_id):
         ind_nome = df_name.iloc[0]['nome'] if not df_name.empty else "Indústria"
         
         # 2. Get monthly sales with YoY comparison
-        monthly_data = get_monthly_sales_chart(ano, ind_id)
+        monthly_data = get_monthly_sales_chart(ano, ind_id, 'valor', startDate, endDate)
         
         # 3. Get goals from ind_metas
         query_goals = """
@@ -187,83 +186,66 @@ def get_industry_narrative(ano, ind_id):
         return None
 
 
-def get_funnel_kpi(ano, mes, ind_id):
+def get_funnel_kpi(ano: int, mes: int, ind_id: int, startDate: str = None, endDate: str = None):
     """Calculate 5 Cards: Sales, Qty, Units (Distinct SKUs), Orders, Portfolio (% mix)"""
     
     # Base Filter
-    date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-    if mes:
-        date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
-    
-    # Previous Period Filter (MoM or YoY)
-    # If Month selected: Compare to previous month.
-    # If 'Todos': Compare to previous Year.
-    prev_date_filter = "1=0" # Default fail
-    
-    if mes:
-        # MoM logic
-        curr_date = datetime(ano, mes, 1)
-        prev_date = curr_date - timedelta(days=1)
-        prev_mes = prev_date.month
-        prev_ano = prev_date.year
-        prev_date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {prev_ano} AND EXTRACT(MONTH FROM p.ped_data) = {prev_mes}"
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+        # YoY logic for range
+        prev_date_filter = f"p.ped_data BETWEEN ('{startDate}'::date - INTERVAL '1 year') AND ('{endDate}'::date - INTERVAL '1 year')"
     else:
-        # YoY logic
-        prev_date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano - 1}"
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+        if mes:
+            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+        
+        # Previous Period Filter (MoM or YoY)
+        if mes:
+            # MoM logic
+            curr_date = datetime(ano, mes, 1)
+            prev_date = curr_date - timedelta(days=1)
+            prev_mes = prev_date.month
+            prev_ano = prev_date.year
+            prev_date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {prev_ano} AND EXTRACT(MONTH FROM p.ped_data) = {prev_mes}"
+        else:
+            # YoY logic
+            prev_date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano - 1}"
 
-    # Main KPI Query
+    # Combined KPI Query (Optimized to reduce scans)
     query = f"""
-        WITH current_period AS (
+        WITH period_data AS (
             SELECT 
-                COALESCE(SUM(p.ped_totliq), 0) as total_vendas,
-                COUNT(DISTINCT p.ped_pedido) as total_pedidos
+                SUM(CASE WHEN {date_filter} THEN p.ped_totliq ELSE 0 END) as total_vendas,
+                COUNT(DISTINCT CASE WHEN {date_filter} THEN p.ped_pedido ELSE NULL END) as total_pedidos,
+                SUM(CASE WHEN {prev_date_filter} THEN p.ped_totliq ELSE 0 END) as prev_vendas,
+                COUNT(DISTINCT CASE WHEN {prev_date_filter} THEN p.ped_pedido ELSE NULL END) as prev_pedidos
             FROM pedidos p
             WHERE p.ped_industria = :ind_id 
               AND p.ped_situacao IN ('P', 'F')
-              AND {date_filter}
+              AND ({date_filter} OR {prev_date_filter})
         ),
-        current_items AS (
+        item_data AS (
             SELECT 
-                COALESCE(SUM(i.ite_quant), 0) as total_qtd,
-                COUNT(DISTINCT i.ite_produto) as total_skus_vendidos
+                SUM(CASE WHEN {date_filter} THEN i.ite_quant ELSE 0 END) as total_qtd,
+                COUNT(DISTINCT CASE WHEN {date_filter} THEN i.ite_idproduto ELSE NULL END) as total_skus_vendidos,
+                SUM(CASE WHEN {prev_date_filter} THEN i.ite_quant ELSE 0 END) as prev_qtd,
+                COUNT(DISTINCT CASE WHEN {prev_date_filter} THEN i.ite_idproduto ELSE NULL END) as prev_skus_vendidos
             FROM pedidos p
-            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_industria = :ind_id 
               AND p.ped_situacao IN ('P', 'F')
-              AND {date_filter}
-        ),
-        prev_period AS (
-            SELECT 
-                COALESCE(SUM(p.ped_totliq), 0) as prev_vendas,
-                COUNT(DISTINCT p.ped_pedido) as prev_pedidos
-            FROM pedidos p
-            WHERE p.ped_industria = :ind_id 
-              AND p.ped_situacao IN ('P', 'F')
-              AND {prev_date_filter}
-        ),
-        prev_items AS (
-            SELECT 
-                COALESCE(SUM(i.ite_quant), 0) as prev_qtd,
-                 COUNT(DISTINCT i.ite_produto) as prev_skus_vendidos
-            FROM pedidos p
-            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
-            WHERE p.ped_industria = :ind_id 
-              AND p.ped_situacao IN ('P', 'F')
-              AND {prev_date_filter}
+              AND ({date_filter} OR {prev_date_filter})
         ),
         portfolio_total AS (
-            -- Total Items in Portfolio for this Industry from cad_prod table
             SELECT COUNT(*) as total_portfolio
             FROM cad_prod
             WHERE pro_industria = :ind_id
         )
         SELECT 
-            c.total_vendas, c.total_pedidos, 
-            ci.total_qtd, ci.total_skus_vendidos,
-            p.prev_vendas, p.prev_pedidos, 
-            pi.prev_qtd, pi.prev_skus_vendidos,
+            pd.total_vendas, pd.total_pedidos, pd.prev_vendas, pd.prev_pedidos,
+            it.total_qtd, it.total_skus_vendidos, it.prev_qtd, it.prev_skus_vendidos,
             port.total_portfolio
-        FROM current_period c, current_items ci, prev_period p, prev_items pi, portfolio_total port
+        FROM period_data pd, item_data it, portfolio_total port
     """
     
     df = execute_query(query, {"ind_id": ind_id})
@@ -277,8 +259,8 @@ def get_funnel_kpi(ano, mes, ind_id):
             if prev == 0: return 100.0 if curr > 0 else 0.0
             return ((curr - prev) / prev) * 100.0
 
-        vendas = float(row['total_vendas'])
-        vendas_prev = float(row['prev_vendas'])
+        vendas = float(row['total_vendas'] or 0)
+        vendas_prev = float(row['prev_vendas'] or 0)
         
         res['vendas'] = {
             "value": vendas,
@@ -286,24 +268,24 @@ def get_funnel_kpi(ano, mes, ind_id):
             "delta": calc_growth(vendas, vendas_prev)
         }
         
-        qtd = float(row['total_qtd'])
-        qtd_prev = float(row['prev_qtd'])
+        qtd = float(row['total_qtd'] or 0)
+        qtd_prev = float(row['prev_qtd'] or 0)
         res['quantidades'] = {
             "value": qtd,
             "prev": qtd_prev,
             "delta": calc_growth(qtd, qtd_prev)
         }
         
-        itens = float(row['total_skus_vendidos']) # "Unidades" in UI, but technically distinct SKUs or Packs
-        itens_prev = float(row['prev_skus_vendidos'])
+        itens = float(row['total_skus_vendidos'] or 0)
+        itens_prev = float(row['prev_skus_vendidos'] or 0)
         res['unidades'] = {
             "value": itens,
             "prev": itens_prev,
             "delta": calc_growth(itens, itens_prev)
         }
         
-        pedidos = float(row['total_pedidos'])
-        pedidos_prev = float(row['prev_pedidos'])
+        pedidos = float(row['total_pedidos'] or 0)
+        pedidos_prev = float(row['prev_pedidos'] or 0)
         res['pedidos'] = {
             "value": pedidos,
             "prev": pedidos_prev,
@@ -311,8 +293,8 @@ def get_funnel_kpi(ano, mes, ind_id):
         }
         
         # Portfolio
-        total_port = float(row['total_portfolio'])
-        sold_port = float(row['total_skus_vendidos'])
+        total_port = float(row['total_portfolio'] or 0)
+        sold_port = float(row['total_skus_vendidos'] or 0)
         coverage = (sold_port / total_port * 100.0) if total_port > 0 else 0.0
         
         res['portfolio'] = {
@@ -323,15 +305,18 @@ def get_funnel_kpi(ano, mes, ind_id):
         
     return res
 
-def get_funnel_sparkline(ano, mes, ind_id):
+def get_funnel_sparkline(ano, mes, ind_id, startDate=None, endDate=None):
     """Daily sales for sparkline chart"""
-    date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-    if mes:
-        date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    else:
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+        if mes:
+            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
         
     query = f"""
         SELECT 
-            EXTRACT(DAY FROM p.ped_data) as dia,
+            p.ped_data as data,
             SUM(p.ped_totliq) as total
         FROM pedidos p
         WHERE p.ped_industria = :ind_id
@@ -344,17 +329,23 @@ def get_funnel_sparkline(ano, mes, ind_id):
     if df.empty: return []
     return df.to_dict('records')
 
-def get_client_analysis(ano, ind_id):
+def get_client_analysis(ano, ind_id, startDate=None, endDate=None):
     """Lollipop Chart Data (Clients per Month) + Churn Matrix Table"""
     
+    # Base Filter
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    else:
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+
     # 1. Lollipop Data (Active Clients by Month)
-    query_monthly = """
+    query_monthly = f"""
         SELECT 
             EXTRACT(MONTH FROM p.ped_data) as mes,
             COUNT(DISTINCT p.ped_cliente) as qtd_clientes
         FROM pedidos p
         WHERE p.ped_industria = :ind_id
-          AND EXTRACT(YEAR FROM p.ped_data) = :ano
+          AND {date_filter}
           AND p.ped_situacao IN ('P', 'F')
         GROUP BY 1
         ORDER BY 1
@@ -396,22 +387,21 @@ def get_client_analysis(ano, ind_id):
              WHERE ped_industria = :ind AND EXTRACT(YEAR FROM ped_data) >= :ano-2
              GROUP BY 1, 2
         ),
-        clients_curr AS (SELECT distinct ped_cliente FROM history WHERE ano = :ano),
-        clients_prev AS (SELECT distinct ped_cliente FROM history WHERE ano = :ano-1),
-        clients_old  AS (SELECT distinct ped_cliente FROM history WHERE ano = :ano-2)
-        
+        client_presence AS (
+            SELECT 
+                ped_cliente,
+                BOOL_OR(ano = :ano) as in_curr,
+                BOOL_OR(ano = :ano-1) as in_prev,
+                BOOL_OR(ano = :ano-2) as in_old
+            FROM history
+            GROUP BY ped_cliente
+        )
         SELECT 
-            -- Novos: In Curr, Not In Prev, Not In Old (Proxy for 'never bought')
-            (SELECT COUNT(*) FROM clients_curr c WHERE c.ped_cliente NOT IN (SELECT ped_cliente FROM clients_prev) AND c.ped_cliente NOT IN (SELECT ped_cliente FROM clients_old)) as novos,
-            
-            -- Mantidos: In Curr AND In Prev
-            (SELECT COUNT(*) FROM clients_curr c WHERE c.ped_cliente IN (SELECT ped_cliente FROM clients_prev)) as mantidos,
-            
-            -- Reativados: In Curr, Not In Prev, But In Old
-            (SELECT COUNT(*) FROM clients_curr c WHERE c.ped_cliente NOT IN (SELECT ped_cliente FROM clients_prev) AND c.ped_cliente IN (SELECT ped_cliente FROM clients_old)) as reativados,
-            
-            -- Perdidos: In Prev, Not In Curr
-            (SELECT COUNT(*) FROM clients_prev c WHERE c.ped_cliente NOT IN (SELECT ped_cliente FROM clients_curr)) as perdidos
+            COUNT(*) FILTER (WHERE in_curr AND NOT in_prev AND NOT in_old) as novos,
+            COUNT(*) FILTER (WHERE in_curr AND in_prev) as mantidos,
+            COUNT(*) FILTER (WHERE in_curr AND NOT in_prev AND in_old) as reativados,
+            COUNT(*) FILTER (WHERE in_prev AND NOT in_curr) as perdidos
+        FROM client_presence
     """
     
     df_churn = execute_query(query_churn_refined, {"ind": ind_id, "ano": ano})
@@ -442,51 +432,58 @@ def get_client_analysis(ano, ind_id):
     
     return {"lollipop": lollipop, "matrix": matrix_enriched}
 
-def get_monthly_sales_chart(ano, ind_id, metrica='valor'):
+def get_monthly_sales_chart(ano, ind_id, metrica='valor', startDate=None, endDate=None):
     """Monthly sales/quantity/units compared to last year to flip colors"""
     
+    # Date Filtering Logic
+    if startDate and endDate:
+        # Current range and Previous Year range
+        date_cond = f"(p.ped_data BETWEEN '{startDate}' AND '{endDate}' OR p.ped_data BETWEEN ('{startDate}'::date - INTERVAL '1 year') AND ('{endDate}'::date - INTERVAL '1 year'))"
+    else:
+        date_cond = f"EXTRACT(YEAR FROM p.ped_data) IN ({ano}, {ano}-1)"
+
     # Select the appropriate aggregation based on metric
     if metrica == 'quantidade':
         # Join with items to get quantity
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM p.ped_data) as mes,
                 EXTRACT(YEAR FROM p.ped_data) as ano,
                 COALESCE(SUM(i.ite_quant), 0) as total
             FROM pedidos p
-            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_industria = :ind
-              AND EXTRACT(YEAR FROM p.ped_data) IN (:ano, :ano-1)
+              AND {date_cond}
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """
     elif metrica == 'unidades':
         # Count distinct SKUs (products)
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM p.ped_data) as mes,
                 EXTRACT(YEAR FROM p.ped_data) as ano,
-                COUNT(DISTINCT i.ite_produto) as total
+                COUNT(DISTINCT i.ite_idproduto) as total
             FROM pedidos p
-            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_industria = :ind
-              AND EXTRACT(YEAR FROM p.ped_data) IN (:ano, :ano-1)
+              AND {date_cond}
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """
     else:
         # Default: valor (sales)
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM ped_data) as mes,
                 EXTRACT(YEAR FROM ped_data) as ano,
                 SUM(ped_totliq) as total
-            FROM pedidos
-            WHERE ped_industria = :ind
-              AND EXTRACT(YEAR FROM ped_data) IN (:ano, :ano-1)
-              AND ped_situacao IN ('P', 'F')
+            FROM pedidos p
+            WHERE p.ped_industria = :ind
+              AND {date_cond}
+              AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """
@@ -533,11 +530,14 @@ def get_monthly_sales_chart(ano, ind_id, metrica='valor'):
         
     return chart_data
 
-def get_recent_orders(ano, mes, ind_id):
+def get_recent_orders(ano, mes, ind_id, startDate=None, endDate=None):
     """List last 20 orders"""
-    date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-    if mes:
-        date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    else:
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+        if mes:
+            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
         
     query = f"""
         SELECT 
@@ -545,7 +545,7 @@ def get_recent_orders(ano, mes, ind_id):
             p.ped_data,
             c.cli_nomred,
             p.ped_totliq,
-            (SELECT COUNT(*) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido) as qtd_itens
+            (SELECT COUNT(*) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria) as qtd_itens
         FROM pedidos p
         JOIN clientes c ON p.ped_cliente = c.cli_codigo
         WHERE p.ped_industria = :ind

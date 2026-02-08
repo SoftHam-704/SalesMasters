@@ -4,6 +4,7 @@ import "./SmartOrderDialog.css";
 import SmartOrderButton from './SmartOrderButton';
 import { smartOrderService } from '@/services/smartOrderService';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 
 export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNumber }) => {
     const [open, setOpen] = useState(false);
@@ -81,6 +82,11 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                 handleClose();
             }
         }
+    };
+
+    const handleRemoveItem = (idx) => {
+        setPreviewItems(prev => prev.filter((_, i) => i !== idx));
+        toast.info('Item removido da lista.');
     };
 
 
@@ -166,6 +172,7 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                                                     <th>Descrição</th>
                                                     <th className="w-16 text-center">Qtd</th>
                                                     <th className="w-20 text-right">Preço</th>
+                                                    <th className="w-12 text-center text-xs">Excluir</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -178,6 +185,16 @@ export const SmartOrderDialog = ({ onOrderGenerated, disabled, orderId, orderNum
                                                             {item.preco
                                                                 ? parseFloat(item.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                                                 : '-'}
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveItem(idx)}
+                                                                className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-md transition-colors"
+                                                                title="Remover item"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
                                                         </td>
                                                     </tr>
                                                 ))}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Factory, ChevronRight } from 'lucide-react';
+import { Factory, ChevronRight, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,43 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
                     </div>
                 ) : (
                     <div className="p-2 space-y-1">
+                        {/* Opção Toda a Indústria */}
+                        <motion.button
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            onClick={() => onSelectIndustry({ for_codigo: 'all', for_nomered: 'TODA INDÚSTRIA' })}
+                            className={cn(
+                                "w-full text-left px-3 py-2 rounded-xl transition-all duration-300 group mb-2 border border-dashed border-emerald-300",
+                                selectedIndustry?.for_codigo === 'all'
+                                    ? "bg-gradient-to-r from-slate-700 to-slate-900 shadow-lg shadow-slate-900/30"
+                                    : "hover:bg-emerald-50 dark:hover:bg-white/5"
+                            )}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className={cn(
+                                        "p-1 rounded-md",
+                                        selectedIndustry?.for_codigo === 'all' ? "bg-white/20" : "bg-emerald-100"
+                                    )}>
+                                        <Globe className={cn(
+                                            "h-3 w-3",
+                                            selectedIndustry?.for_codigo === 'all' ? "text-white" : "text-emerald-700"
+                                        )} />
+                                    </div>
+                                    <span className={cn(
+                                        "font-black text-xs uppercase tracking-widest",
+                                        selectedIndustry?.for_codigo === 'all' ? "text-white" : "text-slate-700"
+                                    )}>
+                                        Toda a Indústria
+                                    </span>
+                                </div>
+                                <ChevronRight className={cn(
+                                    "h-4 w-4",
+                                    selectedIndustry?.for_codigo === 'all' ? "text-white" : "text-slate-300"
+                                )} />
+                            </div>
+                        </motion.button>
+
                         {industries.map((industry, index) => (
                             <motion.button
                                 key={industry.for_codigo}

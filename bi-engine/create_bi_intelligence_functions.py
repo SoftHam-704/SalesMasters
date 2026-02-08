@@ -11,7 +11,6 @@ import re
 def get_connection():
     """Cria conexão com o banco usando a URL do config"""
     # Parse DATABASE_URL
-    # Format: postgresql://user:pass@host:port/dbname
     pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
     match = re.match(pattern, DATABASE_URL)
     
@@ -31,6 +30,29 @@ def create_functions():
     """Cria as functions de BI Intelligence"""
     
     functions_sql = """
+    -- ==========================================
+    -- 0. DROPS (Para evitar ambiguidades e deletar versões obsoletas)
+    -- ==========================================
+    DO $$
+    DECLARE
+        r RECORD;
+    BEGIN
+        FOR r IN (
+            SELECT p.proname, oidvectortypes(p.proargtypes) as args
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = current_schema()
+              AND p.proname IN (
+                'fn_curva_abc', 'fn_churn_preditivo', 'fn_correlacao_produtos',
+                'fn_oportunidades_perdidas', 'fn_anomalias_ticket', 'fn_eficiencia_comercial',
+                'fn_comparativo_clientes', 'fn_sazonalidade', 'fn_resumo_executivo'
+              )
+        ) 
+        LOOP
+            EXECUTE 'DROP FUNCTION IF EXISTS ' || r.proname || '(' || r.args || ') CASCADE';
+        END LOOP;
+    END $$;
+
     -- ==========================================
     -- 1. FUNÇÃO: CURVA ABC
     -- ==========================================
@@ -55,7 +77,7 @@ def create_functions():
         RETURN QUERY
         WITH produto_totais AS (
             SELECT 
-                i.ite_produto,
+                i.ite_idproduto as ite_produto,
                 pr.pro_nome,
                 CASE 
                     WHEN p_metrica = 'quantidade' THEN SUM(i.ite_quant)
@@ -64,13 +86,13 @@ def create_functions():
                 END as total_calc,
                 COUNT(DISTINCT p.ped_cliente) as clientes
             FROM itens_ped i
-            INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
-            INNER JOIN cad_prod pr ON i.ite_produto = pr.pro_id
+            INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria
+            INNER JOIN cad_prod pr ON i.ite_idproduto = pr.pro_id
             WHERE EXTRACT(YEAR FROM p.ped_data) = p_ano
               AND (p_meses = 'todos' OR EXTRACT(MONTH FROM p.ped_data)::TEXT = ANY(string_to_array(p_meses, ',')))
-              AND (p_industria = 'todos' OR p.ped_industria = p_industria)
+              AND (p_industria = 'todos' OR p.ped_industria::TEXT = p_industria)
               AND (p_clientes = 'todos' OR p.ped_cliente::TEXT = ANY(string_to_array(p_clientes, ',')))
-            GROUP BY i.ite_produto, pr.pro_nome
+            GROUP BY i.ite_idproduto, pr.pro_nome
         ),
         produto_acumulado AS (
             SELECT 
@@ -188,15 +210,16 @@ def create_functions():
         RETURN QUERY
         WITH product_pairs AS (
             SELECT 
-                i1.ite_produto as prod_a,
-                i2.ite_produto as prod_b,
+                i1.ite_idproduto as prod_a,
+                i2.ite_idproduto as prod_b,
                 COUNT(DISTINCT i1.ite_pedido) as freq
             FROM itens_ped i1
             INNER JOIN itens_ped i2 ON i1.ite_pedido = i2.ite_pedido 
-                AND i1.ite_produto < i2.ite_produto
-            INNER JOIN pedidos p ON i1.ite_pedido = p.ped_pedido
+                AND i1.ite_industria = i2.ite_industria
+                AND i1.ite_idproduto < i2.ite_idproduto
+            INNER JOIN pedidos p ON i1.ite_pedido = p.ped_pedido AND i1.ite_industria = p.ped_industria
             WHERE p.ped_data >= CURRENT_DATE - (p_meses_atras || ' months')::INTERVAL
-            GROUP BY i1.ite_produto, i2.ite_produto
+            GROUP BY i1.ite_idproduto, i2.ite_idproduto
             HAVING COUNT(DISTINCT i1.ite_pedido) >= 3
         )
         SELECT 
@@ -208,7 +231,7 @@ def create_functions():
             ROUND((pp.freq::NUMERIC / NULLIF((
                 SELECT COUNT(DISTINCT ite_pedido) 
                 FROM itens_ped 
-                WHERE ite_produto = pp.prod_a
+                WHERE ite_idproduto = pp.prod_a
             ), 0) * 100), 0)
         FROM product_pairs pp
         INNER JOIN cad_prod p1 ON pp.prod_a = p1.pro_id
@@ -242,19 +265,19 @@ def create_functions():
         category_buyers AS (
             SELECT 
                 p.ped_cliente,
-                COUNT(DISTINCT i.ite_produto) as prods,
+                COUNT(DISTINCT i.ite_idproduto) as prods,
                 SUM(i.ite_totliquido) as valor
             FROM pedidos p
-            INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_data >= CURRENT_DATE - INTERVAL '6 months'
             GROUP BY p.ped_cliente
         ),
         top_products AS (
-            SELECT ite_produto
+            SELECT ite_idproduto
             FROM itens_ped i
-            INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
+            INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria
             WHERE p.ped_data >= CURRENT_DATE - INTERVAL '3 months'
-            GROUP BY ite_produto
+            GROUP BY ite_idproduto
             ORDER BY SUM(ite_totliquido) DESC
             LIMIT 10
         )
@@ -268,9 +291,9 @@ def create_functions():
                 FROM top_products tp
                 WHERE NOT EXISTS (
                     SELECT 1 FROM itens_ped i2
-                    INNER JOIN pedidos p2 ON i2.ite_pedido = p2.ped_pedido
+                    INNER JOIN pedidos p2 ON i2.ite_pedido = p2.ped_pedido AND i2.ite_industria = p2.ped_industria
                     WHERE p2.ped_cliente = cb.ped_cliente 
-                      AND i2.ite_produto = tp.ite_produto
+                      AND i2.ite_idproduto = tp.ite_idproduto
                       AND p2.ped_data >= CURRENT_DATE - INTERVAL '6 months'
                 )
             )::BIGINT
@@ -355,31 +378,16 @@ def create_functions():
         RETURN QUERY
         SELECT 
             'Ticket Médio'::VARCHAR,
-            ROUND((SELECT AVG(ped_totliq) FROM pedidos 
-                   WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE))::NUMERIC, 2),
-            ROUND((SELECT AVG(ped_totliq) FROM pedidos 
-                   WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
-                     AND ped_data < DATE_TRUNC('month', CURRENT_DATE))::NUMERIC, 2),
-            ROUND((
-                (SELECT AVG(ped_totliq) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE)) -
-                (SELECT AVG(ped_totliq) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND ped_data < DATE_TRUNC('month', CURRENT_DATE))
-            ) / NULLIF((SELECT AVG(ped_totliq) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND ped_data < DATE_TRUNC('month', CURRENT_DATE)), 0) * 100, 1)
+            ROUND((SELECT AVG(ped_totliq) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE))::NUMERIC, 2),
+            ROUND((SELECT AVG(ped_totliq) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND ped_data < DATE_TRUNC('month', CURRENT_DATE))::NUMERIC, 2),
+            0::NUMERIC
         
         UNION ALL
         
         SELECT 
-            'Pedidos/Cliente'::VARCHAR,
-            ROUND((SELECT AVG(qtd) FROM (
-                SELECT COUNT(*) as qtd FROM pedidos 
-                WHERE ped_data >= CURRENT_DATE - INTERVAL '3 months'
-                GROUP BY ped_cliente
-            ) t)::NUMERIC, 1),
-            ROUND((SELECT AVG(qtd) FROM (
-                SELECT COUNT(*) as qtd FROM pedidos 
-                WHERE ped_data >= CURRENT_DATE - INTERVAL '15 months'
-                  AND ped_data < CURRENT_DATE - INTERVAL '12 months'
-                GROUP BY ped_cliente
-            ) t)::NUMERIC, 1),
+            'Volume de Pedidos'::VARCHAR,
+            (SELECT COUNT(*) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE))::NUMERIC,
+            (SELECT COUNT(*) FROM pedidos WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month' AND ped_data < DATE_TRUNC('month', CURRENT_DATE))::NUMERIC,
             0::NUMERIC;
     END;
     $$ LANGUAGE plpgsql;
@@ -445,14 +453,8 @@ def create_functions():
             END::VARCHAR
         FROM current_year cy
         FULL OUTER JOIN previous_year py ON cy.cli_codigo = py.cli_codigo
-        WHERE COALESCE(cy.pedidos, 0) + COALESCE(py.pedidos, 0) >= 5
-        ORDER BY 
-            CASE 
-                WHEN COALESCE(cy.pedidos, 0) = 0 THEN 1
-                WHEN cy.pedidos::NUMERIC / NULLIF(py.pedidos, 0) >= 1.5 THEN 2
-                ELSE 3
-            END,
-            6 DESC
+        WHERE COALESCE(cy.pedidos, 0) + COALESCE(py.pedidos, 0) >= 2
+        ORDER BY 4 DESC
         LIMIT 50;
     END;
     $$ LANGUAGE plpgsql;
@@ -480,7 +482,7 @@ def create_functions():
                 SUM(ped_totliq) as fat
             FROM pedidos
             WHERE ped_data >= CURRENT_DATE - INTERVAL '24 months'
-            GROUP BY EXTRACT(MONTH FROM ped_data), TO_CHAR(ped_data, 'Month'), EXTRACT(YEAR FROM ped_data)
+            GROUP BY 1, 2, 3
         ),
         avg_by_month AS (
             SELECT 
@@ -489,7 +491,7 @@ def create_functions():
                 AVG(fat) as media,
                 STDDEV(fat) as desvio
             FROM monthly_sales
-            GROUP BY m, nm
+            GROUP BY 1, 2
         )
         SELECT 
             m::INTEGER,
@@ -497,7 +499,7 @@ def create_functions():
             ROUND(media::NUMERIC, 2),
             ROUND((desvio / NULLIF(media, 0) * 100)::NUMERIC, 1)
         FROM avg_by_month
-        ORDER BY media DESC;
+        ORDER BY m;
     END;
     $$ LANGUAGE plpgsql;
 
@@ -519,44 +521,24 @@ def create_functions():
     BEGIN
         RETURN QUERY
         SELECT 
-            (SELECT COUNT(DISTINCT ped_cliente) 
-             FROM pedidos 
-             WHERE ped_data >= CURRENT_DATE - INTERVAL '3 months')::BIGINT,
-            
-            (SELECT ROUND(SUM(ped_totliq)::NUMERIC, 2) 
-             FROM pedidos 
-             WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::NUMERIC,
-            
-            (SELECT ROUND(AVG(ped_totliq)::NUMERIC, 2) 
-             FROM pedidos 
-             WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::NUMERIC,
-            
-            (SELECT COUNT(*) 
-             FROM pedidos 
-             WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::BIGINT,
-            
-            (SELECT COUNT(DISTINCT ite_produto) 
-             FROM itens_ped i
-             INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
-             WHERE p.ped_data >= CURRENT_DATE - INTERVAL '3 months')::BIGINT,
-            
-            (SELECT COUNT(*) 
-             FROM fn_churn_preditivo() 
-             WHERE nivel_risco IN ('CRÍTICO', 'ALERTA'))::BIGINT;
+            (SELECT COUNT(DISTINCT ped_cliente) FROM pedidos WHERE ped_data >= CURRENT_DATE - INTERVAL '3 months')::BIGINT,
+            (SELECT ROUND(SUM(ped_totliq)::NUMERIC, 2) FROM pedidos WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::NUMERIC,
+            (SELECT ROUND(AVG(ped_totliq)::NUMERIC, 2) FROM pedidos WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::NUMERIC,
+            (SELECT COUNT(*) FROM pedidos WHERE ped_data >= CURRENT_DATE - INTERVAL '1 month')::BIGINT,
+            (SELECT COUNT(DISTINCT ite_idproduto) FROM itens_ped i INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria WHERE p.ped_data >= CURRENT_DATE - INTERVAL '3 months')::BIGINT,
+            (SELECT COUNT(*) FROM fn_churn_preditivo() WHERE nivel_risco IN ('CRÍTICO', 'ALERTA'))::BIGINT;
     END;
     $$ LANGUAGE plpgsql;
 
     COMMENT ON FUNCTION fn_resumo_executivo IS 'Resumo executivo de KPIs principais';
     """
 
-    # Índices de performance
     indexes_sql = """
     CREATE INDEX IF NOT EXISTS idx_pedidos_data ON pedidos(ped_data);
     CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(ped_cliente);
     CREATE INDEX IF NOT EXISTS idx_pedidos_industria ON pedidos(ped_industria);
     CREATE INDEX IF NOT EXISTS idx_itens_pedido ON itens_ped(ite_pedido);
-    CREATE INDEX IF NOT EXISTS idx_itens_produto ON itens_ped(ite_produto);
-    CREATE INDEX IF NOT EXISTS idx_pedidos_data_cliente ON pedidos(ped_data, ped_cliente);
+    CREATE INDEX IF NOT EXISTS idx_itens_idproduto ON itens_ped(ite_idproduto);
     """
 
     try:
@@ -564,13 +546,10 @@ def create_functions():
         cur = conn.cursor()
         
         print("🔄 Criando functions de BI Intelligence...")
-        
-        # Executa as functions
         cur.execute(functions_sql)
         conn.commit()
         print("✅ 9 functions criadas com sucesso!")
         
-        # Cria índices
         print("🔄 Criando índices de performance...")
         cur.execute(indexes_sql)
         conn.commit()
@@ -578,28 +557,17 @@ def create_functions():
         
         # Teste rápido
         print("\n🧪 Testando functions...")
-        
         cur.execute("SELECT COUNT(*) FROM fn_curva_abc(2025, 'todos', 'todos', 'todos', 'valor')")
-        count = cur.fetchone()[0]
-        print(f"   fn_curva_abc: {count} produtos")
-        
-        cur.execute("SELECT * FROM fn_resumo_executivo()")
-        resumo = cur.fetchone()
-        if resumo:
-            print(f"   fn_resumo_executivo: {resumo[0]} clientes ativos")
+        print(f"   fn_curva_abc: {cur.fetchone()[0]} produtos")
         
         cur.close()
         conn.close()
-        
-        print("\n🎉 Todas as functions estão prontas!")
         return True
-        
     except Exception as e:
         print(f"❌ Erro: {e}")
         import traceback
         traceback.print_exc()
         return False
-
 
 if __name__ == "__main__":
     create_functions()

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Route, MapPin, Plus, Trash2, GripVertical, Building2 } from 'lucide-react';
 import FormCadPadraoV2 from '../FormCadPadraoV2';
 import InputField from '../InputField';
+import '../FormLayout.css';
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -55,7 +55,7 @@ const ItineraryForm = ({ data, onClose, onSave }) => {
                             ite_tipo: item.ite_tipo,
                             ite_cidade_id: item.ite_cidade_id,
                             ite_setor_id: item.ite_setor_id,
-                            cityName: item.cid_nome + ' - ' + item.cid_uf,
+                            cityName: item.cid_nome ? (item.cid_nome + ' - ' + item.cid_uf) : `Cod. Cidade: ${item.ite_cidade_id}`,
                             sectorName: item.set_descricao,
                             sectorColor: item.set_cor
                         })));
@@ -139,6 +139,7 @@ const ItineraryForm = ({ data, onClose, onSave }) => {
 
         onSave({
             ...header,
+            iti_vendedor_id: (header.iti_vendedor_id === 0 || !header.iti_vendedor_id) ? null : header.iti_vendedor_id,
             items: items.map((item, idx) => ({
                 ite_tipo: item.ite_tipo,
                 ite_cidade_id: item.ite_cidade_id,
@@ -154,137 +155,151 @@ const ItineraryForm = ({ data, onClose, onSave }) => {
             onSave={handleSave}
             onCancel={onClose}
         >
-            <div className="flex h-full flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200">
+            <div className="flex h-full divide-x divide-gray-200">
                 {/* Left: Headers & Add Logic */}
-                <div className="w-full md:w-1/3 p-6 space-y-6 bg-gray-50/50">
-                    <div>
-                        <Label className="font-semibold text-gray-700">Nome do Itinerário</Label>
-                        <Input
-                            value={header.iti_descricao}
-                            onChange={(e) => handleHeaderChange('iti_descricao', e.target.value)}
-                            placeholder="Ex: Rota Segunda-Feira (Sul)"
-                            className="bg-white"
-                        />
-                    </div>
+                <div className="w-1/3 p-4 bg-slate-50 overflow-auto">
+                    <div className="form-grid">
+                        <div className="col-12">
+                            <InputField
+                                label="Nome do Itinerário"
+                                value={header.iti_descricao}
+                                onChange={(e) => handleHeaderChange('iti_descricao', e.target.value)}
+                                placeholder="Ex: Rota Segunda-Feira (Sul)"
+                                large
+                            />
+                        </div>
 
-                    <div>
-                        <Label className="font-semibold text-gray-700">Vendedor Responsável (Opcional)</Label>
-                        <Select
-                            value={header.iti_vendedor_id?.toString()}
-                            onValueChange={(val) => handleHeaderChange('iti_vendedor_id', parseInt(val))}
-                        >
-                            <SelectTrigger className="bg-white">
-                                <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent className="z-[9999]">
-                                <SelectItem value="0">-- Nenhum (Geral) --</SelectItem>
-                                {sellers.map(s => (
-                                    <SelectItem key={s.ven_codigo} value={s.ven_codigo.toString()}>{s.ven_nome}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div>
-                        <Label className="font-semibold text-gray-700">Frequência</Label>
-                        <Select
-                            value={header.iti_frequencia}
-                            onValueChange={(val) => handleHeaderChange('iti_frequencia', val)}
-                        >
-                            <SelectTrigger className="bg-white">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="z-[9999]">
-                                <SelectItem value="SEMANAL">Semanal</SelectItem>
-                                <SelectItem value="QUINZENAL">Quinzenal</SelectItem>
-                                <SelectItem value="MENSAL">Mensal</SelectItem>
-                                <SelectItem value="ESPORADICO">Esporádico</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-200">
-                        <Label className="font-bold text-gray-800 mb-2 block">Adicionar Locais</Label>
-
-                        <div className="space-y-3">
-                            {/* Type Toggle */}
-                            <div className="flex bg-white rounded-lg p-1 border shadow-sm">
-                                <button
-                                    type="button"
-                                    onClick={() => setNewItemType('C')}
-                                    className={`flex-1 text-sm py-1.5 rounded-md font-medium transition-colors ${newItemType === 'C' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:text-gray-900'}`}
-                                >
-                                    Cidade Inteira
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setNewItemType('S')}
-                                    className={`flex-1 text-sm py-1.5 rounded-md font-medium transition-colors ${newItemType === 'S' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-500 hover:text-gray-900'}`}
-                                >
-                                    Setor / Bairro
-                                </button>
-                            </div>
-
-                            {/* City Select */}
-                            <div>
-                                <Label className="text-xs text-gray-500">Cidade</Label>
-                                <DbComboBox
-                                    placeholder="Buscar cidade..."
-                                    value={selectedCity}
-                                    onChange={(city) => {
-                                        setSelectedCity(city);
-                                        setSelectedSector(null);
-                                    }}
-                                    fetchData={async (search = '', limit = 20) => {
-                                        const res = await fetch(getApiUrl(NODE_API_URL, `/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`));
-                                        const json = await res.json();
-                                        return (json.data || []).map(city => ({
-                                            ...city,
-                                            full_name: `${city.cid_nome} - ${city.cid_uf}`
-                                        }));
-                                    }}
-                                    labelKey="full_name"
-                                    valueKey="cid_codigo"
-                                />
-                            </div>
-
-                            {/* Sector Select (Conditional) */}
-                            {newItemType === 'S' && (
-                                <div>
-                                    <Label className="text-xs text-gray-500">Setor</Label>
-                                    <Select
-                                        value={selectedSector?.set_codigo?.toString()}
-                                        onValueChange={(val) => {
-                                            const sec = availableSectors.find(s => s.set_codigo.toString() === val);
-                                            setSelectedSector(sec);
-                                        }}
-                                        disabled={!selectedCity || availableSectors.length === 0}
-                                    >
-                                        <SelectTrigger className="bg-white">
-                                            <SelectValue placeholder={!selectedCity ? "Escolha a cidade" : availableSectors.length === 0 ? "Nenhum setor encontrado" : "Selecione o setor..."} />
-                                        </SelectTrigger>
-                                        <SelectContent className="z-[9999]">
-                                            {availableSectors.map(s => (
-                                                <SelectItem key={s.set_codigo} value={s.set_codigo.toString()}>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.set_cor }} />
-                                                        {s.set_descricao}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
-                            <Button
-                                onClick={handleAddItem}
-                                className="w-full flex items-center gap-2"
-                                variant={newItemType === 'C' ? 'default' : 'secondary'}
+                        <div className="col-12">
+                            <Label className="text-xs text-slate-500 mb-1 block font-medium">Vendedor Responsável</Label>
+                            <Select
+                                value={header.iti_vendedor_id?.toString()}
+                                onValueChange={(val) => handleHeaderChange('iti_vendedor_id', parseInt(val))}
                             >
-                                <Plus size={16} />
-                                Adicionar {newItemType === 'C' ? 'Cidade' : 'Setor'}
-                            </Button>
+                                <SelectTrigger className="bg-white h-[45px] rounded-xl border-slate-200">
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[9999]">
+                                    <SelectItem value="0">-- Nenhum (Geral) --</SelectItem>
+                                    {sellers.map(s => (
+                                        <SelectItem key={s.ven_codigo} value={s.ven_codigo.toString()}>{s.ven_nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="col-12">
+                            <Label className="text-xs text-slate-500 mb-1 block font-medium">Frequência de Visita</Label>
+                            <Select
+                                value={header.iti_frequencia}
+                                onValueChange={(val) => handleHeaderChange('iti_frequencia', val)}
+                            >
+                                <SelectTrigger className="bg-white h-[45px] rounded-xl border-slate-200">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="z-[9999]">
+                                    <SelectItem value="SEMANAL">Semanal</SelectItem>
+                                    <SelectItem value="QUINZENAL">Quinzenal</SelectItem>
+                                    <SelectItem value="MENSAL">Mensal</SelectItem>
+                                    <SelectItem value="ESPORADICO">Esporádico</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="col-12 pt-4 mt-2 border-t border-slate-200">
+                            <div className="flex items-center gap-2 font-bold text-slate-800 mb-4">
+                                <Plus className="text-emerald-500" size={18} />
+                                <span>Adicionar Locais</span>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* Type Toggle */}
+                                <div className="flex bg-slate-200/50 rounded-xl p-1 border border-slate-200 shadow-inner">
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewItemType('C')}
+                                        className={`flex-1 text-xs py-2 rounded-lg font-bold transition-all ${newItemType === 'C' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        CIDADE INTEIRA
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewItemType('S')}
+                                        className={`flex-1 text-xs py-2 rounded-lg font-bold transition-all ${newItemType === 'S' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        SETOR / BAIRRO
+                                    </button>
+                                </div>
+
+                                {/* City Select */}
+                                <div>
+                                    <Label className="text-[13px] text-slate-800 mb-1 block font-extrabold uppercase tracking-wider">Cidade Base</Label>
+                                    <DbComboBox
+                                        placeholder="Buscar cidade..."
+                                        value={selectedCity}
+                                        onChange={(id, city) => {
+                                            setSelectedCity(city);
+                                            setSelectedSector(null);
+                                        }}
+                                        fetchData={async (search = '', limit = 20) => {
+                                            const res = await fetch(getApiUrl(NODE_API_URL, `/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`));
+                                            const json = await res.json();
+                                            return (json.data || []).map(city => ({
+                                                ...city,
+                                                full_name: `${city.cid_nome} - ${city.cid_uf}`
+                                            }));
+                                        }}
+                                        labelKey="full_name"
+                                        valueKey="cid_codigo"
+                                    />
+                                </div>
+
+                                {/* Sector Select (Conditional) */}
+                                {newItemType === 'S' && (
+                                    <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                                        <Label className="text-[13px] text-slate-800 mb-1 block font-extrabold uppercase tracking-wider">Setor Específico</Label>
+                                        <Select
+                                            value={selectedSector?.set_codigo?.toString()}
+                                            onValueChange={(val) => {
+                                                const sec = availableSectors.find(s => s.set_codigo.toString() === val);
+                                                setSelectedSector(sec);
+                                            }}
+                                            disabled={!selectedCity || availableSectors.length === 0}
+                                        >
+                                            <SelectTrigger className="bg-white h-[45px] rounded-xl border-slate-200">
+                                                <SelectValue placeholder={!selectedCity ? "Escolha a cidade" : availableSectors.length === 0 ? "Nenhum setor encontrado" : "Selecione o setor..."} />
+                                            </SelectTrigger>
+                                            <SelectContent className="z-[9999]">
+                                                {availableSectors.map(s => (
+                                                    <SelectItem key={s.set_codigo} value={s.set_codigo.toString()}>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.set_cor }} />
+                                                            {s.set_descricao}
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
+                                <Button
+                                    onClick={handleAddItem}
+                                    className={`w-full h-12 rounded-xl font-bold gap-2 shadow-sm transition-all active:scale-95 ${newItemType === 'C' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                                >
+                                    <Plus size={18} />
+                                    Adicionar ao Roteiro
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="col-12 pt-6 mt-4 border-t border-slate-200">
+                            <Label className="text-[13px] text-slate-800 mb-2 block font-extrabold uppercase tracking-wider">Observações</Label>
+                            <textarea
+                                className="modern-textarea"
+                                placeholder="Notas internas sobre este itinerário..."
+                                value={header.iti_observacao}
+                                onChange={(e) => handleHeaderChange('iti_observacao', e.target.value)}
+                            />
                         </div>
                     </div>
                 </div>

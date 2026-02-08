@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { Building2 } from "lucide-react";
+import { Building2, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import GridCadPadrao from "@/components/GridCadPadrao";
 import { SupplierDialog } from "@/components/forms/SupplierDialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { NODE_API_URL, getApiUrl } from "@/utils/apiConfig";
+import SupplierHelpModal from "@/components/crm/SupplierHelpModal";
 
 const FrmIndustria = () => {
     const [suppliers, setSuppliers] = useState([]);
@@ -13,6 +15,7 @@ const FrmIndustria = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
     const [showInactive, setShowInactive] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
     const ITEMS_PER_PAGE = 10;
 
     // Dialog state
@@ -36,8 +39,6 @@ const FrmIndustria = () => {
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const data = await response.json();
-
-            // Backend may return data.data or just array
             const rawList = Array.isArray(data) ? data : (data.data || []);
 
             const adaptedData = rawList.map(item => ({
@@ -62,9 +63,7 @@ const FrmIndustria = () => {
                 _original: item
             }));
 
-            // Force sorting by Name Reduzido
             adaptedData.sort((a, b) => (a.nomeReduzido || '').localeCompare(b.nomeReduzido || ''));
-
             setSuppliers(adaptedData);
         } catch (error) {
             console.error("Erro:", error);
@@ -87,7 +86,6 @@ const FrmIndustria = () => {
 
             const method = isNew ? 'POST' : 'PUT';
 
-            // Map to DB columns
             const payload = {
                 for_nome: data.razaoSocial,
                 for_nomered: data.nomeReduzido,
@@ -137,7 +135,6 @@ const FrmIndustria = () => {
         }
     };
 
-    // Filter and Pagination
     const filteredData = useMemo(() => {
         const term = searchTerm.toLowerCase();
         return suppliers.filter(s => {
@@ -159,7 +156,6 @@ const FrmIndustria = () => {
 
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Columns Definition
     const columns = [
         { key: 'id', label: 'ID', isId: true, width: '80px' },
         { key: 'cnpj', label: 'CNPJ', width: '150px', render: (row) => <span className="font-mono text-sm text-black font-medium">{formatCNPJ(row.cnpj)}</span> },
@@ -173,7 +169,7 @@ const FrmIndustria = () => {
                 </Badge>
             )
         },
-        { key: 'razaoSocial', label: 'Razão Social', width: '250px', render: (row) => <span className="text-xs text-black truncate block max-w-[250px]">{row.razaoSocial}</span> },
+        { key: 'razaoSocial', label: 'Razão Social', width: '400px', render: (row) => <span className="text-xs text-black font-medium block">{row.razaoSocial}</span> },
         { key: 'cidade', label: 'Cidade/UF', width: '150px', render: (row) => <span className="text-xs">{row.cidade}/{row.uf}</span> },
         {
             key: 'situacao', label: 'Situação', width: '100px', align: 'center', render: (row) => (
@@ -191,6 +187,11 @@ const FrmIndustria = () => {
                 onOpenChange={setDialogOpen}
                 supplier={selectedSupplier}
                 onSave={handleSave}
+            />
+
+            <SupplierHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
             />
 
             <GridCadPadrao
@@ -214,18 +215,27 @@ const FrmIndustria = () => {
                 onPageChange={setPage}
                 onRefresh={fetchSuppliers}
                 extraControls={
-                    <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
-                        <Checkbox
-                            id="showInactive"
-                            checked={showInactive}
-                            onCheckedChange={setShowInactive}
-                        />
-                        <label
-                            htmlFor="showInactive"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-slate-600"
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
+                            <Checkbox
+                                id="showInactive"
+                                checked={showInactive}
+                                onCheckedChange={setShowInactive}
+                            />
+                            <label
+                                htmlFor="showInactive"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-slate-600"
+                            >
+                                Mostrar inativos
+                            </label>
+                        </div>
+                        <Button
+                            onClick={() => setHelpOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-4 rounded-lg shadow-md flex items-center gap-2"
                         >
-                            Mostrar inativos
-                        </label>
+                            <HelpCircle className="w-4 h-4" />
+                            <span>Ajuda</span>
+                        </Button>
                     </div>
                 }
             />

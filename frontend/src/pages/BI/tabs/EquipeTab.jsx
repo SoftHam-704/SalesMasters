@@ -35,7 +35,7 @@ import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 const API_URL = PYTHON_API_URL;
 
-const EquipeTab = ({ filters }) => {
+const EquipeTab = ({ filters, refreshTrigger }) => {
     // const { filters } = useBIFilters(); // Removido para usar prop vinda do IntelligencePage
     const [loading, setLoading] = useState(true);
     const [performance, setPerformance] = useState([]);
@@ -86,7 +86,7 @@ const EquipeTab = ({ filters }) => {
             setLoading(true);
             try {
                 // Performance Ranking should show ALL vendors, so we don't pass 'vendedor' param here
-                const url = getApiUrl(API_URL, `/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}`);
+                const url = getApiUrl(API_URL, `/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica}`);
                 const response = await fetch(url);
                 const data = await response.json();
                 if (data.success) {
@@ -105,7 +105,7 @@ const EquipeTab = ({ filters }) => {
             }
         };
         fetchData();
-    }, [filters.ano, metricMonth, selectedVendedor]);
+    }, [filters.ano, filters.metrica, metricMonth, selectedVendedor, refreshTrigger]);
 
     const fetchIAInsights = async (vendedorId) => {
         try {
@@ -204,7 +204,7 @@ const EquipeTab = ({ filters }) => {
     const fetchEvolucaoData = async () => {
         try {
             const vendedorParam = selectedVendedor ? `&vendedor=${selectedVendedor}` : '';
-            const url = getApiUrl(API_URL, `/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}${vendedorParam}`);
+            const url = getApiUrl(API_URL, `/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica}${vendedorParam}`);
             const response = await fetch(url);
             const data = await response.json();
             if (data.success && data.data) {
@@ -215,7 +215,6 @@ const EquipeTab = ({ filters }) => {
         }
     };
 
-    // Initial load for carteira, narrativas and evolucao
     useEffect(() => {
         // Fix: check if metricMonth is defined, allowing 0 (Todos)
         if (filters.ano && metricMonth !== undefined && metricMonth !== null) {
@@ -223,7 +222,7 @@ const EquipeTab = ({ filters }) => {
             fetchNarrativasIA();
             fetchEvolucaoData();
         }
-    }, [filters.ano, metricMonth, selectedVendedor]);
+    }, [filters.ano, filters.metrica, metricMonth, selectedVendedor, refreshTrigger]);
 
     const getMockInsights = () => ({
         recomendacoes: [
@@ -251,16 +250,16 @@ const EquipeTab = ({ filters }) => {
         }
     });
 
-    // Calculate KPIs
     const kpis = useMemo(() => {
-        if (!performance.length) return null;
+        const perfArray = Array.isArray(performance) ? performance : [];
+        if (!perfArray.length) return null;
 
-        const totalVendas = performance.reduce((sum, v) => sum + Number(v.total_vendas_mes || 0), 0);
-        const totalMeta = performance.reduce((sum, v) => sum + Number(v.meta_mes || 0), 0);
-        const totalClientesRisco = performance.reduce((sum, v) => sum + Number(v.clientes_perdidos || 0), 0);
-        const avgTicket = performance.reduce((sum, v) => sum + Number(v.ticket_medio || 0), 0) / performance.length;
+        const totalVendas = perfArray.reduce((sum, v) => sum + Number(v.total_vendas_mes || 0), 0);
+        const totalMeta = perfArray.reduce((sum, v) => sum + Number(v.meta_mes || 0), 0);
+        const totalClientesRisco = perfArray.reduce((sum, v) => sum + Number(v.clientes_perdidos || 0), 0);
+        const avgTicket = perfArray.reduce((sum, v) => sum + Number(v.ticket_medio || 0), 0) / perfArray.length;
         const percMeta = totalMeta > 0 ? (totalVendas / totalMeta * 100) : 0;
-        const variacao = performance.reduce((sum, v) => sum + Number(v.variacao_mom_percent || 0), 0) / performance.length;
+        const variacao = perfArray.reduce((sum, v) => sum + Number(v.variacao_mom_percent || 0), 0) / perfArray.length;
 
         return {
             totalVendas,

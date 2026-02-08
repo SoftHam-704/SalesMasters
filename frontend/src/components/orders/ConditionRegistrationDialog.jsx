@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Save, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
+import { API_BASE_URL } from '@/config/api';
 
 const ConditionRegistrationDialog = ({
     open,
@@ -46,9 +46,9 @@ const ConditionRegistrationDialog = ({
     useEffect(() => {
         if (open && formData) {
             setLocalData({
-                paymentTerm: formData.ped_conpgto || '',
+                paymentTerm: formData.ped_condpag || '',
                 priceTable: formData.ped_tabela || '',
-                freightType: formData.ped_frete || 'C',
+                freightType: formData.ped_tipofrete || 'C',
                 carrierCode: formData.ped_transp || '',
                 buyerName: formData.ped_comprador || '',
                 buyerEmail: '', // Email starts empty as it's not in order form usually
@@ -102,7 +102,7 @@ const ConditionRegistrationDialog = ({
                 buyerEmail: localData.buyerEmail
             };
 
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/cli-ind'), {
+            const response = await fetch(`${API_BASE_URL}/cli-ind`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

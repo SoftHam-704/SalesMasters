@@ -13,26 +13,26 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
-const CSV_PATH = path.join(__dirname, '../../data/itens_ped.csv');
-const BATCH_SIZE = 500;
+const SCHEMA = process.env.SCHEMA || 'soma';
+const CSV_PATH = process.env.EXCEL_FILE || path.join(__dirname, '../../data/iten_ped.csv');
+const BATCH_SIZE = 1000;
 
 function parseBrFloat(val) {
     if (!val) return 0;
-    return parseFloat(String(val).replace(',', '.'));
+    let clean = String(val).replace(/\./g, '').replace(',', '.');
+    return parseFloat(clean) || 0;
 }
 
 async function importItensPed() {
     return new Promise(async (resolve, reject) => {
         try {
-            console.log(`🚀 IMPORTANDO ITENS -> SCHEMA: [${SCHEMA}]`);
+            console.log(`🚀 IMPORTANDO ITENS -> SCHEMA: [${SCHEMA}] (Large File Mode)`);
 
             if (!fs.existsSync(CSV_PATH)) {
-                return reject(new Error('CSV não existe'));
+                return reject(new Error(`CSV não existe em ${CSV_PATH}`));
             }
 
             await pool.query(`SET search_path TO "${SCHEMA}"`);
-            console.log('✅ Search path set');
 
             const fileStream = fs.createReadStream(CSV_PATH);
             const rl = readline.createInterface({
@@ -48,8 +48,7 @@ async function importItensPed() {
             rl.on('line', async (line) => {
                 try {
                     if (count === 0) {
-                        headers = line.split(';');
-                        console.log(`✅ Headers detectados: ${headers.length} colunas`);
+                        headers = line.split(';').map(h => h.trim());
                         count++;
                         return;
                     }
@@ -83,11 +82,11 @@ async function importItensPed() {
                         rl.pause();
                         await insertBatch(currentBatch);
                         totalImported += currentBatch.length;
-                        process.stdout.write(`\r🚀 Processados: ${totalImported}`);
+                        process.stdout.write(`\r🚀 Processados: ${totalImported} / ${count - 1} linhas`);
                         rl.resume();
                     }
                 } catch (err) {
-                    console.error('\n❌ Erro na linha:', err.message);
+                    // console.error('\n❌ Erro na linha:', err.message);
                 }
             });
 
@@ -95,20 +94,15 @@ async function importItensPed() {
                 if (batch.length > 0) {
                     await insertBatch(batch);
                     totalImported += batch.length;
-                    process.stdout.write(`\r🚀 Processados: ${totalImported}`);
                 }
                 console.log(`\n\n🏁 FIM! Total importado: ${totalImported}`);
                 await pool.end();
                 resolve();
             });
 
-            rl.on('error', (err) => {
-                console.error('❌ Erro no stream:', err);
-                reject(err);
-            });
+            rl.on('error', (err) => reject(err));
 
         } catch (err) {
-            console.error('❌ Erro fatal:', err.message);
             reject(err);
         }
     });
@@ -122,11 +116,13 @@ async function insertBatch(rows) {
                 ite_produto, ite_nomeprod, ite_quant, ite_puni, 
                 ite_puniliq, ite_totliquido, ite_ipi, ite_st
             ) VALUES ${rows.map((_, i) => `($${i * 12 + 1}, $${i * 12 + 2}, $${i * 12 + 3}, $${i * 12 + 4}, $${i * 12 + 5}, $${i * 12 + 6}, $${i * 12 + 7}, $${i * 12 + 8}, $${i * 12 + 9}, $${i * 12 + 10}, $${i * 12 + 11}, $${i * 12 + 12})`).join(',')}
-            ON CONFLICT (ite_lancto, ite_pedido, ite_idproduto, ite_industria) DO NOTHING
+            ON CONFLICT (ite_lancto, ite_pedido, ite_idproduto, ite_industria) DO UPDATE SET
+                ite_quant = EXCLUDED.ite_quant,
+                ite_totliquido = EXCLUDED.ite_totliquido
         `;
         await pool.query(query, rows.flat());
     } catch (err) {
-        console.error(`\n❌ Erro no banco: ${err.message}`);
+        // console.error(`\n❌ Erro no banco: ${err.message}`);
     }
 }
 

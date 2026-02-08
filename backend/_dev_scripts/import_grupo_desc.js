@@ -12,7 +12,7 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importGrupoDesc() {
     try {

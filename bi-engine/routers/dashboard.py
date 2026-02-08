@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from functools import lru_cache
 from services.data_fetcher import (
     fetch_faturamento_anual,
     fetch_metas_anuais,
@@ -68,7 +69,13 @@ async def get_evolution(ano: int, metrica: str = 'valor'):
         if df_fat.empty:
             return []
 
-        col_name = 'v_faturamento' if metrica == 'valor' else 'q_quantidade'
+        if metrica == 'valor':
+            col_name = 'v_faturamento'
+        elif metrica == 'quantidade':
+            col_name = 'q_quantidade'
+        else:
+            col_name = 'u_unidades'
+            
         data_dict = {int(row['n_mes']): float(row[col_name]) for _, row in df_fat.iterrows()}
         
         result = []
@@ -130,12 +137,12 @@ async def clear_dashboard_cache():
     return {"status": "Cache limpo com sucesso"}
 
 @router.get("/summary")
-async def get_summary(ano: int = 2025, mes: str = 'Todos', industria: int = None):
+async def get_summary(ano: int = 2025, mes: str = 'Todos', industria: int = None, startDate: str = None, endDate: str = None):
     """
     Retorna KPIs do dashboard (Faturamento, Pedidos, Clientes, Ticket Médio, Quantidade Vendida).
     Com comparativo M-1 ou A-1 dependendo do filtro.
     """
-    data = fetch_dashboard_summary(ano, mes, industria)
+    data = fetch_dashboard_summary(ano, mes, industria, startDate, endDate)
     return {"success": True, "data": data}
 
 
@@ -201,7 +208,7 @@ async def get_insights(ano: int = 2025, industryId: int = None):
     return generate_insights(ano, industryId)
 
 @router.get("/top-industries")
-async def get_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', limit: int = 6):
+async def get_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', limit: int = 6, startDate: str = None, endDate: str = None):
     """
     Retorna TOP N indústrias para o Bubble Chart.
     Parâmetros:
@@ -209,16 +216,18 @@ async def get_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor
         - mes: '01'-'12' ou 'Todos'
         - metrica: 'valor' ou 'quantidade'
         - limit: Limite de registros (default 6)
+        - startDate: Data inicial
+        - endDate: Data final
     """
-    data = fetch_top_industries(ano, mes, metrica, limit)
+    data = fetch_top_industries(ano, mes, metrica, limit, startDate, endDate)
     return {"success": True, "data": data}
 
 @router.get("/industry-details")
-async def get_industry_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor'):
+async def get_industry_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor', startDate: str = None, endDate: str = None):
     """
     Retorna detalhes completos para o painel de indústria (Funil, Gráficos, Churn).
     """
-    return get_industry_details(ano, mes, industryId, metrica)
+    return get_industry_details(ano, mes, industryId, metrica, startDate, endDate)
 
 @router.get("/filters-options")
 async def get_filters_options():
@@ -229,20 +238,31 @@ async def get_filters_options():
     return fetch_available_filters()
 
 @router.get("/client-details")
-async def get_client_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor', uf: str = None):
+async def get_client_details_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor', uf: str = None, startDate: str = None, endDate: str = None):
     """
-    Retorna análise detalhada de clientes para o dashboard:
-    - Grupos de lojas
-    - Ciclo de compra (ordenado por dias sem comprar DESC)
-    - Top clientes com MoM
-    - Ativos vs Inativos (carteira = clientes históricos)
-    - Sem compras (com dias sem comprar)
-    - Risco de churn
-    - Lista de UFs disponíveis para filtro
+    Retorna análise detalhada de clientes para o dashboard.
     """
-    return get_client_details(ano, mes, industryId, metrica, uf)
+    return get_client_details(ano, mes, industryId, metrica, uf, startDate, endDate)
+
+@router.get("/client-monthly-evolution")
+async def get_client_monthly_evolution_api(ano: int = 2025, mes: str = 'Todos', industryId: int = None, metrica: str = 'valor', vendedorId: str = None):
+    """
+    Retorna matriz de evolução mensal por cliente com filtro de vendedor.
+    """
+    from services.client_dashboard import get_client_monthly_evolution
+    return get_client_monthly_evolution(ano, industryId, metrica, vendedorId)
 
 # --- ANALYTICS DASHBOARD ENDPOINTS ---
+
+@router.get("/analytics/ai-alerts")
+async def get_analytics_ai_alerts(ano: int = 2025, mes: str = 'Todos', industryId: int = None):
+    from services.insights import generate_critical_alerts_ai
+    import time
+    start = time.time()
+    print(f"REQUEST [GET] /analytics/ai-alerts (ano={ano}, mes={mes})", flush=True)
+    res = generate_critical_alerts_ai(ano, mes, industryId)
+    print(f"RESPONSE /analytics/ai-alerts - Duration: {time.time() - start:.2f}s", flush=True)
+    return res
 
 @router.get("/analytics/alerts")
 async def get_analytics_alerts(ano: int = 2025, mes: str = 'Todos'):
@@ -263,24 +283,24 @@ async def get_analytics_kpis(ano: int = 2025, mes: str = 'Todos'):
     return res
 
 @router.get("/analytics/portfolio-abc")
-async def get_analytics_portfolio(ano: int = 2025, industryId: int = None):
+async def get_analytics_portfolio(ano: int = 2025, industryId: int = None, mes: str = "Todos", startDate: str = None, endDate: str = None):
     import time
     start = time.time()
-    print(f"REQUEST [GET] /analytics/portfolio-abc (ano={ano}, industryId={industryId})", flush=True)
-    res = get_portfolio_abc(ano, industryId)
+    print(f"REQUEST [GET] /analytics/portfolio-abc (ano={ano}, industryId={industryId}) range={startDate}:{endDate}", flush=True)
+    res = get_portfolio_abc(ano, mes, industryId, startDate, endDate)
     print(f"RESPONSE /analytics/portfolio-abc - Duration: {time.time() - start:.2f}s", flush=True)
     return res
 
 @router.get("/analytics/top-clients-variation")
-async def get_analytics_top_clients_variation(ano: int = 2025, mes: str = "Todos", industryId: int = None):
-    return get_top_clients_variation(ano, mes, industryId)
+async def get_analytics_top_clients_variation(ano: int = 2025, mes: str = "Todos", industryId: int = None, startDate: str = None, endDate: str = None):
+    return get_top_clients_variation(ano, mes, industryId, startDate, endDate)
 
 @router.get("/analytics/full-tab")
-async def get_analytics_full_tab(ano: int = 2025, mes: str = "Todos", industryId: int = None):
+async def get_analytics_full_tab(ano: int = 2025, mes: str = "Todos", industryId: int = None, startDate: str = None, endDate: str = None):
     import time
     start = time.time()
-    print(f"REQUEST [GET] /analytics/full-tab (ano={ano}, mes={mes}, industry={industryId})", flush=True)
-    res = get_full_analytics_tab(ano, mes, industryId)
+    print(f"REQUEST [GET] /analytics/full-tab (ano={ano}, mes={mes}, industry={industryId}) range={startDate}:{endDate}", flush=True)
+    res = get_full_analytics_tab(ano, mes, industryId, startDate, endDate)
     print(f"RESPONSE /analytics/full-tab - Duration: {time.time() - start:.2f}s", flush=True)
     return res
 
@@ -310,21 +330,22 @@ async def get_analytics_insights_api(ano: int = 2025, industryId: int = None):
     return {"success": True, "data": res}
 
 
-@router.get("/analytics/priority-actions")
-async def get_priority_actions():
-    """Classifica insights por prioridade de ação"""
+# Função interna com cache (não é uma rota direta)
+@lru_cache(maxsize=32)
+def get_priority_actions_logic(tenant_id: str, startDate: str = None, endDate: str = None):
+    """Lógica interna para prioridade de ação"""
     import time
     from services.insights import AdvancedAnalyzer
     
     start = time.time()
-    print(f"REQUEST [GET] /analytics/priority-actions", flush=True)
+    print(f"REQUEST [GET] /analytics/priority-actions [Tenant: {tenant_id}] range={startDate}:{endDate}", flush=True)
     
     try:
         analyzer = AdvancedAnalyzer()
         actions = []
         
         # 1. URGENTE - Churn crítico
-        churn = analyzer.predict_churn_with_context()
+        churn = analyzer.predict_churn_with_context(startDate, endDate)
         if churn and len(churn) > 0:
             c = churn[0]
             if c.get('nivel_risco') == 'CRÍTICO':
@@ -337,7 +358,7 @@ async def get_priority_actions():
                 })
         
         # 2. IMPORTANTE - Correlação/Bundle
-        corr = analyzer.find_product_correlations()
+        corr = analyzer.find_product_correlations(startDate, endDate)
         if corr and len(corr) > 0:
             c = corr[0]
             prod_a = str(c.get('produto_a', ''))[:18]
@@ -346,11 +367,11 @@ async def get_priority_actions():
                 'prioridade': 'IMPORTANTE',
                 'icone': '📦',
                 'titulo': f"Bundle: {prod_a}... + {prod_b}...",
-                'detalhe': f"Taxa conversão {c.get('taxa_conversao', 0)}% - Oportunidade de vendas cruzadas"
+                'detalhe': f"Taxa conversao {c.get('taxa_conversao', 0)}% - Oportunidade de vendas cruzadas"
             })
         
         # 3. MÉDIO PRAZO - Oportunidade perdida
-        opp = analyzer.detect_lost_opportunities()
+        opp = analyzer.detect_lost_opportunities(startDate, endDate)
         if opp and len(opp) > 0:
             o = opp[0]
             total_gasto = float(o.get('total_gasto', 0) or 0)
@@ -363,7 +384,7 @@ async def get_priority_actions():
             })
         
         # 4. OPORTUNIDADE - Anomalia positiva
-        anom = analyzer.detect_anomalies()
+        anom = analyzer.detect_anomalies(startDate, endDate)
         if anom and len(anom) > 0:
             positivas = [x for x in anom if float(x.get('variacao_pct', 0) or 0) > 0]
             if positivas:
@@ -386,126 +407,241 @@ async def get_priority_actions():
         return {"success": False, "error": str(e), "data": []}
 
 
-@router.get("/analytics/commercial-efficiency")
-async def get_commercial_efficiency():
-    """Eficiência comercial com comparativos"""
+@router.get("/analytics/priority-actions")
+async def get_priority_actions_api(ano: int = 2025, mes: str = "Todos", startDate: str = None, endDate: str = None):
+    from utils.tenant_context import get_tenant_cnpj
+    tenant_id = get_tenant_cnpj() or "default"
+    # Chamamos a função síncrona com cache
+    return get_priority_actions_logic(tenant_id, startDate, endDate)
+
+
+# Função interna com cache
+@lru_cache(maxsize=32)
+def get_commercial_efficiency_logic(tenant_id: str, startDate: str = None, endDate: str = None):
+    """Lógica interna para eficiência comercial"""
     import time
     from services.database import execute_query
     
     start = time.time()
-    print(f"REQUEST [GET] /analytics/commercial-efficiency", flush=True)
+    print(f"REQUEST [GET] /analytics/commercial-efficiency [Tenant: {tenant_id}] range={startDate}:{endDate}", flush=True)
     
     try:
-        # 1. TICKET MÉDIO (atual vs mês anterior)
-        ticket_query = """
-            WITH current_month AS (
-                SELECT AVG(ped_totliq) as ticket
-                FROM pedidos
-                WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE)
-                  AND ped_situacao IN ('P', 'F')
-            ),
-            previous_month AS (
-                SELECT AVG(ped_totliq) as ticket
-                FROM pedidos
-                WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
-                  AND ped_data < DATE_TRUNC('month', CURRENT_DATE)
-                  AND ped_situacao IN ('P', 'F')
-            )
-            SELECT 
-                COALESCE(c.ticket, 0) as atual,
-                COALESCE(p.ticket, 0) as anterior,
-                ROUND(((COALESCE(c.ticket, 0) - COALESCE(p.ticket, 1)) / NULLIF(p.ticket, 0) * 100)::numeric, 1) as variacao
-            FROM current_month c, previous_month p;
-        """
-        ticket_df = execute_query(ticket_query)
+        # 1. TICKET MÉDIO
+        if startDate and endDate:
+            ticket_query = """
+                WITH current_period AS (
+                    SELECT AVG(ped_totliq) as ticket
+                    FROM pedidos
+                    WHERE ped_data BETWEEN :startDate AND :endDate
+                      AND ped_situacao IN ('P', 'F')
+                ),
+                previous_period AS (
+                    SELECT AVG(ped_totliq) as ticket
+                    FROM pedidos
+                    WHERE ped_data BETWEEN (:startDate::date - INTERVAL '1 year') AND (:endDate::date - INTERVAL '1 year')
+                      AND ped_situacao IN ('P', 'F')
+                )
+                SELECT 
+                    COALESCE(c.ticket, 0) as atual,
+                    COALESCE(p.ticket, 0) as anterior,
+                    ROUND(((COALESCE(c.ticket, 0) - COALESCE(p.ticket, 1)) / NULLIF(p.ticket, 0) * 100)::numeric, 1) as variacao
+                FROM current_period c, previous_period p;
+            """
+            params = {"startDate": startDate, "endDate": endDate}
+        else:
+            ticket_query = """
+                WITH current_month AS (
+                    SELECT AVG(ped_totliq) as ticket
+                    FROM pedidos
+                    WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE)
+                      AND ped_situacao IN ('P', 'F')
+                ),
+                previous_month AS (
+                    SELECT AVG(ped_totliq) as ticket
+                    FROM pedidos
+                    WHERE ped_data >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+                      AND ped_data < DATE_TRUNC('month', CURRENT_DATE)
+                      AND ped_situacao IN ('P', 'F')
+                )
+                SELECT 
+                    COALESCE(c.ticket, 0) as atual,
+                    COALESCE(p.ticket, 0) as anterior,
+                    ROUND(((COALESCE(c.ticket, 0) - COALESCE(p.ticket, 1)) / NULLIF(p.ticket, 0) * 100)::numeric, 1) as variacao
+                FROM current_month c, previous_month p;
+            """
+            params = {}
+        
+        ticket_df = execute_query(ticket_query, params)
         ticket_row = ticket_df.iloc[0] if not ticket_df.empty else {'atual': 0, 'anterior': 0, 'variacao': 0}
         
-        # 2. PEDIDOS POR CLIENTE (atual vs ano anterior)
-        pedidos_query = """
-            WITH current_period AS (
-                SELECT AVG(qtd) as avg_pedidos
-                FROM (
-                    SELECT COUNT(*) as qtd
-                    FROM pedidos
-                    WHERE ped_data >= CURRENT_DATE - INTERVAL '3 months'
-                      AND ped_situacao IN ('P', 'F')
-                    GROUP BY ped_cliente
-                ) t
-            ),
-            previous_period AS (
-                SELECT AVG(qtd) as avg_pedidos
-                FROM (
-                    SELECT COUNT(*) as qtd
-                    FROM pedidos
-                    WHERE ped_data >= CURRENT_DATE - INTERVAL '15 months'
-                      AND ped_data < CURRENT_DATE - INTERVAL '12 months'
-                      AND ped_situacao IN ('P', 'F')
-                    GROUP BY ped_cliente
-                ) t
-            )
-            SELECT 
-                COALESCE(c.avg_pedidos, 0) as atual,
-                COALESCE(p.avg_pedidos, 0) as anterior,
-                ROUND(((COALESCE(c.avg_pedidos, 0) - COALESCE(p.avg_pedidos, 1)) / NULLIF(p.avg_pedidos, 0) * 100)::numeric, 1) as variacao
-            FROM current_period c, previous_period p;
-        """
-        pedidos_df = execute_query(pedidos_query)
+        # 2. PEDIDOS POR CLIENTE
+        if startDate and endDate:
+            pedidos_query = """
+                WITH current_period AS (
+                    SELECT AVG(qtd) as avg_pedidos
+                    FROM (
+                        SELECT COUNT(*) as qtd
+                        FROM pedidos
+                        WHERE ped_data BETWEEN :startDate AND :endDate
+                          AND ped_situacao IN ('P', 'F')
+                        GROUP BY ped_cliente
+                    ) t
+                ),
+                previous_period AS (
+                    SELECT AVG(qtd) as avg_pedidos
+                    FROM (
+                        SELECT COUNT(*) as qtd
+                        FROM pedidos
+                        WHERE ped_data BETWEEN (:startDate::date - INTERVAL '1 year') AND (:endDate::date - INTERVAL '1 year')
+                          AND ped_situacao IN ('P', 'F')
+                        GROUP BY ped_cliente
+                    ) t
+                )
+                SELECT 
+                    COALESCE(c.avg_pedidos, 0) as atual,
+                    COALESCE(p.avg_pedidos, 0) as anterior,
+                    ROUND(((COALESCE(c.avg_pedidos, 0) - COALESCE(p.avg_pedidos, 1)) / NULLIF(p.avg_pedidos, 0) * 100)::numeric, 1) as variacao
+                FROM current_period c, previous_period p;
+            """
+        else:
+            pedidos_query = """
+                WITH current_period AS (
+                    SELECT AVG(qtd) as avg_pedidos
+                    FROM (
+                        SELECT COUNT(*) as qtd
+                        FROM pedidos
+                        WHERE ped_data >= CURRENT_DATE - INTERVAL '3 months'
+                          AND ped_situacao IN ('P', 'F')
+                        GROUP BY ped_cliente
+                    ) t
+                ),
+                previous_period AS (
+                    SELECT AVG(qtd) as avg_pedidos
+                    FROM (
+                        SELECT COUNT(*) as qtd
+                        FROM pedidos
+                        WHERE ped_data >= CURRENT_DATE - INTERVAL '15 months'
+                          AND ped_data < CURRENT_DATE - INTERVAL '12 months'
+                          AND ped_situacao IN ('P', 'F')
+                        GROUP BY ped_cliente
+                    ) t
+                )
+                SELECT 
+                    COALESCE(c.avg_pedidos, 0) as atual,
+                    COALESCE(p.avg_pedidos, 0) as anterior,
+                    ROUND(((COALESCE(c.avg_pedidos, 0) - COALESCE(p.avg_pedidos, 1)) / NULLIF(p.avg_pedidos, 0) * 100)::numeric, 1) as variacao
+                FROM current_period c, previous_period p;
+            """
+        
+        pedidos_df = execute_query(pedidos_query, params)
         pedidos_row = pedidos_df.iloc[0] if not pedidos_df.empty else {'atual': 0, 'anterior': 0, 'variacao': 0}
         
         # 3. CONVERSÃO CATÁLOGO (% produtos vendidos)
-        conversao_query = """
-            SELECT 
-                ROUND((COUNT(DISTINCT i.ite_idproduto)::float / NULLIF(COUNT(DISTINCT p.pro_id), 0) * 100)::numeric, 1) as conversao
-            FROM cad_prod p
-            LEFT JOIN itens_ped i ON p.pro_id = i.ite_idproduto
-            LEFT JOIN pedidos ped ON i.ite_pedido = ped.ped_pedido
-            WHERE ped.ped_data >= CURRENT_DATE - INTERVAL '3 months'
-              AND ped.ped_situacao IN ('P', 'F');
-        """
-        conversao_df = execute_query(conversao_query)
+        if startDate and endDate:
+             conversao_query = """
+                SELECT 
+                    ROUND((COUNT(DISTINCT i.ite_idproduto)::float / NULLIF(COUNT(DISTINCT p.pro_id), 0) * 100)::numeric, 1) as conversao
+                FROM cad_prod p
+                LEFT JOIN itens_ped i ON p.pro_id = i.ite_idproduto
+                LEFT JOIN pedidos ped ON i.ite_pedido = ped.ped_pedido
+                WHERE ped.ped_data BETWEEN :startDate AND :endDate
+                  AND ped.ped_situacao IN ('P', 'F');
+            """
+        else:
+            conversao_query = """
+                SELECT 
+                    ROUND((COUNT(DISTINCT i.ite_idproduto)::float / NULLIF(COUNT(DISTINCT p.pro_id), 0) * 100)::numeric, 1) as conversao
+                FROM cad_prod p
+                LEFT JOIN itens_ped i ON p.pro_id = i.ite_idproduto
+                LEFT JOIN pedidos ped ON i.ite_pedido = ped.ped_pedido
+                WHERE ped.ped_data >= CURRENT_DATE - INTERVAL '3 months'
+                  AND ped.ped_situacao IN ('P', 'F');
+            """
+        conversao_df = execute_query(conversao_query, params)
         conversao_val = float(conversao_df.iloc[0]['conversao'] or 0) if not conversao_df.empty else 0
         
         # 4. OPORTUNIDADE CROSS-SELL (clientes só Curva C - simplificado)
-        crosssell_query = """
-            WITH produto_fat AS (
+        if startDate and endDate:
+            crosssell_query = """
+                WITH produto_fat AS (
+                    SELECT 
+                        i.ite_idproduto,
+                        SUM(i.ite_totliquido) as fat
+                    FROM itens_ped i
+                    INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
+                    WHERE p.ped_data BETWEEN :startDate AND :endDate
+                      AND p.ped_situacao IN ('P', 'F')
+                    GROUP BY i.ite_idproduto
+                ),
+                produto_curva AS (
+                    SELECT 
+                        ite_idproduto,
+                        fat,
+                        SUM(fat) OVER () as total_fat,
+                        SUM(fat) OVER (ORDER BY fat DESC) as fat_acum
+                    FROM produto_fat
+                ),
+                curva_definida AS (
+                    SELECT 
+                        ite_idproduto,
+                        CASE 
+                            WHEN fat_acum / NULLIF(total_fat, 1) <= 0.80 THEN 'A'
+                            WHEN fat_acum / NULLIF(total_fat, 1) <= 0.95 THEN 'B'
+                            ELSE 'C'
+                        END as curva
+                    FROM produto_curva
+                )
                 SELECT 
-                    i.ite_idproduto,
-                    SUM(i.ite_totliquido) as fat
-                FROM itens_ped i
-                INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
-                WHERE p.ped_data >= CURRENT_DATE - INTERVAL '12 months'
+                    COUNT(DISTINCT p.ped_cliente) as qtd_clientes,
+                    COALESCE(SUM(p.ped_totliq), 0) as potencial
+                FROM pedidos p
+                INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+                INNER JOIN curva_definida cd ON i.ite_idproduto = cd.ite_idproduto
+                WHERE p.ped_data BETWEEN :startDate AND :endDate
                   AND p.ped_situacao IN ('P', 'F')
-                GROUP BY i.ite_idproduto
-            ),
-            produto_curva AS (
+                  AND cd.curva = 'C';
+            """
+        else:
+            crosssell_query = """
+                WITH produto_fat AS (
+                    SELECT 
+                        i.ite_idproduto,
+                        SUM(i.ite_totliquido) as fat
+                    FROM itens_ped i
+                    INNER JOIN pedidos p ON i.ite_pedido = p.ped_pedido
+                    WHERE p.ped_data >= CURRENT_DATE - INTERVAL '12 months'
+                      AND p.ped_situacao IN ('P', 'F')
+                    GROUP BY i.ite_idproduto
+                ),
+                produto_curva AS (
+                    SELECT 
+                        ite_idproduto,
+                        fat,
+                        SUM(fat) OVER () as total_fat,
+                        SUM(fat) OVER (ORDER BY fat DESC) as fat_acum
+                    FROM produto_fat
+                ),
+                curva_definida AS (
+                    SELECT 
+                        ite_idproduto,
+                        CASE 
+                            WHEN fat_acum / NULLIF(total_fat, 1) <= 0.80 THEN 'A'
+                            WHEN fat_acum / NULLIF(total_fat, 1) <= 0.95 THEN 'B'
+                            ELSE 'C'
+                        END as curva
+                    FROM produto_curva
+                )
                 SELECT 
-                    ite_idproduto,
-                    fat,
-                    SUM(fat) OVER () as total_fat,
-                    SUM(fat) OVER (ORDER BY fat DESC) as fat_acum
-                FROM produto_fat
-            ),
-            curva_definida AS (
-                SELECT 
-                    ite_idproduto,
-                    CASE 
-                        WHEN fat_acum / NULLIF(total_fat, 1) <= 0.80 THEN 'A'
-                        WHEN fat_acum / NULLIF(total_fat, 1) <= 0.95 THEN 'B'
-                        ELSE 'C'
-                    END as curva
-                FROM produto_curva
-            )
-            SELECT 
-                COUNT(DISTINCT p.ped_cliente) as qtd_clientes,
-                COALESCE(SUM(p.ped_totliq), 0) as potencial
-            FROM pedidos p
-            INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
-            INNER JOIN curva_definida cd ON i.ite_idproduto = cd.ite_idproduto
-            WHERE p.ped_data >= CURRENT_DATE - INTERVAL '6 months'
-              AND p.ped_situacao IN ('P', 'F')
-              AND cd.curva = 'C';
-        """
-        crosssell_df = execute_query(crosssell_query)
+                    COUNT(DISTINCT p.ped_cliente) as qtd_clientes,
+                    COALESCE(SUM(p.ped_totliq), 0) as potencial
+                FROM pedidos p
+                INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+                INNER JOIN curva_definida cd ON i.ite_idproduto = cd.ite_idproduto
+                WHERE p.ped_data >= CURRENT_DATE - INTERVAL '6 months'
+                  AND p.ped_situacao IN ('P', 'F')
+                  AND cd.curva = 'C';
+            """
+        crosssell_df = execute_query(crosssell_query, params)
         crosssell_row = crosssell_df.iloc[0] if not crosssell_df.empty else {'qtd_clientes': 0, 'potencial': 0}
         
         result = {
@@ -540,9 +676,17 @@ async def get_commercial_efficiency():
         return {"success": False, "error": str(e), "data": {}}
 
 
-@router.get("/analytics/customer-comparison")
-async def get_customer_comparison(ano: int = 2025):
-    """Comparativo clientes: ano atual vs anterior"""
+@router.get("/analytics/commercial-efficiency")
+async def get_commercial_efficiency_api(ano: int = 2025, mes: str = "Todos", startDate: str = None, endDate: str = None):
+    from utils.tenant_context import get_tenant_cnpj
+    tenant_id = get_tenant_cnpj() or "default"
+    return get_commercial_efficiency_logic(tenant_id, startDate, endDate)
+
+
+# Função interna com cache
+@lru_cache(maxsize=32)
+def get_customer_comparison_logic(ano: int, tenant_id: str):
+    """Lógica interna para comparativo de clientes"""
     import time
     from services.database import execute_query
     
@@ -674,3 +818,10 @@ async def get_customer_comparison(ano: int = 2025):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e), "data": {"clientes": [], "alertas": []}}
+
+
+@router.get("/analytics/customer-comparison")
+async def get_customer_comparison_api(ano: int = 2025):
+    from utils.tenant_context import get_tenant_cnpj
+    tenant_id = get_tenant_cnpj() or "default"
+    return get_customer_comparison_logic(ano, tenant_id)

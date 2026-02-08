@@ -34,6 +34,13 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
     const [industries, setIndustries] = useState([]);
     const [existingTables, setExistingTables] = useState([]);
     const [selectedExistingTable, setSelectedExistingTable] = useState('');
+    const intervalRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, []);
 
     // Campos ordenados por linhas conforme layout desejado
     const SYSTEM_FIELDS = [
@@ -122,7 +129,7 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
         setError(null);
 
         try {
-            const progressInterval = setInterval(() => setProgress(prev => Math.min(prev + 15, 90)), 300);
+            intervalRef.current = setInterval(() => setProgress(prev => Math.min(prev + 15, 90)), 300);
             const formData = new FormData();
             formData.append('file', file);
 
@@ -131,7 +138,10 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                 body: formData
             });
 
-            clearInterval(progressInterval);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
             setProgress(100);
 
             const result = await response.json();
@@ -155,7 +165,7 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
         setProgress(0);
 
         try {
-            const progressInterval = setInterval(() => setProgress(prev => Math.min(prev + 8, 90)), 500);
+            intervalRef.current = setInterval(() => setProgress(prev => Math.min(prev + 8, 90)), 500);
             const formData = new FormData();
             formData.append('file', file);
             formData.append('sheet_name', selectedSheet);
@@ -165,7 +175,10 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                 body: formData
             });
 
-            clearInterval(progressInterval);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
             setProgress(100);
 
             const result = await response.json();
@@ -213,7 +226,7 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
         setProgress(0);
 
         try {
-            const progressInterval = setInterval(() => setProgress(prev => Math.min(prev + 5, 95)), 200);
+            intervalRef.current = setInterval(() => setProgress(prev => Math.min(prev + 5, 95)), 200);
             const formData = new FormData();
             formData.append('file', file);
             formData.append('sheet_name', selectedSheet);
@@ -229,7 +242,10 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                 body: formData
             });
 
-            clearInterval(progressInterval);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
             setProgress(100);
 
             const result = await response.json();
@@ -478,9 +494,11 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                                             <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
                                                 <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                                 <SelectContent className="z-[9999]">
-                                                    {industries.map(ind => (
-                                                        <SelectItem key={ind.for_codigo} value={ind.for_codigo.toString()}>{ind.for_nomered}</SelectItem>
-                                                    ))}
+                                                    {industries
+                                                        .filter(ind => ind.for_codigo && String(ind.for_codigo).trim() !== "")
+                                                        .map(ind => (
+                                                            <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>{ind.for_nomered || "Indústria sem nome"}</SelectItem>
+                                                        ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -493,9 +511,11 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                                             <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
                                                 <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                                 <SelectContent className="z-[9999]">
-                                                    {industries.map(ind => (
-                                                        <SelectItem key={ind.for_codigo} value={ind.for_codigo.toString()}>{ind.for_nomered}</SelectItem>
-                                                    ))}
+                                                    {industries
+                                                        .filter(ind => ind.for_codigo && String(ind.for_codigo).trim() !== "")
+                                                        .map(ind => (
+                                                            <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>{ind.for_nomered || "Indústria sem nome"}</SelectItem>
+                                                        ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -505,9 +525,11 @@ const AIImportDialog = ({ open, onOpenChange, onImportComplete }) => {
                                                 <Select value={selectedExistingTable} onValueChange={setSelectedExistingTable}>
                                                     <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                                     <SelectContent className="z-[9999]">
-                                                        {existingTables.map((t, idx) => (
-                                                            <SelectItem key={idx} value={t.itab_tabela}>{t.itab_tabela}</SelectItem>
-                                                        ))}
+                                                        {existingTables
+                                                            .filter(t => t.itab_tabela && String(t.itab_tabela).trim() !== "")
+                                                            .map((t, idx) => (
+                                                                <SelectItem key={`${t.itab_tabela}-${idx}`} value={t.itab_tabela}>{t.itab_tabela}</SelectItem>
+                                                            ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>

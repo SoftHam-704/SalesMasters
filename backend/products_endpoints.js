@@ -10,7 +10,7 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/tables/:industria - Listar tabelas de uma indústria
     // ========================================================================
-    router.get('/products/tables/:industria', async (req, res) => {
+    router.get('/tables/:industria', async (req, res) => {
         try {
             const { industria } = req.params;
 
@@ -35,7 +35,7 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/catalog/:industria - Listar todos produtos do catálogo (cad_prod)
     // ========================================================================
-    router.get('/products/catalog/:industria', async (req, res) => {
+    router.get('/catalog/:industria', async (req, res) => {
         try {
             const { industria } = req.params;
 
@@ -50,7 +50,16 @@ module.exports = (pool) => {
                     pro_grupo,
                     pro_aplicacao,
                     pro_codbarras,
-                    pro_status
+                    pro_status,
+                    pro_linhaleve,
+                    pro_linhapesada,
+                    pro_linhaagricola,
+                    pro_linhautilitarios,
+                    pro_motocicletas,
+                    pro_offroad,
+                    pro_origem,
+                    pro_codigonormalizado,
+                    pro_conversao
                 FROM cad_prod
                 WHERE pro_industria = $1
                 ORDER BY pro_codprod`,
@@ -73,21 +82,21 @@ module.exports = (pool) => {
     // ========================================================================
     // POST /api/products/save - Salvar produto (UPSERT cad_prod + cad_tabelaspre)
     // ========================================================================
-    router.post('/products/save', async (req, res) => {
+    router.post('/save', async (req, res) => {
         const client = await pool.connect();
         try {
             const {
                 codigo, codigoOriginal, codigoBarras, conversao,
                 descricao, aplicacao, ncm, grupo, embalagem, peso,
                 industria, tabela, precobruto, precopromo, precoespecial,
-                ipi, st, descontoadd, grupodesconto
+                ipi, st, descontoadd, grupodesconto, prepeso
             } = req.body;
 
             await client.query('BEGIN');
 
             // 1. UPSERT dados fixos em cad_prod
             const resultProduto = await client.query(
-                `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) as pro_id`,
+                `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) as pro_id`,
                 [
                     industria,           // p_industria
                     codigo,              // p_codprod
@@ -100,7 +109,8 @@ module.exports = (pool) => {
                     ncm,                 // p_ncm
                     null,                // p_origem
                     aplicacao,           // p_aplicacao
-                    codigoBarras         // p_codbarras
+                    codigoBarras,        // p_codbarras
+                    conversao            // p_conversao
                 ]
             );
 
@@ -108,7 +118,7 @@ module.exports = (pool) => {
 
             // 2. UPSERT dados variáveis em cad_tabelaspre
             await client.query(
-                `SELECT fn_upsert_preco($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                `SELECT fn_upsert_preco($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                 [
                     proId,
                     industria,
@@ -121,7 +131,8 @@ module.exports = (pool) => {
                     grupodesconto,
                     descontoadd,
                     new Date().toISOString().split('T')[0], // data tabela
-                    null // data vencimento
+                    null, // data vencimento
+                    prepeso || 0
                 ]
             );
 
@@ -147,20 +158,25 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/:industria/:tabela - Listar produtos de uma tabela
     // ========================================================================
-    router.get('/products/:industria/:tabela', async (req, res) => {
+    router.get('/:industria/:tabela', async (req, res) => {
         try {
-            const { industria, tabela } = req.params;
+            let { industria, tabela } = req.params;
 
-            console.log(`📦 [PRODUCTS] Buscando produtos: industria=${industria}, tabela="${tabela}"`);
+            // Suporte a query parameter para evitar problemas com / e %
+            if (req.query.tabela) {
+                tabela = req.query.tabela;
+            }
+
+            // console.log(`📦 [PRODUCTS] Buscando produtos: industria=${industria}, tabela="${tabela}"`);
 
             const result = await pool.query(
-                `SELECT f.*, p.pro_codigonormalizado 
-                 FROM fn_listar_produtos_tabela($1, $2) f 
+                `SELECT f.*, p.pro_codigonormalizado, p.pro_conversao 
+                 FROM fn_listar_produtos_tabela($1::integer, $2::text) f 
                  JOIN cad_prod p ON f.itab_idprod = p.pro_id`,
                 [industria, tabela]
             );
 
-            console.log(`📦 [PRODUCTS] Encontrados ${result.rows.length} produtos`);
+            // console.log(`📦 [PRODUCTS] Encontrados ${result.rows.length} produtos`);
 
             res.json({
                 success: true,
@@ -178,7 +194,7 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/sales-analysis/:industria/:produto - Análise de vendas
     // ========================================================================
-    router.get('/products/sales-analysis/:industria/:produto', async (req, res) => {
+    router.get('/sales-analysis/:industria/:produto', async (req, res) => {
         try {
             const { industria, produto } = req.params;
             const { dataInicio, dataFim, situacao = 'F' } = req.query;
@@ -194,7 +210,7 @@ module.exports = (pool) => {
 
             // Buscar informações do produto
             const produtoInfo = await pool.query(
-                'SELECT pro_codprod, pro_nome FROM cad_prod WHERE pro_industria = $1 AND pro_codprod = $2',
+                'SELECT pro_codprod, pro_nome FROM cad_prod WHERE pro_industria = $1 AND (pro_codprod = $2 OR pro_codigonormalizado = fn_normalizar_codigo($2))',
                 [industria, produto]
             );
 
@@ -235,7 +251,7 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/customers-bought/:industria/:produto - Clientes que compraram
     // ========================================================================
-    router.get('/products/customers-bought/:industria/:produto', async (req, res) => {
+    router.get('/customers-bought/:industria/:produto', async (req, res) => {
         try {
             const { industria, produto } = req.params;
             const { dataInicio, dataFim } = req.query;
@@ -272,7 +288,7 @@ module.exports = (pool) => {
     // ========================================================================
     // GET /api/products/customers-never-bought/:industria/:produto - Clientes que nunca compraram
     // ========================================================================
-    router.get('/products/customers-never-bought/:industria/:produto', async (req, res) => {
+    router.get('/customers-never-bought/:industria/:produto', async (req, res) => {
         try {
             const { industria, produto } = req.params;
 

@@ -248,15 +248,15 @@ export default function GrupoLojasPage() {
                                     <div className="bg-white/10 p-2 rounded-lg">
                                         <BarChart3 className="w-5 h-5 text-blue-300" />
                                     </div>
-                                    <span className="text-sm font-bold uppercase tracking-wider">Total Geral Consolidado</span>
+                                    <span className="text-sm font-bold uppercase tracking-wider text-white">Total Geral Consolidado</span>
                                 </div>
                                 <div className="flex gap-12">
                                     <div className="flex flex-col items-end">
-                                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">Total Quantidade</span>
+                                        <span className="text-[10px] text-white/60 font-semibold uppercase tracking-widest">Total Quantidade</span>
                                         <span className="text-2xl font-black font-mono text-blue-300">{formatNumber(grandTotalQuant)}</span>
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">Total Faturamento</span>
+                                        <span className="text-[10px] text-white/60 font-semibold uppercase tracking-widest">Total Faturamento</span>
                                         <span className="text-2xl font-black font-mono text-green-400">{formatCurrency(grandTotalValue)}</span>
                                     </div>
                                 </div>

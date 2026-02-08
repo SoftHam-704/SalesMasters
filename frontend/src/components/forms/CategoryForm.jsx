@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
-import FormCadPadraoV2 from '../FormCadPadraoV2';
-import InputField from '../InputField';
+import FormCadPadrao from '../FormCadPadrao';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
-const CategoryForm = ({ data, onClose, onSave }) => {
+const CategoryForm = ({ open, data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
         cat_id: '',
         cat_descricao: ''
@@ -13,11 +13,18 @@ const CategoryForm = ({ data, onClose, onSave }) => {
     useEffect(() => {
         if (data) {
             setFormData({
-                cat_id: data.cat_id || '',
-                cat_descricao: data.cat_descricao || ''
+                cat_id: data.id || data.cat_id || '',
+                cat_descricao: data.descricao || data.cat_descricao || ''
+            });
+        } else {
+            setFormData({
+                cat_id: '',
+                cat_descricao: ''
             });
         }
-    }, [data]);
+    }, [data, open]);
+
+    if (!open) return null;
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -28,41 +35,45 @@ const CategoryForm = ({ data, onClose, onSave }) => {
             toast.error('Descrição é obrigatória');
             return;
         }
-        onSave(formData);
+
+        const payload = {
+            cat_descricao: formData.cat_descricao
+        };
+
+        onSave(payload);
     };
 
     return (
-        <FormCadPadraoV2
-            title={data ? `Editar Categoria: ${data.cat_id}` : "Nova Categoria"}
+        <FormCadPadrao
+            title={data ? `Categoria: ${formData.cat_descricao || ''}` : "Nova Categoria"}
             onSave={handleSave}
-            onCancel={onClose}
+            onClose={onClose}
         >
-            <div className="p-4">
-                <div className="form-grid">
+            <div className="p-2 space-y-4">
+                <div className="grid grid-cols-12 gap-4">
                     {/* ID */}
-                    <div className="col-3">
-                        <InputField
-                            label="ID"
+                    <div className="col-span-3 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">ID</Label>
+                        <Input
+                            className="h-9 text-xs font-mono bg-slate-50"
                             value={formData.cat_id}
                             disabled
                             placeholder="Auto"
-                            className="bg-gray-100"
                         />
                     </div>
                     {/* Descrição */}
-                    <div className="col-9">
-                        <InputField
-                            label="Descrição da Categoria"
+                    <div className="col-span-9 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Descrição da Categoria</Label>
+                        <Input
+                            className="h-9 text-sm font-semibold"
                             value={formData.cat_descricao}
                             onChange={(e) => handleChange('cat_descricao', e.target.value)}
-                            placeholder=""
                             autoFocus
-                            large
                         />
                     </div>
                 </div>
             </div>
-        </FormCadPadraoV2>
+        </FormCadPadrao>
     );
 };
 

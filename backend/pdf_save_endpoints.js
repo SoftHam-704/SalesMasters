@@ -1,10 +1,10 @@
-// PDF Save Endpoints Module
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 module.exports = function (app, pool) {
 
-    // POST - Save PDF to industry folder
+    // POST - Save PDF to documents folder
     app.post('/api/orders/save-pdf', async (req, res) => {
         console.log('📄 [SAVE-PDF] Request received');
         try {
@@ -17,17 +17,15 @@ module.exports = function (app, pool) {
                 });
             }
 
-            // Get pastaBasica from company config
-            const companyResult = await pool.query('SELECT emp_pastabasica FROM empresa_status WHERE emp_id = 1');
-            let pastaBasica = 'C:\\SalesMasters\\'; // Default
+            // 1. Detect standard Documents folder
+            const homeDir = os.homedir();
+            let pastaBasica = path.join(homeDir, 'Documents', 'SalesMasters');
 
-            if (companyResult.rows.length > 0 && companyResult.rows[0].emp_pastabasica) {
-                pastaBasica = companyResult.rows[0].emp_pastabasica;
-            }
-
-            // Ensure pastaBasica ends with path separator
-            if (!pastaBasica.endsWith('\\') && !pastaBasica.endsWith('/')) {
-                pastaBasica += '\\';
+            // Fallback for servers/environments without a 'Documents' folder
+            const docsPath = path.join(homeDir, 'Documents');
+            if (!fs.existsSync(docsPath)) {
+                // If Documents doesn't exist, use a local 'uploads' directory
+                pastaBasica = path.join(process.cwd(), 'uploads', 'pedidos');
             }
 
             // Build folder path: {pastaBasica}/Pedidos/{industryName}/

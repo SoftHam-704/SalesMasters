@@ -144,12 +144,22 @@ const TarefaModal = ({ isOpen, onClose, tarefa, onSave }) => {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
+        const formatDate = (dateInput) => {
+            if (!dateInput) return format(new Date(), 'yyyy-MM-dd');
+            try {
+                const dateObj = typeof dateInput === 'string' ? parseISO(dateInput) : new Date(dateInput);
+                return format(dateObj, 'yyyy-MM-dd');
+            } catch (e) {
+                return format(new Date(), 'yyyy-MM-dd');
+            }
+        };
+
         if (tarefa) {
             setFormData({
                 titulo: tarefa.titulo || '',
                 descricao: tarefa.descricao || '',
                 tipo: tarefa.tipo || 'tarefa',
-                data_inicio: tarefa.data_inicio || format(new Date(), 'yyyy-MM-dd'),
+                data_inicio: formatDate(tarefa.data_inicio),
                 hora_inicio: tarefa.hora_inicio?.substring(0, 5) || '',
                 prioridade: tarefa.prioridade || 'M',
                 lembrete_ativo: tarefa.lembrete_ativo !== false,
@@ -345,7 +355,15 @@ const AgendaPage = () => {
     const [tarefaEditando, setTarefaEditando] = useState(null);
     const [stats, setStats] = useState({ hoje: 0, atrasadas: 0, concluidas: 0 });
 
-    const userId = sessionStorage.getItem('userId') || '1';
+    // Pegar usuário da sessão de forma segura
+    const sessionUser = useMemo(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem('user'));
+        } catch (e) { return null; }
+    }, []);
+
+    const userId = sessionUser?.id || '1';
+    const empresaId = sessionUser?.empresa_id || '1';
 
     useEffect(() => {
         fetchTarefas();
@@ -375,7 +393,7 @@ const AgendaPage = () => {
             const response = await fetch(getApiUrl(NODE_API_URL, `/api/agenda?${params}`), {
                 headers: {
                     'x-user-id': userId,
-                    'x-empresa-id': sessionStorage.getItem('empresaId') || '1'
+                    'x-empresa-id': empresaId
                 }
             });
             const data = await response.json();
@@ -435,7 +453,11 @@ const AgendaPage = () => {
             const url = tarefaId ? getApiUrl(NODE_API_URL, `/api/agenda/${tarefaId}`) : getApiUrl(NODE_API_URL, '/api/agenda');
             await fetch(url, {
                 method: tarefaId ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                },
                 body: JSON.stringify(formData)
             });
             fetchTarefas();
@@ -446,7 +468,11 @@ const AgendaPage = () => {
         try {
             await fetch(getApiUrl(NODE_API_URL, `/api/agenda/${tarefa.id}/status`), {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                },
                 body: JSON.stringify({ status: 'concluida' })
             });
             fetchTarefas();
@@ -458,7 +484,10 @@ const AgendaPage = () => {
         try {
             await fetch(getApiUrl(NODE_API_URL, `/api/agenda/${tarefa.id}`), {
                 method: 'DELETE',
-                headers: { 'x-user-id': userId }
+                headers: {
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                }
             });
             fetchTarefas();
         } catch (error) { console.error('Erro ao excluir:', error); }
@@ -489,6 +518,7 @@ const AgendaPage = () => {
                         <button
                             onClick={handleNovaTarefa}
                             className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-200 transition-all shadow-sm active:scale-95"
+                            title="Criar um novo compromisso, tarefa ou lembrete na sua agenda"
                         >
                             <Plus size={20} />
                             Nova Tarefa
@@ -532,13 +562,25 @@ const AgendaPage = () => {
                 {/* Toolbar */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-wrap gap-4 justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => navegarData(-1)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                        <button
+                            onClick={() => navegarData(-1)}
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            title="Voltar um período (dia, semana ou mês)"
+                        >
                             <ChevronLeft size={20} />
                         </button>
-                        <button onClick={() => setDataAtual(new Date())} className="px-4 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wide hover:bg-emerald-100 transition-colors">
+                        <button
+                            onClick={() => setDataAtual(new Date())}
+                            className="px-4 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wide hover:bg-emerald-100 transition-colors"
+                            title="Ir para a data de hoje"
+                        >
                             Hoje
                         </button>
-                        <button onClick={() => navegarData(1)} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                        <button
+                            onClick={() => navegarData(1)}
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            title="Avançar um período (dia, semana ou mês)"
+                        >
                             <ChevronRight size={20} />
                         </button>
                         <span className="text-sm font-bold text-slate-700 ml-2 capitalize">
@@ -550,11 +592,17 @@ const AgendaPage = () => {
                     </div>
 
                     <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-100">
-                        {[{ k: 'lista', i: List }, { k: 'dia', i: CalendarDays }, { k: 'semana', i: Grid3X3 }, { k: 'mes', i: Calendar }].map(v => (
+                        {[
+                            { k: 'lista', i: List, t: 'Visualização em Lista (Próximos compromissos)' },
+                            { k: 'dia', i: CalendarDays, t: 'Visualização Diária' },
+                            { k: 'semana', i: Grid3X3, t: 'Visualização Semanal' },
+                            { k: 'mes', i: Calendar, t: 'Visualização Mensal' }
+                        ].map(v => (
                             <button
                                 key={v.k}
                                 onClick={() => setVisualizacao(v.k)}
                                 className={`p-2 rounded-lg transition-all ${visualizacao === v.k ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                title={v.t}
                             >
                                 <v.i size={18} />
                             </button>

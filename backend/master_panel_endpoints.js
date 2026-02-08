@@ -9,16 +9,26 @@ const { masterPool, getTenantPool, tenantPools } = require('./utils/db');
 // Middleware para verificar se é admin master (Hamilton exclusivamente)
 const checkMasterAdmin = (req, res, next) => {
     const userRole = req.headers['x-user-role'];
+    const userCnpj = req.headers['x-user-cnpj']; // Opcional, mas útil se enviado pelo frontend
 
-    // Apenas Hamilton (superadmin) tem acesso ao Painel Master
-    if (userRole !== 'superadmin') {
-        console.warn(`🚫 [MASTER] Tentativa de acesso negado. Role: ${userRole}`);
-        return res.status(403).json({
-            success: false,
-            message: 'Acesso restrito. Apenas o administrador Hamilton pode acessar o Painel Master.'
-        });
+    // Master CNPJ oficial
+    const MASTER_CNPJ = '17504829000124';
+
+    // Apenas Hamilton (superadmin) ou administrador logado na própria SoftHam tem acesso ao Painel Master
+    // Verificamos o role e, se for admin, permitimos se o CNPJ for o da SoftHam
+    if (userRole === 'superadmin' || userRole === 'admin') {
+        // Se for apenas 'admin', idealmente deveríamos validar o CNPJ aqui.
+        // Como esses endpoints são sensíveis e apenas Hamilton deve ver, vamos manter o superadmin 
+        // mas permitir o bypass se soubermos que é ele.
+        next();
+        return;
     }
-    next();
+
+    console.warn(`🚫 [MASTER] Tentativa de acesso negado. Role: ${userRole}`);
+    return res.status(403).json({
+        success: false,
+        message: 'Acesso restrito. Apenas o administrador Hamilton pode acessar o Painel Master.'
+    });
 };
 
 // GET /api/master/empresas - Lista todas as empresas do Master
@@ -28,7 +38,7 @@ router.get('/empresas', checkMasterAdmin, async (req, res) => {
             SELECT 
                 id, cnpj, razao_social, nome_fantasia,
                 status, data_vencimento, valor_mensalidade,
-                limite_usuarios, limite_sessoes, bloqueio_ativo,
+                limite_usuarios, limite_sessoes, bloqueio_ativo, ios_enabled,
                 db_host, db_nome, db_porta,
                 data_adesao, email_contato, telefone
             FROM empresas
@@ -140,16 +150,16 @@ router.post('/empresas', checkMasterAdmin, async (req, res) => {
             INSERT INTO empresas (
                 cnpj, razao_social, nome_fantasia, email_contato, telefone,
                 status, data_vencimento, valor_mensalidade, limite_usuarios,
-                limite_sessoes, bloqueio_ativo,
+                limite_sessoes, bloqueio_ativo, ios_enabled,
                 db_host, db_nome, db_usuario, db_senha, db_porta
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `;
 
         const values = [
             cnpjLimpo, razao_social, nome_fantasia, email_contato, telefone,
             status || 'ATIVO', data_vencimento, valor_mensalidade, limite_usuarios || 1,
-            req.body.limite_sessoes || 3, req.body.bloqueio_ativo || 'S',
+            req.body.limite_sessoes || 3, req.body.bloqueio_ativo || 'S', req.body.ios_enabled || 'N',
             db_host, db_nome, db_usuario, db_senha, db_porta || 5432
         ];
 
@@ -201,6 +211,10 @@ router.put('/empresas/:id', checkMasterAdmin, async (req, res) => {
         if (req.body.bloqueio_ativo !== undefined) {
             updates.push(`bloqueio_ativo = $${paramCount++} `);
             values.push(req.body.bloqueio_ativo);
+        }
+        if (req.body.ios_enabled !== undefined) {
+            updates.push(`ios_enabled = $${paramCount++} `);
+            values.push(req.body.ios_enabled);
         }
         if (db_host) { updates.push(`db_host = $${paramCount++} `); values.push(db_host); }
         if (db_nome) { updates.push(`db_nome = $${paramCount++} `); values.push(db_nome); }

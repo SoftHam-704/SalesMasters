@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import DbComboBox from '../DbComboBox';
 import { toast } from "sonner";
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const RegionForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
@@ -30,7 +31,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
 
         setLoading(true);
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities`);
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/regions/${data.reg_codigo}/cities`));
             const result = await response.json();
             if (result.success) {
                 setRegionCities(result.data);
@@ -54,7 +55,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
         }
 
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities`, {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/regions/${data.reg_codigo}/cities`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ cid_id: selectedCity.cid_codigo })
@@ -82,7 +83,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
 
         try {
             const response = await fetch(
-                `https://salesmasters.softham.com.br/api/v2/regions/${data.reg_codigo}/cities/${city.cid_codigo}`,
+                getApiUrl(NODE_API_URL, `/api/v2/regions/${data.reg_codigo}/cities/${city.cid_codigo}`),
                 { method: 'DELETE' }
             );
 
@@ -173,7 +174,7 @@ const RegionForm = ({ data, onClose, onSave }) => {
                                         value={selectedCity}
                                         onChange={(item) => setSelectedCity(item)}
                                         fetchData={async (search = '', limit = 20) => {
-                                            const res = await fetch(`https://salesmasters.softham.com.br/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`);
+                                            const res = await fetch(getApiUrl(NODE_API_URL, `/api/v2/cities?search=${encodeURIComponent(search)}&limit=${limit}`));
                                             const json = await res.json();
                                             return (json.data || []).map(city => ({
                                                 ...city,

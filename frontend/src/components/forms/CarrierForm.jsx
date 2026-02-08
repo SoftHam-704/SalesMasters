@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search } from 'lucide-react';
-import FormCadPadraoV2 from '../FormCadPadraoV2';
-import InputField from '../InputField';
+import FormCadPadrao from '../FormCadPadrao';
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Search } from 'lucide-react';
 import { toast } from "sonner";
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
-const CarrierForm = ({ data, onClose, onSave }) => {
+const CarrierForm = ({ open, data, onClose, onSave }) => {
     const [formData, setFormData] = useState({
         tra_nome: '',
         tra_cgc: '',
@@ -24,9 +26,41 @@ const CarrierForm = ({ data, onClose, onSave }) => {
 
     useEffect(() => {
         if (data) {
-            setFormData(data);
+            // Se vier mapeado (como 'nome') ou original (como 'tra_nome')
+            setFormData({
+                tra_codigo: data.id || data.tra_codigo,
+                tra_nome: data.nome || data.tra_nome || '',
+                tra_cgc: data.cnpj || data.tra_cgc || '',
+                tra_inscricao: data.tra_inscricao || '',
+                tra_endereco: data.tra_endereco || '',
+                tra_bairro: data.tra_bairro || '',
+                tra_cidade: data.cidade || data.tra_cidade || '',
+                tra_uf: data.tra_uf || '',
+                tra_cep: data.tra_cep || '',
+                tra_fone: data.telefone || data.tra_fone || '',
+                tra_contato: data.tra_contato || '',
+                tra_email: data.tra_email || '',
+                tra_obs: data.tra_obs || ''
+            });
+        } else {
+            setFormData({
+                tra_nome: '',
+                tra_cgc: '',
+                tra_inscricao: '',
+                tra_endereco: '',
+                tra_bairro: '',
+                tra_cidade: '',
+                tra_uf: '',
+                tra_cep: '',
+                tra_fone: '',
+                tra_contato: '',
+                tra_email: '',
+                tra_obs: ''
+            });
         }
-    }, [data]);
+    }, [data, open]);
+
+    if (!open) return null;
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -55,18 +89,18 @@ const CarrierForm = ({ data, onClose, onSave }) => {
                 throw new Error(result.message || "Erro na consulta.");
             }
 
-            const data = result.data;
+            const apiData = result.data;
 
             setFormData(prev => ({
                 ...prev,
-                tra_nome: data.razao_social || data.nome || prev.tra_nome,
-                tra_endereco: data.logradouro ? `${data.logradouro}, ${data.numero || ''}` : prev.tra_endereco,
-                tra_bairro: data.bairro || prev.tra_bairro,
-                tra_cidade: data.municipio || prev.tra_cidade,
-                tra_uf: data.uf || prev.tra_uf,
-                tra_cep: data.cep || prev.tra_cep,
-                tra_fone: data.telefone || prev.tra_fone,
-                tra_email: data.email || prev.tra_email,
+                tra_nome: apiData.razao_social || apiData.nome || prev.tra_nome,
+                tra_endereco: apiData.logradouro ? `${apiData.logradouro}, ${apiData.numero || ''}` : prev.tra_endereco,
+                tra_bairro: apiData.bairro || prev.tra_bairro,
+                tra_cidade: apiData.municipio || prev.tra_cidade,
+                tra_uf: apiData.uf || prev.tra_uf,
+                tra_cep: apiData.cep || prev.tra_cep,
+                tra_fone: apiData.telefone || prev.tra_fone,
+                tra_email: apiData.email || prev.tra_email,
                 tra_cgc: cnpj
             }));
 
@@ -91,144 +125,138 @@ const CarrierForm = ({ data, onClose, onSave }) => {
     };
 
     return (
-        <FormCadPadraoV2
-            title={data ? `Transportadora: ${data.tra_nome || ''}` : "Nova Transportadora"}
+        <FormCadPadrao
+            title={data ? `Transportadora: ${formData.tra_nome || ''}` : "Nova Transportadora"}
             onSave={handleSave}
-            onCancel={onClose}
+            onClose={onClose}
         >
-            <div className="p-4">
-                <div className="form-grid">
+            <div className="p-2 space-y-3">
+                <div className="grid grid-cols-12 gap-3">
                     {/* Row 1: CNPJ | Consulta | Inscrição */}
-                    <div className="col-5">
-                        <div className="flex gap-2 items-center">
-                            <div className="flex-1">
-                                <InputField
-                                    label="CNPJ"
-                                    value={formData.tra_cgc || ''}
-                                    onChange={(e) => handleChange('tra_cgc', e.target.value)}
-                                    placeholder=""
-                                    autoFocus
-                                />
-                            </div>
+                    <div className="col-span-5 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">CNPJ</Label>
+                        <div className="flex gap-2">
+                            <Input
+                                className="h-8 text-xs font-mono"
+                                value={formData.tra_cgc || ''}
+                                onChange={(e) => handleChange('tra_cgc', e.target.value)}
+                                autoFocus
+                            />
                             <Button
                                 size="icon"
                                 variant="outline"
-                                className="h-[50px] w-[50px] rounded-xl border-slate-200 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 hover:bg-emerald-50 mt-[1px]" // Height to match input field
+                                className="h-8 w-8 text-emerald-600 border-emerald-100 hover:bg-emerald-50"
                                 onClick={handleConsultarCNPJ}
-                                title="Consultar CNPJ"
                             >
-                                <Search className="h-5 w-5" />
+                                <Search className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
-                    <div className="col-4">
-                        <InputField
-                            label="Inscrição Estadual"
+                    <div className="col-span-4 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Inscrição Estadual</Label>
+                        <Input
+                            className="h-8 text-xs font-mono"
                             value={formData.tra_inscricao || ''}
                             onChange={(e) => handleChange('tra_inscricao', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    {/* Empty space for balance or add ID if available */}
-                    <div className="col-3"></div>
+                    <div className="col-span-3"></div>
 
                     {/* Row 2: Nome */}
-                    <div className="col-12">
-                        <InputField
-                            label="Nome / Razão Social"
+                    <div className="col-span-12 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Nome / Razão Social</Label>
+                        <Input
+                            className="h-8 text-sm font-bold"
                             value={formData.tra_nome || ''}
                             onChange={(e) => handleChange('tra_nome', e.target.value)}
-                            large
-                            placeholder=""
                         />
                     </div>
 
                     {/* Row 3: Endereço (large) | Bairro */}
-                    <div className="col-8">
-                        <InputField
-                            label="Endereço"
+                    <div className="col-span-8 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Endereço</Label>
+                        <Input
+                            className="h-8 text-xs"
                             value={formData.tra_endereco || ''}
                             onChange={(e) => handleChange('tra_endereco', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    <div className="col-4">
-                        <InputField
-                            label="Bairro"
+                    <div className="col-span-4 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Bairro</Label>
+                        <Input
+                            className="h-8 text-xs"
                             value={formData.tra_bairro || ''}
                             onChange={(e) => handleChange('tra_bairro', e.target.value)}
-                            placeholder=""
                         />
                     </div>
 
                     {/* Row 4: CEP | Cidade | UF */}
-                    <div className="col-3">
-                        <InputField
-                            label="CEP"
+                    <div className="col-span-3 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">CEP</Label>
+                        <Input
+                            className="h-8 text-xs font-mono"
                             value={formData.tra_cep || ''}
                             onChange={(e) => handleChange('tra_cep', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    <div className="col-7">
-                        <InputField
-                            label="Cidade"
+                    <div className="col-span-7 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Cidade</Label>
+                        <Input
+                            className="h-8 text-xs"
                             value={formData.tra_cidade || ''}
                             onChange={(e) => handleChange('tra_cidade', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    <div className="col-2">
-                        <InputField
-                            label="UF"
+                    <div className="col-span-2 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase text-center">UF</Label>
+                        <Input
+                            className="h-8 text-xs text-center font-bold"
                             value={formData.tra_uf || ''}
                             onChange={(e) => handleChange('tra_uf', e.target.value)}
-                            placeholder=""
-                            className="text-center"
                             maxLength={2}
                         />
                     </div>
 
-
                     {/* Row 5: Telefone | Contato | Email */}
-                    <div className="col-4">
-                        <InputField
-                            label="Telefone"
+                    <div className="col-span-4 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Telefone</Label>
+                        <Input
+                            className="h-8 text-xs font-mono"
                             value={formData.tra_fone || ''}
                             onChange={(e) => handleChange('tra_fone', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    <div className="col-4">
-                        <InputField
-                            label="Contato"
+                    <div className="col-span-4 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Contato</Label>
+                        <Input
+                            className="h-8 text-xs"
                             value={formData.tra_contato || ''}
                             onChange={(e) => handleChange('tra_contato', e.target.value)}
-                            placeholder=""
                         />
                     </div>
-                    <div className="col-4">
-                        <InputField
-                            label="E-mail"
+                    <div className="col-span-4 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">E-mail</Label>
+                        <Input
+                            className="h-8 text-xs"
                             value={formData.tra_email || ''}
                             onChange={(e) => handleChange('tra_email', e.target.value)}
-                            placeholder=""
                             type="email"
                         />
                     </div>
 
                     {/* Row 6: Observações */}
-                    <div className="col-12">
-                        <textarea
-                            className="modern-textarea"
-                            placeholder="Observações adicionais..."
+                    <div className="col-span-12 flex flex-col gap-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase">Observações Internas</Label>
+                        <Textarea
+                            className="min-h-20 text-xs resize-none"
+                            placeholder="Anotações adicionais..."
                             value={formData.tra_obs || ''}
                             onChange={(e) => handleChange('tra_obs', e.target.value)}
                         />
                     </div>
                 </div>
             </div>
-        </FormCadPadraoV2>
+        </FormCadPadrao>
     );
 };
 

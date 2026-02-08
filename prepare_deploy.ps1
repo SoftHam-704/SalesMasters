@@ -1,26 +1,51 @@
-$deployDir = "e:\Sistemas_ia\SalesMasters\DEPLOY_READY"
-if (Test-Path $deployDir) { Remove-Item -Recurse -Force $deployDir }
-New-Item -ItemType Directory -Path $deployDir
+# Script PowerShell para preparar arquivos de deploy
+$DeployDir = ".\deploy_temp"
+$BiEngineDir = ".\bi-engine"
+$FrontendDir = ".\frontend"
 
-# Frontend
-Write-Host "Copiando Frontend (dist)..."
-Copy-Item -Recurse "e:\Sistemas_ia\SalesMasters\frontend\dist" "$deployDir\frontend"
+# Limpar pasta de deploy anterior
+if (Test-Path $DeployDir) {
+    Remove-Item $DeployDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $DeployDir -Force | Out-Null
+New-Item -ItemType Directory -Path "$DeployDir\bi-engine" -Force | Out-Null
 
-# Backend
-Write-Host "Copiando Backend (excluindo node_modules)..."
-New-Item -ItemType Directory -Path "$deployDir\backend"
-Get-ChildItem -Path "e:\Sistemas_ia\SalesMasters\backend" -Exclude "node_modules", ".env" | Copy-Item -Recurse -Destination "$deployDir\backend"
+Write-Host "Preparando arquivos para deploy..." -ForegroundColor Cyan
 
-# BI Engine
-Write-Host "Copiando BI Engine (excluindo venv)..."
-New-Item -ItemType Directory -Path "$deployDir\bi-engine"
-Get-ChildItem -Path "e:\Sistemas_ia\SalesMasters\bi-engine" -Exclude "venv", "__pycache__", ".env" | Copy-Item -Recurse -Destination "$deployDir\bi-engine"
+# Copiar arquivos do BI Engine (Estrutura completa)
+Write-Host "Copiando BI Engine..." -ForegroundColor Cyan
+Copy-Item "$BiEngineDir\services" "$DeployDir\bi-engine\" -Recurse -Force
+Copy-Item "$BiEngineDir\routers" "$DeployDir\bi-engine\" -Recurse -Force
+Copy-Item "$BiEngineDir\utils" "$DeployDir\bi-engine\" -Recurse -Force
+Copy-Item "$BiEngineDir\config.py" "$DeployDir\bi-engine\" -Force
+Copy-Item "$BiEngineDir\main.py" "$DeployDir\bi-engine\" -Force
+Copy-Item "$BiEngineDir\.env" "$DeployDir\bi-engine\" -Force
+Copy-Item "$BiEngineDir\requirements.txt" "$DeployDir\bi-engine\" -Force
 
-# PM2 Config
-Write-Host "Copiando Configuração PM2..."
-Copy-Item "e:\Sistemas_ia\SalesMasters\ecosystem.config.js" "$deployDir\ecosystem.config.js"
+# Remover __pycache__ para economizar espaço e evitar conflitos
+Get-ChildItem -Path "$DeployDir\bi-engine" -Filter "__pycache__" -Recurse | Remove-Item -Recurse -Force
 
-Write-Host "Compactando pacote de deploy..."
-Compress-Archive -Path "$deployDir\*" -DestinationPath "e:\Sistemas_ia\SalesMasters\SalesMasters_DEPLOY.zip" -Force
+Write-Host "Arquivos BI Engine preparados" -ForegroundColor Green
 
-Write-Host "✅ Pacote preparado em e:\Sistemas_ia\SalesMasters\DEPLOY_READY"
+# Copiar arquivos do Backend Node (server.js e utils)
+Write-Host "Copiando Backend Node..." -ForegroundColor Cyan
+New-Item -ItemType Directory -Path "$DeployDir\backend" -Force | Out-Null
+Copy-Item ".\backend\server.js" "$DeployDir\backend\" -Force
+Copy-Item ".\backend\utils" "$DeployDir\backend\" -Recurse -Force
+Copy-Item ".\backend\.env" "$DeployDir\backend\" -Force
+Write-Host "Backend Node preparado" -ForegroundColor Green
+
+# Copiar pasta dist do frontend
+Write-Host "Copiando frontend/dist..." -ForegroundColor Cyan
+# Antes de copiar, sugerimos rodar: cd frontend && npm run build
+if (Test-Path "$FrontendDir\dist") {
+    Copy-Item "$FrontendDir\dist" "$DeployDir\frontend_dist" -Recurse -Force
+    Write-Host "Frontend/dist copiado" -ForegroundColor Green
+} else {
+    Write-Host "⚠️ Pasta frontend/dist não encontrada! Rode 'npm run build' no frontend primeiro." -ForegroundColor Yellow
+}
+
+Write-Host "`n🚀 Deploy preparado com SUCESSO em: $DeployDir" -ForegroundColor Cyan
+Write-Host "Próximos passos:" -ForegroundColor White
+Write-Host "1. Suba o conteúdo de $DeployDir para o ROOT do seu servidor SaveInCloud." -ForegroundColor White
+Write-Host "2. No servidor, rode 'pm2 restart server' ou o comando correspondente para reiniciar os serviços." -ForegroundColor White

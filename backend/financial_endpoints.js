@@ -1200,6 +1200,62 @@ module.exports = (pool) => {
         }
     });
 
+    // ============================================
+    // DASHBOARD SUMMARY
+    // ============================================
+    router.get('/dashboard/summary', async (req, res) => {
+        try {
+            // 1. Resumo Contas a Receber
+            const receberResult = await pool.query(`
+                SELECT 
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento < CURRENT_DATE THEN (valor_total - valor_recebido) ELSE 0 END), 0) as vencido,
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento = CURRENT_DATE THEN (valor_total - valor_recebido) ELSE 0 END), 0) as hoje,
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento > CURRENT_DATE AND data_vencimento <= CURRENT_DATE + INTERVAL '7 days' THEN (valor_total - valor_recebido) ELSE 0 END), 0) as prox_7_dias
+                FROM fin_contas_receber
+            `);
+
+            // 2. Resumo Contas a Pagar
+            const pagarResult = await pool.query(`
+                SELECT 
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento < CURRENT_DATE THEN (valor_total - valor_pago) ELSE 0 END), 0) as vencido,
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento = CURRENT_DATE THEN (valor_total - valor_pago) ELSE 0 END), 0) as hoje,
+                    COALESCE(SUM(CASE WHEN status = 'ABERTO' AND data_vencimento > CURRENT_DATE AND data_vencimento <= CURRENT_DATE + INTERVAL '7 days' THEN (valor_total - valor_pago) ELSE 0 END), 0) as prox_7_dias
+                FROM fin_contas_pagar
+            `);
+
+            // 3. Histórico para Gráfico (Últimos 6 meses)
+            const historicoResult = await pool.query(`
+                WITH meses AS (
+                    SELECT generate_series(
+                        date_trunc('month', CURRENT_DATE) - INTERVAL '5 months',
+                        date_trunc('month', CURRENT_DATE),
+                        '1 month'::interval
+                    )::date as mes
+                )
+                SELECT 
+                    to_char(m.mes, 'Mon/YY') as label,
+                    COALESCE((SELECT SUM(valor_total) FROM fin_contas_receber WHERE date_trunc('month', data_vencimento) = m.mes), 0) as receitas,
+                    COALESCE((SELECT SUM(valor_total) FROM fin_contas_pagar WHERE date_trunc('month', data_vencimento) = m.mes), 0) as despesas
+                FROM meses m
+                ORDER BY m.mes
+            `);
+
+            res.json({
+                success: true,
+                data: {
+                    receber: receberResult.rows[0],
+                    pagar: pagarResult.rows[0],
+                    grafico: historicoResult.rows,
+                    // mock saldo por enquanto ja que nao temos tabela de fluxus de caixa real
+                    saldo_atual: (receberResult.rows[0].vencido + receberResult.rows[0].hoje) - (pagarResult.rows[0].vencido + pagarResult.rows[0].hoje)
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching financial dashboard summary:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
     return router;
 };
 

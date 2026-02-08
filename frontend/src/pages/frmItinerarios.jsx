@@ -7,6 +7,8 @@ import ItineraryForm from '../components/forms/ItineraryForm';
 import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { HelpCircle, Sparkles } from 'lucide-react';
+import ItineraryHelpModal from '@/components/crm/ItineraryHelpModal';
 
 const FrmItinerarios = () => {
     const [itineraries, setItineraries] = useState([]);
@@ -15,6 +17,7 @@ const FrmItinerarios = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [selectedItinerary, setSelectedItinerary] = useState(null);
+    const [helpOpen, setHelpOpen] = useState(false);
 
     const fetchItineraries = async () => {
         setLoading(true);
@@ -173,9 +176,28 @@ const FrmItinerarios = () => {
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     renderItem={renderCard}
+                    headerActions={
+                        <Button
+                            onClick={() => setHelpOpen(true)}
+                            className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group h-8"
+                            title="Como funcionam os itinerários?"
+                        >
+                            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+                            <span className="relative flex items-center gap-2">
+                                <HelpCircle className="w-4 h-4" />
+                                <span className="text-sm">Como usar...</span>
+                                <Sparkles className="w-3 h-3 text-yellow-200" />
+                            </span>
+                        </Button>
+                    }
                     emptyMessage="Nenhum itinerário cadastrado. Clique em + para criar sua primeira rota."
                 />
             </div>
+
+            <ItineraryHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+            />
         </div>
     );
 };

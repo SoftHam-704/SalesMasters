@@ -22,6 +22,7 @@ const MasterPanel = () => {
     const [formData, setFormData] = useState({
         cnpj: '', razao_social: '', nome_fantasia: '', email_contato: '', telefone: '',
         status: 'ATIVO', data_vencimento: '', valor_mensalidade: '',
+        limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S', ios_enabled: 'N',
         db_host: '', db_nome: '', db_usuario: '', db_senha: '', db_porta: 5432
     });
     const [result, setResult] = useState(null);
@@ -365,7 +366,7 @@ const MasterPanel = () => {
         setFormData({
             cnpj: '', razao_social: '', nome_fantasia: '', email_contato: '', telefone: '',
             status: 'ATIVO', data_vencimento: '', valor_mensalidade: '',
-            limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S',
+            limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S', ios_enabled: 'N',
             db_host: '', db_nome: '', db_usuario: '', db_senha: '', db_porta: 5432
         });
     };
@@ -384,6 +385,7 @@ const MasterPanel = () => {
             limite_usuarios: empresa.limite_usuarios || 1,
             limite_sessoes: empresa.limite_sessoes || 3,
             bloqueio_ativo: empresa.bloqueio_ativo || 'S',
+            ios_enabled: empresa.ios_enabled || 'N',
             db_host: empresa.db_host || '',
             db_nome: empresa.db_nome || '',
             db_usuario: empresa.db_usuario || '',
@@ -623,6 +625,17 @@ const MasterPanel = () => {
                                 >
                                     <option value="S">✅ HABILITADO</option>
                                     <option value="N">❌ DESABILITADO</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Acesso App iOS</Label>
+                                <select
+                                    value={formData.ios_enabled}
+                                    onChange={e => setFormData({ ...formData, ios_enabled: e.target.value })}
+                                    className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="S">✅ PERMITIR</option>
+                                    <option value="N">🚫 BLOQUEADO</option>
                                 </select>
                             </div>
                         </div>

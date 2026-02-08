@@ -7,18 +7,28 @@ import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const API_URL = PYTHON_API_URL;
 
-const CommercialEfficiency = () => {
+const CommercialEfficiency = ({ filters, refreshTrigger }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [filters?.ano, filters?.mes, filters?.industria, filters?.startDate, filters?.endDate, refreshTrigger]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
+            const industryId = filters?.industria === 'Todos' ? null : filters?.industria;
             const url = getApiUrl(API_URL, '/api/dashboard/analytics/commercial-efficiency');
-            const res = await axios.get(url);
+            const res = await axios.get(url, {
+                params: {
+                    ano: filters?.ano,
+                    mes: filters?.mes,
+                    industryId: industryId,
+                    startDate: filters?.startDate,
+                    endDate: filters?.endDate
+                }
+            });
             if (res.data.success) {
                 setData(res.data.data);
             }

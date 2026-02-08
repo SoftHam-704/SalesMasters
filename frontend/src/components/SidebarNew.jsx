@@ -35,7 +35,8 @@ import {
     Home,
     MessageCircle,
     Route,
-    Target
+    MapPin,
+    UserX
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -69,17 +70,17 @@ const NavItem = ({ icon: Icon, label, active, badge, badgeClassName, onClick }) 
             "flex items-center justify-center w-5 h-5 transition-all duration-300 ml-1.5",
             active
                 ? "text-blue-600 scale-110"
-                : "text-slate-400 group-hover:text-blue-500"
+                : "text-slate-500 group-hover:text-blue-500"
         )}>
             <Icon className={cn("w-full h-full", badgeClassName && "animate-pulse")} strokeWidth={active ? 2.5 : 2} />
         </div>
 
         {/* Label - Darker and Bolder */}
         <span className={cn(
-            "flex-1 text-[13px] transition-colors tracking-wide",
+            "flex-1 text-[15px] transition-colors tracking-wide",
             active
                 ? "text-blue-900 font-black"
-                : "text-slate-700 font-bold group-hover:text-slate-950"
+                : "text-slate-800 font-extrabold group-hover:text-slate-950"
         )}>
             {label}
         </span>
@@ -114,11 +115,11 @@ const CollapsibleSection = ({
         <div className="mb-1">
             <motion.button
                 onClick={onToggle}
-                className="w-full flex items-center gap-3 px-4 py-1.5 mt-2 rounded-xl transition-all duration-300 group"
+                className="w-full flex items-center gap-3 px-4 py-2.5 mt-3 rounded-xl transition-all duration-300 group bg-slate-100/50 border border-slate-200/40 hover:bg-white hover:shadow-md hover:border-blue-200"
                 whileTap={{ scale: 0.98 }}
             >
                 {/* Section title - Deep Slate for Contrast */}
-                <span className="flex-1 text-left text-[10px] font-black tracking-[0.15em] uppercase text-slate-500 group-hover:text-blue-600 transition-colors">
+                <span className="flex-1 text-left text-[12px] font-extrabold tracking-[0.2em] uppercase text-slate-900 group-hover:text-blue-700 transition-colors">
                     {title}
                 </span>
 
@@ -207,12 +208,29 @@ export const Sidebar = () => {
             }
         };
 
-        const fetchCompanyConfig = async () => {
+        const loadCompanyInfo = async () => {
             try {
+                // 1. Tentar pegar do objeto user na sessão (Nome Fantasia vindo do Master DB)
+                const userJson = sessionStorage.getItem('user');
+                if (userJson) {
+                    const user = JSON.parse(userJson);
+                    if (user.empresa) {
+                        const fullName = user.empresa;
+                        const shortName = fullName.includes(' - ')
+                            ? fullName.split(' - ')[0].trim()
+                            : fullName.length > 25
+                                ? fullName.substring(0, 25) + '...'
+                                : fullName;
+                        setCompanyName(shortName);
+                        // Se já pegamos do user, podemos pular o fetch da config da empresa
+                        return;
+                    }
+                }
+
+                // 2. Fallback: buscar na configuração da empresa (Tenant DB)
                 const response = await fetch(getApiUrl(NODE_API_URL, '/api/config/company'));
                 const data = await response.json();
                 if (data.success && data.config?.nome) {
-                    // Pegar apenas a primeira parte do nome (antes da primeira vírgula ou 30 chars)
                     const fullName = data.config.nome;
                     const shortName = fullName.includes(' - ')
                         ? fullName.split(' - ')[0].trim()
@@ -222,7 +240,7 @@ export const Sidebar = () => {
                     setCompanyName(shortName);
                 }
             } catch (error) {
-                console.error('Error fetching company config:', error);
+                console.error('Error fetching company info:', error);
             }
         };
 
@@ -249,7 +267,7 @@ export const Sidebar = () => {
         };
 
         fetchSystemInfo();
-        fetchCompanyConfig();
+        loadCompanyInfo();
         fetchUserPermissions();
     }, []);
 
@@ -273,7 +291,7 @@ export const Sidebar = () => {
                         className="w-40 drop-shadow-2xl"
                     />
                     <div className="flex flex-col items-center gap-1.5">
-                        <p className="text-blue-900/40 text-[9.5px] font-black tracking-[0.3em] uppercase">
+                        <p className="text-blue-900/40 text-[11px] font-black tracking-[0.3em] uppercase">
                             Enterprise Edition
                         </p>
                         <div className="h-[1px] w-10 bg-blue-200" />
@@ -349,7 +367,7 @@ export const Sidebar = () => {
                         accentColor="#059669"
                     >
                         {canAccess(207) && <NavItem icon={ShoppingCart} label="Pedidos de Venda" active={isActive("/pedidos")} onClick={() => navigate("/pedidos")} />}
-                        {canAccess(207) && <NavItem icon={Target} label="Campanhas & Metas" active={isActive("/vendas/campanhas")} onClick={() => navigate("/vendas/campanhas")} badge="BETA" badgeClassName="bg-purple-100 text-purple-700 font-bold" />}
+                        {canAccess(207) && <NavItem icon={Target} label="Campanhas" active={isActive("/vendas/campanhas")} onClick={() => navigate("/vendas/campanhas")} badge="BETA" badgeClassName="bg-purple-100 text-purple-700 font-bold" />}
                         {canAccess(205) && <NavItem icon={FileText} label="Baixa via XML" active={isActive("/movimentacoes/baixa-xml")} onClick={() => navigate("/movimentacoes/baixa-xml")} />}
                         {canAccess(208) && <NavItem icon={TrendingUp} label="SELL-OUT" active={isActive("/movimentacoes/sell-out")} onClick={() => navigate("/movimentacoes/sell-out")} />}
                         {canAccess(206) && <NavItem icon={Users} label="CRM / Atendimentos" active={isActive("/crm")} onClick={() => navigate("/crm")} />}
@@ -366,6 +384,7 @@ export const Sidebar = () => {
                         onToggle={() => handleToggleSection('financeiro')}
                         accentColor="#7C3AED"
                     >
+                        <NavItem icon={LayoutDashboard} label="Dashboard Hub" active={isActive("/financeiro/dashboard")} onClick={() => navigate("/financeiro/dashboard")} badge="PRO" badgeClassName="bg-blue-100 text-blue-700 font-bold" />
                         {canAccess(301) && <NavItem icon={DollarSign} label="Contas a Receber" active={isActive("/financeiro/receber")} onClick={() => navigate("/financeiro/receber")} />}
                         {canAccess(302) && <NavItem icon={DollarSign} label="Contas a Pagar" active={isActive("/financeiro/pagar")} onClick={() => navigate("/financeiro/pagar")} />}
                         {canAccess(303) && <NavItem icon={TrendingUp} label="Fluxo de Caixa" active={isActive("/financeiro/relatorios/fluxo-caixa")} onClick={() => navigate("/financeiro/relatorios/fluxo-caixa")} />}
@@ -379,7 +398,7 @@ export const Sidebar = () => {
 
 
                 {/* ESTATISTICOS */}
-                {canAccess(50) && (
+                {canAccess(40) && (
                     <CollapsibleSection
                         icon={PieChart}
                         title="Estatísticos"
@@ -387,15 +406,34 @@ export const Sidebar = () => {
                         onToggle={() => handleToggleSection('estatisticos')}
                         accentColor="#DB2777"
                     >
-                        {canAccess(501) && <NavItem icon={BarChart2} label="Mapa de Vendas" active={isActive("/estatisticos/mapa-vendas")} onClick={() => navigate("/estatisticos/mapa-vendas")} />}
-                        {canAccess(502) && <NavItem icon={PieChart} label="Mapa Cli/Indústria" active={isActive("/estatisticos/mapa-cliente-industria")} onClick={() => navigate("/estatisticos/mapa-cliente-industria")} />}
-                        {canAccess(503) && <NavItem icon={BarChart2} label="Mapa Cli Mês a Mês" active={isActive("/estatisticos/mapa-cliente-mes")} onClick={() => navigate("/estatisticos/mapa-cliente-mes")} />}
-                        {canAccess(504) && <NavItem icon={Users} label="Mapa por Vendedor" active={isActive("/estatisticos/mapa-vendedor")} onClick={() => navigate("/estatisticos/mapa-vendedor")} />}
-                        {canAccess(505) && <NavItem icon={Package} label="Mapa Produtos" active={isActive("/estatisticos/mapa-produtos")} onClick={() => navigate("/estatisticos/mapa-produtos")} />}
-                        {canAccess(506) && <NavItem icon={ShoppingCart} label="Últimas Compras" active={isActive("/estatisticos/ultimas-compras")} onClick={() => navigate("/estatisticos/ultimas-compras")} />}
-                        {canAccess(507) && <NavItem icon={BarChart2} label="Mapa em Qtd" active={isActive("/estatisticos/mapa-quantidade")} onClick={() => navigate("/estatisticos/mapa-quantidade")} />}
-                        {canAccess(508) && <NavItem icon={Users} label="Comparativo Clientes" active={isActive("/estatisticos/comparativo-clientes")} onClick={() => navigate("/estatisticos/comparativo-clientes")} />}
-                        {canAccess(509) && <NavItem icon={Building2} label="Grupo de Lojas" active={isActive("/estatisticos/grupo-lojas")} onClick={() => navigate("/estatisticos/grupo-lojas")} />}
+                        {canAccess(401) && <NavItem icon={BarChart3} label="Mapa de Vendas" active={isActive("/estatisticos/mapa-vendas")} onClick={() => navigate("/estatisticos/mapa-vendas")} />}
+                        {canAccess(402) && <NavItem icon={Users} label="Mapa Cli/Indústria" active={isActive("/estatisticos/mapa-cliente-industria")} onClick={() => navigate("/estatisticos/mapa-cliente-industria")} />}
+                        {canAccess(403) && <NavItem icon={BarChart2} label="Clientes MoM" active={isActive("/estatisticos/clientes-atual-ant")} onClick={() => navigate("/estatisticos/clientes-atual-ant")} />}
+                        {canAccess(404) && <NavItem icon={ArrowLeftRight} label="Comparativo Clientes" active={isActive("/estatisticos/comparativo-clientes")} onClick={() => navigate("/estatisticos/comparativo-clientes")} />}
+                        {canAccess(405) && <NavItem icon={Building2} label="Grupo de Lojas" active={isActive("/estatisticos/grupo-lojas")} onClick={() => navigate("/estatisticos/grupo-lojas")} />}
+                        {canAccess(406) && <NavItem icon={Package} label="Prod Única Compra" active={isActive("/estatisticos/prod-unica-compra")} onClick={() => navigate("/estatisticos/prod-unica-compra")} />}
+                        {canAccess(407) && <NavItem icon={Package} label="Itens Nunca Comprados" active={isActive("/estatisticos/itens-nunca-comprados")} onClick={() => navigate("/estatisticos/itens-nunca-comprados")} />}
+                        {canAccess(408) && <NavItem icon={Calendar} label="Mapa 3 Anos" active={isActive("/estatisticos/mapa-3-anos")} onClick={() => navigate("/estatisticos/mapa-3-anos")} />}
+                        {canAccess(409) && <NavItem icon={BarChart3} label="Mapa Quantidade" active={isActive("/estatisticos/mapa-quantidade")} onClick={() => navigate("/estatisticos/mapa-quantidade")} />}
+                        {canAccess(410) && <NavItem icon={ShoppingCart} label="Últimas Compras" active={isActive("/estatisticos/ultimas-compras")} onClick={() => navigate("/estatisticos/ultimas-compras")} />}
+                        {canAccess(411) && <NavItem icon={UserX} label="Clientes Inativos" active={isActive("/estatisticos/clientes-inativos")} onClick={() => navigate("/estatisticos/clientes-inativos")} />}
+                    </CollapsibleSection>
+                )}
+
+                {/* RELATÓRIOS */}
+                {canAccess(55) && (
+                    <CollapsibleSection
+                        icon={FileText}
+                        title="Relatórios"
+                        isOpen={openSectionId === 'relatorios'}
+                        onToggle={() => handleToggleSection('relatorios')}
+                        accentColor="#F59E0B"
+                    >
+                        {canAccess(551) && <NavItem icon={Database} label="Cadastros" active={isActive("/relatorios/cadastros")} onClick={() => navigate("/relatorios/cadastros")} />}
+                        {canAccess(552) && <NavItem icon={ArrowLeftRight} label="Movimentação" active={isActive("/relatorios/movimentacao")} onClick={() => navigate("/relatorios/movimentacao")} />}
+                        {canAccess(553) && <NavItem icon={DollarSign} label="Financeiro" active={isActive("/relatorios/financeiro")} onClick={() => navigate("/relatorios/financeiro")} />}
+
+                        {canAccess(555) && <NavItem icon={TrendingUp} label="Faturamento" active={isActive("/relatorios/faturamento")} onClick={() => navigate("/relatorios/faturamento")} />}
                     </CollapsibleSection>
                 )}
 
@@ -462,7 +500,7 @@ export const Sidebar = () => {
                     className="w-full flex items-center gap-3 px-4 py-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-300 group mb-3"
                 >
                     <ArrowLeftRight className="w-4 h-4 rotate-180 transform group-hover:scale-110 transition-transform text-slate-400 group-hover:text-rose-500" />
-                    <span className="text-[12px] font-black uppercase tracking-[0.15em]">Sair do Sistema</span>
+                    <span className="text-[13px] font-black uppercase tracking-[0.15em]">Sair do Sistema</span>
                 </motion.button>
 
                 <div className="flex items-center gap-4 p-3 rounded-2xl bg-white border border-slate-200/60 shadow-[0_4px_12px_-4px_rgba(0,0,0,0.08)] group hover:shadow-xl transition-all duration-500 overflow-hidden relative">
@@ -471,24 +509,20 @@ export const Sidebar = () => {
                     </div>
 
                     <div className="flex flex-col overflow-hidden relative z-10">
-                        <p className="text-[11px] font-black text-blue-900 truncate tracking-tight">SoftHam Sistemas</p>
-                        <p className="text-[9px] text-slate-600 font-extrabold tracking-wide mt-0.5">(67) 9.9607-8885</p>
+
+                        <p className="text-[13px] font-black text-blue-900 truncate tracking-tight" title={companyName}>
+                            {companyName || 'Carregando...'}
+                        </p>
+                        <p className="text-[11px] text-slate-600 font-extrabold tracking-wide mt-0.5">Gestão Inteligente</p>
 
                         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                             <div className={cn(
-                                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest",
                                 dbType === 'local' ? "bg-amber-50 text-amber-600 border border-amber-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"
                             )}>
                                 <span className={cn("h-1 w-1 rounded-full animate-pulse", dbType === 'local' ? "bg-amber-500" : "bg-emerald-500")} />
                                 {dbType === 'local' ? 'LOCAL' : 'CLOUD'}
                             </div>
-
-                            {companyName && (
-                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-100 max-w-[120px]">
-                                    <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
-                                    <span className="truncate" title={companyName}>{companyName}</span>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

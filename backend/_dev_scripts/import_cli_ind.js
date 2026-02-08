@@ -12,13 +12,13 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importCliInd() {
     try {
         console.log(`🚀 IMPORTANDO CONDIÇÕES COMERCIAIS (CLI_IND) -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../../data/cli_ind.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../../data/cli_ind.xlsx');
         if (!require('fs').existsSync(filePath)) {
             console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
             return;
@@ -35,7 +35,7 @@ async function importCliInd() {
         try {
             await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_cli_ind_unique ON cli_ind (cli_codigo, cli_forcodigo)');
         } catch (e) {
-            console.log('💡 Índice único já existe ou não pôde ser criado:', e.message);
+            // Ignora se já existir
         }
 
         let imported = 0;
@@ -52,25 +52,26 @@ async function importCliInd() {
                     ON CONFLICT (cli_codigo, cli_forcodigo) DO UPDATE SET
                         cli_desc1 = EXCLUDED.cli_desc1,
                         cli_prazopg = EXCLUDED.cli_prazopg,
-                        cli_tabela = EXCLUDED.cli_tabela
+                        cli_tabela = EXCLUDED.cli_tabela,
+                        cli_comprador = EXCLUDED.cli_comprador
                 `;
 
                 const values = [
-                    row.CLI_CODIGO || 0,
-                    row.CLI_FORCODIGO || 0,
-                    row.CLI_DESC1 || 0,
-                    row.CLI_DESC2 || 0,
-                    row.CLI_DESC3 || 0,
-                    row.CLI_DESC4 || 0,
-                    row.CLI_DESC5 || 0,
-                    row.CLI_DESC6 || 0,
-                    row.CLI_DESC7 || 0,
-                    row.CLI_DESC8 || 0,
-                    row.CLI_DESC9 || 0,
-                    row.CLI_DESC10 || 0,
-                    row.CLI_PRAZOPG || '',
-                    row.CLI_TABELA || '',
-                    row.CLI_COMPRADOR || ''
+                    row.CLI_CODIGO || row.cli_codigo || 0,
+                    row.CLI_FORCODIGO || row.cli_forcodigo || 0,
+                    row.CLI_DESC1 || row.cli_desc1 || 0,
+                    row.CLI_DESC2 || row.cli_desc2 || 0,
+                    row.CLI_DESC3 || row.cli_desc3 || 0,
+                    row.CLI_DESC4 || row.cli_desc4 || 0,
+                    row.CLI_DESC5 || row.cli_desc5 || 0,
+                    row.CLI_DESC6 || row.cli_desc6 || 0,
+                    row.CLI_DESC7 || row.cli_desc7 || 0,
+                    row.CLI_DESC8 || row.cli_desc8 || 0,
+                    row.CLI_DESC9 || row.cli_desc9 || 0,
+                    row.CLI_DESC10 || row.cli_desc10 || 0,
+                    row.CLI_PRAZOPG || row.cli_prazopg || '',
+                    row.CLI_TABELA || row.cli_tabela || '',
+                    row.CLI_COMPRADOR || row.cli_comprador || ''
                 ];
 
                 await pool.query(query, values);

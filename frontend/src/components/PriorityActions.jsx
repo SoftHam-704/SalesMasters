@@ -9,18 +9,28 @@ import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const API_URL = PYTHON_API_URL;
 
-const PriorityActions = () => {
+const PriorityActions = ({ filters, refreshTrigger }) => {
     const [actions, setActions] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchActions();
-    }, []);
+    }, [filters?.ano, filters?.mes, filters?.industria, filters?.startDate, filters?.endDate, refreshTrigger]);
 
     const fetchActions = async () => {
+        setLoading(true);
         try {
+            const industryId = filters?.industria === 'Todos' ? null : filters?.industria;
             const url = getApiUrl(API_URL, '/api/dashboard/analytics/priority-actions');
-            const res = await axios.get(url);
+            const res = await axios.get(url, {
+                params: {
+                    ano: filters?.ano,
+                    mes: filters?.mes,
+                    industryId: industryId,
+                    startDate: filters?.startDate,
+                    endDate: filters?.endDate
+                }
+            });
             if (res.data.success) {
                 setActions(res.data.data);
             }

@@ -29,7 +29,7 @@ const monthsMap = {
     'Dezembro': '12'
 };
 
-const IndustriasTab = ({ filters }) => {
+const IndustriasTab = ({ filters, refreshTrigger }) => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
     const [topIndustries, setTopIndustries] = useState([]);
@@ -63,9 +63,11 @@ const IndustriasTab = ({ filters }) => {
                     const detailsRes = await axios.get(detailsUrl, {
                         params: {
                             ano: filters.ano,
-                            mes: monthsMap[filters.mes] || 'Todos',
+                            mes: filters.mes,
                             industryId: targetId,
-                            metrica: filters.metrica || 'valor'
+                            metrica: filters.metrica || 'valor',
+                            startDate: filters.startDate,
+                            endDate: filters.endDate
                         }
                     });
                     if (detailsRes.data?.success) {
@@ -80,7 +82,7 @@ const IndustriasTab = ({ filters }) => {
         };
 
         fetchData();
-    }, [filters.ano, filters.mes, filters.industria, filters.metrica]);
+    }, [filters.ano, filters.mes, filters.industria, filters.metrica, filters.startDate, filters.endDate, refreshTrigger]);
 
     if (loading) {
         return (
@@ -312,7 +314,7 @@ const IndustriasTab = ({ filters }) => {
                     {/* Lollipop Chart Container */}
                     <div className="bg-slate-50 rounded-lg h-[120px] p-2 border border-slate-100 relative">
                         <div className="flex justify-center items-center">
-                            <p className="text-md font-bold text-slate-500">Clientes atendidos ({formatNumber(Object.values(clients.matrix).reduce((a, b) => a + b.val, 0))})</p>
+                            <p className="text-md font-bold text-slate-500">Clientes atendidos ({formatNumber(Object.values(clients?.matrix || {}).reduce((a, b) => a + (b?.val || 0), 0))})</p>
                         </div>
                         <LollipopChart data={clients.lollipop} />
                     </div>
@@ -327,39 +329,61 @@ const IndustriasTab = ({ filters }) => {
                 </div>
 
                 {/* 2. Monthly Sales Chart (Col 5) */}
-                <div className="col-span-5 bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col">
-                    <div className="flex justify-center items-center mb-2">
-                        <h3 className="text-md font-bold text-[#0077b6]">📈 Desempenho Mensal</h3>
-                    </div>
-                    {/* Subtitle/Delta */}
-                    <p className={`text-xs font-bold text-center mb-4 ${funnel.vendas.delta < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {funnel.vendas.delta < 0 ? '↓' : '↑'} {Math.abs(funnel.vendas.delta).toFixed(1)}% (vs ano anterior)
-                    </p>
+                <div className="col-span-5 bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex flex-col relative overflow-hidden group hover:shadow-md transition-all duration-300">
+                    {/* Background Decorative Element */}
+                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-emerald-50 rounded-full blur-3xl group-hover:bg-emerald-100/50 transition-colors duration-700"></div>
 
-                    <div className="flex-1 w-full min-h-0">
+                    <div className="flex justify-between items-center mb-4 relative z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1 h-4 bg-emerald-500 rounded-full"></div>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest font-['Roboto']">Desempenho Mensal</h3>
+                        </div>
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-black ${funnel.vendas.delta < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {funnel.vendas.delta < 0 ? '↓' : '↑'} {Math.abs(funnel.vendas.delta).toFixed(1)}% YOY
+                        </div>
+                    </div>
+
+                    <div className="flex-1 w-full min-h-0 relative z-10">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthly_sales}>
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
-                                <Tooltip
-                                    cursor={{ fill: '#f8fafc' }}
-                                    formatter={(Val) => [
-                                        filters.metrica === 'valor' ? formatCurrency(Val) : formatNumber(Val),
-                                        filters.metrica ? filters.metrica.charAt(0).toUpperCase() + filters.metrica.slice(1) : 'Valor'
-                                    ]}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            <BarChart data={monthly_sales} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="barGradientPositive" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                                        <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                                    </linearGradient>
+                                    <linearGradient id="barGradientNegative" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+                                        <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.8} />
+                                    </linearGradient>
+                                </defs>
+                                <XAxis
+                                    dataKey="name"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 9, fill: '#64748b', fontWeight: 700 }}
                                 />
-                                <Bar dataKey="vendas" radius={[4, 4, 0, 0]}>
+                                <Tooltip
+                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                    content={<CustomChartTooltip filters={filters} />}
+                                    animationDuration={200}
+                                />
+                                <Bar
+                                    dataKey="vendas"
+                                    radius={[2, 2, 0, 0]}
+                                    animationBegin={200}
+                                    animationDuration={1200}
+                                >
                                     {monthly_sales.map((entry, index) => (
                                         <Cell
                                             key={`cell-${index}`}
-                                            fill={entry.is_negative ? '#ef4444' : '#15803d'}
+                                            fill={entry.is_negative ? 'url(#barGradientNegative)' : 'url(#barGradientPositive)'}
+                                            className="hover:filter hover:brightness-125 transition-all duration-300"
                                         />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-
                 </div>
 
                 {/* 3. Orders Table (Col 4) */}
@@ -394,6 +418,42 @@ const IndustriasTab = ({ filters }) => {
             </div>
         </div>
     );
+};
+
+// Custom Tooltip for the Premium Chart
+const CustomChartTooltip = ({ active, payload, label, filters }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        const value = payload[0].value;
+        const prevValue = data.vendas_ly;
+        const diff = prevValue > 0 ? ((value - prevValue) / prevValue) * 100 : 0;
+
+        return (
+            <div className="bg-white/95 backdrop-blur-md border border-slate-100 p-3 shadow-xl rounded-lg ring-1 ring-slate-200/50">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-2 border-b border-slate-100 pb-1">Mês: {label}</p>
+                <div className="space-y-2">
+                    <div>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase">Atual</p>
+                        <p className="text-sm font-black text-slate-800">
+                            {filters.metrica === 'valor' ? formatCurrency(value) : formatNumber(value)}
+                        </p>
+                    </div>
+                    {prevValue > 0 && (
+                        <div>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase">LY (Ano Anterior)</p>
+                            <p className="text-xs font-bold text-slate-500">
+                                {filters.metrica === 'valor' ? formatCurrency(prevValue) : formatNumber(prevValue)}
+                            </p>
+                            <div className={`inline-flex items-center px-1.5 py-0.5 rounded-sm text-[8px] font-black mt-1 ${diff >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                {diff >= 0 ? '▲ +' : '▼ '}{diff.toFixed(1)}%
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+    return null;
 };
 
 // Sub-component for Client Matrix Cards

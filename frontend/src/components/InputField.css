@@ -1,27 +1,31 @@
+/* Shared Label Styling - The "Floating" Look */
+.field-label {
+    position: absolute;
+    top: -8px;
+    left: 14px;
+    background: white;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #1e293b;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    z-index: 10;
+    transition: 0.2s;
+}
+
 .input-field {
     display: flex;
     flex-direction: column;
     width: 100%;
-    margin-bottom: 16px;
     position: relative;
-}
-
-/* Label Styling - The "Student App" Look */
-.input-field label {
-    font-size: 0.75rem; /* 12px */
-    font-weight: 800; /* Extra bold */
-    text-transform: uppercase;
-    color: #475569; /* Slate 600 - High contrast but not black */
-    margin-bottom: 6px;
-    letter-spacing: 0.05em; /* Tracking wider */
-    display: block;
-    user-select: none;
 }
 
 /* Input Styling */
 .input-field input {
     width: 100%;
-    height: 48px; /* Taller inputs (h-12) */
+    height: 50px; /* Force 50px */
     padding: 0 16px;
     border-radius: 8px; /* Slightly less rounded than before for a sharper look */
     border: 1px solid #cbd5e1; /* Slate 300 - Visible border */

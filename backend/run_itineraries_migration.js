@@ -5,20 +5,20 @@ const fs = require('fs');
 const path = require('path');
 
 const MASTER_CONFIG = {
-    host: process.env.MASTER_DB_HOST || '10.100.28.17',
+    host: process.env.MASTER_DB_HOST || 'localhost',
     port: parseInt(process.env.MASTER_DB_PORT || '5432'),
     database: process.env.MASTER_DB_DATABASE || 'basesales',
-    user: process.env.MASTER_DB_USER || 'webadmin',
-    password: process.env.MASTER_DB_PASSWORD || 'ytAyO0u043',
+    user: process.env.MASTER_DB_USER || 'postgres',
+    password: process.env.MASTER_DB_PASSWORD || '@12Pilabo',
     ssl: false
 };
 
 const TENANT_CONFIG = {
-    host: '10.100.28.17',
-    port: 5432,
-    database: 'basesales',
-    user: 'webadmin',
-    password: 'ytAyO0u043',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'basesales',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '@12Pilabo',
     ssl: false
 };
 
@@ -33,7 +33,14 @@ async function runMigrationForSchema(schemaName) {
         const sql = fs.readFileSync(sqlPath, 'utf8');
 
         await pool.query(sql);
-        console.log(`   ✅ ${schemaName}: Tabelas de itinerários criadas!`);
+
+        // Também garante campanhas e setores no schema
+        const sqlCamp = fs.readFileSync(path.join(__dirname, 'migrations', 'create_campaigns_table.sql'), 'utf8');
+        await pool.query(sqlCamp);
+        const sqlSet = fs.readFileSync(path.join(__dirname, 'migrations', 'create_setores_table.sql'), 'utf8');
+        await pool.query(sqlSet);
+
+        console.log(`   ✅ ${schemaName}: Tabelas criadas!`);
 
         await pool.end();
         return true;
@@ -57,6 +64,23 @@ async function main() {
 
         const schemas = result.rows.map(r => r.db_schema);
         console.log(`📋 Schemas encontrados: ${schemas.join(', ')}\n`);
+
+        // Adiciona 'public' do Master DB para garantir fallback funcional
+        console.log(`📡 Criando tabelas no PUBLIC do Master DB para fallback...`);
+        const masterMigrationPool = new Pool(MASTER_CONFIG);
+        try {
+            const sql = fs.readFileSync(path.join(__dirname, 'migrations', 'create_itineraries_table.sql'), 'utf8');
+            await masterMigrationPool.query(sql);
+            const sqlCamp = fs.readFileSync(path.join(__dirname, 'migrations', 'create_campaigns_table.sql'), 'utf8');
+            await masterMigrationPool.query(sqlCamp);
+            const sqlSet = fs.readFileSync(path.join(__dirname, 'migrations', 'create_setores_table.sql'), 'utf8');
+            await masterMigrationPool.query(sqlSet);
+            console.log(`   ✅ Master DB (public): Tabelas criadas!`);
+        } catch (e) {
+            console.log(`   ⚠️ Master DB: ${e.message}`);
+        } finally {
+            await masterMigrationPool.end();
+        }
 
         let success = 0;
         let failed = 0;

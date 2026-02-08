@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     Upload, AlertCircle, CheckCircle2, Info, Sparkles, X, FileSpreadsheet,
-    Calendar, Factory, Tag, Package, FileText, Barcode, ChevronLeft, ChevronRight
+    Calendar, Factory, Tag, Package, FileText, Barcode, ChevronLeft, ChevronRight, Plus
 } from 'lucide-react';
 import InputField from '../InputField';
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
@@ -36,9 +36,8 @@ const smartSplit = (text) => {
                     currentCell = line;
                 }
             } else {
-                if (line.trim() !== '') {
-                    rows.push(line.trim());
-                }
+                // Keep empty lines to maintain alignment
+                rows.push(line.trim());
             }
         } else {
             adjustedCount++;
@@ -62,7 +61,12 @@ const smartSplit = (text) => {
             val = val.substring(1, val.length - 1);
         }
         return val.replace(/""/g, '"').replace(/\n/g, ' ').trim();
-    }).filter(r => r !== '');
+    });
+
+    // Remove trailing empty lines that often come from pasting
+    while (processedLines.length > 0 && processedLines[processedLines.length - 1] === '') {
+        processedLines.pop();
+    }
 
     return { lines: processedLines, adjustedCount };
 };
@@ -94,6 +98,7 @@ const PriceTableImport = () => {
         peso: '',
         ipi: '',
         st: '',
+        prepeso: '',
         codigooriginal: '',
         codbarras: '',
         descontoadd: '',
@@ -112,6 +117,7 @@ const PriceTableImport = () => {
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
+    const [showNewTableInput, setShowNewTableInput] = useState(false);
 
     // Tab definitions
     const tabs = [
@@ -128,7 +134,7 @@ const PriceTableImport = () => {
             label: 'Detalhes do Produto',
             icon: FileText,
             color: 'blue',
-            fields: ['grupo', 'aplicacao', 'embalagem', 'peso', 'ipi', 'st']
+            fields: ['grupo', 'aplicacao', 'embalagem', 'peso', 'prepeso', 'ipi', 'st']
         },
         {
             id: 2,
@@ -150,6 +156,7 @@ const PriceTableImport = () => {
         aplicacao: { label: 'Aplicação', required: false, wide: true },
         embalagem: { label: 'Embalagem', required: false },
         peso: { label: 'Peso', required: false },
+        prepeso: { label: 'Preço por Peso/Qtd', required: false },
         ipi: { label: '% IPI', required: false },
         st: { label: '% ST', required: false },
         codigooriginal: { label: 'Código Original', required: false },
@@ -197,29 +204,46 @@ const PriceTableImport = () => {
                 .then(data => {
                     if (data.success) {
                         setExistingTables(data.data);
+                        if (data.data.length === 0) {
+                            setShowNewTableInput(true);
+                        }
                     }
                 })
                 .catch(err => console.error('Erro ao carregar tabelas:', err));
         } else {
             setExistingTables([]);
+            setShowNewTableInput(false);
         }
     }, [formData.industria]);
 
     useEffect(() => {
         const counts = {};
         const adjs = {};
+        const rawCounts = {};
+
         Object.keys(textareas).forEach(key => {
             const { lines, adjustedCount } = smartSplit(textareas[key]);
-            counts[key] = lines.length;
+            rawCounts[key] = lines.length;
+
+            // For Código: count only non-empty lines (as requested)
+            if (key === 'codigo') {
+                counts[key] = lines.filter(l => l.trim() !== '').length;
+            } else {
+                // For others: count all lines (as requested)
+                counts[key] = lines.length;
+            }
             adjs[key] = adjustedCount;
         });
+
         setLineCounts(counts);
         setAdjustments(adjs);
 
-        const nonEmptyCounts = Object.values(counts).filter(count => count > 0);
-        const allEqual = nonEmptyCounts.length > 0 &&
-            nonEmptyCounts.every(count => count === nonEmptyCounts[0]);
-        setIsValid(allEqual && nonEmptyCounts[0] > 0);
+        // Validation: All active fields must have the same RAW line count for alignment
+        const activeFields = Object.keys(textareas).filter(key => rawCounts[key] > 0);
+        const allEqual = activeFields.length > 0 &&
+            activeFields.every(key => rawCounts[key] === rawCounts[activeFields[0]]);
+
+        setIsValid(allEqual && rawCounts.codigo > 0);
     }, [textareas]);
 
     const handleTextareaChange = (field, value) => {
@@ -241,7 +265,7 @@ const PriceTableImport = () => {
         }
 
         if (!isValid) {
-            alert('Os campos não têm o mesmo número de linhas!');
+            alert('Os campos não têm o mesmo número de linhas para alinhamento!');
             return;
         }
 
@@ -249,8 +273,13 @@ const PriceTableImport = () => {
         setResult(null);
 
         try {
-            const { lines: linhasCodigo } = smartSplit(textareas.codigo);
-            const totalProdutos = linhasCodigo.length;
+            // Split all fields first to avoid O(N^2) complexity and ensure alignment
+            const splitted = {};
+            Object.keys(textareas).forEach(key => {
+                splitted[key] = smartSplit(textareas[key]).lines;
+            });
+
+            const linesCodigo = splitted.codigo;
 
             const parseValue = (val) => {
                 if (!val) return 0;
@@ -261,14 +290,15 @@ const PriceTableImport = () => {
                 return parseFloat(cleaned.replace(',', '.')) || 0;
             };
 
-            const produtos = linhasCodigo.map((_, index) => {
-                const getLinha = (field) => {
-                    const { lines } = smartSplit(textareas[field]);
-                    return lines[index] || '';
-                };
+            const produtos = [];
+            for (let i = 0; i < linesCodigo.length; i++) {
+                const code = linesCodigo[i];
+                if (!code || code.trim() === '') continue; // Skip lines with empty code
 
-                return {
-                    codigo: getLinha('codigo'),
+                const getLinha = (field) => (splitted[field] && splitted[field][i]) || '';
+
+                produtos.push({
+                    codigo: code,
                     complemento: getLinha('complemento'),
                     descricao: getLinha('nome'),
                     precobruto: parseValue(getLinha('precobruto')),
@@ -276,8 +306,9 @@ const PriceTableImport = () => {
                     precoespecial: parseValue(getLinha('precoespecial')),
                     grupo: getLinha('grupo'),
                     aplicacao: getLinha('aplicacao'),
-                    embalagem: parseInt(getLinha('embalagem').replace(/\D/g, '')) || 1,
+                    embalagem: parseInt(getLinha('embalagem').toString().replace(/\D/g, '')) || 1,
                     peso: parseValue(getLinha('peso')),
+                    prepeso: parseValue(getLinha('prepeso')),
                     ipi: parseValue(getLinha('ipi')),
                     st: parseValue(getLinha('st')),
                     codigooriginal: getLinha('codigooriginal'),
@@ -287,8 +318,10 @@ const PriceTableImport = () => {
                     curva: getLinha('curva'),
                     categoria: getLinha('categoria'),
                     conversao: getLinha('conversao')
-                };
-            });
+                });
+            }
+
+            const totalProdutos = produtos.length;
 
             const TAMANHO_LOTE = 200;
             const lotes = [];
@@ -366,13 +399,13 @@ const PriceTableImport = () => {
     };
 
     const getLineCountColor = (field) => {
-        const count = lineCounts[field] || 0;
-        if (count === 0) return 'text-slate-400';
+        const currentFieldCount = (smartSplit(textareas[field]).lines).length;
+        if (currentFieldCount === 0) return 'text-slate-400';
 
-        const nonZeroCounts = Object.values(lineCounts).filter(c => c > 0);
-        const maxCount = Math.max(...nonZeroCounts);
+        const rawCodigoCount = (smartSplit(textareas.codigo).lines).length;
 
-        return count === maxCount ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+        // Use total raw lines for comparison, not the filtered count
+        return currentFieldCount === rawCodigoCount ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
     };
 
     // Get count for each tab
@@ -445,7 +478,7 @@ const PriceTableImport = () => {
             precopromo: '', precoespecial: '', grupo: '', aplicacao: '',
             embalagem: '', peso: '', ipi: '', st: '', codigooriginal: '',
             codbarras: '', descontoadd: '', ncm: '', curva: '',
-            categoria: '', conversao: ''
+            categoria: '', conversao: '', prepeso: ''
         });
         setResult(null);
     };
@@ -531,22 +564,33 @@ const PriceTableImport = () => {
 
                             {/* Nome da Tabela */}
                             <div className="col-span-12 lg:col-span-3">
-                                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-2">
-                                    <Tag className="w-4 h-4 text-blue-600" />
-                                    Nome da Tabela *
+                                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Tag className="w-4 h-4 text-blue-600" />
+                                        {showNewTableInput ? 'Nome da Nova Tabela *' : 'Nome da Tabela *'}
+                                    </div>
+                                    {formData.industria && existingTables.length > 0 && !showNewTableInput && (
+                                        <button
+                                            onClick={() => setShowNewTableInput(true)}
+                                            className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1 transition-colors"
+                                        >
+                                            <Plus size={12} /> NOVA
+                                        </button>
+                                    )}
                                 </Label>
-                                {formData.industria && existingTables.length > 0 ? (
+                                {formData.industria && existingTables.length > 0 && !showNewTableInput ? (
                                     <Select
                                         value={formData.nomeTabela}
                                         onValueChange={(val) => {
                                             if (val === '__NEW__') {
                                                 setFormData({ ...formData, nomeTabela: '' });
+                                                setShowNewTableInput(true);
                                             } else {
                                                 setFormData({ ...formData, nomeTabela: val });
                                             }
                                         }}
                                     >
-                                        <SelectTrigger className="h-12 rounded-xl border-2 border-slate-200 bg-white uppercase font-bold hover:border-blue-400 transition-colors">
+                                        <SelectTrigger className="h-12 rounded-xl border-2 border-slate-200 bg-white uppercase font-bold hover:border-blue-400 transition-colors text-black">
                                             <SelectValue placeholder="Selecione..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -566,14 +610,31 @@ const PriceTableImport = () => {
                                         </SelectContent>
                                     </Select>
                                 ) : (
-                                    <input
-                                        type="text"
-                                        value={formData.nomeTabela}
-                                        onChange={(e) => setFormData({ ...formData, nomeTabela: e.target.value.toUpperCase() })}
-                                        placeholder="Ex: PADRAO, PROMOCIONAL"
-                                        className="w-full h-12 px-4 rounded-xl border-2 border-slate-200 bg-white uppercase font-bold text-slate-800 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all hover:border-emerald-400"
-                                        disabled={!formData.industria}
-                                    />
+                                    <div className="relative group">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                            <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={formData.nomeTabela}
+                                            onChange={(e) => setFormData({ ...formData, nomeTabela: e.target.value.toUpperCase() })}
+                                            placeholder="Ex: PADRAO, PROMOCIONAL..."
+                                            className="w-full h-12 pl-10 pr-10 rounded-xl border-2 border-emerald-200 bg-white uppercase font-bold text-slate-800 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-sm"
+                                            disabled={!formData.industria}
+                                        />
+                                        {existingTables.length > 0 && (
+                                            <button
+                                                onClick={() => {
+                                                    setShowNewTableInput(false);
+                                                    setFormData({ ...formData, nomeTabela: '' });
+                                                }}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                                title="Voltar para seleção"
+                                            >
+                                                <X size={20} />
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 
@@ -824,23 +885,65 @@ const PriceTableImport = () => {
                             <AlertDescription className={result.success ? 'text-emerald-800' : 'text-red-800'}>
                                 <strong className="text-lg">{result.message}</strong>
                                 {result.resumo && (
-                                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="p-4 bg-white rounded-xl border-2 border-slate-200">
-                                            <p className="text-xs text-slate-500 uppercase font-bold">Total</p>
-                                            <p className="text-2xl font-black text-slate-800">{result.resumo.total}</p>
+                                    <div className="mt-4 space-y-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <div className="p-4 bg-white rounded-xl border-2 border-slate-200">
+                                                <p className="text-xs text-slate-500 uppercase font-bold">Total</p>
+                                                <p className="text-2xl font-black text-slate-800">{result.resumo.total}</p>
+                                            </div>
+                                            <div className="p-4 bg-white rounded-xl border-2 border-emerald-200">
+                                                <p className="text-xs text-emerald-600 uppercase font-bold">Inseridos</p>
+                                                <p className="text-2xl font-black text-emerald-700">{result.resumo.inseridos}</p>
+                                            </div>
+                                            <div className="p-4 bg-white rounded-xl border-2 border-blue-200">
+                                                <p className="text-xs text-blue-600 uppercase font-bold">Atualizados</p>
+                                                <p className="text-2xl font-black text-blue-700">{result.resumo.atualizados}</p>
+                                            </div>
+                                            {result.resumo.erros > 0 && (
+                                                <div className="p-4 bg-white rounded-xl border-2 border-red-200">
+                                                    <p className="text-xs text-red-600 uppercase font-bold">Erros</p>
+                                                    <p className="text-2xl font-black text-red-700">{result.resumo.erros}</p>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="p-4 bg-white rounded-xl border-2 border-emerald-200">
-                                            <p className="text-xs text-emerald-600 uppercase font-bold">Inseridos</p>
-                                            <p className="text-2xl font-black text-emerald-700">{result.resumo.inseridos}</p>
-                                        </div>
-                                        <div className="p-4 bg-white rounded-xl border-2 border-blue-200">
-                                            <p className="text-xs text-blue-600 uppercase font-bold">Atualizados</p>
-                                            <p className="text-2xl font-black text-blue-700">{result.resumo.atualizados}</p>
-                                        </div>
-                                        {result.resumo.erros > 0 && (
-                                            <div className="p-4 bg-white rounded-xl border-2 border-red-200">
-                                                <p className="text-xs text-red-600 uppercase font-bold">Erros</p>
-                                                <p className="text-2xl font-black text-red-700">{result.resumo.erros}</p>
+
+                                        {result.resumo.detalhesErros && result.resumo.detalhesErros.length > 0 && (
+                                            <div className="mt-4 bg-white rounded-xl border-2 border-red-100 overflow-hidden">
+                                                <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex justify-between items-center">
+                                                    <span className="text-xs font-black text-red-700 uppercase tracking-widest">Relatório de Inconsistências</span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 text-[10px] font-bold text-red-600 hover:bg-red-100"
+                                                        onClick={() => {
+                                                            const text = result.resumo.detalhesErros.map(e => `${e.codigo}\t${e.descricao}\t${e.erro}`).join('\n');
+                                                            navigator.clipboard.writeText(`Código\tDescrição\tErro\n${text}`);
+                                                            toast.success('Lista de erros copiada!');
+                                                        }}
+                                                    >
+                                                        Copiar Erros
+                                                    </Button>
+                                                </div>
+                                                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead className="bg-slate-50 sticky top-0">
+                                                            <tr>
+                                                                <th className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">Cód</th>
+                                                                <th className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">Descrição</th>
+                                                                <th className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100">Erro</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-50">
+                                                            {result.resumo.detalhesErros.map((erro, idx) => (
+                                                                <tr key={idx} className="hover:bg-red-50/30 transition-colors">
+                                                                    <td className="px-4 py-2 text-xs font-mono font-bold text-slate-700">{erro.codigo}</td>
+                                                                    <td className="px-4 py-2 text-xs text-slate-600 truncate max-w-[200px]">{erro.descricao}</td>
+                                                                    <td className="px-4 py-2 text-xs text-red-500 font-medium italic">{erro.erro}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

@@ -42,8 +42,16 @@ const DashboardAlertPanel = ({ userName, userInitials, onLogout, onOpenAgenda })
 
     const fetchResumo = async () => {
         try {
+            const userStr = sessionStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            const userId = user?.id || '1';
+            const empresaId = user?.empresa_id || '1';
+
             const response = await fetch(getApiUrl(NODE_API_URL, '/api/agenda/resumo'), {
-                headers: { 'x-user-id': sessionStorage.getItem('userId') || '1' }
+                headers: {
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                }
             });
             const data = await response.json();
             if (data.success) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../lib/axios';
-import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity } from 'lucide-react';
+import { LayoutDashboard, Zap, Users, Building2, BarChart2, TrendingUp, Target, UserCircle, Package, Activity, RefreshCw, HelpCircle, Info } from 'lucide-react';
 import OverviewTab from './BI/tabs/OverviewTab';
 import IndustriasTab from './BI/tabs/IndustriasTab';
 import ClientesTab from './BI/tabs/ClientesTab';
@@ -20,34 +20,69 @@ const IntelligencePage = () => {
     const [activePage, setActivePage] = useState('VISAO_GERAL');
     const [user, setUser] = useState({ name: 'Usuário', avatar: null });
 
+    // Lazy Loading State: Mantém registro de quais abas já foram abertas para não destruir o estado ao trocar
+    const [visitedTabs, setVisitedTabs] = useState(new Set(['VISAO_GERAL']));
+
+    useEffect(() => {
+        setVisitedTabs(prev => {
+            if (prev.has(activePage)) return prev;
+            return new Set(prev).add(activePage);
+        });
+    }, [activePage]);
+
     // Filter states
     const [filters, setFilters] = useState({
         ano: 2025,
         mes: 'Todos',
         industria: 'Todos',
         cliente: 'Todos',
-        metrica: 'valor'
+        metrica: 'valor',
+        considerarAnoTodo: false,
+        redeDeLojas: false
     });
 
     const [industryOptions, setIndustryOptions] = useState([]);
     const [clientOptions, setClientOptions] = useState([]);
+    const [refreshTrigger, setRefreshTrigger] = useState(Date.now());
+
+    const handleRefresh = () => {
+        setRefreshTrigger(Date.now());
+    };
 
     useEffect(() => {
+        let retryCount = 0;
+        const maxRetries = 3;
+
         const fetchFilters = async () => {
             try {
                 // Fetch full list for dropdowns
                 const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/filters-options');
                 const res = await axios.get(url);
+
+                // BUG FIX: Se as indústrias voltarem vazias em um ambiente populado, 
+                // pode ser um "cold start" ou delay na conexão do tenant após restart.
+                // Forçamos um retry automático para melhorar a experiência (UX).
+                if ((!res.data || !res.data.industries || res.data.industries.length === 0) && retryCount < maxRetries) {
+                    retryCount++;
+                    console.warn(`[BI] Indústrias vazias. Tentando novamente (${retryCount}/${maxRetries}) em 2s...`);
+                    setTimeout(fetchFilters, 2000);
+                    return;
+                }
+
                 if (res.data) {
                     setIndustryOptions(res.data.industries || []);
                     setClientOptions(res.data.clients || []);
                 }
             } catch (err) {
                 console.error("Failed to fetch filter options", err);
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    setTimeout(fetchFilters, 3000);
+                }
             }
         };
         fetchFilters();
-    }, []);
+    }, [refreshTrigger]);
 
     const menuItems = [
         { id: 'VISAO_GERAL', label: 'Visão Geral', icon: <LayoutDashboard size={20} />, color: 'text-white' },
@@ -151,102 +186,241 @@ const IntelligencePage = () => {
                 </div>
 
                 {/* Right: Filter Controls */}
-                <div className="flex items-center gap-3">
-                    {/* Year */}
-                    <select
-                        value={filters.ano}
-                        onChange={(e) => setFilters(p => ({ ...p, ano: e.target.value }))}
-                        className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
-                    >
-                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                {/* Right: Filter Controls - Enhanced with Hints */}
+                <div className="flex items-center gap-6">
+                    {/* Year & Global Year Checkbox - Refactor: Button Slicer */}
+                    <div className="flex flex-col gap-1.5 min-w-[130px]">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Referência</label>
+                            <div className="flex items-center gap-1">
+                                {YEARS.slice(0, 4).map(y => (
+                                    <button
+                                        key={y}
+                                        onClick={() => setFilters(p => ({ ...p, ano: y }))}
+                                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all ${parseInt(filters.ano) === y
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-200 border-blue-600'
+                                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+                                            }`}
+                                    >
+                                        {y}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                    {/* Month */}
-                    <select
-                        value={filters.mes}
-                        onChange={(e) => setFilters(p => ({ ...p, mes: e.target.value }))}
-                        className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
-                    >
-                        {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
+                        <label className="flex items-center gap-2 cursor-pointer group px-1">
+                            <div className="relative flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.considerarAnoTodo}
+                                    onChange={(e) => setFilters(p => ({ ...p, considerarAnoTodo: e.target.checked }))}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-3.5 h-3.5 bg-white border-2 border-slate-200 rounded peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all"></div>
+                                <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-[2px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                                    <path d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight group-hover:text-blue-600 transition-colors">Ano Todo</span>
+                        </label>
 
-                    {/* Industry - Hidden on Visão Geral */}
+                        <label className="flex items-center gap-2 cursor-pointer group px-1 ml-4 border-l border-slate-100 pl-4">
+                            <div className="relative flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={filters.redeDeLojas}
+                                    onChange={(e) => setFilters(p => ({ ...p, redeDeLojas: e.target.checked }))}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-3.5 h-3.5 bg-white border-2 border-slate-200 rounded peer-checked:bg-indigo-600 peer-checked:border-indigo-600 transition-all"></div>
+                                <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-[2px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                                    <path d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">Rede de Lojas</span>
+                        </label>
+                    </div>
+
+                    {/* Period (Date Range) */}
+                    <div className={`flex flex-col gap-1.5 transition-opacity ${filters.considerarAnoTodo ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                        <div className="flex items-center gap-1.5 px-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Período</label>
+                            <div className="group relative">
+                                <Info size={10} className="text-slate-300 cursor-help" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                    Selecione o intervalo de datas para análise.
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="date"
+                                value={filters.startDate || `${filters.ano}-01-01`}
+                                onChange={(e) => setFilters(p => ({ ...p, startDate: e.target.value }))}
+                                className="font-['Roboto'] text-[10px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                            />
+                            <span className="text-slate-300 text-[10px]">até</span>
+                            <input
+                                type="date"
+                                value={filters.endDate || `${filters.ano}-12-31`}
+                                onChange={(e) => setFilters(p => ({ ...p, endDate: e.target.value }))}
+                                className="font-['Roboto'] text-[10px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Industry Selector */}
                     {showClientFilter && (
-                        <select
-                            value={filters.industria}
-                            onChange={(e) => setFilters(p => ({ ...p, industria: e.target.value }))}
-                            className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
-                        >
-                            <option value="Todos">Indústrias</option>
-                            {industryOptions.map(ind => (
-                                <option key={ind.for_codigo} value={ind.for_codigo}>
-                                    {ind.for_nomered}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 px-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Indústria</label>
+                                    <div className="group relative">
+                                        <HelpCircle size={10} className="text-slate-300 cursor-help" />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                            Filtre os dados por uma marca/fornecedor específico.
+                                        </div>
+                                    </div>
+                                </div>
+                                <select
+                                    value={filters.industria}
+                                    onChange={(e) => setFilters(p => ({ ...p, industria: e.target.value }))}
+                                    className="font-['Roboto'] text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors min-w-[140px]"
+                                >
+                                    <option value="Todos">Todas Indústrias</option>
+                                    {industryOptions.map(ind => (
+                                        <option key={ind.for_codigo} value={ind.for_codigo}>
+                                            {ind.for_nomered}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                     )}
 
-                    {/* Client - Hidden on Visão Geral */}
+                    {/* Client Selector */}
                     {showClientFilter && (
-                        <select
-                            value={filters.cliente}
-                            onChange={(e) => setFilters(p => ({ ...p, cliente: e.target.value }))}
-                            className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
-                        >
-                            <option value="Todos">Clientes</option>
-                            {clientOptions.map(cli => (
-                                <option key={cli.cli_codigo} value={cli.cli_codigo}>
-                                    {cli.cli_nomred}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 px-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cliente</label>
+                                    <div className="group relative">
+                                        <HelpCircle size={10} className="text-slate-300 cursor-help" />
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                            Visualize o comportamento de um cliente individual ou grupo.
+                                        </div>
+                                    </div>
+                                </div>
+                                <select
+                                    value={filters.cliente}
+                                    onChange={(e) => setFilters(p => ({ ...p, cliente: e.target.value }))}
+                                    className="font-['Roboto'] text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors min-w-[140px]"
+                                >
+                                    <option value="Todos">Todos Clientes</option>
+                                    {clientOptions.map(cli => (
+                                        <option key={cli.cli_codigo} value={cli.cli_codigo}>
+                                            {cli.cli_nomred}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                     )}
 
-                    {/* Metric */}
-                    <select
-                        value={filters.metrica}
-                        onChange={(e) => setFilters(p => ({ ...p, metrica: e.target.value }))}
-                        className="font-['Roboto'] text-xs font-medium text-slate-600 bg-transparent border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 cursor-pointer"
-                    >
-                        <option value="valor">Valor</option>
-                        <option value="quantidade">Quantidade</option>
-                        <option value="unidades">Unidades</option>
-                    </select>
+                    {/* Metric Selector */}
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Visão</label>
+                                <div className="group relative">
+                                    <Info size={10} className="text-slate-300 cursor-help" />
+                                    <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                                        Alterne entre valores financeiros ou volume físico.
+                                    </div>
+                                </div>
+                            </div>
+                            <select
+                                value={filters.metrica}
+                                onChange={(e) => setFilters(p => ({ ...p, metrica: e.target.value }))}
+                                className="font-['Roboto'] text-[11px] font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                            >
+                                <option value="valor">Financeiro (R$)</option>
+                                <option value="quantidade">Volume (Qtd)</option>
+                                <option value="unidades">Unidades (Un)</option>
+                            </select>
+                        </div>
+                    </div>
 
-                    {/* Real-time indicator */}
-                    <div className="flex items-center gap-1.5 ml-2 text-emerald-600">
-                        <Activity size={14} className="animate-pulse" />
-                        <span className="font-['Roboto'] text-[10px] font-medium uppercase tracking-wide">Real-time Data</span>
+                    {/* Real-time indicator & Refresh Button */}
+                    <div className="flex flex-col gap-1 items-end">
+                        <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 mb-1">
+                            <Activity size={10} className="animate-pulse" />
+                            <span className="font-['Roboto'] text-[9px] font-black uppercase tracking-widest">Live Flow</span>
+                        </div>
+
+                        <button
+                            onClick={handleRefresh}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 transition-all text-xs font-bold uppercase tracking-wider group active:scale-95 border border-blue-500/50"
+                        >
+                            <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500 text-white" />
+                            <span className="!text-white">Atualizar</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
             {/* Central Panel - Fixed Height with Internal Scroll */}
-            <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-50">
-                {activePage === 'VISAO_GERAL' && (
-                    <OverviewTab key="overview" filters={filters} />
+            <div className="bg-white h-[70vh] rounded-2xl shadow-sm border border-slate-200 mb-8 relative z-0 overflow-hidden">
+                {/* Smart Lazy Loading: Renderiza apenas se já foi visitada, esconde se não está ativa */}
+
+                {visitedTabs.has('VISAO_GERAL') && (
+                    <div className={`${activePage === 'VISAO_GERAL' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <OverviewTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'INDUSTRIAS' && (
-                    <IndustriasTab key="industrias" filters={filters} />
+
+                {visitedTabs.has('INDUSTRIAS') && (
+                    <div className={`${activePage === 'INDUSTRIAS' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <IndustriasTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'CLIENTES' && (
-                    <ClientesTab key="clientes" filters={filters} />
+
+                {visitedTabs.has('CLIENTES') && (
+                    <div className={`${activePage === 'CLIENTES' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <ClientesTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'ESTATISTICAS' && (
-                    <AnalyticsTab key="analytics" filters={filters} />
+
+                {visitedTabs.has('ESTATISTICAS') && (
+                    <div className={`${activePage === 'ESTATISTICAS' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <AnalyticsTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'CURVA_ABC' && (
-                    <CurvaABCTab key="curva-abc" filters={filters} />
+
+                {visitedTabs.has('CURVA_ABC') && (
+                    <div className={`${activePage === 'CURVA_ABC' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <CurvaABCTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'METAS' && (
-                    <MetasTab key="metas" filters={filters} />
+
+                {visitedTabs.has('METAS') && (
+                    <div className={`${activePage === 'METAS' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <MetasTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'EQUIPE' && (
-                    <EquipeTab key="equipe" filters={filters} />
+
+                {visitedTabs.has('EQUIPE') && (
+                    <div className={`${activePage === 'EQUIPE' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <EquipeTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
-                {activePage === 'PRODUTOS' && (
-                    <ProdutosTab key="produtos" filters={filters} />
+
+                {visitedTabs.has('PRODUTOS') && (
+                    <div className={`${activePage === 'PRODUTOS' ? 'block' : 'hidden'} h-full overflow-y-auto`}>
+                        <ProdutosTab filters={filters} refreshTrigger={refreshTrigger} />
+                    </div>
                 )}
+
                 {/* Fallback for other tabs */}
                 {!['VISAO_GERAL', 'INDUSTRIAS', 'CLIENTES', 'ESTATISTICAS', 'CURVA_ABC', 'METAS', 'EQUIPE', 'PRODUTOS'].includes(activePage) && (
                     <div className="h-full flex flex-col items-center justify-center p-10 text-slate-400">

@@ -121,3 +121,41 @@
     border-color: #22c55e;
     box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
 }
+
+/* --- FORCE DARK CARD OVERRIDES (FRONTEND-SPECIALIST) --- */
+.dark-card-fix {
+    color: #ffffff !important;
+}
+
+.dark-card-fix label,
+.dark-card-fix span,
+.dark-card-fix h1,
+.dark-card-fix h2,
+.dark-card-fix h3,
+.dark-card-fix h4,
+.dark-card-fix p {
+    color: #ffffff !important;
+    opacity: 1 !important;
+}
+
+.dark-card-fix input,
+.dark-card-fix select,
+.dark-card-fix textarea,
+.dark-card-fix [role="combobox"] {
+    background-color: rgba(30, 41, 59, 0.6) !important; /* slate-800 approx */
+    border-color: rgba(71, 85, 105, 0.4) !important; /* slate-600 approx */
+    color: #ffffff !important;
+}
+
+.dark-card-fix [role="combobox"] span {
+    color: #ffffff !important;
+}
+
+.dark-card-fix input::placeholder,
+.dark-card-fix textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.dark-card-fix .lucide {
+    color: #ffffff !important;
+}

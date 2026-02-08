@@ -18,6 +18,7 @@ import IndustryDialog from './IndustryDialog';
 import RegionDialog from './RegionDialog';
 import MetaDialog from './MetaDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const SellerForm = ({ data, onClose, onSave }) => {
     const [formData, setFormData] = useState({});
@@ -44,7 +45,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
         if (!data?.ven_codigo) return;
         setLoadingIndustries(true);
         try {
-            const res = await fetch(`https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/industries`);
+            const res = await fetch(getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/industries`));
             if (res.ok) {
                 const json = await res.json();
                 setIndustries(json.data);
@@ -59,7 +60,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
     // Load suppliers for the industry dropdown
     const loadSuppliers = async () => {
         try {
-            const res = await fetch('https://salesmasters.softham.com.br/api/suppliers');
+            const res = await fetch(getApiUrl(NODE_API_URL, '/api/suppliers'));
             if (res.ok) {
                 const json = await res.json();
                 setSuppliers(json.data || []);
@@ -74,7 +75,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
         if (!data?.ven_codigo) return;
         setLoadingRegions(true);
         try {
-            const res = await fetch(`https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/regions`);
+            const res = await fetch(getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/regions`));
             if (res.ok) {
                 const json = await res.json();
                 setSellerRegions(json.data);
@@ -89,7 +90,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
     // Load all regions for the dropdown
     const loadAllRegions = async () => {
         try {
-            const res = await fetch('https://salesmasters.softham.com.br/api/regions');
+            const res = await fetch(getApiUrl(NODE_API_URL, '/api/regions'));
             if (res.ok) {
                 const json = await res.json();
                 setAllRegions(json.data || []);
@@ -102,7 +103,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
     // Load users for the dropdown
     const loadUsers = async () => {
         try {
-            const res = await fetch('https://salesmasters.softham.com.br/api/users');
+            const res = await fetch(getApiUrl(NODE_API_URL, '/api/users'));
             if (res.ok) {
                 const json = await res.json();
                 setUsers(json.data || []);
@@ -117,7 +118,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
         if (!data?.ven_codigo) return;
         setLoadingMetas(true);
         try {
-            const res = await fetch(`https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas`);
+            const res = await fetch(getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas`));
             if (res.ok) {
                 const json = await res.json();
                 setMetas(json.data || []);
@@ -333,13 +334,13 @@ const SellerForm = ({ data, onClose, onSave }) => {
                                 onChange={(item) => handleChange('ven_nomeusu', item?.value || '')}
                                 fetchData={async (search) => {
                                     try {
-                                        const res = await fetch(`https://salesmasters.softham.com.br/api/users?search=${search}`);
+                                        const res = await fetch(getApiUrl(NODE_API_URL, `/api/users?search=${search}`));
                                         const json = await res.json();
                                         // Filter/Map if necessary. Assuming API returns {data: [{usuario, nome...}]}
                                         // We need to map to { label, value }
                                         const list = json.data || json;
                                         return list.map(u => ({
-                                            label: `${u.nome} (${u.usuario})`,
+                                            label: `${u.nome}${u.sobrenome ? ' ' + u.sobrenome : ''} (${u.usuario})`,
                                             value: u.usuario
                                         }));
                                     } catch (e) {
@@ -443,7 +444,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
         try {
             const res = await fetch(
-                `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/industries/${ind.vin_industria}`,
+                getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/industries/${ind.vin_industria}`),
                 { method: 'DELETE' }
             );
             if (res.ok) {
@@ -461,8 +462,8 @@ const SellerForm = ({ data, onClose, onSave }) => {
     const handleIndustrySaved = async (industryData) => {
         try {
             const url = selectedIndustry
-                ? `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/industries/${selectedIndustry.vin_industria}`
-                : `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/industries`;
+                ? getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/industries/${selectedIndustry.vin_industria}`)
+                : getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/industries`);
 
             const method = selectedIndustry ? 'PUT' : 'POST';
 
@@ -498,7 +499,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
         try {
             const res = await fetch(
-                `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/regions/${region.vin_regiao}`,
+                getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/regions/${region.vin_regiao}`),
                 { method: 'DELETE' }
             );
             if (res.ok) {
@@ -515,7 +516,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
     const handleRegionSaved = async (regionData) => {
         try {
-            const res = await fetch(`https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/regions`, {
+            const res = await fetch(getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/regions`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(regionData)
@@ -551,7 +552,7 @@ const SellerForm = ({ data, onClose, onSave }) => {
 
         try {
             const res = await fetch(
-                `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas/${meta.met_id}`,
+                getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas/${meta.met_id}`),
                 { method: 'DELETE' }
             );
             if (res.ok) {
@@ -569,8 +570,8 @@ const SellerForm = ({ data, onClose, onSave }) => {
     const handleMetaSaved = async (metaData) => {
         try {
             const url = selectedMeta
-                ? `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas/${selectedMeta.met_id}`
-                : `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas`;
+                ? getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas/${selectedMeta.met_id}`)
+                : getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas`);
 
             const method = selectedMeta ? 'PUT' : 'POST';
 
@@ -615,8 +616,8 @@ const SellerForm = ({ data, onClose, onSave }) => {
             };
 
             const url = existingMeta
-                ? `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas/${existingMeta.met_id}`
-                : `https://salesmasters.softham.com.br/api/sellers/${data.ven_codigo}/metas`;
+                ? getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas/${existingMeta.met_id}`)
+                : getApiUrl(NODE_API_URL, `/api/sellers/${data.ven_codigo}/metas`);
 
             const method = existingMeta ? 'PUT' : 'POST';
 

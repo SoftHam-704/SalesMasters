@@ -20,7 +20,8 @@ import {
     Calculator, Save, Trash2, Calendar, ShoppingCart, Truck, CreditCard,
     FileText, User, MapPin, MoreHorizontal, FileUp, Copy,
     RefreshCw, Tag, DollarSign, Eraser, Star, StarOff, Percent, HelpCircle, CheckSquare,
-    FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck, MessageSquare
+    FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck, MessageSquare, Eye,
+    Users, History, XCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SmartOrderDialog } from './SmartOrderDialog';
@@ -42,12 +43,23 @@ import { auxDataService } from '@/services/orders/auxDataService';
 
 // Modular imports
 import { orderService } from '@/services/orders';
-import { usePriceTable, useAuxData, useCliIndData, useCliAnivData } from '@/hooks/orders';
+import { usePriceTable, useAuxData, useCliIndData, useCliAnivData, useSmartDiscounts } from '@/hooks/orders';
 import { formatCurrency } from '@/utils/orders';
 import { BuyerRegistrationDialog } from './BuyerRegistrationDialog';
 import ConditionRegistrationDialog from './ConditionRegistrationDialog';
 
 
+
+const maskCnpjCpf = (value) => {
+    if (!value) return "";
+    const cleanValue = value.replace(/\D/g, "");
+    if (cleanValue.length === 11) {
+        return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    } else if (cleanValue.length === 14) {
+        return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    }
+    return value;
+};
 
 const DiscountInput = ({ value, onChange, label }) => {
     const [isFocused, setIsFocused] = useState(false);
@@ -65,7 +77,7 @@ const DiscountInput = ({ value, onChange, label }) => {
 
     return (
         <div className="flex flex-col items-center">
-            <span className="text-[9px] text-gray-400 font-bold mb-0.5">{label}</span>
+            <span className="text-[10px] text-teal-800 font-extrabold mb-1 tracking-tighter">{label}</span>
             <Input
                 type="text"
                 placeholder="0,00%"
@@ -86,13 +98,13 @@ const DiscountInput = ({ value, onChange, label }) => {
                     const num = parseFloat(val) || 0;
                     onChange(num);
                 }}
-                className="h-6 text-center text-[10px] font-bold p-0 border-emerald-100 placeholder:text-gray-300 text-black"
+                className="h-9 text-center text-[12px] font-black p-0 border-blue-400 focus:border-blue-700 placeholder:text-slate-300 text-blue-900 border-2 shadow-inner"
             />
         </div>
     )
 }
 
-const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
+const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly }) => {
     // Display state
     const [displayNumber, setDisplayNumber] = useState('(Novo)');
     const [activeTab, setActiveTab] = useState('F1'); // Default to F1 (Capa) to show the form fields
@@ -100,6 +112,41 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     // Dialog States (New Buttons)
     const [showTaxDialog, setShowTaxDialog] = useState(false);
     const [taxValues, setTaxValues] = useState({ ipi: '', st: '' });
+
+    // Context Menu Handlers
+    const handleContextMenu = (e, item, index) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.pageX,
+            y: e.pageY,
+            item,
+            index
+        });
+    };
+
+    const closeContextMenu = () => setContextMenu(null);
+
+    useEffect(() => {
+        const handleClick = () => closeContextMenu();
+        window.addEventListener('click', handleClick);
+        return () => window.removeEventListener('click', handleClick);
+    }, []);
+
+    const handleDeleteItem = (index) => {
+        const item = summaryItems[index];
+        if (confirm(`Deseja realmente excluir o item ${item.ite_produto}?`)) {
+            const newItems = summaryItems.filter((_, i) => i !== index);
+            setSummaryItems(newItems);
+            toast.success('Item removido do pedido!');
+        }
+    };
+
+    const handleDeleteAllItems = () => {
+        if (confirm('⚠️ ATENÇÃO: Deseja realmente excluir TODOS os itens do pedido?')) {
+            setSummaryItems([]);
+            toast.success('Todos os itens foram removidos!');
+        }
+    };
 
     // Discount Dialog State (Button 9)
     const [showDiscountDialog, setShowDiscountDialog] = useState(false);
@@ -115,13 +162,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const fetchClients = async (search) => {
         const res = await auxDataService.getClients('A', search);
         return (res.data || []).map(c => ({
-            label: c.cli_nomred || c.cli_nome,
+            label: `${c.cli_nomred || c.cli_nome} - ${maskCnpjCpf(c.cli_cnpj)}`,
             value: c.cli_codigo,
             nomred: c.cli_nomred,
             nome: c.cli_nome,
             cnpj: c.cli_cnpj,
             cidade: c.cli_cidade,
             uf: c.cli_uf,
+            cli_vendedor: c.cli_vendedor,
             ...c
         }));
     };
@@ -161,9 +209,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         ped_cliente: '',
         ped_transp: '',
         ped_vendedor: '',
-        ped_conpgto: '',
+        ped_condpag: '',
         ped_comprador: '',
-        ped_frete: 'C',
+        ped_tipofrete: 'C',
         ped_pedcli: '',
         ped_pedindu: '',
         ped_industria: '',
@@ -191,6 +239,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [showBuyerDialog, setShowBuyerDialog] = useState(false);
     const [showConditionDialog, setShowConditionDialog] = useState(false);
     const [userParams, setUserParams] = useState({ par_qtdenter: 4 }); // Default to careful
+    const [isPersisted, setIsPersisted] = useState(!!existingOrder); // Rastreia se o pedido já existe no banco
 
     // DEBUG: Trace Render
     useEffect(() => {
@@ -212,6 +261,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     const [importedItems, setImportedItems] = useState([]); // Itens vindos da Sugestão Inteligente Master
     const importedItemsRef = useRef(importedItems);
 
+    // TXT Import state (02 tab)
+    const [txtContent, setTxtContent] = useState('');
+    const [txtImporting, setTxtImporting] = useState(false);
+    const [txtErrors, setTxtErrors] = useState([]);
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState(null); // { x, y, item, index }
+
     // Sync Ref
     useEffect(() => {
         importedItemsRef.current = importedItems;
@@ -228,6 +285,15 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     );
     const cliIndData = useCliIndData();
     const cliAnivData = useCliAnivData();
+    const smartDiscounts = useSmartDiscounts();
+
+    // Fetch smart discounts when client changes
+    useEffect(() => {
+        if (formData.ped_cliente) {
+            smartDiscounts.fetchClientDiscounts(formData.ped_cliente);
+        }
+        smartDiscounts.fetchTableGroupDiscounts();
+    }, [formData.ped_cliente]);
 
     // Load user parameters on mount
     useEffect(() => {
@@ -262,6 +328,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     ped_cliente: existingOrder.ped_cliente || '',
                     ped_transp: existingOrder.ped_transp || '',
                     ped_vendedor: existingOrder.ped_vendedor || '',
+                    ped_pedindu: existingOrder.ped_pedindustria || existingOrder.ped_pedindu || '', // Mapeamento do banco para o state
+                    ped_pedcli: existingOrder.ped_cliind || existingOrder.ped_pedcli || '', // Mapeamento corrigido
                 };
 
                 setFormData(prev => ({
@@ -270,9 +338,12 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 }));
                 setDisplayNumber(existingOrder.ped_pedido);
                 setAllowDuplicates(existingOrder.ped_permiterepe || false);
+                setIsPersisted(true); // Se veio via prop, já existe no banco
 
                 // Set initial names
-                setSelectedClientName(existingOrder.cli_nomred || existingOrder.cli_nome || '');
+                const initClientName = existingOrder.cli_nomred || existingOrder.cli_nome || '';
+                const initClientCnpj = existingOrder.cli_cnpj ? ` - ${maskCnpjCpf(existingOrder.cli_cnpj)}` : '';
+                setSelectedClientName(initClientName + initClientCnpj);
                 setSelectedTranspName(existingOrder.tra_nome || '');
                 setSelectedSellerName(existingOrder.ven_nome || '');
 
@@ -280,14 +351,16 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     loadSummaryItems(existingOrder.ped_pedido);
                 }
             } else {
-                if (userParams) {
-                    // SE FOR PEDIDO NOVO, aplicamos os parâmetros carregados
-                    if (importedItemsRef.current.length === 0) {
-                        setFormData({
-                            ...initialFormState,
-                            ped_industria: selectedIndustry?.for_codigo || '',
-                            // Aplica parâmetros do usuário
-                            ped_frete: userParams.par_tipofretepadrao || 'C',
+                if (importedItemsRef.current.length === 0) {
+                    const newOrderState = {
+                        ...initialFormState,
+                        ped_industria: selectedIndustry?.for_codigo || '',
+                    };
+
+                    if (userParams) {
+                        // Aplica parâmetros do usuário
+                        Object.assign(newOrderState, {
+                            ped_tipofrete: userParams.par_tipofretepadrao || 'C',
                             ped_situacao: userParams.par_iniciapedido || 'P',
                             ped_obs: userParams.par_obs_padrao || '',
                         });
@@ -295,11 +368,13 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                         if (userParams.par_itemduplicado === 'S') {
                             setAllowDuplicates(true);
                         }
-
-                        setSummaryItems([]);
-                        setDisplayNumber('(Novo)');
-                        loadNextNumber();
                     }
+
+                    setFormData(newOrderState);
+                    setSummaryItems([]);
+                    setDisplayNumber('(Novo)');
+                    setIsPersisted(false); // Pedido novo
+                    loadNextNumber();
                 }
             }
         };
@@ -315,9 +390,28 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
     // Load next order number
     const loadNextNumber = async () => {
         try {
-            const data = await orderService.getNextNumber();
+            // Obtém iniciais do usuário logado para compor o prefixo do pedido
+            let initials = 'SM';
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const first = user.nome ? user.nome.charAt(0) : '';
+                    const last = user.sobrenome ? user.sobrenome.charAt(0) : '';
+                    initials = (first + last).toUpperCase() || 'SM';
+                } catch (e) {
+                    console.error('Erro ao processar iniciais do usuário:', e);
+                }
+            }
+
+            const data = await orderService.getNextNumber(initials);
             if (data.success) {
                 setDisplayNumber(data.data.formatted_number);
+                setFormData(prev => ({
+                    ...prev,
+                    ped_pedido: data.data.formatted_number,
+                    ped_numero: data.data.sequence
+                }));
             }
         } catch (error) {
             console.error('Error loading next number:', error);
@@ -390,7 +484,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 const stRate = parseFloat(item.ite_st) || 0;
 
                 const valComIpi = totLiq * (1 + ipiRate / 100);
-                const valComSt = valComIpi * (1 + stRate / 100); // Base de ST é o valor com IPI
+                const valComSt = valComIpi * (1 + stRate / 100);
 
                 return {
                     bruto: acc.bruto + totBruto,
@@ -503,23 +597,34 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             ped_set: parseFloat(conditions.cli_desc7) || prev.ped_set,
             ped_oit: parseFloat(conditions.cli_desc8) || prev.ped_oit,
             ped_nov: parseFloat(conditions.cli_desc9) || prev.ped_nov,
-            // NOTA: desc10 e desc11 NÃO são mapeados (têm outra finalidade)
 
             // Transportadora
             ped_transp: conditions.cli_transportadora || prev.ped_transp,
 
             // Prazo de pagamento
-            ped_conpgto: conditions.cli_prazopg || prev.ped_conpgto,
+            ped_condpag: conditions.cli_prazopg || prev.ped_condpag,
 
             // Comprador
             ped_comprador: conditions.cli_comprador || prev.ped_comprador,
 
             // Tipo de frete
-            ped_frete: conditions.cli_frete || prev.ped_frete,
+            ped_tipofrete: conditions.cli_frete || prev.ped_tipofrete,
 
             // Tabela de preço especial (se houver)
             ped_tabela: conditions.cli_tabela || prev.ped_tabela,
         }));
+
+        // Buscar nomes para exibição (Busca nas listas já carregadas no useAuxData)
+        if (conditions.cli_transportadora) {
+            const carrier = auxData.carriers.find(c => (c.tra_codigo || c.codigo) == conditions.cli_transportadora);
+            if (carrier) setSelectedTranspName(carrier.tra_nome || carrier.nome);
+        }
+
+        if (conditions.cli_vendedor) {
+            handleFieldChange('ped_vendedor', conditions.cli_vendedor);
+            const seller = auxData.sellers.find(s => (s.ven_codigo || s.codigo) == conditions.cli_vendedor);
+            if (seller) setSelectedSellerName(seller.ven_nome || seller.nome);
+        }
 
         toast.info('✅ Condições especiais aplicadas!', { duration: 2000 });
     };
@@ -531,8 +636,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
         // Validação de campos obrigatórios
         const missingFields = [];
+        const industryId = formData.ped_industria || selectedIndustry?.for_codigo;
 
-        if (!selectedIndustry?.for_codigo) missingFields.push('Indústria');
+        if (!industryId) missingFields.push('Indústria');
         if (!formData.ped_cliente) missingFields.push('Cliente');
         if (!formData.ped_transp) missingFields.push('Transportadora');
         if (!formData.ped_tabela) missingFields.push('Tabela de Preço');
@@ -543,20 +649,40 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
             return;
         }
 
+        // Verifica se o número do pedido foi carregado
+        if (!formData.ped_pedido || formData.ped_pedido === '(Novo)') {
+            toast.error('Número do pedido ainda não carregado. Aguarde um momento...');
+            loadNextNumber(); // Tenta recarregar
+            return;
+        }
+
         setIsSaving(true);
         setLoading(true);
 
         try {
+            // Calcula iniciais do usuário logado para garantir o prefixo correto no backend (fallback)
+            let initials = 'SM';
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    initials = `${user.nome?.charAt(0) || ''}${user.sobrenome?.charAt(0) || ''}`.toUpperCase() || 'SM';
+                } catch (e) { }
+            }
+
             const dataToSave = {
                 ...formData,
-                ped_industria: selectedIndustry?.for_codigo,
+                ped_industria: industryId,
                 ped_permiterepe: allowDuplicates,
+                user_initials: initials,
+                _isPersisted: isPersisted // Flag interna para o service
             };
 
             const result = await orderService.save(dataToSave);
             const savedPedidoId = result.data?.ped_pedido;
 
             if (result.success && savedPedidoId) {
+                setIsPersisted(true); // Agora temos certeza que está no banco
 
                 // ---------------------------------------------------------
                 // SYNC IMPORTED ITEMS (SMART)
@@ -694,6 +820,17 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     continue;
                 }
 
+                const promoPrice = parseFloat(product.itab_precopromo || 0);
+                const grossPrice = parseFloat(product.itab_precobruto || 0);
+                let finalPrice = item.preco ? parseFloat(item.preco) : grossPrice;
+                let isPromo = false;
+
+                // Priority Logic: If import has specific price, use it. Otherwise, check Promo > Gross.
+                if (!item.preco && promoPrice > 0) {
+                    finalPrice = promoPrice;
+                    isPromo = true;
+                }
+
                 const newItem = {
                     ite_seq: nextSeq++,
                     ite_industria: selectedIndustry?.for_codigo,
@@ -701,21 +838,21 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     ite_idproduto: product.pro_id,
                     ite_embuch: '',
                     ite_nomeprod: product.pro_nome,
-                    ite_quant: parseFloat(item.quantidade || item.quant) || 1,
-                    ite_puni: item.preco ? parseFloat(item.preco) : parseFloat(product.itab_precobruto || 0),
+                    ite_quant: parseFloat(item.quantidade || item.quant || item.ite_quant) || 1,
+                    ite_puni: finalPrice,
                     ite_ipi: product.itab_ipi || 0,
                     ite_st: product.itab_st || 0,
-                    ite_des1: formData.ped_pri || 0,
-                    ite_des2: formData.ped_seg || 0,
-                    ite_des3: formData.ped_ter || 0,
-                    ite_des4: formData.ped_qua || 0,
-                    ite_des5: formData.ped_qui || 0,
-                    ite_des6: formData.ped_sex || 0,
-                    ite_des7: formData.ped_set || 0,
-                    ite_des8: formData.ped_oit || 0,
-                    ite_des9: formData.ped_nov || 0,
+                    ite_des1: isPromo ? 0 : (formData.ped_pri || 0),
+                    ite_des2: isPromo ? 0 : (formData.ped_seg || 0),
+                    ite_des3: isPromo ? 0 : (formData.ped_ter || 0),
+                    ite_des4: isPromo ? 0 : (formData.ped_qua || 0),
+                    ite_des5: isPromo ? 0 : (formData.ped_qui || 0),
+                    ite_des6: isPromo ? 0 : (formData.ped_sex || 0),
+                    ite_des7: isPromo ? 0 : (formData.ped_set || 0),
+                    ite_des8: isPromo ? 0 : (formData.ped_oit || 0),
+                    ite_des9: isPromo ? 0 : (formData.ped_nov || 0),
                     ite_des10: 0,
-                    ite_promocao: 'N'
+                    ite_promocao: isPromo ? 'S' : 'N'
                 };
 
                 const calculatedItem = calculateImportedItem(newItem);
@@ -874,40 +1011,69 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 const quantStr = quantidades[i] || '1';
                 const precoStr = precos[i] || '';
 
-                // Find product in price table - Lógica Robusta de Normalização (v2 Ultra)
+                // Find product in price table - Lógica Robusta de Normalização (v3 Ultra Fuzzy)
                 const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const fuzzyNormalize = (str) => String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/[LI]/g, '1').replace(/O/g, '0');
+
                 const codigoNorm = normalize(codigo);
+                const codigoFuzzy = fuzzyNormalize(codigo);
                 const codigoNum = parseInt(codigoNorm, 10);
 
-                // Fragmentos para casos compostos ou sujos (ex "REF: 123", "401.1119-95", "COD1/COD2")
+                // Fragmentos para casos compostos ou sujos (ex "REF: 123", "401.1119-95", "COD1 / COD2")
                 const fragments = String(codigo).split(/[/|;,\s-]+/).filter(f => f.length >= 3);
 
                 const product = products.find(p => {
-                    // Strategy 1: Exact Match (Fastest)
-                    if (p.pro_codprod === codigo || p.pro_codigonormalizado === codigo) return true;
+                    // Strategy 1: Exact Match
+                    if (p.pro_codprod === codigo ||
+                        p.pro_codigonormalizado === codigo ||
+                        p.pro_conversao === codigo ||
+                        p.pro_codigooriginal === codigo) return true;
 
-                    // Strategy 2: Normalized Match (Remove special chars)
+                    // Strategy 2: Normalized Match
                     const dbNorm = normalize(p.pro_codprod);
                     const dbNormRec = normalize(p.pro_codigonormalizado);
+                    const dbNormConv = normalize(p.pro_conversao);
+                    const dbNormOrig = normalize(p.pro_codigooriginal);
 
-                    if (dbNorm === codigoNorm || (dbNormRec && dbNormRec === codigoNorm)) return true;
+                    if (dbNorm === codigoNorm ||
+                        (dbNormRec && dbNormRec === codigoNorm) ||
+                        (dbNormConv && dbNormConv === codigoNorm) ||
+                        (dbNormOrig && dbNormOrig === codigoNorm)) return true;
 
-                    // Strategy 3: Numeric Match (Ignore leading zeros)
+                    // Strategy 3: Fuzzy Match (Correção de OCR: 1/l/I e 0/O)
+                    const dbFuzzy = fuzzyNormalize(p.pro_codprod);
+                    const dbFuzzyRec = fuzzyNormalize(p.pro_codigonormalizado);
+                    const dbFuzzyConv = fuzzyNormalize(p.pro_conversao);
+                    const dbFuzzyOrig = fuzzyNormalize(p.pro_codigooriginal);
+
+                    if (dbFuzzy === codigoFuzzy ||
+                        (dbFuzzyRec && dbFuzzyRec === codigoFuzzy) ||
+                        (dbFuzzyConv && dbFuzzyConv === codigoFuzzy) ||
+                        (dbFuzzyOrig && dbFuzzyOrig === codigoFuzzy)) return true;
+
+                    // Strategy 4: Numeric Match (Ignore leading zeros)
                     const dbNum = parseInt(dbNorm, 10);
                     if (!isNaN(codigoNum) && !isNaN(dbNum) && codigoNum === dbNum) return true;
 
-                    // Strategy 4: Fragments Match (Inteligência para códigos parciais ou compostos)
+                    // Strategy 5: Partial Match (Equivalente ao LIKE do SQL)
+                    if (codigoNorm.length >= 4) {
+                        if (dbNorm.includes(codigoNorm) ||
+                            (dbNormRec && dbNormRec.includes(codigoNorm)) ||
+                            (dbNormConv && dbNormConv.includes(codigoNorm)) ||
+                            (dbNormOrig && dbNormOrig.includes(codigoNorm))) return true;
+                    }
+
+                    // Strategy 6: Fragments Match (Inteligência para códigos compostos "A / B")
                     if (fragments.length > 0) {
                         for (const frag of fragments) {
                             const fragNorm = normalize(frag);
-                            if (fragNorm.length < 3) continue; // Ignora fragmentos curtos para evitar falsos positivos
+                            const fragFuzzy = fuzzyNormalize(frag);
+                            if (fragNorm.length < 3) continue;
 
-                            // Fragmento bate com código normalizado do banco?
-                            if (dbNorm === fragNorm || (dbNormRec && dbNormRec === fragNorm)) return true;
-
-                            // Fragmento bate numericamente?
-                            const fragNum = parseInt(fragNorm, 10);
-                            if (!isNaN(fragNum) && !isNaN(dbNum) && fragNum === dbNum) return true;
+                            if (dbNorm === fragNorm || dbFuzzy === fragFuzzy ||
+                                (dbNormRec && dbNormRec === fragNorm) || (dbFuzzyRec && dbFuzzyRec === fragFuzzy) ||
+                                (dbNormConv && dbNormConv === fragNorm) || (dbFuzzyConv && dbFuzzyConv === fragFuzzy) ||
+                                (dbNormOrig && dbNormOrig === fragNorm) || (dbFuzzyOrig && dbFuzzyOrig === fragFuzzy)) return true;
                         }
                     }
 
@@ -924,7 +1090,16 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 // Use negotiated price if provided, otherwise use table price
                 let precoUnitario = parseFloat(product.itab_precobruto || 0);
-                if (precoStr) {
+                let isPromo = false;
+
+                // Promo Logic Priority (Override Gross if Promo exists and no specific price given)
+                if (!precoStr) {
+                    const promoPrice = parseFloat(product.itab_precopromo || 0);
+                    if (promoPrice > 0) {
+                        precoUnitario = promoPrice;
+                        isPromo = true;
+                    }
+                } else {
                     precoUnitario = parseFloat(precoStr.replace(',', '.')) || precoUnitario;
                 }
 
@@ -945,26 +1120,51 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     ite_puni: precoUnitario,
                     ite_ipi: product.itab_ipi || 0,
                     ite_st: product.itab_st || 0,
-                    ite_des1: formData.ped_pri || 0,
-                    ite_des2: formData.ped_seg || 0,
-                    ite_des3: formData.ped_ter || 0,
-                    ite_des4: formData.ped_qua || 0,
-                    ite_des5: formData.ped_qui || 0,
-                    ite_des6: formData.ped_sex || 0,
-                    ite_des7: formData.ped_set || 0,
-                    ite_des8: formData.ped_oit || 0,
-                    ite_des9: formData.ped_nov || 0,
+                    ite_des1: isPromo ? 0 : (formData.ped_pri || 0),
+                    ite_des2: isPromo ? 0 : (formData.ped_seg || 0),
+                    ite_des3: isPromo ? 0 : (formData.ped_ter || 0),
+                    ite_des4: isPromo ? 0 : (formData.ped_qua || 0),
+                    ite_des5: isPromo ? 0 : (formData.ped_qui || 0),
+                    ite_des6: isPromo ? 0 : (formData.ped_sex || 0),
+                    ite_des7: isPromo ? 0 : (formData.ped_set || 0),
+                    ite_des8: isPromo ? 0 : (formData.ped_oit || 0),
+                    ite_des9: isPromo ? 0 : (formData.ped_nov || 0),
                     ite_des10: 0,
-                    ite_promocao: 'N'
+                    ite_promocao: isPromo ? 'S' : 'N'
                 };
 
                 const calculatedItem = calculateImportedItem(newItem);
                 foundItems.push(calculatedItem);
             }
 
-            // Show errors if any
+            // Show errors if any and download log
             if (notFoundCodes.length > 0) {
                 setXlsErrors(notFoundCodes);
+
+                // Automatic download of not found codes
+                try {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    const filename = `codigos_nao_encontrados_${timestamp}.txt`;
+                    const content = `RELATÓRIO DE CÓDIGOS NÃO ENCONTRADOS\n` +
+                        `Data/Hora: ${new Date().toLocaleString()}\n` +
+                        `Indústria: ${selectedIndustry?.for_nomered || 'N/A'}\n` +
+                        `-------------------------------------------\n\n` +
+                        notFoundCodes.join('\n');
+
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+
+                    toast.info(`Arquivo de erros baixado: ${filename}`);
+                } catch (err) {
+                    console.error('Erro ao gerar arquivo de log:', err);
+                }
             }
 
             // If we have valid items, sync them
@@ -1001,16 +1201,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                 setXlsQuantidades('');
                 setXlsPrecos('');
 
-                // Navigate to F5 (Conferência) if no errors, otherwise stay to show errors
-                if (notFoundCodes.length === 0) {
-                    setJustImported(true); // Impede que o refresh do banco apague a memória ao mudar de aba
+                if (foundItems.length > 0) {
+                    setJustImported(true);
                     setActiveTab('F5');
-
-                    // Limpa a flag após 3 segundos (tempo suficiente para o React terminar de renderizar tudo)
-                    setTimeout(() => setJustImported(false), 3000);
                 }
-            } else if (notFoundCodes.length > 0) {
-                toast.error('Nenhum código encontrado na tabela de preços');
+                setTimeout(() => setJustImported(false), 3000);
             }
         } catch (error) {
             console.error('Error importing items:', error);
@@ -1067,7 +1262,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         const ipi = parse(item.ite_ipi);
         const st = parse(item.ite_st);
 
-        // Base de cálculo IPI/ST (simplificada, ajustar conforme regras fiscais reais se necessário)
+        // Base de cálculo IPI/ST (ST é percentual sobre o valor com IPI)
         const valcomipi = totliquido * (1 + ipi / 100);
         const valcomst = valcomipi * (1 + st / 100);
 
@@ -1159,6 +1354,68 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
         }
     };
 
+    // Função para importar itens do TXT (Layout específico)
+    const handleTxtImport = async () => {
+        if (!txtContent.trim()) return;
+        if (!formData.ped_tabela) {
+            toast.error('Selecione uma tabela de preço antes de importar!');
+            return;
+        }
+
+        setTxtImporting(true);
+        setTxtErrors([]);
+        try {
+            const lines = txtContent.split('\n');
+            const itemsToProcess = [];
+
+            for (const line of lines) {
+                if (line.trim().startsWith('PP2')) {
+                    // Código: Posição 4 (índice 3)
+                    const codigo = line.substring(3, 31).trim();
+
+                    // Quantidade: Posição 33 (índice 32)
+                    const quantRaw = line.substring(32, 42).trim();
+                    const ite_quant = parseFloat(quantRaw) || 0;
+
+                    // Valor: Posição 68 (índice 67)
+                    const precoRaw = line.substring(67, 79).trim();
+                    let ite_puni = parseFloat(precoRaw) || 0;
+
+                    // Regra: Dividir por 100.000
+                    if (precoRaw) {
+                        ite_puni = ite_puni / 100000;
+                    }
+
+                    if (codigo) {
+                        itemsToProcess.push({
+                            codigo_produto: codigo,
+                            ite_quant,
+                            preco: ite_puni
+                        });
+                    }
+                }
+            }
+
+            if (itemsToProcess.length === 0) {
+                toast.error('Nenhum registro de item (PP2) encontrado no texto.');
+                setTxtImporting(false);
+                return;
+            }
+
+            toast.info(`Processando ${itemsToProcess.length} itens do arquivo...`);
+            const success = await handleSmartImportItems(itemsToProcess);
+
+            if (success) {
+                setTxtContent('');
+                setActiveTab('F5'); // Vai para conferência
+            }
+        } catch (error) {
+            console.error('Erro na importação TXT:', error);
+            toast.error('Ocorreu um erro ao processar o arquivo.');
+        } finally {
+            setTxtImporting(false);
+        }
+    };
     // Handler para os botões de ação da aba F5
     const handleF5Action = async (key) => {
         if (key === '1') { // Atz valores + SALVAR NO BANCO
@@ -1173,15 +1430,40 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                     if (product) {
                         // preenche descrição se vazia
                         if (!newItem.ite_nomeprod || newItem.ite_nomeprod.trim() === '') {
-                            newItem.ite_nomeprod = product.pro_descricao || '';
+                            newItem.ite_nomeprod = product.pro_nome || '';
                         }
-                        // preenche impostos se zerados/vazios
-                        if (!newItem.ite_ipi || parseFloat(newItem.ite_ipi) === 0) {
-                            newItem.ite_ipi = product.pro_ipi || 0;
+
+                        // ATUALIZA VALORES DA MEMTABLE (Força Recarga)
+                        // Lógica de Prioridade: Promoção > Bruto
+
+                        const promoPrice = parseFloat(product.itab_precopromo || 0);
+                        const grossPrice = parseFloat(product.itab_precobruto || 0);
+
+                        // 1. Verifica se tem PREÇO PROMO (Prioridade Máxima)
+                        if (promoPrice > 0) {
+                            // Aplica preço promocional
+                            newItem.ite_puni = promoPrice;
+
+                            // Regra: "itens com preço promo já são LÍQUIDOS... descontos devem ser zerados"
+                            newItem.ite_promocao = 'S'; // Marca flag de promoção
+                            for (let i = 1; i <= 9; i++) newItem[`ite_des${i}`] = 0;
+                            newItem.ite_des10 = 0;
+                            newItem.ite_esp = 0; // Zera especial também
+                        } else {
+                            // 2. Se não tem promo, usa PREÇO BRUTO
+                            if (grossPrice > 0) newItem.ite_puni = grossPrice;
+
+                            // Se estava marcado como promoção, desmarca (pois voltou ao bruto)
+                            if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
                         }
-                        if (!newItem.ite_st || parseFloat(newItem.ite_st) === 0) {
-                            newItem.ite_st = product.pro_st || 0;
-                        }
+
+                        // Impostos (IPI/ST)
+                        // Usa itab_ipi se disponível, senão mantém ou zero
+                        newItem.ite_ipi = parseFloat(product.itab_ipi || 0);
+                        newItem.ite_st = parseFloat(product.itab_st || 0);
+
+                        // Se tiver promoção definida na tabela, podemos aplicar (Opcional - mas seguro atualizar)
+                        // if (product.itab_precopromo > 0) ... (Mantendo simples por enquanto conforme solicitado "chegarem geral")
                     }
 
                     // Regra Promoção: Se "S", zera todos os descontos
@@ -1400,14 +1682,29 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 if (product) {
                     // Atualiza o Preço Unitário (Bruto) com o valor da nova tabela
-                    newItem.ite_puni = product.pro_preco1 || 0;
+                    // Lógica de Prioridade no Update de Tabela: Promoção > Bruto
+                    const promoPrice = parseFloat(product.itab_precopromo || 0);
+                    const grossPrice = parseFloat(product.itab_precobruto || 0);
 
-                    // "Nesse caso o preço especial é ignorado"
-                    // Interpretação: Zerar desconto especial e garantir que não estamos puxando preço promocional se houver check na tabela
-                    // Estamos pegando o pro_preco1 (cheio)
-                    newItem.ite_esp = 0;
+                    if (promoPrice > 0) {
+                        newItem.ite_puni = promoPrice;
+                        newItem.ite_promocao = 'S';
+                        // Zera descontos pois é preço líquido
+                        for (let i = 1; i <= 9; i++) newItem[`ite_des${i}`] = 0;
+                        newItem.ite_des10 = 0;
+                        newItem.ite_esp = 0;
+                    } else {
+                        // Usa preço bruto (priorizando itab_precobruto > pro_preco1)
+                        newItem.ite_puni = grossPrice > 0 ? grossPrice : (product.pro_preco1 || 0);
 
-                    // Nota: Se o item tinha promoção ('S'), mantemos a flag? 
+                        // Reseta flag de promo se necessário
+                        if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
+
+                        // "Nesse caso o preço especial é ignorado"
+                        newItem.ite_esp = 0;
+                    }
+
+                    // Nota: Se o item tinha promoção ('S'), mantemos a flag?
                     // O usuário disse "preço promocional... preço especial ignorado".
                     // Vou manter a flag de promoção do ITEM se ela vier do produto, mas o preço base é o atualizado.
                 }
@@ -1428,11 +1725,25 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
                 if (product) {
                     // "substituir todos os preços brutos pelo campo itab_precobruto mesmo que estiver em branco"
-                    // Prioriza itab_precobruto se existir, senão pro_preco1
-                    const tablePrice = product.itab_precobruto !== undefined ? product.itab_precobruto : product.pro_preco1;
+                    // Prioriza itab_precobruto
+                    // Lógica de Prioridade: Promoção > Bruto
+                    const promoPrice = parseFloat(product.itab_precopromo || 0);
+                    const grossPrice = parseFloat(product.itab_precobruto || 0);
 
-                    // Atualiza ite_puni (Bruto)
-                    newItem.ite_puni = tablePrice || 0;
+                    if (promoPrice > 0) {
+                        newItem.ite_puni = promoPrice;
+                        newItem.ite_promocao = 'S';
+                        // Zera descontos
+                        for (let i = 1; i <= 9; i++) newItem[`ite_des${i}`] = 0;
+                        newItem.ite_des10 = 0;
+                        newItem.ite_esp = 0;
+                    } else {
+                        // Prioriza itab_precobruto
+                        newItem.ite_puni = grossPrice > 0 ? grossPrice : (product.pro_preco1 || 0);
+
+                        // Reseta flag promo
+                        if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
+                    }
                 }
 
                 return calculateGridItemTotals(newItem);
@@ -1663,22 +1974,50 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     PEDIDO DE VENDA
                                     <span className="text-slate-300 font-light prose">/</span>
                                 </h1>
-                                <span className="bg-emerald-500 text-white px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm">
+                                <span className="bg-amber-50 text-amber-800 border border-amber-200 px-4 py-1 rounded-full text-[11px] font-black uppercase tracking-widest shadow-sm flex items-center gap-2">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                                     {selectedIndustry?.for_nomered || 'Indústria'}
                                 </span>
                             </div>
-                            <div className="text-[11px] text-slate-500 font-bold flex items-center gap-4 mt-1">
-                                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50"><FileText className="h-3.5 w-3.5 text-blue-500" /> NÚMERO: <b className="text-slate-800 font-black">{displayNumber}</b></span>
-                                {formData.ped_data && (
-                                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50"><Calendar className="h-3.5 w-3.5 text-purple-500" /> EMISSÃO: <b className="text-slate-800 font-black">{new Date(formData.ped_data).toLocaleDateString()}</b></span>
-                                )}
-                                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100/50">
-                                    <div className={cn(
-                                        "h-2 w-2 rounded-full",
-                                        formData.ped_situacao === 'F' ? "bg-blue-500" : "bg-emerald-500 animate-pulse"
-                                    )} />
-                                    STATUS: <b className="text-slate-800 font-black uppercase">{formData.ped_situacao === 'F' ? 'FATURADO' : 'PENDENTE'}</b>
+                            <div className="text-[12.5px] text-slate-600 font-bold flex items-center gap-5 mt-2.5">
+                                <span className="flex items-center gap-2 px-3 py-1 rounded-xl bg-white border border-slate-200 shadow-sm">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="text-slate-400 font-medium uppercase text-[10px]">Número:</span>
+                                    <b className="text-slate-900 font-black tracking-tight">{displayNumber}</b>
                                 </span>
+
+                                {formData.ped_data && (
+                                    <span className="flex items-center gap-2 px-3 py-1 rounded-xl bg-white border border-slate-200 shadow-sm">
+                                        <Calendar className="h-4 w-4 text-purple-600" />
+                                        <span className="text-slate-400 font-medium uppercase text-[10px]">Emissão:</span>
+                                        <b className="text-slate-900 font-black tracking-tight">{new Date(formData.ped_data).toLocaleDateString()}</b>
+                                    </span>
+                                )}
+
+                                <span className="flex items-center gap-2 px-3 py-1 rounded-xl bg-white border border-slate-200 shadow-sm">
+                                    <div className={cn(
+                                        "h-2.5 w-2.5 rounded-full shadow-sm",
+                                        formData.ped_situacao === 'F' ? "bg-blue-500" :
+                                            formData.ped_situacao === 'E' ? "bg-red-500" :
+                                                formData.ped_situacao === 'B' ? "bg-purple-500" : "bg-emerald-500 animate-pulse"
+                                    )} />
+                                    <span className="text-slate-400 font-medium uppercase text-[10px]">Status:</span>
+                                    <b className={cn(
+                                        "font-black uppercase tracking-tight",
+                                        formData.ped_situacao === 'F' ? "text-blue-700" :
+                                            formData.ped_situacao === 'E' ? "text-red-700" :
+                                                formData.ped_situacao === 'B' ? "text-purple-700" : "text-emerald-700"
+                                    )}>
+                                        {situacaoOptions.find(o => o.value === formData.ped_situacao)?.label || 'PENDENTE'}
+                                    </b>
+                                </span>
+
+                                {readOnly && (
+                                    <span className="flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 shadow-sm">
+                                        <Eye className="h-4 w-4" />
+                                        <b className="font-black uppercase text-[10px] tracking-widest">Modo Visualização</b>
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1736,6 +2075,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                 value={formData.ped_data}
                                                 onChange={(e) => handleFieldChange('ped_data', e.target.value)}
                                                 className={inputClasses}
+                                                disabled={readOnly}
                                             />
                                         </div>
                                         <div className="col-span-7">
@@ -1743,6 +2083,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             <Select
                                                 value={formData.ped_situacao}
                                                 onValueChange={(value) => handleFieldChange('ped_situacao', value)}
+                                                disabled={readOnly}
                                             >
                                                 <SelectTrigger className={inputClasses}>
                                                     <SelectValue />
@@ -1766,9 +2107,19 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             value={formData.ped_cliente}
                                             initialLabel={selectedClientName || formData.ped_cliente}
                                             fetchData={fetchClients}
+                                            disabled={readOnly}
                                             onChange={async (val, client) => {
                                                 handleFieldChange('ped_cliente', val);
-                                                if (client) setSelectedClientName(client.label || client.nome || client.nomred);
+                                                if (client) {
+                                                    setSelectedClientName(client.label);
+
+                                                    // Se o cliente tem vendedor padrão e NÃO estamos editando pedido existente
+                                                    if (client.cli_vendedor && !existingOrder) {
+                                                        handleFieldChange('ped_vendedor', client.cli_vendedor);
+                                                        const seller = auxData.sellers.find(s => (s.ven_codigo || s.codigo) == client.cli_vendedor);
+                                                        if (seller) setSelectedSellerName(seller.ven_nome || seller.nome);
+                                                    }
+                                                }
 
                                                 if (!val) {
                                                     setSelectedClientName('');
@@ -1786,8 +2137,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         if (conditions) {
                                                             applyCliIndConditions(conditions);
 
-                                                            // FALLBACK: Se comprador estiver vazio, buscar em CLI_ANIV
-                                                            if (!conditions.cli_comprador) {
+                                                            // FALLBACK: Se comprador estiver vazio ou só espaços, buscar em CLI_ANIV
+                                                            if (!conditions.cli_comprador || !conditions.cli_comprador.trim()) {
                                                                 try {
                                                                     const buyer = await cliAnivData.fetchBuyer(val);
                                                                     if (buyer) {
@@ -1824,7 +2175,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         </div>
                                                         <span className="text-[10px] text-slate-500 truncate">{item.nome}</span>
                                                         <div className="flex items-center gap-2 text-[9px] text-slate-400">
-                                                            <span>{item.cnpj || 'Sem CNPJ'}</span>
+                                                            <span>{maskCnpjCpf(item.cnpj) || 'Sem CNPJ'}</span>
                                                             <span className="truncate">• {item.cidade}/{item.uf}</span>
                                                         </div>
                                                     </div>
@@ -1841,6 +2192,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             value={formData.ped_transp}
                                             initialLabel={selectedTranspName || formData.ped_transp}
                                             fetchData={fetchCarriers}
+                                            disabled={readOnly}
                                             onChange={(val, item) => {
                                                 handleFieldChange('ped_transp', val);
                                                 if (item) setSelectedTranspName(item.label || item.nome);
@@ -1848,56 +2200,59 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         />
                                     </div>
 
-                                    {/* Unified Organized Grid for Footer Fields - Modern Floating Label Style */}
-                                    <div className="grid grid-cols-12 gap-x-4 gap-y-1 mt-1">
-                                        <div className="col-span-6">
+                                    {/* SEÇÃO: DADOS PRINCIPAIS - GRID REESTRUTURADO */}
+                                    <div className="flex flex-col gap-5 mt-3">
+                                        {/* Row 1: Vendedor e Condições */}
+                                        <div className="grid grid-cols-2 gap-4">
                                             <DbComboBox
                                                 label="VENDEDOR"
                                                 placeholder="Selecione o vendedor..."
                                                 value={formData.ped_vendedor}
                                                 initialLabel={selectedSellerName || formData.ped_vendedor}
                                                 fetchData={fetchSellers}
+                                                disabled={readOnly}
                                                 onChange={(val, item) => {
                                                     handleFieldChange('ped_vendedor', val);
                                                     if (item) setSelectedSellerName(item.label || item.nome);
                                                 }}
                                             />
-                                        </div>
-
-                                        <div className="col-span-6">
                                             <InputField
                                                 label="CONDIÇÕES"
-                                                value={formData.ped_conpgto || ''}
-                                                onChange={(e) => handleFieldChange('ped_conpgto', e.target.value)}
+                                                value={formData.ped_condpag || ''}
+                                                onChange={(e) => handleFieldChange('ped_condpag', e.target.value)}
                                                 placeholder=" "
+                                                className="font-black text-black"
+                                                disabled={readOnly}
                                             />
                                         </div>
 
-                                        <div className="col-span-5">
-                                            <InputField
-                                                label="COMPRADOR"
-                                                value={formData.ped_comprador || ''}
-                                                onChange={(e) => handleFieldChange('ped_comprador', e.target.value)}
-                                                placeholder=" "
-                                            />
-                                        </div>
-
-                                        <div className="col-span-1 flex items-start pt-[1px]">
-                                            <Button
-                                                className="h-[50px] w-full btn-god-emerald active:scale-95 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center transition-all group border-none"
-                                                onClick={() => setShowBuyerDialog(true)}
-                                                type="button"
-                                                title="Cadastrar comprador"
-                                            >
-                                                <Plus className="h-6 w-6 text-white stroke-[3.5px]" />
-                                            </Button>
-                                        </div>
-
-                                        <div className="col-span-6">
+                                        {/* Row 2: Comprador e Frete */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="flex items-stretch gap-2">
+                                                <div className="flex-1">
+                                                    <InputField
+                                                        label="COMPRADOR"
+                                                        value={formData.ped_comprador || ''}
+                                                        onChange={(e) => handleFieldChange('ped_comprador', e.target.value)}
+                                                        placeholder=" "
+                                                        className="font-black text-black"
+                                                        disabled={readOnly}
+                                                    />
+                                                </div>
+                                                <Button
+                                                    className="h-[50px] w-12 btn-god-emerald active:scale-95 rounded-xl shadow-lg shadow-emerald-500/10 flex items-center justify-center transition-all group shrink-0 border-none"
+                                                    onClick={() => setShowBuyerDialog(true)}
+                                                    type="button"
+                                                    title="Cadastrar comprador"
+                                                    disabled={readOnly}
+                                                >
+                                                    <Plus className="h-6 w-6 text-white stroke-[4px]" />
+                                                </Button>
+                                            </div>
                                             <DbComboBox
                                                 label="FRETE"
-                                                value={formData.ped_frete}
-                                                initialLabel={formData.ped_frete === 'F' ? 'FOB' : (formData.ped_frete === 'C' ? 'CIF' : '')}
+                                                value={formData.ped_tipofrete}
+                                                initialLabel={formData.ped_tipofrete === 'F' ? 'FOB' : (formData.ped_tipofrete === 'C' ? 'CIF' : '')}
                                                 fetchData={async (search) => {
                                                     const options = [
                                                         { label: 'CIF', value: 'C' },
@@ -1905,25 +2260,28 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                     ];
                                                     return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
                                                 }}
-                                                onChange={(val) => handleFieldChange('ped_frete', val)}
+                                                disabled={readOnly}
+                                                onChange={(val) => handleFieldChange('ped_tipofrete', val)}
                                             />
                                         </div>
 
-                                        <div className="col-span-6">
+                                        {/* Row 3: Pedidos Cliente e Indústria */}
+                                        <div className="grid grid-cols-2 gap-4">
                                             <InputField
                                                 label="PEDIDO CLIENTE"
                                                 value={formData.ped_pedcli || ''}
                                                 onChange={(e) => handleFieldChange('ped_pedcli', e.target.value)}
                                                 placeholder=" "
+                                                className="font-black text-black"
+                                                disabled={readOnly}
                                             />
-                                        </div>
-
-                                        <div className="col-span-6">
                                             <InputField
                                                 label="PEDIDO INDÚSTRIA"
                                                 value={formData.ped_pedindu || ''}
                                                 onChange={(e) => handleFieldChange('ped_pedindu', e.target.value)}
                                                 placeholder=" "
+                                                className="font-black text-black"
+                                                disabled={readOnly}
                                             />
                                         </div>
                                     </div>
@@ -1942,6 +2300,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             fetchData={fetchPriceTables}
                                             onChange={(val) => handleFieldChange('ped_tabela', val)}
                                             className="bg-white border-amber-200 text-amber-900 font-bold"
+                                            disabled={readOnly}
                                         />
                                         <div className="mt-2 flex justify-between text-[10px] text-amber-600/70 font-medium px-1">
                                             <span>Preços e impostos atualizados</span>
@@ -1957,34 +2316,36 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
 
 
                                     <div className="flex justify-between items-center mb-1">
-                                        <Label className={labelClasses}>Informe os descontos</Label>
-                                        <Button size="sm" variant="ghost" className="h-5 text-[10px] text-emerald-600 px-1"><Plus className="h-3 w-3 mr-1" /> Adicionar</Button>
+                                        <Label className="text-sm font-black text-teal-950 uppercase tracking-widest">Informar Descontos (%)</Label>
+                                        <Button size="sm" variant="ghost" className="h-6 text-[10px] text-emerald-700 font-bold px-1 hover:bg-emerald-50"><Plus className="h-3 w-3 mr-1" /> Adicionar</Button>
                                     </div>
-                                    <div className="border border-blue-400 rounded-lg p-3 bg-white mb-3 shadow-sm">
-                                        <div className="grid grid-cols-4 gap-2 mb-3">
+                                    <div className="border-2 border-blue-500 rounded-xl p-4 bg-white mb-4 shadow-md ring-4 ring-blue-50">
+                                        <div className="grid grid-cols-4 gap-3 mb-4">
                                             {[
                                                 { key: 'ped_pri', label: '1º' }, { key: 'ped_seg', label: '2º' }, { key: 'ped_ter', label: '3º' },
                                                 { key: 'ped_qua', label: '4º' }
                                             ].map((field) => (
-                                                <DiscountInput
-                                                    key={field.key}
-                                                    label={field.label}
-                                                    value={formData[field.key]}
-                                                    onChange={(val) => handleFieldChange(field.key, val)}
-                                                />
+                                                <div key={field.key} className="flex flex-col gap-1">
+                                                    <DiscountInput
+                                                        label={field.label}
+                                                        value={formData[field.key]}
+                                                        onChange={(val) => handleFieldChange(field.key, val)}
+                                                    />
+                                                </div>
                                             ))}
                                         </div>
-                                        <div className="grid grid-cols-5 gap-2 items-center">
+                                        <div className="grid grid-cols-5 gap-3 items-center">
                                             {[
                                                 { key: 'ped_qui', label: '5º' }, { key: 'ped_sex', label: '6º' }, { key: 'ped_set', label: '7º' },
                                                 { key: 'ped_oit', label: '8º' }, { key: 'ped_nov', label: '9º' }
                                             ].map((field) => (
-                                                <DiscountInput
-                                                    key={field.key}
-                                                    label={field.label}
-                                                    value={formData[field.key]}
-                                                    onChange={(val) => handleFieldChange(field.key, val)}
-                                                />
+                                                <div key={field.key} className="flex flex-col gap-1">
+                                                    <DiscountInput
+                                                        label={field.label}
+                                                        value={formData[field.key]}
+                                                        onChange={(val) => handleFieldChange(field.key, val)}
+                                                    />
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -1996,6 +2357,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                             setShowConditionDialog(true);
                                         }}
                                         type="button"
+                                        disabled={readOnly}
                                     >
                                         <div className="flex items-center justify-center gap-2">
                                             <Star className="h-4 w-4 text-white" />
@@ -2008,6 +2370,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         <Checkbox
                                             id="allowDuplicates"
                                             checked={allowDuplicates}
+                                            disabled={readOnly}
                                             onCheckedChange={(checked) => {
                                                 console.log("Checkbox toggled:", checked);
                                                 setAllowDuplicates(checked);
@@ -2034,7 +2397,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                         </div>
 
                         {/* Navigation Action Buttons - 2025 Modern Design Unified */}
-                        <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/40 backdrop-blur-md rounded-2xl border border-slate-300/40 shadow-inner w-full mt-2 mb-1.5 overflow-x-auto no-scrollbar">
+                        <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-2xl border-2 border-slate-300 shadow-md w-full mt-2 mb-2 overflow-x-auto custom-scrollbar-thin">
                             {[
                                 { key: 'F1', label: 'F1 - Principal', icon: LayoutDashboard },
                                 { key: 'F2', label: 'F2 - Inteligência', isIntelligence: true },
@@ -2044,13 +2407,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 { key: 'F6', label: 'F6 - Obs.', icon: MessageSquare },
                                 { key: 'F7', label: 'F7 - Faturados', icon: FileCheck },
                                 { key: 'XX', label: 'XX - Imp. XLS', icon: FileUp },
-                                { key: '01', label: '01 - LOAD XML', icon: FileCode },
+                                { key: '01', label: '01 - XML', icon: FileCode },
+                                { key: '02', label: '02 - Arq. texto', icon: FileText },
                             ].map(tab => {
                                 if (tab.isIntelligence) {
                                     return (
-                                        <div key={tab.key} className="mx-0.5">
+                                        <div key={tab.key} className="mx-1 shrink-0">
                                             <SmartOrderDialog
-                                                disabled={false}
+                                                disabled={readOnly}
                                                 orderId={formData.ped_pedido}
                                                 orderNumber={displayNumber}
                                                 onOrderGenerated={handleSmartImportItems}
@@ -2066,23 +2430,25 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     <button
                                         key={tab.key}
                                         onClick={() => handleTabChange(tab.key)}
+                                        disabled={readOnly && ['XX', '01'].includes(tab.key)}
                                         className={cn(
-                                            "group relative flex-shrink-0 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl transition-all duration-500 h-[42px]",
-                                            "text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
+                                            "group relative flex-shrink-0 min-w-[130px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 h-[48px]",
+                                            "text-[11px] font-black uppercase tracking-wider whitespace-nowrap",
+                                            readOnly && ['XX', '01'].includes(tab.key) && "opacity-50 cursor-not-allowed bg-slate-200 border-slate-300 text-slate-500",
                                             isActive
-                                                ? "active-tab-glow text-blue-700 font-black shadow-xl scale-[1.05] z-20"
-                                                : "bg-white border border-blue-200/60 text-slate-700 shadow-sm hover:border-blue-400 hover:text-blue-900 hover:scale-[1.02] z-10"
+                                                ? "active-tab-glow bg-blue-700 text-white shadow-lg shadow-blue-500/30 scale-[1.05] z-20"
+                                                : "bg-white border-2 border-slate-300 text-slate-800 shadow-sm hover:border-blue-500 hover:text-blue-900 hover:scale-[1.02] z-10"
                                         )}
                                     >
                                         <Icon className={cn(
-                                            "h-4 w-4 transition-all duration-500",
+                                            "h-5 w-5 transition-all duration-300",
                                             isActive
-                                                ? "text-blue-600 scale-125 rotate-[360deg]"
-                                                : "text-blue-400/70 group-hover:text-blue-500 group-hover:rotate-12"
+                                                ? "text-white scale-110"
+                                                : "text-blue-600/70 group-hover:text-blue-700 group-hover:rotate-12"
                                         )} />
                                         <span>{tab.label}</span>
                                         {isActive && (
-                                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 bg-blue-500 rounded-full blur-[1.5px] animate-pulse" />
+                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-10 h-1.5 bg-blue-400 rounded-full blur-[2px] animate-pulse" />
                                         )}
                                     </button>
                                 );
@@ -2179,6 +2545,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                 ped_oit: formData.ped_oit,
                                 ped_nov: formData.ped_nov
                             }}
+                            clientDiscounts={smartDiscounts.clientDiscounts}
+                            tableDiscounts={smartDiscounts.tableGroupDiscounts}
                             onItemsChange={(totals, items) => {
                                 if (totals) {
                                     setFormData(prev => ({
@@ -2196,6 +2564,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                             importing={isImporting}
                             pedCliente={formData.ped_cliente}
                             userParams={userParams}
+                            isActive={activeTab === 'F3'}
+                            onFinalize={() => setActiveTab('F1')}
+                            readOnly={readOnly}
                         />
                     </div>
 
@@ -2365,8 +2736,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                         return (
                                             <tr
                                                 key={idx}
+                                                onContextMenu={(e) => handleContextMenu(e, item, idx)}
                                                 className={cn(
-                                                    "border-b hover:bg-slate-50 transition-colors h-8 group",
+                                                    "border-b hover:bg-slate-50 transition-colors h-8 group cursor-context-menu",
                                                     item.ite_promocao === 'S' && "bg-orange-50 hover:bg-orange-100",
                                                     isPackagingError && "bg-red-50 hover:bg-red-100 ring-1 ring-inset ring-red-200"
                                                 )}
@@ -2378,6 +2750,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         type="text"
                                                         value={item.ite_embuch || ''}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_embuch', e.target.value)}
+                                                        disabled={readOnly}
                                                         className="w-full text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium" // Fundo transparente
                                                     />
                                                 </td>
@@ -2389,6 +2762,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         type="text"
                                                         value={typeof item.ite_quant === 'number' ? item.ite_quant.toFixed(2) : (item.ite_quant ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_quant', e.target.value)}
+                                                        disabled={readOnly}
                                                         className={cn(
                                                             "w-full text-center text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-black",
                                                             isPackagingError ? "text-red-600" : "text-slate-900"
@@ -2406,6 +2780,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                         value={typeof item.ite_puni === 'number' ? item.ite_puni.toFixed(2) : (item.ite_puni ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_puni', e.target.value)}
                                                         onBlur={(e) => handleGridEdit(idx, 'ite_puni', parseFloat(e.target.value || 0).toFixed(2))}
+                                                        disabled={readOnly}
                                                         className="w-full text-right text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium"
                                                     />
                                                 </td>
@@ -2427,6 +2802,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                                 value={typeof item[`ite_des${n}`] === 'number' ? item[`ite_des${n}`].toFixed(2) : (item[`ite_des${n}`] ?? '')}
                                                                 onChange={(e) => handleGridEdit(idx, `ite_des${n}`, e.target.value)}
                                                                 onBlur={(e) => handleGridEdit(idx, `ite_des${n}`, parseFloat(e.target.value || 0).toFixed(2))}
+                                                                disabled={readOnly}
                                                                 className="w-full text-right text-[13px] h-8 bg-transparent text-blue-700 font-bold focus:bg-white focus:ring-1 focus:ring-blue-500 border-none p-0 pr-0.5"
                                                             />
                                                             <span className="text-xs text-blue-600/70 ml-0.5">%</span>
@@ -2442,6 +2818,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                                             value={typeof item.ite_des10 === 'number' ? item.ite_des10.toFixed(2) : (item.ite_des10 ?? '')}
                                                             onChange={(e) => handleGridEdit(idx, 'ite_des10', e.target.value)}
                                                             onBlur={(e) => handleGridEdit(idx, 'ite_des10', parseFloat(e.target.value || 0).toFixed(2))}
+                                                            disabled={readOnly}
                                                             className="w-full text-right text-[13px] h-8 bg-transparent text-amber-700 font-bold focus:bg-white focus:ring-1 focus:ring-amber-500 border-none p-0 pr-0.5"
                                                         />
                                                         <span className="text-xs text-amber-600/70 ml-0.5">%</span>
@@ -2481,7 +2858,6 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     { k: '8', l: 'Forçar Descontos', desc: 'Aplica desc. cabeçalho em TUDO (ignora promoção)' },
                                     { k: '9', l: 'Inserir % Adicional', desc: 'Define % ADD e % ESP em lote' },
                                     { k: 'A', l: 'Checar Múltiplos', desc: 'Ajusta qtd para múltiplo da embalagem' },
-                                    { k: 'B', l: 'Desc. por Quantidade', desc: '[Futuro] Desconto por quantidade' },
                                     { k: 'C', l: 'Código Original', desc: 'Preenche campo Embuch com Cód. Original' }
                                 ].map((btn) => (
                                     <button
@@ -2548,18 +2924,85 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                         </div>
                     </div>
 
-                    {/* Other Tabs */}
-                    {['F4', 'F7', '01'].map(tab => (
-                        <div key={tab} className={cn("absolute inset-0 flex items-center justify-center", activeTab !== tab && "hidden")}>
-                            <div className="text-center text-emerald-300">
-                                <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                                <p className="text-lg font-medium">Aba {tab}</p>
-                                <p className="text-sm mt-2">Em desenvolvimento...</p>
-                            </div>
-                        </div>
-                    ))}
 
                 </div> {/* End of Main Content */}
+
+                {/* --- CONTEXT MENU (DELPHI STYLE POPUP) --- */}
+                {contextMenu && (
+                    <div
+                        className="fixed z-[9999] bg-white/95 backdrop-blur-xl border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-2xl py-1.5 min-w-[260px] animate-in fade-in zoom-in-95 duration-200 select-none overflow-hidden ring-1 ring-black/5"
+                        style={{ top: contextMenu.y, left: contextMenu.x }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-4 py-2 border-b border-slate-100/80 mb-1 bg-slate-50/50 flex items-center justify-between">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <Package className="w-3.5 h-3.5 text-emerald-500" />
+                                Item {contextMenu.item.ite_produto}
+                            </span>
+                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        </div>
+
+                        {/* EXCLUIR ITEM (OPÇÃO 0) */}
+                        <button
+                            onClick={() => { handleDeleteItem(contextMenu.index); closeContextMenu(); }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 flex items-center justify-between group transition-all"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-1 rounded-lg bg-red-100 group-hover:bg-red-500 group-hover:text-white transition-colors">
+                                    <XCircle className="w-4 h-4" />
+                                </div>
+                                <span className="text-xs font-bold tracking-tight">0 - Excluir ítem do pedido</span>
+                            </div>
+                            <span className="text-[10px] text-red-300 font-mono">DEL</span>
+                        </button>
+
+                        <div className="h-px bg-slate-100/50 my-1 mx-2" />
+
+                        {/* CORE ACTIONS (1-9) */}
+                        <div className="max-h-[350px] overflow-y-auto custom-scrollbar-thin">
+                            {[
+                                { k: '1', l: 'Atz valores', i: RefreshCw, c: 'text-blue-500', bg: 'bg-blue-50' },
+                                { k: '2', l: 'Desc padrão', i: Percent, c: 'text-emerald-500', bg: 'bg-emerald-50' },
+                                { k: '3', l: 'Desc grupo', i: Users, c: 'text-indigo-500', bg: 'bg-indigo-50' },
+                                { k: '4', l: 'Atz. tab nova', i: FileText, c: 'text-amber-500', bg: 'bg-amber-50' },
+                                { k: '5', l: 'Atz. IPI (%)', i: Calculator, c: 'text-rose-500', bg: 'bg-rose-50' },
+                                { k: '6', l: 'Atz. vlr normal', i: RefreshCw, c: 'text-teal-500', bg: 'bg-teal-50' },
+                                { k: '7', l: 'Atz. tabela líquida', i: History, c: 'text-purple-500', bg: 'bg-purple-50' },
+                                { k: '9', l: 'Desc Add', i: Plus, c: 'text-orange-500', bg: 'bg-orange-50' },
+                                { k: 'A', l: 'Chk múltiplos', i: CheckSquare, c: 'text-emerald-600', bg: 'bg-emerald-50' },
+                                { k: 'C', l: 'Cód. original', i: Tag, c: 'text-slate-500', bg: 'bg-slate-100' },
+                            ].map((m) => (
+                                <button
+                                    key={m.k}
+                                    onClick={() => { handleF5Action(m.k); closeContextMenu(); }}
+                                    className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 flex items-center justify-between group transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={cn("p-1 rounded-lg transition-colors", m.bg, `group-hover:${m.bg.replace('50', '100')}`)}>
+                                            <m.i className={cn("w-3.5 h-3.5", m.c)} />
+                                        </div>
+                                        <span className="text-[12px] font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">{m.k} - {m.l}</span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-300 font-mono group-hover:text-slate-400">{m.k}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="h-px bg-slate-100/50 my-1 mx-2" />
+
+                        <button
+                            onClick={() => { handleDeleteAllItems(); closeContextMenu(); }}
+                            className="w-full text-left px-4 py-3 hover:bg-red-600 group transition-all"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-1 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-500 group-hover:text-white">
+                                    <AlertTriangle className="w-4 h-4 transition-transform group-hover:rotate-12" />
+                                </div>
+                                <span className="text-xs font-black uppercase tracking-tight text-red-600 group-hover:text-white transition-colors">I - Excluir todos os ítens</span>
+                            </div>
+                        </button>
+                    </div>
+                )}
 
                 {/* --- MODERN FOOTER --- */}
                 <div className="bg-white border-t border-slate-200 px-8 py-4 flex items-center justify-between shrink-0 glass-premium z-50">
@@ -2582,26 +3025,31 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                                     CANCELAR
                                 </Button>
 
-                                <Button
-                                    onClick={handleSave}
-                                    disabled={loading || isSaving}
-                                    className="btn-god-save h-12 px-12 rounded-2xl text-[14px] font-black tracking-widest min-w-[220px]"
-                                >
-                                    {loading || isSaving ? (
-                                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                                    ) : (
-                                        <Save className="h-5 w-5 mr-2 text-emerald-200" />
-                                    )}
-                                    {isSaving ? 'SALVANDO...' : 'SALVAR (F10)'}
-                                </Button>
+                                {!readOnly && (
+                                    <Button
+                                        onClick={handleSave}
+                                        disabled={loading || isSaving}
+                                        className="btn-god-save h-12 px-12 rounded-2xl text-[14px] font-black tracking-widest min-w-[220px]"
+                                    >
+                                        {loading || isSaving ? (
+                                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                                        ) : (
+                                            <Save className="h-5 w-5 mr-2 text-emerald-200" />
+                                        )}
+                                        {isSaving ? 'SALVANDO...' : 'SALVAR (F10)'}
+                                    </Button>
+                                )}
                             </>
+                        ) : activeTab === 'F3' ? (
+                            // Invisível no F3 conforme pedido pelo usuário
+                            null
                         ) : (
                             <Button
                                 onClick={() => setActiveTab('F1')}
-                                className="bg-[#1e293b] hover:bg-slate-900 h-10 px-8 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 border border-slate-700"
+                                className="bg-[#1e293b] hover:bg-slate-900 h-10 px-8 rounded-xl shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-3 border border-slate-700 text-white"
                             >
                                 <ArrowLeft className="h-5 w-5 text-emerald-400" />
-                                <span className="text-white text-[12px] font-black tracking-widest">
+                                <span className="!text-white text-[12px] font-black tracking-widest" style={{ color: 'white' }}>
                                     VOLTAR PARA O PRINCIPAL
                                 </span>
                             </Button>
@@ -2709,7 +3157,6 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder }) => {
                             { k: '8', t: 'Forçar Desconto', d: 'Ignora se o item é promocional ou não e aplica os descontos do cabeçalho em TODOS os itens.' },
                             { k: '9', t: 'Inserir % ADD', d: 'Permite definir o % de Desconto Adicional (ADD) e/ou Especial (ESP) para todos os itens de uma vez.' },
                             { k: 'A', t: 'Checar Múltiplos', d: 'Verifica a embalagem do produto. Se a quantidade não for múltiplo (ex: cx 12, pediu 13), ajusta para cima (ex: 24).' },
-                            { k: 'B', t: 'Desconto Qtde', d: '[Futuro] Aplicará regras de desconto baseadas na quantidade comprada.' },
                             { k: 'C', t: 'Código Original', d: 'Pesquisa o produto na tabela original e preenche o campo "Embuch" com o código de fábrica.' },
                         ].map(item => (
                             <div key={item.k} className="flex gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors">

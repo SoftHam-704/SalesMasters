@@ -7,4 +7,5 @@ export { usePriceTable } from './usePriceTable';
 export { useAuxData } from './useAuxData';
 export { useCliIndData } from './useCliIndData';
 export { useCliAnivData } from './useCliAnivData';
+export { useSmartDiscounts } from './useSmartDiscounts';
 

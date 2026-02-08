@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
     Select,
     SelectContent,
@@ -17,9 +15,9 @@ import {
     Plus, Phone, Mail, MessageSquare, Users, Calendar,
     TrendingUp, AlertTriangle, Clock, Search, Filter,
     ChevronRight, Building2, User, Activity, Columns, List,
-    Briefcase, LayoutDashboard, ArrowUpRight, Cake, Loader2,
-    ArrowRight, CheckCircle2, X, HelpCircle, Sparkles,
-    Pencil, Trash2, FilterX, Scissors
+    Briefcase, LayoutDashboard, ArrowUpRight, Loader2,
+    CheckCircle2, X, HelpCircle, Sparkles,
+    Pencil, Trash2, FilterX, Scissors, Shield, Zap, Target, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -28,6 +26,11 @@ import NovaOportunidadeModal from '@/components/crm/NovaOportunidadeModal';
 import CRMHelpModal from '@/components/crm/CRMHelpModal';
 import KanbanBoard from '@/components/crm/KanbanBoard';
 import { NODE_API_URL } from '../utils/apiConfig';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    Cell, PieChart, Pie
+} from 'recharts';
+import '@/theme/stealth-web.css';
 
 const formatDate = (dateString) => {
     if (!dateString) return '—';
@@ -35,13 +38,48 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString('pt-BR');
 };
 
+const formatCurrency = (value) => {
+    if (!value) return 'R$ 0,00';
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+};
+
 const formatDateTime = (dateString) => {
     if (!dateString) return '—';
     const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 };
 
-// Icon mapping for interaction types
+const formatRelativeTime = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSeg = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSeg / 60);
+    const diffHor = Math.floor(diffMin / 60);
+    const diffDia = Math.floor(diffHor / 24);
+
+    if (diffMin < 1) {
+        if (diffMin < -10) return 'Agendado'; // Future dates
+        return 'Agora';
+    }
+    if (diffMin < 60) return `há ${diffMin} min`;
+    if (diffHor < 24) return `há ${diffHor} h`;
+    if (diffDia === 1) return 'Ontem';
+    if (diffDia < 30) return `há ${diffDia} dias`;
+    return date.toLocaleDateString('pt-BR');
+};
+
+// Tactical Icon mapping
 const getTypeIcon = (tipo) => {
     const lower = (tipo || '').toLowerCase();
     if (lower.includes('telefon') || lower.includes('ligação')) return Phone;
@@ -51,256 +89,437 @@ const getTypeIcon = (tipo) => {
     return Activity;
 };
 
-// Color mapping for results
-const getResultColor = (resultado) => {
-    if (!resultado) return 'bg-slate-100 text-slate-600';
-    const lower = resultado.toLowerCase();
-    if (lower.includes('venda') || lower.includes('fechado')) return 'bg-emerald-100 text-emerald-700';
-    if (lower.includes('sem interesse') || lower.includes('perdido')) return 'bg-red-100 text-red-700';
-    if (lower.includes('retornar') || lower.includes('aguardando')) return 'bg-amber-100 text-amber-700';
-    if (lower.includes('negociação') || lower.includes('proposta')) return 'bg-blue-100 text-blue-700';
-    return 'bg-slate-100 text-slate-600';
-};
-
-const CRMDashboard = ({ stats, onNavigate }) => {
-    const [birthdays, setBirthdays] = useState([]);
-    const [industries, setIndustries] = useState([]);
-    const [team, setTeam] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchDash = async () => {
-            try {
-                const [res1, res2, res3] = await Promise.all([
-                    fetch(`${NODE_API_URL}/api/crm/stats/birthdays`),
-                    fetch(`${NODE_API_URL}/api/crm/stats/industries`),
-                    fetch(`${NODE_API_URL}/api/crm/stats/team`)
-                ]);
-
-                const d1 = await res1.json();
-                const d2 = await res2.json();
-                const d3 = await res3.json();
-
-                if (d1.success) setBirthdays(d1.data);
-                if (d2.success) setIndustries(d2.data);
-                if (d3.success) setTeam(d3.data);
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDash();
-    }, []);
-
-    if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-blue-500" /></div>;
-
+const CRMDashboard = ({
+    stats,
+    team,
+    industrias,
+    filterCli,
+    setFilterCli,
+    filterInd,
+    setFilterInd,
+    dataInicio,
+    setDataInicio,
+    dataFim,
+    setDataFim,
+    filterVen,
+    setFilterVen,
+    teamStats,
+    industryStats,
+    fetchClients,
+    lastPurchases,
+    loading
+}) => {
     return (
-        <div className="h-full overflow-y-auto p-2 space-y-6">
-
-            {/* Top Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10"><MessageSquare className="w-24 h-24" /></div>
-                    <CardContent className="p-6">
-                        <p className="text-blue-100 font-medium text-sm">Interações Hoje</p>
-                        <h3 className="text-4xl font-bold mt-2">{stats.totalHoje || 0}</h3>
-                        <div className="mt-4 flex items-center text-xs bg-blue-500/30 w-fit px-2 py-1 rounded">
-                            <ArrowUpRight className="w-3 h-3 mr-1" />
-                            <span>12% essa semana</span>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-white border-blue-100 shadow-sm hover:shadow-md transition-all">
-                    <CardContent className="p-6">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-slate-500 font-medium text-sm">Total Semana</p>
-                                <h3 className="text-3xl font-bold text-slate-800 mt-2">{stats.totalSemana || 0}</h3>
-                            </div>
-                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                                <Calendar className="w-5 h-5" />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-white border-blue-100 shadow-sm hover:shadow-md transition-all">
-                    <CardContent className="p-6">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-slate-500 font-medium text-sm">Pendentes</p>
-                                <h3 className="text-3xl font-bold text-amber-600 mt-2">{stats.pendentes || 0}</h3>
-                            </div>
-                            <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
-                                <AlertTriangle className="w-5 h-5" />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+        <div className="p-8 space-y-8 max-w-[1600px] mx-auto overflow-y-auto h-full custom-scrollbar">
+            {/* Embedded Operational Filters */}
+            <div className="stealth-card p-6 border-slate-200 bg-white shadow-sm flex flex-wrap gap-4 items-end relative z-50">
+                <div className="flex-1 min-w-[200px] space-y-2">
+                    <span className="tactical-label">Período (Mensal)</span>
+                    <div className="flex gap-2">
+                        <input
+                            type="date"
+                            value={dataInicio}
+                            onChange={(e) => setDataInicio(e.target.value)}
+                            className="bg-white border border-slate-200 rounded-lg h-12 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <input
+                            type="date"
+                            value={dataFim}
+                            onChange={(e) => setDataFim(e.target.value)}
+                            className="bg-white border border-slate-200 rounded-lg h-12 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 min-w-[300px] space-y-2">
+                    <span className="tactical-label">Alvo / Cliente</span>
+                    <DbComboBox
+                        placeholder="Filtrar cliente..."
+                        value={filterCli}
+                        onChange={(val) => setFilterCli(val)}
+                        fetchData={fetchClients}
+                        labelKey="cli_nomred"
+                        valueKey="cli_codigo"
+                    />
+                </div>
+                <div className="flex-1 min-w-[200px] space-y-2">
+                    <span className="tactical-label">Operador (Vendedor)</span>
+                    <input
+                        type="text"
+                        placeholder="Pesquisar por nome..."
+                        value={filterVen}
+                        onChange={(e) => setFilterVen(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-lg h-12 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                </div>
+                <div className="w-[200px] space-y-2">
+                    <span className="tactical-label">Setor / Indústria</span>
+                    <Select value={filterInd} onValueChange={setFilterInd}>
+                        <SelectTrigger className="bg-white border-slate-200 rounded-lg h-12 text-sm">
+                            <SelectValue placeholder="Indústria" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-slate-200">
+                            <SelectItem value="all">Todas</SelectItem>
+                            {industrias.map(ind => (
+                                <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
+                                    {ind.for_nomered || ind.for_nome}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                {(filterCli || filterInd || dataInicio || dataFim || filterVen) && (
+                    <Button variant="ghost" onClick={() => { setFilterCli(null); setFilterInd('all'); setDataInicio(''); setDataFim(''); setFilterVen(''); }} className="h-11 px-4 text-xs font-bold text-slate-400 hover:text-red-500 uppercase tracking-widest">
+                        <FilterX size={14} className="mr-2" /> Limpar
+                    </Button>
+                )}
             </div>
 
-            {/* Main Dashboard Grid */}
-            <div className="grid grid-cols-1 gap-6">
+            {/* Últimas Compras (Dashboard View) */}
+            {filterCli && lastPurchases && lastPurchases.length > 0 && (
+                <div className="bg-white/50 p-6 rounded-2xl border border-slate-200/60 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-1.5 h-6 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]" />
+                        <div className="flex flex-col">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Histórico Recente de Compras</h3>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Últimos 10 Pedidos / Faturados</span>
+                        </div>
+                    </div>
 
-                {/* Ranking Tables */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Team Ranking */}
-                    <Card className="border-blue-100">
-                        <CardHeader className="py-3 border-b border-slate-100">
-                            <CardTitle className="text-base text-slate-700">Atividade da Equipe</CardTitle>
-                        </CardHeader>
-                        <div className="p-0 overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-slate-500 font-medium">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                        {lastPurchases.map((purchase) => (
+                            <motion.div
+                                key={purchase.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-white border border-slate-200 p-3 rounded-xl hover:shadow-md transition-all group relative overflow-hidden"
+                            >
+                                <div className={`absolute top-0 right-0 w-1 h-full ${purchase.status === 'F' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs font-black text-slate-500 font-mono">#{purchase.id}</span>
+                                    <Badge className={`${purchase.status === 'F' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'} border text-[8px] font-black px-1.5 h-4 uppercase`}>
+                                        {purchase.status === 'F' ? 'Faturado' : 'Pedido'}
+                                    </Badge>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <h4 className="text-[10px] font-black text-slate-800 uppercase line-clamp-1 group-hover:text-blue-600 transition-colors">
+                                        {purchase.industry}
+                                    </h4>
+                                    <div className="text-sm font-black text-slate-900">
+                                        {formatCurrency(purchase.value)}
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                                    <span className="text-[10px] font-bold text-slate-400">{formatDate(purchase.date)}</span>
+                                    <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{purchase.quantity} ITENS</span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Direct Intelligence Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {[
+                    { label: 'Hoje', value: stats.totalHoje, icon: Zap, color: 'text-blue-600', trend: 'Live', trendColor: 'text-blue-600 bg-blue-50 border-blue-100' },
+                    { label: 'Mês Corrente', value: stats.totalMes || stats.totalSemana, icon: Target, color: 'text-emerald-600', trend: 'Alvo', trendColor: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+                    { label: 'Acompanhamentos', value: stats.pendentes, icon: AlertTriangle, color: 'text-amber-600', trend: 'Atenção', trendColor: 'text-amber-600 bg-amber-50 border-amber-100' },
+                    { label: 'Histórico 30d', value: stats.total30d || stats.totalSemana, icon: Activity, color: 'text-slate-600', trend: 'Sincro', trendColor: 'text-slate-600 bg-slate-50 border-slate-100' }
+                ].map((m, i) => (
+                    <div key={i} className="stealth-card relative overflow-hidden group border-slate-200 bg-white">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className={`p-2.5 bg-slate-50 border border-slate-100 rounded-xl ${m.color} shadow-sm group-hover:shadow-md transition-all`}>
+                                <m.icon size={20} />
+                            </div>
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${m.trendColor}`}>
+                                {m.trend}
+                            </span>
+                        </div>
+                        <span className="tactical-label mb-1 text-slate-400">{m.label}</span>
+                        <div className="text-3xl font-black text-slate-900 tracking-tighter">
+                            {loading ? <Loader2 size={20} className="animate-spin text-slate-200" /> : m.value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Team Status Log */}
+                <div className="lg:col-span-2 stealth-card min-h-[400px] border-slate-200 bg-white shadow-sm">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)] animate-pulse" />
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">Log de Interações // Período</h3>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                        <table className="tactical-table">
+                            <thead>
+                                <tr>
+                                    <th>Vendedor</th>
+                                    <th>Último Cliente</th>
+                                    <th>Horário</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {team.length === 0 ? (
                                     <tr>
-                                        <th className="text-left p-3 pl-4">Operador</th>
-                                        <th className="text-center p-3">Geral</th>
-                                        <th className="text-center p-3">No Mês</th>
-                                        <th className="text-center p-3">Hoje</th>
+                                        <td colSpan="4" className="text-center py-12 text-slate-300 italic text-xs">Sem atividade recente registrada</td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {team.map((t, i) => (
-                                        <tr key={i} className="hover:bg-blue-50/30">
-                                            <td className="p-3 pl-4 font-medium text-slate-700">{t.operador}</td>
-                                            <td className="p-3 text-center text-slate-500">{t.total}</td>
-                                            <td className="p-3 text-center text-blue-600 font-bold bg-blue-50/50">{t.no_mes}</td>
-                                            <td className="p-3 text-center text-emerald-600 font-bold">{t.no_dia || 0}</td>
-                                        </tr>
+                                ) : team.map((row, i) => (
+                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="font-bold text-slate-900 text-sm whitespace-nowrap">{row.name}</td>
+                                        <td className="text-slate-500 text-sm font-medium max-w-[200px] truncate">{row.task}</td>
+                                        <td className="flex flex-col py-4">
+                                            <span className="text-blue-700 font-mono text-sm font-black">{formatRelativeTime(row.last_sync)}</span>
+                                            <span className="text-slate-500 font-mono text-xs font-bold mt-1 uppercase bg-slate-100 px-2 py-0.5 rounded w-fit">{formatDateTime(row.last_sync)}</span>
+                                        </td>
+                                        <td>
+                                            <Badge variant="outline" className={cn(
+                                                "rounded-full text-xs font-bold uppercase",
+                                                row.status === 'Ativo' ? "text-emerald-600 border-emerald-100 bg-emerald-50" : "text-slate-400 bg-slate-50"
+                                            )}>
+                                                {row.status}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* System Alerts */}
+                <div className="space-y-6">
+                    <div className="stealth-card p-6 border-l-4 border-l-amber-500 bg-amber-50/30 border-slate-200 shadow-sm">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-white border border-amber-100 text-amber-500 rounded-xl shadow-sm">
+                                <AlertTriangle size={24} />
+                            </div>
+                            <div>
+                                <span className="tactical-label text-amber-600 font-black tracking-widest block mb-1">Inatividade</span>
+                                <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                                    Há {stats.insights?.inatividade || 0} clientes sem novas interações no mês atual.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="stealth-card p-6 border-l-4 border-l-blue-500 bg-blue-50/30 border-slate-200 shadow-sm">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-white border border-blue-100 text-blue-600 rounded-xl shadow-sm">
+                                <Zap size={24} />
+                            </div>
+                            <div>
+                                <span className="tactical-label text-blue-600 font-black tracking-widest block mb-1">Gap Analysis</span>
+                                <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                                    {stats.insights?.gap || "Filtre por Indústria para ver oportunidades."}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Performance Visualization Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Operator Performance Chart */}
+                <div className="stealth-card p-6 border-slate-200 bg-white shadow-sm min-h-[400px]">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                                <Users size={18} />
+                            </div>
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">Performance por Operador</h3>
+                        </div>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={teamStats} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis
+                                    dataKey="operador"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }}
+                                />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                                <Tooltip
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Bar dataKey="no_mes" name="No Mês" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={24} />
+                                <Bar dataKey="no_dia" name="Hoje" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Industry Distribution Chart (Horizontal) */}
+                <div className="stealth-card p-6 border-slate-200 bg-white shadow-sm min-h-[400px]">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                <Activity size={18} />
+                            </div>
+                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">Interações por Indústria</h3>
+                        </div>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                                layout="vertical"
+                                data={industryStats}
+                                margin={{ top: 10, right: 30, left: 40, bottom: 10 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                <XAxis type="number" hide />
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fontSize: 10, fontWeight: 700, fill: '#475569' }}
+                                    width={100}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                                />
+                                <Bar dataKey="total" fill="#6366f1" radius={[0, 4, 4, 0]} minPointSize={5}>
+                                    {industryStats.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#3b82f6' : '#60a5fa'} />
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-
-                    {/* Industry Activity */}
-                    <Card className="border-blue-100">
-                        <CardHeader className="py-3 border-b border-slate-100">
-                            <CardTitle className="text-base text-slate-700">Atividade no CRM por Indústria (%)</CardTitle>
-                        </CardHeader>
-                        <div className="p-0 overflow-hidden">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-slate-500 font-medium">
-                                    <tr>
-                                        <th className="text-left p-3 pl-4">Indústria</th>
-                                        <th className="text-center p-3">Geral</th>
-                                        <th className="text-center p-3">No Mês</th>
-                                        <th className="text-right p-3 pr-4">Share</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {industries.map((ind, i) => {
-                                        const totalAll = industries.reduce((acc, curr) => acc + parseInt(curr.no_mes), 0);
-                                        const share = totalAll > 0 ? ((parseInt(ind.no_mes) / totalAll) * 100).toFixed(1) : 0;
-                                        return (
-                                            <tr key={i} className="hover:bg-blue-50/30">
-                                                <td className="p-3 pl-4 font-medium text-slate-700 text-xs">{ind.industria}</td>
-                                                <td className="p-3 text-center text-slate-400 text-xs">{ind.total}</td>
-                                                <td className="p-3 text-center text-slate-700 font-medium">{ind.no_mes}</td>
-                                                <td className="p-3 pr-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <span className="text-xs text-slate-500">{share}%</span>
-                                                        <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${share}%` }} />
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-
-
-// ... (CRMDashboard component code is already above here) ...
-
-import { useSearchParams } from 'react-router-dom';
-
-// ...
-
 export default function CRMPage() {
-    const [searchParams] = useSearchParams();
-    const initialView = searchParams.get('view') === 'dashboard' ? 'dashboard' : 'kanban';
-
-    const [viewMode, setViewMode] = useState(initialView); // 'kanban', 'list', 'dashboard'
+    const [viewMode, setViewMode] = useState('dashboard');
     const [interacoes, setInteracoes] = useState([]);
     const [pipeline, setPipeline] = useState([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         totalHoje: 0,
+        totalMes: 0,
+        total30d: 0,
         totalSemana: 0,
         pendentes: 0,
-        semContato: 0
+        insights: { inatividade: 0, gap: "" }
     });
+    const [team, setTeam] = useState([]);
+    const [teamStats, setTeamStats] = useState([]);
+    const [industryStats, setIndustryStats] = useState([]);
+    const [lastPurchases, setLastPurchases] = useState([]);
 
-    // Modals
     const [novaInteracaoOpen, setNovaInteracaoOpen] = useState(false);
     const [novaOportunidadeOpen, setNovaOportunidadeOpen] = useState(false);
-    const [selectedOpportunity, setSelectedOpportunity] = useState(null); // For Edit Mode
-    const [selectedInteraction, setSelectedInteraction] = useState(null); // For Edit Mode
+    const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+    const [selectedInteraction, setSelectedInteraction] = useState(null);
     const [helpOpen, setHelpOpen] = useState(false);
 
-    // Filters & Lookups
     const [filterCli, setFilterCli] = useState(null);
+    const [filterVen, setFilterVen] = useState('');
     const [filterInd, setFilterInd] = useState('');
+    const [dataInicio, setDataInicio] = useState('');
+    const [dataFim, setDataFim] = useState('');
     const [industrias, setIndustrias] = useState([]);
 
-    // Fetch All Data
+    // Initialize dates with current month range
+    useEffect(() => {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        setDataInicio(firstDay);
+        setDataFim(lastDay);
+    }, []);
+
+    useEffect(() => {
+        if (filterCli) {
+            fetch(`${NODE_API_URL}/api/crm/client/${filterCli}/last-purchases`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) setLastPurchases(data.data);
+                })
+                .catch(err => console.error("Error fetching purchases:", err));
+        } else {
+            setLastPurchases([]);
+        }
+    }, [filterCli]);
+
     const refreshData = async () => {
         setLoading(true);
         try {
-            const venCodigo = 1; // TODO: Auth
+            const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+            const venCodigo = user.id;
 
-            // Build query params for interactions
-            let intUrl = `${NODE_API_URL}/api/crm/interacoes?ven_codigo=${venCodigo}`;
-            if (filterCli) intUrl += `&cli_codigo=${filterCli}`;
-            if (filterInd && filterInd !== 'all') intUrl += `&for_codigo=${filterInd}`;
+            let statsUrl = `${NODE_API_URL}/api/crm/stats/summary`;
+            let intUrl = `${NODE_API_URL}/api/crm/interacoes`;
+            let queryParams = [];
 
-            // Parallel Fetch
-            const [intRes, pipeRes, indRes] = await Promise.all([
-                fetch(intUrl),
-                fetch(`${NODE_API_URL}/api/crm/pipeline?ven_codigo=${venCodigo}`),
-                fetch(`${NODE_API_URL}/api/suppliers`)
+            if (venCodigo) {
+                queryParams.push(`ven_codigo=${venCodigo}`);
+            } else if (filterVen) {
+                queryParams.push(`ven_nome=${encodeURIComponent(filterVen)}`);
+            }
+
+            if (filterCli) queryParams.push(`cli_codigo=${filterCli}`);
+            if (filterInd && filterInd !== 'all') queryParams.push(`for_codigo=${filterInd}`);
+            if (dataInicio) queryParams.push(`data_inicio=${dataInicio}`);
+            if (dataFim) queryParams.push(`data_fim=${dataFim}`);
+
+            const queryStr = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+
+            const [intRes, pipeRes, indRes, statsRes, teamLiveRes, teamStatsRes, indStatsRes] = await Promise.all([
+                fetch(`${intUrl}${queryStr}`),
+                fetch(`${NODE_API_URL}/api/crm/pipeline${queryStr}`),
+                fetch(`${NODE_API_URL}/api/suppliers`),
+                fetch(`${statsUrl}${queryStr}`),
+                fetch(`${NODE_API_URL}/api/crm/stats/live-feed${queryStr}`),
+                fetch(`${NODE_API_URL}/api/crm/stats/team${queryStr}`),
+                fetch(`${NODE_API_URL}/api/crm/stats/industries${queryStr}`)
             ]);
 
             const intData = await intRes.json();
             const pipeData = await pipeRes.json();
             const indData = await indRes.json();
+            const statsData = await statsRes.json();
+            const teamLiveData = await teamLiveRes.json();
+            const teamStatsData = await teamStatsRes.json();
+            const indStatsData = await indStatsRes.json();
 
             if (intData.success) {
                 setInteracoes(intData.data);
-                // Calculate Stats
-                const today = new Date().toDateString();
-                const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-                setStats({
-                    totalHoje: intData.data.filter(i => new Date(i.data_interacao).toDateString() === today).length,
-                    totalSemana: intData.data.filter(i => new Date(i.data_interacao) >= weekAgo).length,
-                    pendentes: intData.data.filter(i => !i.resultado).length,
-                    semContato: 0
-                });
             }
-
-            if (pipeData.success) {
-                setPipeline(pipeData.data);
+            if (statsData.success) {
+                setStats(statsData.data);
             }
-
-            if (indData.success || Array.isArray(indData)) {
-                setIndustrias(indData.success ? indData.data : indData);
+            if (teamLiveData.success) {
+                setTeam(teamLiveData.data);
             }
+            if (teamStatsData.success) {
+                setTeamStats(teamStatsData.data);
+            }
+            if (indStatsData.success) {
+                setIndustryStats(indStatsData.data);
+            }
+            if (pipeData.success) setPipeline(pipeData.data);
+            if (indData.success || Array.isArray(indData)) setIndustrias(indData.success ? indData.data : indData);
 
         } catch (error) {
             console.error(error);
-            toast.error('Erro ao carregar CRM');
+            toast.error('Erro de conexão ao Datastream');
         } finally {
             setLoading(false);
         }
@@ -308,148 +527,39 @@ export default function CRMPage() {
 
     useEffect(() => {
         refreshData();
-    }, [filterCli, filterInd]);
+    }, [filterCli, filterInd, dataInicio, dataFim, filterVen]);
 
-    // Drag & Drop Handler
     const handleDragEnd = async (event) => {
         const { active, over } = event;
-
         if (!over) return;
-
         const activeId = active.id;
         const overId = over.id;
-
-        // If dropped on itself
         if (activeId === overId) return;
 
         const oppId = activeId.replace('opp-', '');
-
-        // Find Source Stage
-        const sourceStage = pipeline.find(stage => stage.items.some(i => `opp-${i.oportunidade_id}` === activeId));
-        if (!sourceStage) return;
-
-        // Find Target Stage ID
-        let targetStageId = null;
-        if (overId.startsWith('stage-')) {
-            targetStageId = overId.replace('stage-', '');
-        } else if (overId.startsWith('opp-')) {
-            const targetStage = pipeline.find(stage => stage.items.some(i => `opp-${i.oportunidade_id}` === overId));
-            if (targetStage) targetStageId = targetStage.etapa_id;
-        }
+        const targetStageId = overId.startsWith('stage-') ? overId.replace('stage-', '') : null;
 
         if (!targetStageId) return;
 
-        // --- SCENARIO 1: SAME COLUMN (Reorder) ---
-        if (sourceStage.etapa_id == targetStageId) {
-            // We need to reorder the items in the specific stage
-            const stageIndex = pipeline.findIndex(s => s.etapa_id == sourceStage.etapa_id);
-            const oldIndex = sourceStage.items.findIndex(i => `opp-${i.oportunidade_id}` === activeId);
-            const newIndex = sourceStage.items.findIndex(i => `opp-${i.oportunidade_id}` === overId);
-
-            if (stageIndex !== -1 && oldIndex !== -1 && newIndex !== -1) {
-                const newPipeline = [...pipeline];
-                // Using dnd-kit's arrayMove manually or just logic
-                const newItems = [...sourceStage.items];
-                const [movedItem] = newItems.splice(oldIndex, 1);
-                newItems.splice(newIndex, 0, movedItem);
-
-                newPipeline[stageIndex] = { ...sourceStage, items: newItems };
-                setPipeline(newPipeline);
-                // Note: Reorder persistence in DB is not implemented yet, but UI will work.
-            }
-            return;
-        }
-
-        // --- SCENARIO 2: DIFFERENT COLUMN (Move) ---
-        // Optimistic UI Update
-        const newPipeline = pipeline.map(stage => {
-            // Source: Remove
-            if (stage.etapa_id == sourceStage.etapa_id) {
-                return { ...stage, items: stage.items.filter(i => i.oportunidade_id != oppId) };
-            }
-            // Target: Add
-            if (stage.etapa_id == targetStageId) {
-                const item = sourceStage.items.find(i => i.oportunidade_id == oppId);
-                return {
-                    ...stage,
-                    items: [...stage.items, { ...item, etapa_id: parseInt(targetStageId) }]
-                };
-            }
-            return stage;
-        });
-
-        setPipeline(newPipeline);
-
-        // API Call
         try {
             await fetch(`${NODE_API_URL}/api/crm/oportunidades/${oppId}/move`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ etapa_id: parseInt(targetStageId) })
             });
-            toast.success('Movido com sucesso!');
+            toast.success('Realocação Concluída');
+            refreshData();
         } catch (error) {
-            console.error(error);
-            toast.error('Erro ao salvar movimento');
-            refreshData(); // Revert
+            toast.error('Erro na persistência do movimento');
         }
     };
-    // Quick Action Handler (Zero Friction)
+
     const handleQuickAction = async (action, data) => {
         if (action === 'whatsapp') {
-            // Priority: telefone_contato (from opportunity) > cli_fone1 (from client)
-            const rawPhone = data.telefone_contato || data.cli_fone1;
-            const phone = rawPhone?.replace(/\D/g, ''); // Remove non-digits
-            if (!phone) {
-                toast.error('Telefone não cadastrado. Edite a oportunidade e adicione um telefone de contato.');
-                return;
-            }
-
-            // 1. Open WhatsApp
+            const phone = (data.telefone_contato || data.cli_fone1)?.replace(/\D/g, '');
+            if (!phone) { toast.error('Falha de sinal: telefone ausente'); return; }
             window.open(`https://wa.me/55${phone}`, '_blank');
-
-            // 2. Auto-log interaction (Magic)
-            try {
-                const venCodigo = 1; // TODO: Get from Auth
-
-                // IDs based on Seed Data: Canal 3 = WhatsApp, Tipo 4 = Negociação (Assuming connection to Opportunity)
-                const payload = {
-                    cli_codigo: data.cli_codigo,
-                    ven_codigo: venCodigo,
-                    tipo_interacao_id: 4, // Negociação
-                    canal_id: 3, // WhatsApp
-                    descricao: `Contato rápido via WhatsApp referente à oportunidade #${data.oportunidade_id} (${data.titulo})`,
-                    resultado_id: 2 // Neutro (Started)
-                };
-
-                await fetch(`${NODE_API_URL}/api/crm/interacoes`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                toast.success('Interação registrada automaticamente!');
-                refreshData(); // Refresh to show in history
-            } catch (error) {
-                console.error("Auto-log failed", error);
-                toast.error('WhatsApp aberto, mas falha ao registrar histórico.');
-            }
         }
-    };
-
-    const handleCardClick = (opp) => {
-        setSelectedOpportunity(opp);
-        setNovaOportunidadeOpen(true);
-    };
-
-    const handleEditInteraction = (interaction) => {
-        setSelectedInteraction(interaction);
-        setNovaInteracaoOpen(true);
-    };
-
-    const clearFilters = () => {
-        setFilterCli(null);
-        setFilterInd('');
     };
 
     const fetchClients = async (search) => {
@@ -457,299 +567,276 @@ export default function CRMPage() {
             const response = await fetch(`${NODE_API_URL}/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
             const data = await response.json();
             return data.success ? data.data : [];
-        } catch (error) {
-            console.error(error);
-            return [];
-        }
+        } catch (error) { return []; }
     };
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header */}
-                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-blue-100 px-8 py-4 flex items-center justify-between">
+        <div className="flex h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-blue-500/30 overflow-hidden">
+            {/* Command Sidebar */}
+            <aside className="w-16 border-slate-200 flex flex-col items-center py-6 gap-6 bg-white shadow-sm z-20">
+                <div className="w-10 h-10 bg-blue-600 flex items-center justify-center rounded-xl mb-4 shadow-lg shadow-blue-500/20">
+                    <Shield size={24} className="text-white" />
+                </div>
+                {[
+                    { mode: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
+                    { mode: 'kanban', icon: Columns, label: 'Strategic Pipeline' },
+                    { mode: 'list', icon: List, label: 'Data Logs' }
+                ].map(item => (
+                    <button
+                        key={item.mode}
+                        onClick={() => setViewMode(item.mode)}
+                        title={item.label}
+                        className={cn(
+                            "w-10 h-10 flex items-center justify-center rounded-xl transition-all",
+                            viewMode === item.mode ? "bg-blue-50 text-blue-600 border border-blue-100 shadow-sm" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                        )}
+                    >
+                        <item.icon size={20} />
+                    </button>
+                ))}
+                <div className="mt-auto flex flex-col gap-4">
+                    <button
+                        onClick={() => setHelpOpen(true)}
+                        title="Manual de Operações"
+                        className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                    >
+                        <HelpCircle size={20} />
+                    </button>
+                </div>
+            </aside>
+
+            {/* Operational Surface */}
+            <main className="flex-1 flex flex-col overflow-hidden">
+                <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md px-8 flex items-center justify-between shadow-sm z-10">
+                    <div>
+                        <span className="tactical-label block !mb-0 text-blue-600">Terminal de Inteligência</span>
+                        <h1 className="text-lg font-black tracking-tight uppercase text-slate-900">
+                            {viewMode === 'dashboard' ? 'Overview' : viewMode === 'kanban' ? 'Strategic Pipeline' : 'Data Logs'}
+                        </h1>
+                    </div>
+
                     <div className="flex items-center gap-4">
-                        <div>
-                            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                                CRM 2.0
-                            </h1>
-                            <p className="text-slate-500 text-sm">Gestão de Vendas & Relacionamento</p>
-                        </div>
-
-                        {/* Animated Help Button - Prominent */}
+                        {loading && <Loader2 size={16} className="animate-spin text-slate-400" />}
                         <Button
-                            onClick={() => setHelpOpen(true)}
-                            className="relative bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-500 hover:via-orange-600 hover:to-amber-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-pulse hover:animate-none group"
-                            title="Como usar o CRM?"
+                            onClick={() => viewMode === 'kanban' ? setNovaOportunidadeOpen(true) : setNovaInteracaoOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-10 shadow-lg shadow-blue-500/20"
                         >
-                            {/* Glow Effect */}
-                            <span className="absolute inset-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-
-                            <span className="relative flex items-center gap-2">
-                                <HelpCircle className="w-5 h-5" />
-                                <span className="text-sm">Como usar...</span>
-                                <Sparkles className="w-4 h-4 text-yellow-200" />
-                            </span>
+                            <Plus size={14} className="mr-2 stroke-[3]" />
+                            Nova Entrada
                         </Button>
                     </div>
+                </header>
 
-                    {/* View Switcher */}
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button
-                            onClick={() => setViewMode('dashboard')}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                                viewMode === 'dashboard' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                            )}
+                <div className="flex-1 overflow-hidden relative">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={viewMode}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="h-full"
                         >
-                            <LayoutDashboard className="w-4 h-4" />
-                            Visão Geral
-                        </button>
-                        <button
-                            onClick={() => setViewMode('kanban')}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                                viewMode === 'kanban' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <Columns className="w-4 h-4" />
-                            Funil
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-                                viewMode === 'list' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                            )}
-                        >
-                            <List className="w-4 h-4" />
-                            Histórico
-                        </button>
-                    </div>
-
-                    <div className="flex gap-2">
-                        {viewMode === 'kanban' ? (
-                            <Button
-                                onClick={() => setNovaOportunidadeOpen(true)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                            >
-                                <Briefcase className="w-4 h-4 mr-2" />
-                                Nova Oportunidade
-                            </Button>
-                        ) : (
-                            <Button
-                                onClick={() => setNovaInteracaoOpen(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                <Plus className="w-4 h-4 mr-2" />
-                                Nova Interação
-                            </Button>
-                        )}
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-hidden p-6">
-                    {loading ? (
-                        <div className="h-full flex items-center justify-center">
-                            <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
-                        </div>
-                    ) : viewMode === 'dashboard' ? (
-                        <CRMDashboard stats={stats} />
-                    ) : viewMode === 'kanban' ? (
-                        <KanbanBoard
-                            pipeline={pipeline}
-                            onDragEnd={handleDragEnd}
-                            onCardClick={handleCardClick}
-                            onQuickAction={handleQuickAction}
-                        />
-                    ) : (
-                        /* TIMELINE VIEW (New) */
-                        <Card className="h-full bg-white/60 backdrop-blur-sm border-blue-100 flex flex-col">
-                            <CardHeader className="border-b border-blue-100 shrink-0 py-4">
-                                <div className="flex flex-row items-center justify-between mb-4">
-                                    <div>
-                                        <CardTitle className="text-lg text-slate-800">Linha do Tempo</CardTitle>
-                                        <p className="text-sm text-slate-500">Histórico de todas as interações e contatos</p>
-                                    </div>
-                                    <div className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                                        {interacoes.length} registros
-                                    </div>
+                            {viewMode === 'dashboard' ? (
+                                <CRMDashboard
+                                    stats={stats}
+                                    team={team}
+                                    teamStats={teamStats}
+                                    industryStats={industryStats}
+                                    industrias={industrias}
+                                    filterCli={filterCli}
+                                    setFilterCli={setFilterCli}
+                                    filterInd={filterInd}
+                                    setFilterInd={setFilterInd}
+                                    dataInicio={dataInicio}
+                                    setDataInicio={setDataInicio}
+                                    dataFim={dataFim}
+                                    setDataFim={setDataFim}
+                                    fetchClients={fetchClients}
+                                    filterVen={filterVen}
+                                    setFilterVen={setFilterVen}
+                                    lastPurchases={lastPurchases}
+                                    loading={loading}
+                                />
+                            ) : viewMode === 'kanban' ? (
+                                <div className="h-full p-6 pt-2 overflow-x-auto custom-scrollbar">
+                                    <KanbanBoard
+                                        pipeline={pipeline}
+                                        onDragEnd={handleDragEnd}
+                                        onCardClick={(opp) => { setSelectedOpportunity(opp); setNovaOportunidadeOpen(true); }}
+                                        onQuickAction={handleQuickAction}
+                                    />
                                 </div>
-
-                                {/* Timeline Filters Bar */}
-                                <div className="flex flex-wrap items-center gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
-                                    <div className="flex-1 min-w-[200px]">
-                                        <DbComboBox
-                                            placeholder="Filtrar por cliente..."
-                                            value={filterCli}
-                                            onChange={(val) => setFilterCli(val)}
-                                            fetchData={fetchClients}
-                                            labelKey="cli_nomred"
-                                            valueKey="cli_codigo"
-                                        />
-                                    </div>
-                                    <div className="w-[180px]">
-                                        <Select value={filterInd} onValueChange={setFilterInd}>
-                                            <SelectTrigger className="h-[50px] bg-white border-blue-100 rounded-xl">
-                                                <SelectValue placeholder="Todas as Indústrias" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Todas as Indústrias</SelectItem>
-                                                {industrias.map(ind => (
-                                                    <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
-                                                        {ind.nomeReduzido || ind.razaoSocial}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {(filterCli || filterInd) && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={clearFilters}
-                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100/50"
-                                        >
-                                            <FilterX className="w-4 h-4 mr-2" />
-                                            Limpar
-                                        </Button>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0 flex-1 overflow-hidden bg-slate-50/50">
-                                <ScrollArea className="h-full p-4">
-                                    <div className="max-w-3xl mx-auto space-y-6 pb-10">
-                                        {interacoes.length === 0 ? (
-                                            <div className="text-center py-10 text-slate-400">
-                                                <p>Nenhuma interação registrada ainda.</p>
+                            ) : (
+                                <div className="h-full flex flex-col bg-[#f8fafc]">
+                                    <div className="p-6 border-b border-slate-200 bg-white flex flex-wrap gap-4 items-end shadow-sm relative z-50">
+                                        <div className="flex-1 min-w-[200px] space-y-2">
+                                            <span className="tactical-label">Período (Início - Fim)</span>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="date"
+                                                    value={dataInicio}
+                                                    onChange={(e) => setDataInicio(e.target.value)}
+                                                    className="bg-white border border-slate-200 rounded-lg h-12 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                />
+                                                <input
+                                                    type="date"
+                                                    value={dataFim}
+                                                    onChange={(e) => setDataFim(e.target.value)}
+                                                    className="bg-white border border-slate-200 rounded-lg h-12 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                                />
                                             </div>
-                                        ) : (
-                                            interacoes.map((item, index) => {
-                                                const Icon = getTypeIcon(item.tipo);
-                                                const isLast = index === interacoes.length - 1;
-                                                return (
-                                                    <div key={item.interacao_id} className="relative flex gap-4 group">
-                                                        {/* Timeline Line */}
-                                                        {!isLast && (
-                                                            <div className="absolute left-[19px] top-10 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-blue-200 transition-colors" />
-                                                        )}
-
-                                                        {/* Icon Bubble */}
-                                                        <div className={cn(
-                                                            "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 z-10 bg-white transition-all shadow-sm",
-                                                            item.resultado === 'Positivo' || item.resultado === 'Pedido gerado' ? "border-emerald-200 text-emerald-600" :
-                                                                item.resultado === 'Negativo' ? "border-red-200 text-red-600" :
-                                                                    "border-blue-100 text-blue-500"
-                                                        )}>
-                                                            <Icon className="w-5 h-5" />
-                                                        </div>
-
-                                                        {/* Content Card */}
-                                                        <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all group-hover:border-blue-200">
-                                                            <div className="flex justify-between items-start mb-2">
-                                                                <div className="flex-1">
-                                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                                        <span className="font-bold text-slate-700 text-sm md:text-base">
-                                                                            {item.cli_nomred}
-                                                                        </span>
-                                                                        {item.industrias && item.industrias.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {item.industrias.map(indId => {
-                                                                                    const ind = industrias.find(i => i.for_codigo == indId);
-                                                                                    return (
-                                                                                        <Badge key={indId} variant="outline" className="text-[9px] h-4 bg-white text-slate-500 border-slate-200">
-                                                                                            {ind?.nomeReduzido || 'Indústria'}
-                                                                                        </Badge>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                                        <span className="flex items-center gap-1">
-                                                                            <User className="w-3 h-3" />
-                                                                            {item.ven_nome || 'Vendedor'}
-                                                                        </span>
-                                                                        <span>•</span>
-                                                                        <span className="font-medium text-blue-600 bg-blue-50 px-1.5 rounded">
-                                                                            {item.tipo}
-                                                                        </span>
-                                                                        {item.canal && (
-                                                                            <>
-                                                                                <span>via</span>
-                                                                                <span className="lowercase italic">{item.canal}</span>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex items-start gap-4">
-                                                                    <div className="text-right">
-                                                                        <div className="flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded-lg mb-1">
-                                                                            <Calendar className="w-3 h-3 text-slate-400" />
-                                                                            {new Date(item.data_interacao).toLocaleDateString()}
-                                                                            <span className="text-slate-300">|</span>
-                                                                            <span className="text-slate-500 font-normal">
-                                                                                {new Date(item.data_interacao).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                            </span>
-                                                                        </div>
-                                                                        <Badge className={cn("text-[10px] font-normal justify-end w-full", getResultColor(item.resultado))}>
-                                                                            {item.resultado || 'Pendente'}
-                                                                        </Badge>
-                                                                    </div>
-
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full"
-                                                                        onClick={() => handleEditInteraction(item)}
-                                                                    >
-                                                                        <Pencil className="w-4 h-4" />
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600 leading-relaxed border border-slate-100 font-medium">
-                                                                {item.descricao}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
+                                        </div>
+                                        <div className="flex-1 min-w-[300px] space-y-2">
+                                            <span className="tactical-label">Alvo / Cliente</span>
+                                            <DbComboBox
+                                                placeholder="Sincronizar cliente..."
+                                                value={filterCli}
+                                                onChange={(val) => setFilterCli(val)}
+                                                fetchData={fetchClients}
+                                                labelKey="cli_nomred"
+                                                valueKey="cli_codigo"
+                                            />
+                                        </div>
+                                        <div className="w-[200px] space-y-2">
+                                            <span className="tactical-label">Setor / Indústria</span>
+                                            <Select value={filterInd} onValueChange={setFilterInd}>
+                                                <SelectTrigger className="bg-white border-slate-200 rounded-lg h-12 text-sm">
+                                                    <SelectValue placeholder="Indústria" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-white border-slate-200 text-slate-700">
+                                                    <SelectItem value="all">Todas as Indústrias</SelectItem>
+                                                    {industrias.map(ind => (
+                                                        <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
+                                                            {ind.nomeReduzido || ind.razaoSocial}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        {(filterCli || filterInd || dataInicio || dataFim) && (
+                                            <Button variant="ghost" onClick={() => { setFilterCli(null); setFilterInd(''); setDataInicio(''); setDataFim(''); }} className="h-11 px-4 text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-widest">
+                                                <FilterX size={14} className="mr-2" /> Reset
+                                            </Button>
                                         )}
                                     </div>
-                                </ScrollArea>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            </div>
 
-            {/* Modals */}
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                                        <div className="max-w-6xl mx-auto space-y-4 pb-12">
+                                            {/* Últimas Compras (Visível apenas quando um cliente é selecionado) */}
+                                            {filterCli && lastPurchases.length > 0 && (
+                                                <div className="mb-10 bg-white/50 p-6 rounded-2xl border border-slate-200/60 shadow-sm">
+                                                    <div className="flex items-center gap-3 mb-6">
+                                                        <div className="w-1.5 h-6 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]" />
+                                                        <div className="flex flex-col">
+                                                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Histórico Recente de Compras</h3>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Últimos 10 Pedidos / Faturados</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                                                        {lastPurchases.map((purchase) => (
+                                                            <motion.div
+                                                                key={purchase.id}
+                                                                initial={{ opacity: 0, y: 10 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                className="bg-white border border-slate-200 p-3 rounded-xl hover:shadow-md transition-all group relative overflow-hidden"
+                                                            >
+                                                                <div className={`absolute top-0 right-0 w-1 h-full ${purchase.status === 'F' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <span className="text-[9px] font-black text-slate-400 font-mono">#{purchase.id}</span>
+                                                                    <Badge className={`${purchase.status === 'F' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'} border text-[8px] font-black px-1.5 h-4 uppercase`}>
+                                                                        {purchase.status === 'F' ? 'Faturado' : 'Pedido'}
+                                                                    </Badge>
+                                                                </div>
+
+                                                                <div className="space-y-1">
+                                                                    <h4 className="text-[10px] font-black text-slate-800 uppercase line-clamp-1 group-hover:text-blue-600 transition-colors">
+                                                                        {purchase.industry}
+                                                                    </h4>
+                                                                    <div className="text-sm font-black text-slate-900">
+                                                                        {formatCurrency(purchase.value)}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-50">
+                                                                    <span className="text-[10px] font-bold text-slate-400">{formatDate(purchase.date)}</span>
+                                                                    <span className="text-[9px] font-black text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{purchase.quantity} ITENS</span>
+                                                                </div>
+                                                            </motion.div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {interacoes.length === 0 ? (
+                                                <div className="h-40 flex items-center justify-center opacity-20">
+                                                    <span className="tactical-label text-zinc-600">Nenhum registro encontrado</span>
+                                                </div>
+                                            ) : (
+                                                interacoes.map((item, idx) => {
+                                                    const Icon = getTypeIcon(item.tipo);
+                                                    return (
+                                                        <motion.div
+                                                            key={item.interacao_id}
+                                                            initial={{ opacity: 0, x: -5 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            transition={{ delay: idx * 0.03 }}
+                                                            className="stealth-card p-4 flex gap-6 group hover:translate-x-1 transition-all"
+                                                        >
+                                                            <div className="w-10 h-10 shrink-0 bg-zinc-900 flex items-center justify-center border border-zinc-800">
+                                                                <Icon className="w-5 h-5 text-zinc-600 group-hover:text-emerald-500 transition-colors" />
+                                                            </div>
+                                                            <div className="flex-1 space-y-3">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div>
+                                                                        <h4 className="text-sm font-black uppercase tracking-tight text-white">{item.cli_nomred}</h4>
+                                                                        <div className="flex items-center gap-3 mt-1.5">
+                                                                            <span className="text-xs font-mono text-emerald-500 font-bold">{item.tipo}</span>
+                                                                            <span className="text-xs text-zinc-800">/</span>
+                                                                            <span className="text-xs text-zinc-500 font-mono italic">{formatDateTime(item.data_interacao)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-600 uppercase rounded-none px-2 h-6 font-bold">
+                                                                        {item.resultado || 'REGISTERED'}
+                                                                    </Badge>
+                                                                </div>
+                                                                <p className="text-zinc-600 text-sm leading-relaxed font-medium bg-slate-50 p-3 border-l-2 border-slate-200 italic">
+                                                                    "{item.descricao || "Relatório sem observações."}"
+                                                                </p>
+                                                            </div>
+                                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center">
+                                                                <button onClick={() => { setSelectedInteraction(item); setNovaInteracaoOpen(true); }} className="p-2 text-zinc-700 hover:text-white">
+                                                                    <Pencil size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </main>
+
+            {/* Command Modals */}
             <NovaInteracaoModal
                 open={novaInteracaoOpen}
-                onClose={() => {
-                    setNovaInteracaoOpen(false);
-                    setSelectedInteraction(null);
-                }}
+                onClose={() => { setNovaInteracaoOpen(false); setSelectedInteraction(null); }}
                 onSuccess={refreshData}
                 editData={selectedInteraction}
             />
             <NovaOportunidadeModal
                 open={novaOportunidadeOpen}
-                onClose={() => {
-                    setNovaOportunidadeOpen(false);
-                    setSelectedOpportunity(null); // Clear selection on close
-                }}
+                onClose={() => { setNovaOportunidadeOpen(false); setSelectedOpportunity(null); }}
                 onSuccess={refreshData}
-                opportunity={selectedOpportunity} // Pass selected opp for editing
+                opportunity={selectedOpportunity}
             />
-            <CRMHelpModal
-                open={helpOpen}
-                onClose={() => setHelpOpen(false)}
-            />
-        </div >
+            <CRMHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+        </div>
     );
 }

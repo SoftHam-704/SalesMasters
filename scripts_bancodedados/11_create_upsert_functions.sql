@@ -35,65 +35,52 @@ BEGIN
     -- Normaliza o código
     v_codigo_normalizado := fn_normalizar_codigo(p_codprod);
     
-    -- Tenta buscar o produto existente
-    SELECT pro_id INTO v_pro_id
-    FROM cad_prod
+    -- Tenta atualizar primeiro (Abordagem mais segura que garante o encontro do registro)
+    UPDATE cad_prod SET
+        pro_nome = COALESCE(NULLIF(p_nome, ''), pro_nome),
+        pro_peso = COALESCE(NULLIF(p_peso, 0), pro_peso),
+        pro_embalagem = COALESCE(NULLIF(p_embalagem, 0), pro_embalagem),
+        pro_grupo = COALESCE(NULLIF(p_grupo, 0), pro_grupo),
+        pro_setor = COALESCE(NULLIF(p_setor, ''), pro_setor),
+        pro_linha = COALESCE(NULLIF(p_linha, ''), pro_linha),
+        pro_ncm = COALESCE(NULLIF(p_ncm, ''), pro_ncm),
+        pro_origem = COALESCE(NULLIF(p_origem, ''), pro_origem),
+        pro_aplicacao = COALESCE(NULLIF(p_aplicacao, ''), pro_aplicacao),
+        pro_codbarras = COALESCE(NULLIF(p_codbarras, ''), pro_codbarras),
+        pro_codprod = p_codprod -- Atualiza código original se mudou formatação
     WHERE pro_industria = p_industria 
-      AND pro_codigonormalizado = v_codigo_normalizado;
+      AND pro_codigonormalizado = v_codigo_normalizado
+    RETURNING pro_id INTO v_pro_id;
     
-    IF v_pro_id IS NOT NULL THEN
-        -- Produto existe: ATUALIZA apenas campos fixos (não-nulos)
-        UPDATE cad_prod SET
-            pro_nome = COALESCE(p_nome, pro_nome),
-            pro_peso = COALESCE(p_peso, pro_peso),
-            pro_embalagem = COALESCE(p_embalagem, pro_embalagem),
-            pro_grupo = COALESCE(p_grupo, pro_grupo),
-            pro_setor = COALESCE(p_setor, pro_setor),
-            pro_linha = COALESCE(p_linha, pro_linha),
-            pro_ncm = COALESCE(p_ncm, pro_ncm),
-            pro_origem = COALESCE(p_origem, pro_origem),
-            pro_aplicacao = COALESCE(p_aplicacao, pro_aplicacao),
-            pro_codbarras = COALESCE(p_codbarras, pro_codbarras),
-            pro_codprod = p_codprod -- Atualiza código original se mudou formatação
-        WHERE pro_id = v_pro_id;
-    ELSE
-        -- Produto NÃO existe: INSERE novo
-        INSERT INTO cad_prod (
-            pro_industria,
-            pro_codprod,
-            pro_codigonormalizado,
-            pro_codigooriginal,
-            pro_nome,
-            pro_peso,
-            pro_embalagem,
-            pro_grupo,
-            pro_setor,
-            pro_linha,
-            pro_ncm,
-            pro_origem,
-            pro_aplicacao,
-            pro_codbarras,
-            pro_status
-        ) VALUES (
-            p_industria,
-            p_codprod,
-            v_codigo_normalizado,
-            p_codprod,
-            p_nome,
-            p_peso,
-            p_embalagem,
-            p_grupo,
-            p_setor,
-            p_linha,
-            p_ncm,
-            p_origem,
-            p_aplicacao,
-            p_codbarras,
-            true
-        )
-        RETURNING pro_id INTO v_pro_id;
+    -- Se não encontrou para atualizar, insere novo
+    IF v_pro_id IS NULL THEN
+        -- Antes de inserir, verifica se existe algum resquício por pro_codprod antigo sem normalização
+        SELECT pro_id INTO v_pro_id FROM cad_prod 
+        WHERE pro_industria = p_industria AND pro_codprod = p_codprod LIMIT 1;
+
+        IF v_pro_id IS NOT NULL THEN
+            -- Se achou pelo código bruto, atualiza e normaliza
+            UPDATE cad_prod SET pro_codigonormalizado = v_codigo_normalizado WHERE pro_id = v_pro_id;
+        ELSE
+            -- Insere realmente novo
+            INSERT INTO cad_prod (
+                pro_industria, pro_codprod, pro_codigonormalizado, pro_codigooriginal,
+                pro_nome, pro_peso, pro_embalagem, pro_grupo, pro_setor,
+                pro_linha, pro_ncm, pro_origem, pro_aplicacao, pro_codbarras, pro_status
+            ) VALUES (
+                p_industria, p_codprod, v_codigo_normalizado, p_codprod,
+                p_nome, p_peso, p_embalagem, p_grupo, p_setor,
+                p_linha, p_ncm, p_origem, p_aplicacao, p_codbarras, true
+            )
+            RETURNING pro_id INTO v_pro_id;
+        END IF;
     END IF;
     
+    RETURN v_pro_id;
+EXCEPTION WHEN unique_violation THEN
+    -- Fallback para concorrência
+    SELECT pro_id INTO v_pro_id FROM cad_prod 
+    WHERE pro_industria = p_industria AND pro_codigonormalizado = v_codigo_normalizado;
     RETURN v_pro_id;
 END;
 $$;
@@ -105,6 +92,8 @@ COMMENT ON FUNCTION fn_upsert_produto IS
 -- Função: UPSERT de Preço (Dados Variáveis)
 -- ============================================================================
 -- Esta função insere ou atualiza os dados de preço em uma tabela específica
+DROP FUNCTION IF EXISTS fn_upsert_preco(INTEGER, INTEGER, VARCHAR, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, INTEGER, DOUBLE PRECISION, DATE, DATE);
+
 CREATE OR REPLACE FUNCTION fn_upsert_preco(
     p_pro_id INTEGER,
     p_industria INTEGER,
@@ -135,7 +124,7 @@ BEGIN
         itab_st,
         itab_grupodesconto,
         itab_descontoadd,
-        itab_datatbela,
+        itab_datatabela,
         itab_datavencimento,
         itab_status
     ) VALUES (
@@ -155,15 +144,15 @@ BEGIN
     )
     ON CONFLICT (itab_idprod, itab_tabela) 
     DO UPDATE SET
-        itab_precobruto = EXCLUDED.itab_precobruto,
-        itab_precopromo = EXCLUDED.itab_precopromo,
-        itab_precoespecial = EXCLUDED.itab_precoespecial,
-        itab_ipi = EXCLUDED.itab_ipi,
-        itab_st = EXCLUDED.itab_st,
-        itab_grupodesconto = EXCLUDED.itab_grupodesconto,
-        itab_descontoadd = EXCLUDED.itab_descontoadd,
-        itab_datatbela = EXCLUDED.itab_datatbela,
-        itab_datavencimento = EXCLUDED.itab_datavencimento,
+        itab_precobruto = COALESCE(NULLIF(EXCLUDED.itab_precobruto, 0), cad_tabelaspre.itab_precobruto),
+        itab_precopromo = COALESCE(NULLIF(EXCLUDED.itab_precopromo, 0), cad_tabelaspre.itab_precopromo),
+        itab_precoespecial = COALESCE(NULLIF(EXCLUDED.itab_precoespecial, 0), cad_tabelaspre.itab_precoespecial),
+        itab_ipi = COALESCE(NULLIF(EXCLUDED.itab_ipi, 0), cad_tabelaspre.itab_ipi),
+        itab_st = COALESCE(NULLIF(EXCLUDED.itab_st, 0), cad_tabelaspre.itab_st),
+        itab_grupodesconto = COALESCE(EXCLUDED.itab_grupodesconto, cad_tabelaspre.itab_grupodesconto),
+        itab_descontoadd = COALESCE(NULLIF(EXCLUDED.itab_descontoadd, 0), cad_tabelaspre.itab_descontoadd),
+        itab_datatabela = COALESCE(EXCLUDED.itab_datatabela, cad_tabelaspre.itab_datatabela),
+        itab_datavencimento = COALESCE(EXCLUDED.itab_datavencimento, cad_tabelaspre.itab_datavencimento),
         itab_status = EXCLUDED.itab_status;
 END;
 $$;
@@ -242,7 +231,7 @@ SELECT
     t.itab_ipi,
     t.itab_st,
     t.itab_grupodesconto,
-    t.itab_datatbela,
+    t.itab_datatabela,
     t.itab_datavencimento,
     t.itab_status,
     -- Preço final sugerido (bruto + IPI)

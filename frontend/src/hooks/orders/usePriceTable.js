@@ -56,19 +56,25 @@ export function usePriceTable(industryCode, tableName) {
         const term = searchTerm.toLowerCase();
         return memtable.filter(
             product =>
-                product.pro_codigo?.toLowerCase().includes(term) ||
-                product.pro_descricao?.toLowerCase().includes(term) ||
+                (product.pro_codprod || product.pro_codigo)?.toLowerCase().includes(term) ||
+                (product.pro_nome || product.pro_descricao)?.toLowerCase().includes(term) ||
+                product.pro_conversao?.toLowerCase().includes(term) ||
+                product.pro_codigooriginal?.toLowerCase().includes(term) ||
                 product.pro_comple?.toLowerCase().includes(term)
         );
     };
 
     /**
-     * Busca um produto específico por código
-     * @param {string} productCode - Código do produto
-     * @returns {Object|null} Produto encontrado ou null
+     * Busca um produto específico por código (vários tipos de código)
      */
     const findProduct = (productCode) => {
-        return memtable.find(p => p.pro_codigo === productCode) || null;
+        if (!productCode) return null;
+        const code = String(productCode).toUpperCase();
+        return memtable.find(p =>
+            String(p.pro_codprod).toUpperCase() === code ||
+            String(p.pro_conversao).toUpperCase() === code ||
+            String(p.pro_codigooriginal).toUpperCase() === code
+        ) || null;
     };
 
     return {

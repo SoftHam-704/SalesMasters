@@ -39,7 +39,7 @@ module.exports = function (app, pool) {
                 attachments: (attachments || []).map(att => ({
                     filename: att.filename,
                     content: Buffer.from(att.content, 'base64'),
-                    contentType: 'application/pdf'
+                    contentType: att.contentType || 'application/octet-stream'
                 }))
             };
 

@@ -1,25 +1,31 @@
 const XLSX = require('xlsx');
 const { Pool } = require('pg');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const pool = new Pool({
-    host: 'localhost',
-    port: 5432,
-    database: 'basesales',
-    user: 'postgres',
-    password: '@12Pilabo'
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    ssl: false
 });
+
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importCliDescPro() {
     try {
-        console.log('📊 Importando descontos especiais (cli_descpro)...\n');
+        console.log(`🚀 IMPORTANDO DESCONTOS (CLI_DESCPRO) -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../data/cli_descpro.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../../data/cli_descpro.xlsx');
         const workbook = XLSX.readFile(filePath);
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(worksheet);
 
         console.log(`✅ ${data.length} registros encontrados\n`);
+
+        await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
         for (const row of data) {

@@ -11,6 +11,7 @@ import { IndustryParetoCard } from '../components/dashboard/IndustryParetoCard';
 import { SalesPerformanceTable } from '../components/dashboard/SalesPerformanceTable';
 import { BirthdayCard } from '../components/dashboard/BirthdayCard';
 import DashboardAlertPanel from '../components/dashboard/DashboardAlertPanel';
+import RetentionAlertCard from '../components/dashboard/RetentionAlertCard';
 import {
     DollarSign,
     Users,
@@ -577,11 +578,14 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Column 2: Top 15 Clients */}
-                <TopClientsCard
-                    clients={topClients}
-                    loading={loadingClients}
-                />
+                {/* Column 2: Retention Alert + Top 15 Clients */}
+                <div className="dashboard-column">
+                    <RetentionAlertCard />
+                    <TopClientsCard
+                        clients={topClients}
+                        loading={loadingClients}
+                    />
+                </div>
 
                 {/* Column 3: Industry Revenue + Pareto */}
                 <div className="dashboard-column">

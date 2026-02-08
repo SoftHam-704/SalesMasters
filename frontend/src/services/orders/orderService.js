@@ -7,8 +7,12 @@ export const orderService = {
      * Busca o próximo número de pedido disponível
      * @returns {Promise<{success: boolean, data: {formatted_number: string, ped_numero: number}}>}
      */
-    async getNextNumber() {
-        const response = await fetch(`${API_BASE_URL}/orders/next-number`);
+    async getNextNumber(initials) {
+        const url = initials
+            ? `${API_BASE_URL}/orders/next-number?initials=${initials}`
+            : `${API_BASE_URL}/orders/next-number`;
+
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error('Failed to get next order number');
         }
@@ -21,7 +25,12 @@ export const orderService = {
      * @returns {Promise<{success: boolean, data: Object, message: string}>}
      */
     async save(orderData) {
-        const isEditing = orderData.ped_pedido && orderData.ped_pedido !== '(Novo)';
+        // Usa o flag explícito _isPersisted se disponível, caso contrário cai no fallback de detecção pelo ped_pedido
+        const isPersisted = orderData.hasOwnProperty('_isPersisted')
+            ? orderData._isPersisted
+            : (orderData.ped_pedido && orderData.ped_pedido !== '(Novo)');
+
+        const isEditing = !!isPersisted;
         const url = isEditing
             ? `${API_BASE_URL}/orders/${orderData.ped_pedido}`
             : `${API_BASE_URL}/orders`;

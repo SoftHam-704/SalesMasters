@@ -12,13 +12,13 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importFornecedores() {
     try {
         console.log(`🚀 IMPORTANDO FORNECEDORES -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
 
-        const filePath = path.join(__dirname, '../../data/fornecedores.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../../data/fornecedores.xlsx');
         if (!require('fs').existsSync(filePath)) {
             console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
             return;
@@ -89,9 +89,6 @@ async function importFornecedores() {
 
         console.log(`\n✅ Importação concluída!`);
         console.log(`   Total: ${data.length} | Sucesso: ${imported} | Erros: ${errors}\n`);
-
-        const result = await pool.query('SELECT for_codigo, for_nomered, for_cidade FROM fornecedores ORDER BY for_codigo LIMIT 5');
-        console.table(result.rows);
 
     } catch (err) {
         console.error('❌ Erro fatal:', err.message);

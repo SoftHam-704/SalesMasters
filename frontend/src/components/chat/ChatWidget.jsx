@@ -1,18 +1,17 @@
 // =====================================================
-// 💬 SALESMASTER CHAT PRO - Widget de Chat
-// Componente flutuante para comunicação
+// 💬 SALESMASTER CHAT PRO - Ultra Modern Edition
 // =====================================================
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    MessageCircle, X, Send, Users, Hash, Bell, Search,
-    ChevronLeft, MoreVertical, Image, Paperclip, Smile,
-    Check, CheckCheck, Clock, Trash2, Plus, Settings
+    Check, CheckCheck, Clock, Trash2, Plus, Settings, HelpCircle, Info,
+    Hash, MessageCircle, MessageSquare, ChevronLeft, Send, Search, X,
+    User, Users, Sparkles, Bell, MoreVertical, Paperclip, Smile
 } from 'lucide-react';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
+import { cn } from '@/lib/utils';
 
-// Componente principal do Chat Widget
 const ChatWidget = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeView, setActiveView] = useState('list'); // 'list', 'chat', 'new'
@@ -21,56 +20,55 @@ const ChatWidget = () => {
     const [mensagens, setMensagens] = useState([]);
     const [novaMensagem, setNovaMensagem] = useState('');
     const [loading, setLoading] = useState(false);
-    const [notificacoes, setNotificacoes] = useState([]);
     const [totalNaoLidas, setTotalNaoLidas] = useState(0);
     const [usuarios, setUsuarios] = useState([]);
     const [busca, setBusca] = useState('');
 
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
-    const userId = sessionStorage.getItem('userId') || '1';
+    // Pegar usuário da sessão de forma segura
+    const sessionUser = useMemo(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem('user'));
+        } catch (e) { return null; }
+    }, []);
 
-    // Scroll para última mensagem
+    const userId = sessionUser?.id || '1';
+    const empresaId = sessionUser?.empresa_id || '1';
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
-        scrollToBottom();
-    }, [mensagens]);
+        if (isOpen && activeView === 'chat') {
+            scrollToBottom();
+        }
+    }, [mensagens, isOpen, activeView]);
 
-    // Buscar resumo (badge)
     const fetchResumo = useCallback(async () => {
         try {
             const response = await fetch(getApiUrl(NODE_API_URL, '/api/chat/resumo'), {
-                headers: { 'x-user-id': userId }
+                headers: {
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                }
             });
             const data = await response.json();
             if (data.success) {
                 setTotalNaoLidas(data.data.total);
             }
         } catch (error) {
-            console.error('Erro ao buscar resumo do chat:', error);
+            console.error('Erro ao buscar resumo:', error);
         }
     }, [userId]);
 
-    // Polling para atualizar resumo e listeners de eventos
     useEffect(() => {
         fetchResumo();
-        const interval = setInterval(fetchResumo, 30000); // A cada 30s
-
-        // Listener para abrir o chat externamente
-        const handleToggle = () => {
-            if (!isOpen) {
-                handleOpen();
-            } else {
-                setIsOpen(false);
-            }
-        };
-
+        const interval = setInterval(fetchResumo, 30000);
+        const handleToggle = () => isOpen ? setIsOpen(false) : handleOpen();
         window.addEventListener('chat:toggle', handleToggle);
 
-        // Expor unread count para o sidebar
         const badgeInterval = setInterval(() => {
             window.dispatchEvent(new CustomEvent('chat:badge', { detail: totalNaoLidas }));
         }, 2000);
@@ -82,12 +80,14 @@ const ChatWidget = () => {
         };
     }, [fetchResumo, isOpen, totalNaoLidas]);
 
-    // Buscar conversas
     const fetchConversas = async () => {
         try {
             setLoading(true);
             const response = await fetch(getApiUrl(NODE_API_URL, '/api/chat/conversas'), {
-                headers: { 'x-user-id': userId }
+                headers: {
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                }
             });
             const data = await response.json();
             if (data.success) {
@@ -100,28 +100,34 @@ const ChatWidget = () => {
         }
     };
 
-    // Buscar mensagens de uma conversa
     const fetchMensagens = async (conversaId) => {
         try {
             const response = await fetch(
                 getApiUrl(NODE_API_URL, `/api/chat/conversas/${conversaId}/mensagens`),
-                { headers: { 'x-user-id': userId } }
+                {
+                    headers: {
+                        'x-user-id': userId,
+                        'x-empresa-id': empresaId
+                    }
+                }
             );
             const data = await response.json();
             if (data.success) {
                 setMensagens(data.data);
-                fetchResumo(); // Atualizar badge
+                fetchResumo();
             }
         } catch (error) {
             console.error('Erro ao buscar mensagens:', error);
         }
     };
 
-    // Buscar usuários para nova conversa
     const fetchUsuarios = async () => {
         try {
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/chat/usuarios'), {
-                headers: { 'x-user-id': userId }
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/aux/usuarios'), {
+                headers: {
+                    'x-user-id': userId,
+                    'x-empresa-id': empresaId
+                }
             });
             const data = await response.json();
             if (data.success) {
@@ -132,20 +138,17 @@ const ChatWidget = () => {
         }
     };
 
-    // Abrir chat
     const handleOpen = () => {
         setIsOpen(true);
         fetchConversas();
     };
 
-    // Abrir conversa específica
     const abrirConversa = (conversa) => {
         setConversaAtiva(conversa);
         setActiveView('chat');
         fetchMensagens(conversa.id);
     };
 
-    // Voltar para lista
     const voltarParaLista = () => {
         setActiveView('list');
         setConversaAtiva(null);
@@ -153,18 +156,21 @@ const ChatWidget = () => {
         fetchConversas();
     };
 
-    // Iniciar nova conversa
     const iniciarNovaConversa = async (outroUsuarioId) => {
         try {
             const response = await fetch(
                 getApiUrl(NODE_API_URL, `/api/chat/conversas/direct/${outroUsuarioId}`),
-                { headers: { 'x-user-id': userId } }
+                {
+                    headers: {
+                        'x-user-id': userId,
+                        'x-empresa-id': empresaId
+                    }
+                }
             );
             const data = await response.json();
             if (data.success) {
-                // Recarregar conversas e abrir a nova
                 await fetchConversas();
-                const conversa = { id: data.data.id, tipo: 'direct' };
+                const conversa = { id: data.data.id, tipo: 'direct', outro_participante: data.data.outro_participante };
                 abrirConversa(conversa);
             }
         } catch (error) {
@@ -172,15 +178,13 @@ const ChatWidget = () => {
         }
     };
 
-    // Enviar mensagem
     const enviarMensagem = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         if (!novaMensagem.trim() || !conversaAtiva) return;
 
         const textoMensagem = novaMensagem.trim();
         setNovaMensagem('');
 
-        // Adicionar mensagem otimisticamente
         const msgTemp = {
             id: Date.now(),
             conteudo: textoMensagem,
@@ -198,45 +202,41 @@ const ChatWidget = () => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-user-id': userId
+                        'x-user-id': userId,
+                        'x-empresa-id': empresaId
                     },
                     body: JSON.stringify({ conteudo: textoMensagem })
                 }
             );
             const data = await response.json();
             if (data.success) {
-                // Substituir mensagem temporária pela real
                 setMensagens(prev => prev.map(m =>
                     m.id === msgTemp.id ? { ...data.data, sending: false } : m
                 ));
             }
         } catch (error) {
-            console.error('Erro ao enviar mensagem:', error);
-            // Remover mensagem temporária em caso de erro
+            console.error('Erro ao enviar:', error);
             setMensagens(prev => prev.filter(m => m.id !== msgTemp.id));
         }
     };
 
-    // Nome da conversa
     const getNomeConversa = (conversa) => {
+        if (!conversa) return '';
         if (conversa.tipo === 'channel') return conversa.nome;
         if (conversa.outro_participante) return conversa.outro_participante.nome;
         return 'Conversa';
     };
 
-    // Avatar da conversa
     const getAvatarConversa = (conversa) => {
-        if (conversa.tipo === 'channel') return <Hash size={20} />;
+        if (conversa.tipo === 'channel') return <Hash size={18} className="text-white" />;
         const nome = getNomeConversa(conversa);
         return nome.charAt(0).toUpperCase();
     };
 
-    // Formatar hora
     const formatarHora = (dataStr) => {
         if (!dataStr) return '';
         const data = new Date(dataStr);
         const hoje = new Date();
-
         if (data.toDateString() === hoje.toDateString()) {
             return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
@@ -244,238 +244,274 @@ const ChatWidget = () => {
     };
 
     return (
-        <>
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ opacity: 0, y: 30, scale: 0.9, filter: 'blur(10px)' }}
+                    animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: 30, scale: 0.9, filter: 'blur(10px)' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    className="fixed bottom-[85px] right-6 w-[420px] h-[640px] z-[999] flex flex-col"
+                >
+                    {/* Glass Container */}
+                    <div className="absolute inset-0 bg-[#020617] rounded-[32px] border border-white/10 shadow-[0_32px_80px_-20px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
 
-            {/* Janela do Chat */}
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className="fixed bottom-24 right-6 w-96 h-[500px] bg-gray-900 rounded-2xl shadow-2xl border border-gray-800 overflow-hidden z-50 flex flex-col"
-                    >
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-4 flex items-center gap-3">
-                            {activeView === 'chat' && (
-                                <button onClick={voltarParaLista} className="text-white/80 hover:text-white">
-                                    <ChevronLeft size={20} />
-                                </button>
-                            )}
-                            <div className="flex-1">
-                                <h3 className="text-white font-semibold">
-                                    {activeView === 'list' && 'Mensagens'}
-                                    {activeView === 'chat' && getNomeConversa(conversaAtiva)}
-                                    {activeView === 'new' && 'Nova Conversa'}
-                                </h3>
-                                {activeView === 'list' && (
-                                    <p className="text-white/70 text-xs">SalesMaster Chat</p>
+                        {/* HEADER - Premium Design */}
+                        <div className="relative px-6 py-5 flex items-center justify-between border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
+                            <div className="flex items-center gap-4">
+                                {(activeView === 'chat' || activeView === 'new' || activeView === 'help') ? (
+                                    <motion.button
+                                        whileHover={{ x: -2 }}
+                                        onClick={voltarParaLista}
+                                        className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors"
+                                    >
+                                        <ChevronLeft size={22} />
+                                    </motion.button>
+                                ) : (
+                                    <div className="w-12 h-12 flex items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
+                                        <Sparkles size={24} />
+                                    </div>
                                 )}
+                                <div>
+                                    <h3 className="text-white font-black text-lg tracking-tight">
+                                        {activeView === 'list' && 'Hub de Mensagens'}
+                                        {activeView === 'chat' && getNomeConversa(conversaAtiva)}
+                                        {activeView === 'new' && 'Novo Chat'}
+                                        {activeView === 'help' && 'Central de Ajuda'}
+                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-white/40 text-[10px] uppercase font-black tracking-widest">{activeView === 'chat' ? 'Conectado agora' : 'SalesMaster Network'}</span>
+                                    </div>
+                                </div>
                             </div>
-                            {activeView === 'list' && (
-                                <button
-                                    onClick={() => { setActiveView('new'); fetchUsuarios(); }}
-                                    className="text-white/80 hover:text-white"
-                                >
-                                    <Plus size={20} />
+
+                            <div className="flex items-center gap-2">
+                                {activeView === 'list' && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => { setActiveView('new'); fetchUsuarios(); }}
+                                        className="w-10 h-10 flex items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                                    >
+                                        <Plus size={20} />
+                                    </motion.button>
+                                )}
+                                <button onClick={() => setIsOpen(false)} className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+                                    <X size={20} />
                                 </button>
-                            )}
+                            </div>
                         </div>
 
-                        {/* Conteúdo */}
-                        <div className="flex-1 overflow-hidden">
-                            {/* Lista de Conversas */}
-                            {activeView === 'list' && (
-                                <div className="h-full overflow-y-auto">
-                                    {loading ? (
-                                        <div className="flex items-center justify-center h-full">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
-                                        </div>
-                                    ) : conversas.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6">
-                                            <MessageCircle size={48} className="mb-4 opacity-50" />
-                                            <p className="text-center">Nenhuma conversa ainda</p>
-                                            <button
-                                                onClick={() => { setActiveView('new'); fetchUsuarios(); }}
-                                                className="mt-4 text-emerald-400 hover:underline text-sm"
-                                            >
-                                                + Iniciar nova conversa
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        conversas.map(conversa => (
-                                            <div
-                                                key={conversa.id}
-                                                onClick={() => abrirConversa(conversa)}
-                                                className="flex items-center gap-3 p-3 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800/50 transition-colors"
-                                            >
-                                                {/* Avatar */}
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${conversa.tipo === 'channel' ? 'bg-blue-600' : 'bg-emerald-600'
-                                                    }`}>
-                                                    {getAvatarConversa(conversa)}
-                                                </div>
-
-                                                {/* Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-white font-medium truncate">
-                                                            {getNomeConversa(conversa)}
-                                                        </span>
-                                                        <span className="text-gray-500 text-xs">
-                                                            {formatarHora(conversa.last_message_at)}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-gray-400 text-sm truncate">
-                                                        {conversa.ultima_mensagem || 'Sem mensagens'}
-                                                    </p>
-                                                </div>
-
-                                                {/* Badge não lidas */}
-                                                {parseInt(conversa.nao_lidas) > 0 && (
-                                                    <span className="w-5 h-5 bg-emerald-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                                                        {conversa.nao_lidas}
-                                                    </span>
-                                                )}
+                        {/* CONTENT AREA */}
+                        <div className="flex-1 overflow-hidden relative">
+                            <AnimatePresence mode="wait">
+                                {activeView === 'list' && (
+                                    <motion.div
+                                        key="list"
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="h-full overflow-y-auto px-4 py-2 custom-scrollbar"
+                                    >
+                                        {loading ? (
+                                            <div className="flex flex-col items-center justify-center h-full gap-4">
+                                                <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                                                <span className="text-white/40 text-xs font-bold uppercase tracking-widest">Sincronizando...</span>
                                             </div>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Chat Ativo */}
-                            {activeView === 'chat' && (
-                                <div className="h-full flex flex-col">
-                                    {/* Mensagens */}
-                                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                                        {mensagens.map((msg, index) => {
-                                            const isMinhaMsg = parseInt(msg.remetente_id) === parseInt(userId);
-                                            const showAvatar = !isMinhaMsg && (
-                                                index === 0 ||
-                                                mensagens[index - 1]?.remetente_id !== msg.remetente_id
-                                            );
-
-                                            return (
-                                                <div
-                                                    key={msg.id}
-                                                    className={`flex ${isMinhaMsg ? 'justify-end' : 'justify-start'}`}
+                                        ) : conversas.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                                                <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                                                    <MessageSquare size={40} className="text-white/10" />
+                                                </div>
+                                                <h4 className="text-white font-black text-xl mb-2">Sem conversas</h4>
+                                                <p className="text-white/40 text-sm mb-8 leading-relaxed">Conecte-se com sua equipe para agilizar as operações de venda.</p>
+                                                <button
+                                                    onClick={() => { setActiveView('new'); fetchUsuarios(); }}
+                                                    className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-bold transition-all border border-white/5"
                                                 >
-                                                    {!isMinhaMsg && showAvatar && (
-                                                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-white text-xs font-medium mr-2">
-                                                            {msg.remetente?.nome?.charAt(0) || '?'}
+                                                    Iniciar Primeiro Chat
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid gap-2 py-2">
+                                                {conversas.map(conversa => (
+                                                    <motion.div
+                                                        key={conversa.id}
+                                                        whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.03)' }}
+                                                        onClick={() => abrirConversa(conversa)}
+                                                        className="group flex items-center gap-4 p-4 rounded-[20px] cursor-pointer transition-all border border-transparent hover:border-white/5"
+                                                    >
+                                                        <div className={cn(
+                                                            "w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black shadow-inner relative",
+                                                            conversa.tipo === 'channel' ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                                        )}>
+                                                            {getAvatarConversa(conversa)}
+                                                            {conversa.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-4 border-slate-900" />}
                                                         </div>
-                                                    )}
-                                                    {!isMinhaMsg && !showAvatar && <div className="w-8 mr-2" />}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-white font-black tracking-tight group-hover:text-emerald-400 transition-colors">
+                                                                    {getNomeConversa(conversa)}
+                                                                </span>
+                                                                <span className="text-white/20 text-[10px] font-black group-hover:text-white/40 transition-colors">
+                                                                    {formatarHora(conversa.last_message_at)}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-white/40 text-sm truncate font-medium">
+                                                                {conversa.ultima_mensagem || 'Nenhuma mensagem recente'}
+                                                            </p>
+                                                        </div>
+                                                        {parseInt(conversa.nao_lidas) > 0 && (
+                                                            <div className="w-6 h-6 bg-emerald-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/40">
+                                                                {conversa.nao_lidas}
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
 
-                                                    <div className={`max-w-[75%] ${isMinhaMsg ? 'order-1' : ''}`}>
-                                                        {!isMinhaMsg && showAvatar && (
-                                                            <span className="text-xs text-gray-500 mb-1 block">
+                                {activeView === 'chat' && (
+                                    <motion.div
+                                        key="chat"
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 20 }}
+                                        className="h-full flex flex-col bg-black/20"
+                                    >
+                                        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar">
+                                            {mensagens.map((msg, index) => {
+                                                const isMe = parseInt(msg.remetente_id) === parseInt(userId);
+                                                const showHeader = index === 0 || mensagens[index - 1]?.remetente_id !== msg.remetente_id;
+
+                                                return (
+                                                    <div key={msg.id} className={cn("flex flex-col group", isMe ? "items-end" : "items-start")}>
+                                                        {!isMe && showHeader && (
+                                                            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest mb-1.5 ml-1">
                                                                 {msg.remetente?.nome}
                                                             </span>
                                                         )}
-                                                        <div className={`px-3 py-2 rounded-2xl ${isMinhaMsg
-                                                            ? 'bg-emerald-600 text-white rounded-br-md'
-                                                            : 'bg-gray-800 text-white rounded-bl-md'
-                                                            } ${msg.sending ? 'opacity-70' : ''}`}>
-                                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                                        <div className={cn(
+                                                            "max-w-[85%] px-5 py-3.5 relative shadow-xl transform transition-transform group-hover:scale-[1.02]",
+                                                            isMe
+                                                                ? "bg-emerald-600 text-white rounded-[24px] rounded-br-[4px] shadow-emerald-900/10"
+                                                                : "bg-white/5 backdrop-blur-md text-white rounded-[24px] rounded-bl-[4px] border border-white/5"
+                                                        )}>
+                                                            <p className="text-[15px] leading-relaxed font-semibold break-words">
                                                                 {msg.conteudo}
                                                             </p>
-                                                        </div>
-                                                        <div className={`flex items-center gap-1 mt-1 ${isMinhaMsg ? 'justify-end' : ''}`}>
-                                                            <span className="text-xs text-gray-500">
-                                                                {formatarHora(msg.created_at)}
-                                                            </span>
-                                                            {isMinhaMsg && (
-                                                                msg.sending
-                                                                    ? <Clock size={12} className="text-gray-500" />
-                                                                    : <CheckCheck size={12} className="text-emerald-400" />
-                                                            )}
+                                                            <div className={cn("flex items-center gap-1.5 mt-2", isMe ? "justify-end text-white/50" : "text-white/30")}>
+                                                                <span className="text-[9px] font-black tracking-tighter italic">
+                                                                    {formatarHora(msg.created_at)}
+                                                                </span>
+                                                                {isMe && (
+                                                                    msg.sending
+                                                                        ? <Clock size={10} className="animate-spin" />
+                                                                        : <CheckCheck size={12} className="text-emerald-300" />
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
-                                        <div ref={messagesEndRef} />
-                                    </div>
-
-                                    {/* Input */}
-                                    <form onSubmit={enviarMensagem} className="p-3 border-t border-gray-800 bg-gray-900">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                ref={inputRef}
-                                                type="text"
-                                                value={novaMensagem}
-                                                onChange={(e) => setNovaMensagem(e.target.value)}
-                                                placeholder="Digite sua mensagem..."
-                                                className="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                            />
-                                            <button
-                                                type="submit"
-                                                disabled={!novaMensagem.trim()}
-                                                className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            >
-                                                <Send size={18} />
-                                            </button>
+                                                );
+                                            })}
+                                            <div ref={messagesEndRef} />
                                         </div>
-                                    </form>
-                                </div>
-                            )}
 
-                            {/* Nova Conversa */}
-                            {activeView === 'new' && (
-                                <div className="h-full overflow-y-auto">
-                                    {/* Busca */}
-                                    <div className="p-3 border-b border-gray-800">
-                                        <div className="relative">
-                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                                            <input
-                                                type="text"
-                                                value={busca}
-                                                onChange={(e) => setBusca(e.target.value)}
-                                                placeholder="Buscar usuário..."
-                                                className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Lista de Usuários */}
-                                    {usuarios
-                                        .filter(u =>
-                                            !busca ||
-                                            u.nome?.toLowerCase().includes(busca.toLowerCase()) ||
-                                            u.sobrenome?.toLowerCase().includes(busca.toLowerCase())
-                                        )
-                                        .map(usuario => (
-                                            <div
-                                                key={usuario.id}
-                                                onClick={() => iniciarNovaConversa(usuario.id)}
-                                                className="flex items-center gap-3 p-3 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800/50"
-                                            >
-                                                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-white font-medium">
-                                                    {usuario.nome?.charAt(0) || '?'}
-                                                </div>
-                                                <div>
-                                                    <p className="text-white font-medium">
-                                                        {usuario.nome} {usuario.sobrenome}
-                                                    </p>
-                                                </div>
+                                        {/* MODERN INPUT AREA */}
+                                        <div className="p-6 bg-gradient-to-t from-slate-950 to-transparent">
+                                            <div className="relative group">
+                                                <div className="absolute inset-0 bg-white/5 rounded-[24px] blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity" />
+                                                <form
+                                                    onSubmit={enviarMensagem}
+                                                    className="relative flex items-center gap-2 p-2 bg-white/5 backdrop-blur-2xl rounded-[100px] border border-white/10 focus-within:border-emerald-500/50 transition-all shadow-inner"
+                                                >
+                                                    <button type="button" className="w-10 h-10 flex items-center justify-center text-white/30 hover:text-emerald-400 transition-colors">
+                                                        <Paperclip size={20} />
+                                                    </button>
+                                                    <input
+                                                        ref={inputRef}
+                                                        autoFocus
+                                                        value={novaMensagem}
+                                                        onChange={(e) => setNovaMensagem(e.target.value)}
+                                                        placeholder="Sua mensagem..."
+                                                        className="flex-1 bg-transparent text-white truncate px-4 py-3 text-sm font-bold placeholder:text-white/20 focus:outline-none"
+                                                    />
+                                                    <button type="button" className="w-10 h-10 flex items-center justify-center text-white/30 hover:text-amber-400 transition-colors">
+                                                        <Smile size={20} />
+                                                    </button>
+                                                    <motion.button
+                                                        whileTap={{ scale: 0.9 }}
+                                                        type="submit"
+                                                        disabled={!novaMensagem.trim()}
+                                                        className="w-12 h-12 flex items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/40 hover:bg-emerald-400 disabled:opacity-20 disabled:grayscale transition-all"
+                                                    >
+                                                        <Send size={20} fill="currentColor" />
+                                                    </motion.button>
+                                                </form>
                                             </div>
-                                        ))
-                                    }
-
-                                    {usuarios.length === 0 && (
-                                        <div className="flex items-center justify-center h-32 text-gray-500">
-                                            Nenhum usuário encontrado
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    </motion.div>
+                                )}
+
+                                {activeView === 'new' && (
+                                    <motion.div
+                                        key="new"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        className="h-full flex flex-col"
+                                    >
+                                        <div className="px-6 py-4 border-b border-white/5">
+                                            <div className="relative">
+                                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
+                                                <input
+                                                    placeholder="Buscar integrante..."
+                                                    value={busca}
+                                                    onChange={(e) => setBusca(e.target.value)}
+                                                    className="w-full bg-white/5 text-white rounded-2xl pl-12 pr-4 py-4 text-sm font-black border border-white/5 focus:border-emerald-500/30 transition-all focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
+                                            {usuarios
+                                                .filter(u => u.id !== parseInt(userId) && (!busca || cn(u.nome, u.sobrenome).toLowerCase().includes(busca.toLowerCase())))
+                                                .map(usuario => (
+                                                    <motion.div
+                                                        key={usuario.id}
+                                                        whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.03)' }}
+                                                        onClick={() => iniciarNovaConversa(usuario.id)}
+                                                        className="flex items-center gap-4 p-4 rounded-3xl cursor-pointer group"
+                                                    >
+                                                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white font-black border border-white/10 group-hover:border-emerald-500/30 group-hover:bg-emerald-500/10 transition-all">
+                                                            {usuario.nome?.charAt(0) || '?'}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-white font-black tracking-tight">{usuario.nome} {usuario.sobrenome}</p>
+                                                            <p className="text-white/30 text-xs font-bold uppercase tracking-widest">{usuario.perfil || 'Membro do Time'}</p>
+                                                        </div>
+                                                        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Plus size={18} className="text-emerald-500" />
+                                                        </div>
+                                                    </motion.div>
+                                                ))
+                                            }
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </>
+                    </div>
+
+                    {/* Footer Accent Decoration */}
+                    <div className="h-1 w-32 bg-emerald-500 mx-auto mt-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)] opacity-50" />
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 
 export default ChatWidget;
+

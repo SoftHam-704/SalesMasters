@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../lib/axios';
-import './ABCIntelligence.css';
 import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
+import PortfolioAnalysis from '../PortfolioAnalysis';
 
-const ABCIntelligence = ({ filtros = {} }) => {
+const ABCIntelligence = ({ filtros = {}, originalFilters = {}, refreshTrigger }) => {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState(null);
     const [curvaAtiva, setCurvaAtiva] = useState('todos');
@@ -21,7 +21,7 @@ const ABCIntelligence = ({ filtros = {} }) => {
             setData(null);
             setLoading(false);
         }
-    }, [filtros, metricaAtiva]);
+    }, [filtros, metricaAtiva, refreshTrigger]);
 
     const carregarDados = async () => {
         try {
@@ -31,7 +31,9 @@ const ABCIntelligence = ({ filtros = {} }) => {
                 meses: filtros.meses || 'todos',
                 industria: filtros.industria || 'todos',
                 clientes: filtros.clientes || 'todos',
-                metrica: metricaAtiva
+                metrica: metricaAtiva,
+                considerarAnoTodo: filtros.considerarAnoTodo,
+                redeDeLojas: filtros.redeDeLojas
             };
 
             const url = getApiUrl(PYTHON_API_URL, '/api/analytics/abc-intelligence');
@@ -143,11 +145,14 @@ const ABCIntelligence = ({ filtros = {} }) => {
 
     // Calcular stats do header
     const totalProdutos = curva_abc.reduce((sum, c) => sum + c.produtos, 0);
-    const curvaC = curva_abc.find(c => c.curva === 'C');
-    const percCurvaC = curvaC ? Math.round((curvaC.produtos / totalProdutos) * 100) : 0;
 
     return (
         <div className="abc-intelligence">
+
+            {/* PORTFOLIO ANALYSIS CARDS - MOVED FROM ESTATISTICAS */}
+            <div className="portfolio-section" style={{ marginBottom: '24px' }}>
+                <PortfolioAnalysis filters={originalFilters} />
+            </div>
 
             {/* HEADER COMPACTO */}
             <div className="pareto-header" style={{ padding: '16px 24px' }}>
@@ -157,7 +162,7 @@ const ABCIntelligence = ({ filtros = {} }) => {
                         <div className="title-icon">📊</div>
                         <div>
                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
-                                Curva ABC
+                                Visão Detalhada
                             </div>
                             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
                                 Métrica: <strong style={{ color: '#1e40af' }}>{metricaAtiva === 'valor' ? 'Valor' : metricaAtiva === 'quantidade' ? 'Quantidade' : 'Unidades'}</strong>
@@ -169,14 +174,14 @@ const ABCIntelligence = ({ filtros = {} }) => {
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                         {curva_abc.map((curva) => (
                             <div key={curva.curva} style={{
-                                background: curva.curva === 'A' ? '#dbeafe' : curva.curva === 'B' ? '#fef3c7' : '#f1f5f9',
-                                borderLeft: `4px solid ${curva.curva === 'A' ? '#1e40af' : curva.curva === 'B' ? '#d97706' : '#64748b'}`,
+                                background: curva.curva === 'A' ? '#f0fdf4' : curva.curva === 'B' ? '#fffbeb' : '#f8fafc',
+                                borderLeft: `4px solid ${curva.curva === 'A' ? '#10b981' : curva.curva === 'B' ? '#f59e0b' : '#64748b'}`,
                                 padding: '12px 20px',
                                 borderRadius: '8px',
                                 minWidth: '130px'
                             }}>
                                 <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
-                                    Curva {curva.curva}
+                                    Pocentagem {curva.curva}
                                 </div>
                                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b' }}>
                                     {curva.percentual.toFixed(1)}%
@@ -190,20 +195,20 @@ const ABCIntelligence = ({ filtros = {} }) => {
                         {/* Top #1 Product */}
                         {produtos[0] && (
                             <div style={{
-                                background: '#f0fdf4',
-                                borderLeft: '4px solid #10b981',
+                                background: '#f0f9ff',
+                                borderLeft: '4px solid #3b82f6',
                                 padding: '12px 20px',
                                 borderRadius: '8px',
                                 minWidth: '150px'
                             }}>
                                 <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '6px' }}>
-                                    🏆 Top #1
+                                    🏆 Produto Líder
                                 </div>
                                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
                                     {produtos[0].produto}
                                 </div>
-                                <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 600, marginTop: '2px' }}>
-                                    {produtos[0].percentual.toFixed(2)}% do total
+                                <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, marginTop: '2px' }}>
+                                    {produtos[0].percentual.toFixed(2)}% de faturamento
                                 </div>
                             </div>
                         )}
@@ -211,222 +216,168 @@ const ABCIntelligence = ({ filtros = {} }) => {
                 </div>
             </div>
 
-            {/* LAYOUT 2 COLUNAS: CARDS (esquerda) + TABELA (direita) */}
-            <div className="main-layout">
+            {/* LAYOUT PRINCIPAL: INSIGHTS (esquerda) + TABELA (direita) */}
+            <div className="main-layout" style={{ gridTemplateColumns: 'minmax(300px, 30%) 1fr' }}>
 
-                {/* COLUNA ESQUERDA: CARDS */}
+                {/* COLUNA ESQUERDA: INSIGHTS */}
                 <div className="cards-column">
+                    <div className="section-title">💡 Insights Estratégicos</div>
+                    <div className="insights-grid" style={{ gridTemplateColumns: '1fr' }}>
 
-                    {/* SEÇÃO 1: MINI GAUGES */}
-                    <div>
-                        <div className="section-title">📊 Métricas Principais</div>
-                        <div className="mini-metrics">
-                            <div className="mini-gauge">
-                                <div className="gauge-circle perc-70">
-                                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#3b82f6' }}>
-                                        {curva_abc[0]?.percentual.toFixed(0)}%
-                                    </span>
+                        {/* 1. ALERTA */}
+                        {insights.alerta_curva_c && (
+                            <div className="insight-card alert">
+                                <div className="insight-header">
+                                    <span className="insight-icon">🚨</span>
+                                    <div className="insight-title">{insights.alerta_curva_c.titulo}</div>
                                 </div>
-                                <div className="gauge-label">Concentração A</div>
-                            </div>
-
-                            <div className="mini-gauge">
-                                <div className="gauge-circle perc-27">
-                                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#f59e0b' }}>
-                                        {insights.oportunidades_penetracao?.length > 0
-                                            ? insights.oportunidades_penetracao[0].penetracao + '%'
-                                            : '0%'}
-                                    </span>
+                                <div className="insight-body">
+                                    {insights.alerta_curva_c.detalhes?.map((d, i) => (
+                                        <div key={i} style={{ marginBottom: '4px' }}>• {d}</div>
+                                    ))}
                                 </div>
-                                <div className="gauge-label">
-                                    Penetração {insights.oportunidades_penetracao?.[0]?.produto?.substring(0, 10) || 'Top'}
+                                <div className="insight-highlight">
+                                    R$ {insights.alerta_curva_c.economia?.toLocaleString('pt-BR')} economia
                                 </div>
                             </div>
+                        )}
 
-                            <div className="mini-gauge">
-                                <div className="gauge-circle perc-87">
-                                    <span style={{ fontSize: '16px', fontWeight: 800, color: '#10b981' }}>
-                                        {insights.migracao_b_a?.length > 0 ? insights.migracao_b_a[0].percentual_falta + '%' : '0%'}
-                                    </span>
+                        {/* 2. OPORTUNIDADES */}
+                        {insights.oportunidades_penetracao?.length > 0 && (
+                            <div className="insight-card opportunity">
+                                <div className="insight-header">
+                                    <span className="insight-icon">💡</span>
+                                    <div className="insight-title">Oportunidade Expansão</div>
                                 </div>
-                                <div className="gauge-label">
-                                    Gap para A {insights.migracao_b_a?.[0]?.produto?.substring(0, 8) || 'B'}
+                                <div className="insight-body">
+                                    <strong>{insights.oportunidades_penetracao[0].produto}</strong><br />
+                                    Penetração de apenas {insights.oportunidades_penetracao[0].penetracao}% na base de {insights.oportunidades_penetracao[0].clientes_atuais + insights.oportunidades_penetracao[0].potencial} clientes.
+                                </div>
+                                <div className="insight-highlight">
+                                    R$ {insights.oportunidades_penetracao[0].oportunidade?.toLocaleString('pt-BR')} potencial
+                                </div>
+                                <div className="insight-action">👉 Sugestão: Campanha direcionada</div>
+                            </div>
+                        )}
+
+                        {/* 3. MIGRAÇÃO B→A */}
+                        {insights.migracao_b_a?.length > 0 && (
+                            <div className="insight-card growth">
+                                <div className="insight-header">
+                                    <span className="insight-icon">🚀</span>
+                                    <div className="insight-title">Aceleração Curva A</div>
+                                </div>
+                                <div className="insight-body">
+                                    <strong>{insights.migracao_b_a[0].produto}</strong><br />
+                                    Este item está a apenas {insights.migracao_b_a[0].percentual_falta}% de entrar na Curva A.
+                                </div>
+                                <div className="insight-action">👉 Gap: R$ {insights.migracao_b_a[0].gap?.toLocaleString('pt-BR')}</div>
+                            </div>
+                        )}
+
+                        {/* 4. CROSS-SELL */}
+                        {insights.cross_sell?.clientes > 0 && (
+                            <div className="insight-card cross">
+                                <div className="insight-header">
+                                    <span className="insight-icon">🎯</span>
+                                    <div className="insight-title">Cross-sell Inteligente</div>
+                                </div>
+                                <div className="insight-body">
+                                    {insights.cross_sell.clientes} clientes compram apenas produtos de curva C.
+                                </div>
+                                <div className="insight-highlight">
+                                    R$ {insights.cross_sell.potencial?.toLocaleString('pt-BR')} upgrade
+                                </div>
+                                <div className="insight-action">👉 Oferta Curva A para estes clientes</div>
+                            </div>
+                        )}
+
+                        {/* Fallback se não houver insights */}
+                        {!insights.alerta_curva_c && !insights.oportunidades_penetracao?.length && !insights.migracao_b_a?.length && !insights.cross_sell?.clientes && (
+                            <div className="insight-card">
+                                <div className="insight-header">
+                                    <span className="insight-icon">✅</span>
+                                    <div className="insight-title">Distribuição Saudável</div>
+                                </div>
+                                <div className="insight-body">
+                                    Sua curva ABC está dentro dos patamares de excelência.
                                 </div>
                             </div>
-
-                            <div className="mini-gauge">
-                                <div className="gauge-value-simple">
-                                    R$ {insights.alerta_curva_c
-                                        ? (insights.alerta_curva_c.economia / 1000).toFixed(0) + 'K'
-                                        : '0'}
-                                </div>
-                                <div className="gauge-label">Economia Potencial</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* SEÇÃO 2: INSIGHTS */}
-                    <div>
-                        <div className="section-title">💡 Insights Inteligentes</div>
-                        <div className="insights-grid">
-
-                            {/* 1. ALERTA */}
-                            {insights.alerta_curva_c && (
-                                <div className="insight-card alert">
-                                    <div className="insight-header">
-                                        <span className="insight-icon">🚨</span>
-                                        <div className="insight-title">{insights.alerta_curva_c.titulo}</div>
-                                    </div>
-                                    <div className="insight-body">
-                                        {insights.alerta_curva_c.detalhes?.map((d, i) => (
-                                            <div key={i}>• {d}</div>
-                                        ))}
-                                    </div>
-                                    <div className="insight-highlight">
-                                        R$ {insights.alerta_curva_c.economia?.toLocaleString('pt-BR')} economia
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* 2. OPORTUNIDADES */}
-                            {insights.oportunidades_penetracao?.length > 0 && (
-                                <div className="insight-card opportunity">
-                                    <div className="insight-header">
-                                        <span className="insight-icon">💡</span>
-                                        <div className="insight-title">Oportunidades Expansão (A)</div>
-                                    </div>
-                                    <div className="insight-body">
-                                        <strong>{insights.oportunidades_penetracao[0].produto}</strong><br />
-                                        Penetração: {insights.oportunidades_penetracao[0].penetracao}% •
-                                        {insights.oportunidades_penetracao[0].clientes_atuais}/{insights.oportunidades_penetracao[0].clientes_atuais + insights.oportunidades_penetracao[0].potencial} clientes
-                                    </div>
-                                    <div className="insight-highlight">
-                                        R$ {insights.oportunidades_penetracao[0].oportunidade?.toLocaleString('pt-BR')} potencial
-                                    </div>
-                                    <div className="insight-action">👉 Campanha com 10% desconto</div>
-                                </div>
-                            )}
-
-                            {/* 3. MIGRAÇÃO B→A */}
-                            {insights.migracao_b_a?.length > 0 && (
-                                <div className="insight-card growth">
-                                    <div className="insight-header">
-                                        <span className="insight-icon">🚀</span>
-                                        <div className="insight-title">Produtos B → Curva A</div>
-                                    </div>
-                                    <div className="insight-body">
-                                        <strong>{insights.migracao_b_a[0].produto}</strong><br />
-                                        Falta {insights.migracao_b_a[0].percentual_falta}%
-                                        (R$ {insights.migracao_b_a[0].gap?.toLocaleString('pt-BR')}) para A
-                                    </div>
-                                    <div className="insight-action">👉 Bundle com produto A</div>
-                                </div>
-                            )}
-
-                            {/* 4. CROSS-SELL */}
-                            {insights.cross_sell?.clientes > 0 && (
-                                <div className="insight-card cross">
-                                    <div className="insight-header">
-                                        <span className="insight-icon">🎯</span>
-                                        <div className="insight-title">Cross-sell C→A</div>
-                                    </div>
-                                    <div className="insight-body">
-                                        {insights.cross_sell.clientes} clientes compram só Curva C
-                                    </div>
-                                    <div className="insight-highlight">
-                                        R$ {insights.cross_sell.potencial?.toLocaleString('pt-BR')} upgrade
-                                    </div>
-                                    <div className="insight-action">👉 Pacote A+C desconto 10%</div>
-                                </div>
-                            )}
-
-                            {/* Fallback se não houver insights */}
-                            {!insights.alerta_curva_c && !insights.oportunidades_penetracao?.length && !insights.migracao_b_a?.length && !insights.cross_sell?.clientes && (
-                                <div className="insight-card">
-                                    <div className="insight-header">
-                                        <span className="insight-icon">✅</span>
-                                        <div className="insight-title">Portfólio Equilibrado</div>
-                                    </div>
-                                    <div className="insight-body">
-                                        Sua distribuição ABC está dentro dos parâmetros ideais.
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
 
                 {/* COLUNA DIREITA: TABELA */}
                 <div className="table-column">
                     <div className="table-header">
-                        <div className="table-title">📋 Produtos por Classificação ABC</div>
+                        <div className="table-title">📋 Ranking de Produtos</div>
                         <div className="table-tabs">
                             <button
                                 className={`tab-btn ${curvaAtiva === 'todos' ? 'active' : ''}`}
                                 onClick={() => setCurvaAtiva('todos')}
                             >
-                                Todos
+                                Geral
                             </button>
                             <button
                                 className={`tab-btn ${curvaAtiva === 'a' ? 'active' : ''}`}
                                 onClick={() => setCurvaAtiva('a')}
                             >
-                                Curva A
+                                A
                             </button>
                             <button
                                 className={`tab-btn ${curvaAtiva === 'b' ? 'active' : ''}`}
                                 onClick={() => setCurvaAtiva('b')}
                             >
-                                Curva B
+                                B
                             </button>
                             <button
                                 className={`tab-btn ${curvaAtiva === 'c' ? 'active' : ''}`}
                                 onClick={() => setCurvaAtiva('c')}
                             >
-                                Curva C
+                                C
                             </button>
                         </div>
                     </div>
 
-                    <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
+                    <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
                         <table className="products-table">
                             <thead>
                                 <tr>
-                                    <th style={{ width: '40px' }}>#</th>
+                                    <th style={{ width: '40px' }}>Rank</th>
                                     <th>Produto</th>
-                                    <th className="text-right" style={{ width: '110px' }}>
-                                        {metricaAtiva === 'valor' ? 'Valor' : metricaAtiva === 'quantidade' ? 'Quantidade' : 'Unidades'}
+                                    <th className="text-right" style={{ width: '120px' }}>
+                                        {metricaAtiva === 'valor' ? 'Faturamento' : metricaAtiva === 'quantidade' ? 'Qtd' : 'Unid'}
                                     </th>
-                                    <th className="text-right" style={{ width: '60px' }}>%</th>
-                                    <th style={{ width: '140px' }}>% Acumulado</th>
-                                    <th className="text-center" style={{ width: '70px' }}>Clientes</th>
-                                    <th className="text-center" style={{ width: '50px' }}>ABC</th>
+                                    <th className="text-right" style={{ width: '70px' }}>Partic.</th>
+                                    <th style={{ width: '150px' }}>Acumulado</th>
+                                    <th className="text-center" style={{ width: '80px' }}>Clientes</th>
+                                    <th className="text-center" style={{ width: '60px' }}>Curva</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {produtosFiltrados.slice(0, 50).map((produto, idx) => (
+                                {produtosFiltrados.slice(0, 100).map((produto, idx) => (
                                     <tr key={idx} style={{
                                         background: produto.curva === 'B' ? '#fffbeb' : produto.curva === 'C' ? '#fafafa' : 'white'
                                     }}>
-                                        <td>{produto.ranking}</td>
-                                        <td className="product-name">{produto.produto}</td>
-                                        <td className="text-right font-bold">
+                                        <td className="text-center font-bold text-slate-400">{produto.ranking}</td>
+                                        <td className="product-name font-bold">{produto.produto}</td>
+                                        <td className="text-right font-black">
                                             {metricaAtiva === 'valor'
                                                 ? `R$ ${produto.valor?.toLocaleString('pt-BR')}`
                                                 : produto.quantidade?.toLocaleString('pt-BR')}
                                         </td>
-                                        <td className="text-right">{produto.percentual?.toFixed(2)}%</td>
+                                        <td className="text-right font-bold text-slate-500">{produto.percentual?.toFixed(1)}%</td>
                                         <td>
-                                            <div className="progress-bar">
+                                            <div className="progress-bar" style={{ height: '6px' }}>
                                                 <div
                                                     className={`progress-fill ${produto.curva.toLowerCase()}`}
-                                                    style={{ width: `${produto.acumulado || 0}%` }}
+                                                    style={{ width: `${produto.acumulado || 0}%`, borderRadius: '0' }}
                                                 ></div>
                                             </div>
                                         </td>
                                         <td className="text-center">{produto.clientes}</td>
                                         <td className="text-center">
-                                            <span className={`badge-abc ${produto.curva.toLowerCase()}`}>
+                                            <span className={`badge-abc ${produto.curva.toLowerCase()}`} style={{ borderRadius: '4px', width: '22px', height: '22px' }}>
                                                 {produto.curva}
                                             </span>
                                         </td>
@@ -438,43 +389,18 @@ const ABCIntelligence = ({ filtros = {} }) => {
 
                     <div style={{
                         textAlign: 'center',
-                        padding: '12px',
+                        padding: '16px',
                         fontSize: '11px',
-                        color: '#64748b',
-                        background: '#f8fafc',
-                        marginTop: '8px',
-                        borderRadius: '6px'
+                        color: '#94a3b8',
+                        background: '#fcfcfc',
+                        marginTop: '12px',
+                        borderRadius: '8px',
+                        border: '1px dashed #e2e8f0'
                     }}>
-                        Mostrando {Math.min(50, produtosFiltrados.length)} de {produtosFiltrados.length} produtos
+                        Mostrando {Math.min(100, produtosFiltrados.length)} de {produtosFiltrados.length} itens analisados pela IA
                     </div>
                 </div>
 
-            </div>
-
-            {/* FOOTER STATS */}
-            <div className="footer-stats">
-                <div className="stat-item">
-                    <div className="stat-value">
-                        R$ {(curva_abc.reduce((sum, c) => sum + c.valor, 0) / 1000000).toFixed(2)} Mi
-                    </div>
-                    <div className="stat-label">Faturamento Total</div>
-                </div>
-                <div className="stat-item">
-                    <div className="stat-value">{totalProdutos}</div>
-                    <div className="stat-label">Produtos na Análise</div>
-                </div>
-                <div className="stat-item">
-                    <div className="stat-value">
-                        {curva_abc.find(c => c.curva === 'A')?.produtos || 0}
-                    </div>
-                    <div className="stat-label">Produtos Curva A</div>
-                </div>
-                <div className="stat-item">
-                    <div className="stat-value">
-                        {curva_abc.find(c => c.curva === 'C')?.produtos || 0}
-                    </div>
-                    <div className="stat-label">Produtos Curva C</div>
-                </div>
             </div>
 
         </div>

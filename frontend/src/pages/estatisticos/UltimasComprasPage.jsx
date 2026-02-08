@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import axios from "@/lib/axios"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,11 +16,13 @@ export default function UltimasComprasPage() {
         return d.toISOString().split('T')[0]
     })
     const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
-    const [selectedIndustria, setSelectedIndustria] = useState("")
+    const [selectedIndustria, setSelectedIndustria] = useState("ALL")
     const [selectedCliente, setSelectedCliente] = useState("ALL")
     const [selectedVendedor, setSelectedVendedor] = useState("ALL")
     const [considerarGrupo, setConsiderarGrupo] = useState(false)
-    const [viewMode, setViewMode] = useState("valor") // valor, qtd, ultima
+    const [viewMode, setViewMode] = useState("acumulado") // acumulado, ultima
+    const [pivotedData, setPivotedData] = useState([])
+    const [uniqueIndustrias, setUniqueIndustrias] = useState([])
 
     const [industrias, setIndustrias] = useState([])
     const [clientes, setClientes] = useState([])
@@ -47,14 +49,10 @@ export default function UltimasComprasPage() {
         loadAux()
     }, [])
 
-    // --- Load Data ---
+    // --- Trigger load once on mount if desired, but user wants "Process" button ---
     useEffect(() => {
-        if (!selectedIndustria) {
-            setData([])
-            return
-        }
-        loadData()
-    }, [startDate, endDate, selectedIndustria, selectedCliente, selectedVendedor, considerarGrupo, viewMode])
+        // Option to load initial data if needed
+    }, [])
 
     const loadData = async () => {
         setLoading(true)
@@ -69,7 +67,61 @@ export default function UltimasComprasPage() {
                 modo: viewMode
             }
             const res = await axios.get('/reports/ultimas-compras', { params })
-            setData(res.data.data || [])
+            const rawData = res.data.data || []
+            setData(rawData)
+
+            if (selectedIndustria === 'ALL') {
+                // Pivot data for matrix view
+                const industries = [...new Set(rawData.map(item => item.industria).filter(Boolean))].sort()
+                setUniqueIndustrias(industries)
+
+                const clientsMap = {}
+                rawData.forEach(item => {
+                    if (!clientsMap[item.cliente]) {
+                        clientsMap[item.cliente] = {
+                            cliente: item.cliente,
+                            estado: item.estado,
+                            industries: {}
+                        }
+                    }
+                    clientsMap[item.cliente].industries[item.industria] = {
+                        valor: item.valor,
+                        qtd: item.qtd,
+                        data_ultima: item.data_ultima,
+                        dias: item.dias
+                    }
+                })
+                setPivotedData(Object.values(clientsMap))
+            } else {
+                // ALSO PIVOT for Single Industry (User Request: Use Matrix View Always)
+                // Inject Name
+                const indObj = industrias.find(i => String(i.for_codigo) === String(selectedIndustria))
+                const indName = indObj ? indObj.for_nomered : 'Indústria Selecionada'
+
+                // Pivot Logic (Same as above, but with injected name)
+                const clientsMap = {}
+
+                rawData.forEach(item => {
+                    // Ensure item has industry name
+                    const itemInd = indName
+
+                    if (!clientsMap[item.cliente]) {
+                        clientsMap[item.cliente] = {
+                            cliente: item.cliente,
+                            estado: item.estado,
+                            industries: {}
+                        }
+                    }
+                    clientsMap[item.cliente].industries[itemInd] = {
+                        valor: item.valor,
+                        qtd: item.qtd,
+                        data_ultima: item.data_ultima,
+                        dias: item.dias
+                    }
+                })
+                setUniqueIndustrias([indName])
+                setPivotedData(Object.values(clientsMap))
+            }
         } catch (error) {
             console.error(error)
             toast.error("Erro ao carregar dados")
@@ -80,7 +132,6 @@ export default function UltimasComprasPage() {
 
     // --- Helpers ---
     const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0)
-    const formatNumber = (val) => new Intl.NumberFormat('pt-BR').format(val || 0)
     const formatDate = (val) => val ? new Date(val).toLocaleDateString('pt-BR') : '-'
 
     const renderSelectItem = (icon, title, subtitle) => (
@@ -97,23 +148,33 @@ export default function UltimasComprasPage() {
 
     // --- Export ---
     const handleExportExcel = () => {
-        if (!data.length) {
+        if (!pivotedData.length) {
             toast.warning("Sem dados para exportar")
             return
         }
 
-        const headers = ['Cliente', 'Estado', 'Valor', 'Qtd', 'Última Compra', 'Dias']
-        const rows = data.map(row => [
-            row.cliente,
-            row.estado,
-            row.valor,
-            row.qtd,
-            formatDate(row.data_ultima),
-            row.dias
-        ])
+        let headers = ['Cliente', 'Estado']
+        uniqueIndustrias.forEach(ind => {
+            headers.push(`${ind} - Valor`, `${ind} - Qtd`, `${ind} - Data`, `${ind} - Dias`)
+        })
+
+        const rows = pivotedData.map(row => {
+            const line = [row.cliente, row.estado]
+            uniqueIndustrias.forEach(ind => {
+                const dataInd = row.industries[ind] || {}
+                line.push(
+                    dataInd.valor || 0,
+                    dataInd.qtd || 0,
+                    formatDate(dataInd.data_ultima),
+                    dataInd.dias || 0
+                )
+            })
+            return line
+        })
 
         const sheetData = [headers, ...rows]
         const ws = XLSX.utils.aoa_to_sheet(sheetData)
+        // Adjust column widths logic broadly
         ws['!cols'] = [{ wch: 35 }, { wch: 5 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 8 }]
 
         const wb = XLSX.utils.book_new()
@@ -153,11 +214,14 @@ export default function UltimasComprasPage() {
                     <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5 relative z-30">
                         <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Indústria <span className="text-red-500">*</span></Label>
                         <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                            <SelectTrigger className={`h-10 bg-white shadow-sm ${!selectedIndustria ? 'border-blue-300 ring-2 ring-blue-100' : ''}`}>
+                            <SelectTrigger className={`h-10 bg-white shadow-sm ${selectedIndustria === 'ALL' ? 'border-blue-300 ring-2 ring-blue-100' : ''}`}>
                                 <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
-                                {industrias.map(ind => (
+                                <SelectItem value="ALL">
+                                    {renderSelectItem(<Factory className="w-4 h-4" />, "Todas as indústrias", "Ver comparativo")}
+                                </SelectItem>
+                                {industrias.filter(ind => ind.for_codigo).map(ind => (
                                     <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
                                         {renderSelectItem(<Factory className="w-4 h-4" />, ind.for_nomered, `Cód: ${ind.for_codigo}`)}
                                     </SelectItem>
@@ -175,7 +239,7 @@ export default function UltimasComprasPage() {
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
                                 <SelectItem value="ALL">Todos</SelectItem>
-                                {clientes.map(c => (
+                                {clientes.filter(c => c.cli_codigo).map(c => (
                                     <SelectItem key={c.cli_codigo} value={String(c.cli_codigo)}>
                                         {renderSelectItem(<User className="w-4 h-4" />, c.cli_nomred || c.cli_nome, `Cód: ${c.cli_codigo}`)}
                                     </SelectItem>
@@ -209,18 +273,21 @@ export default function UltimasComprasPage() {
 
                     {/* Controls - Right Side */}
                     <div className="col-span-12 md:col-span-4 flex items-center gap-4">
-                        {/* Toggle Buttons - Same style as first map */}
+                        {/* Toggle MODO */}
                         <div className="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
-                            {["valor", "qtd", "ultima"].map((mode) => (
+                            {[
+                                { id: "acumulado", label: "TOTAL PERÍODO" },
+                                { id: "ultima", label: "ÚLTIMA COMPRA" }
+                            ].map((option) => (
                                 <button
-                                    key={mode}
-                                    onClick={() => setViewMode(mode)}
-                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all ${viewMode === mode
+                                    key={option.id}
+                                    onClick={() => setViewMode(option.id)}
+                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all ${viewMode === option.id
                                         ? "bg-white text-blue-600 shadow-sm"
                                         : "text-slate-400 hover:text-slate-600"
                                         }`}
                                 >
-                                    {mode === "valor" ? "VALOR" : mode === "qtd" ? "QTD" : "ÚLTIMA"}
+                                    {option.label}
                                 </button>
                             ))}
                         </div>
@@ -236,6 +303,16 @@ export default function UltimasComprasPage() {
                             </div>
                             <span className="text-xs font-medium text-green-600">Grupo de Lojas</span>
                         </label>
+
+                        {/* Botão Processar */}
+                        <button
+                            onClick={loadData}
+                            disabled={loading}
+                            className="ml-auto flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-black uppercase tracking-widest text-xs rounded-lg shadow-lg shadow-blue-500/30 transition-all active:scale-95"
+                        >
+                            {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Factory className="w-4 h-4" />}
+                            PROCESSAR
+                        </button>
                     </div>
                 </div>
             </div>
@@ -245,38 +322,126 @@ export default function UltimasComprasPage() {
                 <Card className="h-full flex flex-col border-slate-200 shadow-lg overflow-hidden">
                     <CardContent className="p-0 overflow-auto flex-1">
                         {loading ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-3">
-                                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm font-medium text-slate-500 animate-pulse">Carregando dados...</span>
+                            <div className="flex flex-col justify-center items-center h-full gap-4">
+                                <div className="relative">
+                                    <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                                    <Factory className="absolute inset-0 m-auto w-6 h-6 text-blue-600 animate-pulse" />
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-sm font-black text-slate-700 uppercase tracking-[0.2em]">Processando Dados</span>
+                                    <span className="text-xs text-slate-400 font-medium">Buscando histórico de compras...</span>
+                                </div>
                             </div>
                         ) : data.length === 0 ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
-                                <span className="text-4xl">📊</span>
-                                <span className="text-sm">Selecione uma indústria para ver os dados</span>
+                            <div className="flex flex-col justify-center items-center h-full gap-4 text-slate-300">
+                                <div className="p-8 bg-slate-50 rounded-full border border-dashed border-slate-200">
+                                    <Factory className="w-16 h-16" />
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-lg font-bold text-slate-400">Pronto para processar</span>
+                                    <span className="text-sm">Clique no botão <span className="text-blue-600 font-bold uppercase underline">Processar</span> para gerar o mapa</span>
+                                </div>
                             </div>
                         ) : (
-                            <Table>
-                                <TableHeader className="sticky top-0 z-10">
-                                    <TableRow className="bg-slate-700 hover:bg-slate-700">
-                                        <TableHead className="text-white font-bold text-xs py-1 px-2">Cliente</TableHead>
-                                        {!considerarGrupo && <TableHead className="text-white font-bold text-xs py-1 px-2 text-center w-16">UF</TableHead>}
-                                        <TableHead className="text-white font-bold text-xs py-1 px-2 text-right w-32">
-                                            {viewMode === 'qtd' ? 'Qtd' : 'Valor'}
+                            <Table className="border-separate border-spacing-0">
+                                <TableHeader className="sticky top-0 z-40 bg-white dark:bg-slate-900 shadow-sm">
+                                    <TableRow className="border-none hover:bg-transparent">
+                                        {/* Sticky Client Column */}
+                                        <TableHead className="w-[300px] min-w-[300px] h-14 px-4 text-left align-middle font-bold text-slate-700 bg-slate-50 border-b border-r border-slate-200 sticky left-0 z-50 shadow-[4px_0_12px_rgba(0,0,0,0.05)]">
+                                            {considerarGrupo ? 'Rede de Lojas' : 'Cliente / Razão Social'}
                                         </TableHead>
-                                        <TableHead className="text-white font-bold text-xs py-1 px-2 text-center w-28">Data</TableHead>
-                                        <TableHead className="text-white font-bold text-xs py-1 px-2 text-center w-20">Dias</TableHead>
+
+                                        {/* Dynamic Industry Columns */}
+                                        {uniqueIndustrias.map(ind => (
+                                            <TableHead key={ind} className="min-w-[150px] h-14 px-2 text-center align-middle font-bold text-slate-600 bg-white border-b border-r border-slate-100 uppercase text-[11px] tracking-tight hover:bg-slate-50 transition-colors">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <Factory className="w-3 h-3 text-slate-400" />
+                                                    <span className="line-clamp-1" title={ind}>{ind}</span>
+                                                </div>
+                                            </TableHead>
+                                        ))}
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {data.map((row, idx) => (
-                                        <TableRow key={idx} className="hover:bg-blue-50/50 transition-colors border-b border-slate-100">
-                                            <TableCell className="py-1 px-2 text-xs font-medium text-slate-700">{row.cliente}</TableCell>
-                                            {!considerarGrupo && <TableCell className="py-1 px-2 text-xs text-center text-slate-500">{row.estado || '-'}</TableCell>}
-                                            <TableCell className="py-1 px-2 text-xs text-right font-mono text-blue-600">
-                                                {viewMode === 'qtd' ? formatNumber(row.qtd) : formatCurrency(row.valor)}
+                                    {pivotedData.map((row, idx) => (
+                                        <TableRow key={idx} className="hover:bg-slate-50/80 transition-colors group">
+                                            {/* Sticky Client Name */}
+                                            <TableCell className="p-3 font-medium text-slate-700 border-b border-r border-slate-100 bg-white sticky left-0 z-30 group-hover:bg-blue-50/30">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`
+                                                        w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold border shrink-0
+                                                        ${idx % 2 === 0 ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-blue-50 text-blue-600 border-blue-100'}
+                                                    `}>
+                                                        {row.cliente.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="truncate text-xs font-bold text-slate-800" title={row.cliente}>
+                                                            {row.cliente}
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] text-slate-400">
+                                                                #{idx + 1}
+                                                            </span>
+                                                            {!considerarGrupo && row.estado && (
+                                                                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                                                    {row.estado}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </TableCell>
-                                            <TableCell className="py-1 px-2 text-xs text-center text-slate-600">{formatDate(row.data_ultima)}</TableCell>
-                                            <TableCell className="py-1 px-2 text-xs text-center font-bold text-red-600">{row.dias}</TableCell>
+
+                                            {/* Matrix Cells */}
+                                            {uniqueIndustrias.map(ind => {
+                                                const dataInd = row.industries[ind] || {}
+                                                const hasData = !!dataInd.data_ultima;
+
+                                                // Status Color Logic
+                                                const days = dataInd.dias || 999;
+                                                const isFresh = days <= 30;
+                                                const isWarning = days > 30 && days <= 60;
+                                                const isStale = days > 60 && days <= 90;
+
+                                                // Dynamic Background based on freshness
+                                                let cellBg = "";
+                                                if (hasData) {
+                                                    if (isFresh) { cellBg = "bg-emerald-50/40 hover:bg-emerald-100"; }
+                                                    else if (isWarning) { cellBg = "bg-blue-50/40 hover:bg-blue-100"; }
+                                                    else if (isStale) { cellBg = "bg-amber-50/40 hover:bg-amber-100"; }
+                                                    else { cellBg = "bg-white hover:bg-red-50"; }
+                                                }
+
+                                                return (
+                                                    <TableCell
+                                                        key={ind}
+                                                        className={`p-0 text-center border-b border-r border-slate-100 relative transition-all align-middle ${cellBg}`}
+                                                        title={hasData ? `${ind}\nValor: ${formatCurrency(dataInd.valor)}\nQtd: ${dataInd.qtd}\nÚltima: ${formatDate(dataInd.data_ultima)}\n(${days} dias atrás)` : 'Sem compras'}
+                                                    >
+                                                        {hasData ? (
+                                                            <div className="w-full h-full flex flex-col items-center justify-center py-2 px-1 gap-1">
+                                                                {/* VALUE - Increased Size */}
+                                                                <span className="text-[13px] font-bold text-slate-800 leading-none">
+                                                                    {formatCurrency(dataInd.valor)}
+                                                                </span>
+
+                                                                {/* QTY + DAYS ROW */}
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[11px] font-semibold text-slate-500 bg-white/50 px-1 rounded">
+                                                                        {dataInd.qtd} un
+                                                                    </span>
+                                                                    <div className={`flex items-center gap-1 text-[10px] font-bold ${isFresh ? 'text-emerald-600' : isWarning ? 'text-blue-500' : 'text-slate-400'}`}>
+                                                                        <span>{days}d</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-200 text-[10px] select-none">·</span>
+                                                        )}
+                                                    </TableCell>
+                                                );
+                                            })
+                                            }
                                         </TableRow>
                                     ))}
                                 </TableBody>

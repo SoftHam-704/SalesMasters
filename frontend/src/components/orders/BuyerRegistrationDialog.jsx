@@ -40,18 +40,19 @@ export function BuyerRegistrationDialog({ open, onOpenChange, clientCode, buyerN
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/cli-aniv/buyer`, {
+            const response = await fetch(`${API_BASE_URL}/cli-aniv/save`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    clientCode: parseInt(clientCode),
-                    buyerName: buyerName,
-                    email: formData.email,
-                    birthDay: parseInt(formData.birthDay),
-                    birthMonth: parseInt(formData.birthMonth),
-                    phone: formData.phone || null
+                    ani_cliente: parseInt(clientCode),
+                    ani_nome: buyerName,
+                    ani_email: formData.email,
+                    ani_diaaniv: parseInt(formData.birthDay),
+                    ani_mes: parseInt(formData.birthMonth),
+                    ani_fone: formData.phone || null,
+                    ani_funcao: 'COMPRADOR'
                 }),
             });
 

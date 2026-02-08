@@ -1,56 +1,38 @@
 .dbcombo {
     position: relative;
     width: 100%;
-    margin-bottom: 14px;
-    /* Match InputField spacing */
 }
 
 .dbcombo-input {
     position: relative;
-    /* For the label */
     display: flex;
     align-items: center;
-    gap: 8px;
-    border: 1px solid #d1d5db;
+    gap: 12px;
+    border: 1px solid var(--web-border, #e2e8f0);
     border-radius: 12px;
-    /* Match InputField radius */
-    padding: 10px 12px;
-    /* Match InputField padding roughly (14px total height approx) */
+    padding: 10px 16px;
     background: #fff;
     cursor: text;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    height: 50px;
-    /* Force consistent height with InputField */
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 48px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-.dbcombo-label {
-    position: absolute;
-    top: -8px;
-    left: 14px;
-    background: white;
-    padding: 0 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #374151;
-    pointer-events: none;
-    transition: 0.2s;
-}
-
-.dbcombo-input:focus-within .dbcombo-label {
-    color: #16a34a;
-}
-
-/* Ensure Icons don't shrink and have color */
 .dbcombo-input svg {
     flex-shrink: 0;
-    color: #9ca3af;
-    /* Gray-400 */
+    color: #94a3b8;
+    /* Slate 400 */
+    transition: color 0.2s;
 }
 
 .dbcombo-input:focus-within {
-    border-color: #22c55e;
-    /* Green-500 to match InputField */
-    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+    border-color: #3b82f6;
+    /* Blue 500 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.dbcombo-input:focus-within svg {
+    color: #3b82f6;
 }
 
 .dbcombo-input input {
@@ -58,53 +40,65 @@
     outline: none;
     flex: 1;
     font-size: 14px;
-    color: #1f2937;
+    font-weight: 500;
+    color: #0f172a;
+    /* Slate 900 */
     background: transparent;
     min-width: 0;
-    /* Important for flex */
 }
 
 .dbcombo-input input::placeholder {
-    color: #9ca3af;
+    color: #94a3b8;
 }
 
+/* Dropdown styling */
 .dbcombo-dropdown {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     width: 100%;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(12px);
-    border-radius: 12px;
-    border: 1px solid rgba(229, 231, 235, 0.5);
-    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
-    max-height: 260px;
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.02);
+    max-height: 280px;
     overflow-y: auto;
     z-index: 10001;
-    /* Increased z-index to stay above DialogContent */
+    padding: 6px;
 }
 
 .dbcombo-item {
     padding: 10px 14px;
     cursor: pointer;
-    font-size: 14px;
-    color: #374151;
-    transition: background-color 0.1s;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    /* Slate 600 */
+    transition: all 0.15s ease;
+    border-radius: 8px;
+    margin-bottom: 2px;
+}
+
+.dbcombo-item:last-child {
+    margin-bottom: 0;
 }
 
 .dbcombo-item:hover {
-    background: #f3f4f6;
-    color: #10b981;
+    background: #f1f5f9;
+    color: #3b82f6;
 }
 
 .dbcombo-loading,
 .dbcombo-empty {
-    padding: 16px;
+    padding: 20px;
     text-align: center;
-    font-size: 13px;
-    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar for dropdown */
 .dbcombo-dropdown::-webkit-scrollbar {
     width: 6px;
 }
@@ -114,10 +108,24 @@
 }
 
 .dbcombo-dropdown::-webkit-scrollbar-thumb {
-    background: #e5e7eb;
-    border-radius: 3px;
+    background: #e2e8f0;
+    border-radius: 10px;
 }
 
 .dbcombo-dropdown::-webkit-scrollbar-thumb:hover {
-    background: #d1d5db;
+    background: #cbd5e1;
+}
+
+/* Legacy Support Overrides - ensuring no clashing with previous tactical styles */
+.bg-zinc-950 .dbcombo-input,
+[class*="bg-zinc"] .dbcombo-input {
+    background: #fff !important;
+    border-color: #e2e8f0 !important;
+    border-radius: 12px !important;
+    color: #0f172a !important;
+}
+
+.bg-zinc-950 .dbcombo-input input,
+[class*="bg-zinc"] .dbcombo-input input {
+    color: #0f172a !important;
 }

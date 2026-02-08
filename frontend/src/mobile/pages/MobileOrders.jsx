@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Search, Filter, Calendar, Building2, Package,
     ChevronRight, ArrowLeft, Clock, DollarSign,
-    CheckCircle2, XCircle, FileText, LayoutDashboard
+    CheckCircle2, XCircle, FileText, LayoutDashboard, ShieldCheck, Sparkles
 } from 'lucide-react';
 import { getApiUrl, NODE_API_URL } from '@/utils/apiConfig';
 import axios from 'axios';
@@ -95,9 +95,14 @@ const MobileOrders = () => {
 
     const getStatusInfo = (status) => {
         switch (status) {
-            case 'F': return { label: 'Faturado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: CheckCircle2 };
-            case 'C': return { label: 'Cotação', color: 'bg-rose-50 text-rose-600 border-rose-100', icon: FileText };
-            default: return { label: 'Pedido', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: Clock };
+            case 'P': return { label: 'PEDIDO', color: 'bg-blue-50 text-[#0081e6] border-[#0081e6]/10', icon: Clock };
+            case 'C': return { label: 'COTAÇÃO PENDENTE', color: 'bg-rose-50 text-[#f71830] border-[#f71830]/10', icon: FileText };
+            case 'A': return { label: 'COTAÇÃO CONFIRMADA', color: 'bg-indigo-50 text-[#4f46e5] border-[#4f46e5]/10', icon: CheckCircle2 };
+            case 'F': return { label: 'FATURADO', color: 'bg-emerald-50 text-[#648041] border-[#648041]/10', icon: CheckCircle2 };
+            case 'E': return { label: 'EXCLUÍDO', color: 'bg-amber-50 text-[#8b4513] border-[#8b4513]/10', icon: XCircle };
+            case 'G': return { label: 'GARANTIA', color: 'bg-purple-50 text-[#9160ed] border-[#9160ed]/10', icon: ShieldCheck };
+            case 'B': return { label: 'BONIFICAÇÃO', color: 'bg-purple-50 text-[#9160ed] border-[#9160ed]/10', icon: Sparkles };
+            default: return { label: 'Pedido', color: 'bg-blue-50 text-[#0081e6] border-[#0081e6]/10', icon: Clock };
         }
     };
 

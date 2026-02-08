@@ -1,0 +1,28 @@
+﻿[dotenv@17.2.3] injecting env (15) from .env -- tip: ÔÜÖ´©Å  specify custom .env file path with { path: '/custom/path/.env' }
+[
+  {
+    "id": 11,
+    "cnpj": "23929353000176",
+    "razao_social": "SOMA REPRESENTA├ç├òES DE AUTO PE├çAS LTDA - ME",
+    "nome_fantasia": "SOMA REPRESENTA├ç├òES",
+    "email_contato": null,
+    "telefone": null,
+    "status": "ATIVO",
+    "data_adesao": "2026-01-28T15:35:49.205Z",
+    "data_vencimento": null,
+    "valor_mensalidade": null,
+    "limite_usuarios": 4,
+    "db_host": "10.100.28.17",
+    "db_nome": "basesales",
+    "db_usuario": "app_internal",
+    "db_senha": "SoftHam@2026",
+    "db_porta": 5432,
+    "versao_liberada": "1.0.0",
+    "obs": null,
+    "limite_sessoes": 3,
+    "alerta_percentual": 80,
+    "bloqueio_ativo": "S",
+    "db_schema": "repsoma",
+    "ios_enabled": "N"
+  }
+]

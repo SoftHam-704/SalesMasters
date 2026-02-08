@@ -12,13 +12,13 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importTransportadora() {
     try {
-        console.log(`🚀 IMPORTANDO TRANSPORTADORAS -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
+        console.log(`🚀 IMPORTANDO TRANSPORTADORAS -> SCHEMA: [${SCHEMA}]\n`);
 
-        const filePath = path.join(__dirname, '../../data/transportadora.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../../data/transportadora.xlsx');
         if (!require('fs').existsSync(filePath)) {
             console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
             return;
@@ -34,6 +34,9 @@ async function importTransportadora() {
         let imported = 0;
         for (const row of data) {
             try {
+                // Mapeamento flexível (com e sem prefixo tra_)
+                const val = (pre, fallback) => row[pre] || row[fallback] || '';
+
                 await pool.query(`
                     INSERT INTO transportadora (
                         tra_codigo, tra_nome, tra_endereco, tra_bairro, tra_cidade,
@@ -46,23 +49,23 @@ async function importTransportadora() {
                         tra_uf = EXCLUDED.tra_uf,
                         tra_cgc = EXCLUDED.tra_cgc
                 `, [
-                    row.CODIGO || row.tra_codigo || 0,
-                    row.NOME || row.tra_nome || '',
-                    row.ENDERECO || row.tra_endereco || '',
-                    row.BAIRRO || row.tra_bairro || '',
-                    row.CIDADE || row.tra_cidade || '',
-                    row.UF || row.tra_uf || '',
-                    row.CEP || row.tra_cep || '',
-                    row.TELEFONE1 || row.tra_fone || '',
-                    row.CNPJ || row.tra_cgc || '',
-                    row.IEST || row.tra_inscricao || '',
-                    row.EMAIL || row.tra_email || '',
-                    row.CONTATO || row.tra_contato || '',
-                    row.OBS || row.tra_obs || ''
+                    row.tra_codigo || row.CODIGO || 0,
+                    val('tra_nome', 'NOME'),
+                    val('tra_endereco', 'ENDERECO'),
+                    val('tra_bairro', 'BAIRRO'),
+                    val('tra_cidade', 'CIDADE'),
+                    val('tra_uf', 'UF'),
+                    val('tra_cep', 'CEP'),
+                    val('tra_fone', 'TELEFONE') || row.FONE || row.TELEFONE1 || '',
+                    val('tra_cgc', 'CNPJ') || row.CGC || '',
+                    val('tra_inscricao', 'IEST') || row.INSCRICAO || '',
+                    val('tra_email', 'EMAIL'),
+                    val('tra_contato', 'CONTATO'),
+                    val('tra_obs', 'OBS')
                 ]);
                 imported++;
             } catch (err) {
-                console.error(`❌ Erro na transportadora [${row.NOME}]: ${err.message}`);
+                console.error(`❌ Erro na transportadora [${row.NOME || row.tra_nome}]: ${err.message}`);
             }
         }
 

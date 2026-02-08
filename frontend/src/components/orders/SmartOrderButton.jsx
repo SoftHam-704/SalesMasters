@@ -8,7 +8,7 @@ export default function SmartOrderButton({ onClick, disabled }) {
             onClick={onClick}
             disabled={disabled}
             className={cn(
-                "group relative flex items-center justify-center gap-2 px-6 py-2 rounded-xl transition-all duration-500 ease-out h-[42px] border border-rose-200/50 overflow-hidden",
+                "group relative flex items-center justify-center gap-2 px-6 py-2 rounded-xl transition-all duration-500 ease-out h-[48px] min-w-[130px] border border-rose-200/50 overflow-hidden",
                 "text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
                 "bg-slate-900 text-rose-400 shadow-xl",
                 "hover:text-white hover:scale-105 hover:shadow-rose-500/40",

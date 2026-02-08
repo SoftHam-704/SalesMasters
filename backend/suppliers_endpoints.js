@@ -58,7 +58,7 @@ module.exports = (pool) => {
                     con_email,
                     con_dtnasc
                 FROM contato_for
-                WHERE con_fornecedor = $1
+                WHERE con_fornec = $1
                 ORDER BY con_nome
             `;
             const result = await pool.query(query, [id]);
@@ -139,18 +139,18 @@ module.exports = (pool) => {
             const query = `
                 SELECT 
                     for_codigo as id,
-                    for_cnpj as cnpj,
+                    for_cgc as cnpj,
                     for_inscricao as inscricao,
-                    for_razao as "razaoSocial",
+                    for_nome as "razaoSocial",
                     for_nomered as nome,
                     for_nomered as "nomeReduzido",
-                    for_situacao as situacao,
+                    for_tipo2 as situacao,
                     for_endereco as endereco,
                     for_bairro as bairro,
                     for_cidade as cidade,
                     for_uf as uf,
                     for_cep as cep,
-                    for_telefone as telefone,
+                    for_fone as telefone,
                     for_email as email,
                     for_obs2 as obs2,
                     for_homepage,
@@ -178,7 +178,7 @@ module.exports = (pool) => {
 
             const query = `
                 INSERT INTO contato_for (
-                    con_fornecedor, con_nome, con_cargo, con_telefone, 
+                    con_fornec, con_nome, con_cargo, con_telefone, 
                     con_celular, con_email, con_dtnasc
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -203,7 +203,7 @@ module.exports = (pool) => {
             const { id, contactId } = req.params;
             const query = `
                 DELETE FROM contato_for
-                WHERE con_codigo = $1 AND con_fornecedor = $2
+                WHERE con_codigo = $1 AND con_fornec = $2
                 RETURNING *
             `;
             const result = await pool.query(query, [contactId, id]);
@@ -215,6 +215,37 @@ module.exports = (pool) => {
             res.json({ success: true, message: 'Contact deleted successfully' });
         } catch (error) {
             console.error('Error deleting supplier contact:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // PUT update supplier contact
+    router.put('/:id/contacts/:contactId', async (req, res) => {
+        try {
+            const { id, contactId } = req.params;
+            const { con_nome, con_cargo, con_telefone, con_celular, con_email, con_dtnasc } = req.body;
+
+            const query = `
+                UPDATE contato_for SET
+                    con_nome = $1, con_cargo = $2, con_telefone = $3, 
+                    con_celular = $4, con_email = $5, con_dtnasc = $6
+                WHERE con_codigo = $7 AND con_fornec = $8
+                RETURNING *
+            `;
+
+            const result = await pool.query(query, [
+                con_nome, con_cargo, con_telefone,
+                con_celular, con_email, con_dtnasc,
+                contactId, id
+            ]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Contact not found' });
+            }
+
+            res.json({ success: true, data: result.rows[0], message: 'Contato atualizado com sucesso' });
+        } catch (error) {
+            console.error('Error updating supplier contact:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
@@ -236,7 +267,7 @@ module.exports = (pool) => {
                     INSERT INTO ind_metas (
                         met_industria, met_ano,
                         met_jan, met_fev, met_mar, met_abr, met_mai, met_jun,
-                        met_jul, met_jul, met_ago, met_set, met_out, met_nov, met_dez
+                        met_jul, met_ago, met_set, met_out, met_nov, met_dez
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     RETURNING *
                 `;

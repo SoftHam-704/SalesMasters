@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { Users, Plus } from "lucide-react";
+import { Users, Plus, HelpCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import GridCadPadrao from "@/components/GridCadPadrao";
 import ClientForm from "../components/forms/ClientForm";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
+import ClientHelpModal from "@/components/crm/ClientHelpModal";
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
@@ -13,6 +15,7 @@ const FrmClientes = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
     const [showInactive, setShowInactive] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
     const ITEMS_PER_PAGE = 15;
 
     const [selectedClient, setSelectedClient] = useState(null);
@@ -34,24 +37,19 @@ const FrmClientes = () => {
         try {
             const query = new URLSearchParams({
                 page: '1',
-                limit: '5000', // Carrega todos para filtro/ordenação local
+                limit: '5000',
                 search: '',
                 active: 'all'
             });
 
             const url = getApiUrl(NODE_API_URL, `/api/clients?${query.toString()}`);
-            console.log('[Clientes] Buscando de:', url);
-
             const response = await fetch(url);
-            console.log('[Clientes] Response status:', response.status);
 
             if (!response.ok) throw new Error('Falha ao buscar dados');
 
             const result = await response.json();
-            console.log('[Clientes] Resultado:', result);
 
             if (result.success && Array.isArray(result.data)) {
-                // Adaptar dados para o grid
                 const adaptedData = result.data.map(item => ({
                     id: item.cli_codigo,
                     codigo: item.cli_codigo,
@@ -68,13 +66,9 @@ const FrmClientes = () => {
                     _original: item
                 }));
 
-                // Ordenar por nome reduzido
                 adaptedData.sort((a, b) => (a.nomered || a.nome || '').localeCompare(b.nomered || b.nome || ''));
-
-                console.log('[Clientes] Dados adaptados:', adaptedData.length);
                 setClients(adaptedData);
             } else {
-                console.warn('[Clientes] Resposta inesperada:', result);
                 toast.warning("Nenhum dado retornado pela API");
             }
         } catch (error) {
@@ -88,6 +82,15 @@ const FrmClientes = () => {
     useEffect(() => {
         fetchClients();
     }, []);
+
+    // Effect to handle URL parameters (e.g., from Dashboard)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get('id');
+        if (id) {
+            setSearchTerm(id);
+        }
+    }, [window.location.search]);
 
     const handleSave = async (clientData) => {
         setLoading(true);
@@ -143,7 +146,6 @@ const FrmClientes = () => {
         }
     };
 
-    // Filter and Pagination
     const filteredData = useMemo(() => {
         const term = searchTerm.toLowerCase();
         return clients.filter(c => {
@@ -168,7 +170,6 @@ const FrmClientes = () => {
 
     const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
 
-    // Definição das colunas (estilo cxDbGrid)
     const columns = [
         {
             key: 'codigo',
@@ -259,9 +260,17 @@ const FrmClientes = () => {
         <div className="h-full bg-slate-50 p-6">
             <ClientForm
                 open={isFormOpen}
-                onOpenChange={setIsFormOpen}
+                onOpenChange={(open) => {
+                    setIsFormOpen(open);
+                    if (!open) setSelectedClient(null);
+                }}
                 data={selectedClient?._original || selectedClient}
                 onSave={handleSave}
+            />
+
+            <ClientHelpModal
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
             />
 
             <GridCadPadrao
@@ -287,18 +296,27 @@ const FrmClientes = () => {
                 onRefresh={fetchClients}
                 newButtonLabel="Novo Cliente"
                 extraControls={
-                    <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
-                        <Checkbox
-                            id="showInactive"
-                            checked={showInactive}
-                            onCheckedChange={setShowInactive}
-                        />
-                        <label
-                            htmlFor="showInactive"
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-slate-600"
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-lg border shadow-sm">
+                            <Checkbox
+                                id="showInactive"
+                                checked={showInactive}
+                                onCheckedChange={setShowInactive}
+                            />
+                            <label
+                                htmlFor="showInactive"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-slate-600"
+                            >
+                                Mostrar inativos
+                            </label>
+                        </div>
+                        <Button
+                            onClick={() => setHelpOpen(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-4 rounded-lg shadow-md flex items-center gap-2"
                         >
-                            Mostrar inativos
-                        </label>
+                            <HelpCircle className="w-4 h-4" />
+                            <span>Ajuda</span>
+                        </Button>
                     </div>
                 }
             />

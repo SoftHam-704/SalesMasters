@@ -1,0 +1,38 @@
+/* Tactical Design Tokens for SalesMasters Mobile */
+:root {
+  --tactical-bg: #020617; /* Slate 950 */
+  --tactical-card: #0f172a; /* Slate 900 */
+  --tactical-border: #1e293b; /* Slate 800 */
+  --tactical-accent: #10b981; /* Emerald 500 - Discreto */
+  --tactical-text-main: #f1f5f9; /* Slate 100 */
+  --tactical-text-muted: #64748b; /* Slate 500 */
+  --tactical-radius: 2px;
+}
+
+.tactical-glass {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.signal-line {
+  position: absolute;
+  left: 24px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, #1e293b 15%, #1e293b 85%, transparent);
+}
+
+.tactical-input {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: var(--tactical-radius);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.tactical-input:focus {
+  border-color: var(--tactical-accent);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+}

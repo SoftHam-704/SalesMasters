@@ -32,6 +32,7 @@ const FrmProdutos = () => {
     const [selectedTable, setSelectedTable] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
+    const [discounts, setDiscounts] = useState(Array(8).fill(''));
 
     // Dialog state
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -158,25 +159,13 @@ const FrmProdutos = () => {
         } else {
             const filtered = products.filter(product =>
                 product.pro_codprod?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                product.pro_nome?.toLowerCase().includes(searchTerm.toLowerCase())
+                product.pro_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.pro_codigonormalizado?.toLowerCase().includes(searchTerm.toLowerCase())
             );
             setFilteredProducts(filtered);
         }
     }, [searchTerm, products]);
-
-    // Carregar produtos automaticamente quando tabela é selecionada
-    useEffect(() => {
-        if (selectedIndustry && selectedTable) {
-            console.log(`🔄 [USE_EFFECT] Tabela selecionada mudou para: "${selectedTable}"`);
-            console.log(`🔄 [USE_EFFECT] Chamando fetchProducts(${selectedIndustry}, "${selectedTable}")`);
-            fetchProducts(selectedIndustry, selectedTable);
-        } else {
-            console.log(`🔄 [USE_EFFECT] Limpando produtos (indústria ou tabela não selecionada)`);
-            setProducts([]);
-            setFilteredProducts([]);
-        }
-    }, [selectedIndustry, selectedTable]);
-
+    // Forçar atualização
     const handleRefresh = () => {
         if (selectedIndustry && selectedTable) {
             fetchProducts(selectedIndustry, selectedTable);
@@ -567,6 +556,33 @@ const FrmProdutos = () => {
         return `${parseFloat(value).toFixed(2).replace('.', ',')}%`;
     };
 
+    const handleDiscountChange = (index, value) => {
+        const newDiscounts = [...discounts];
+        newDiscounts[index] = value;
+        setDiscounts(newDiscounts);
+    };
+
+    const calculateNetPrice = (product) => {
+        // Regra: Preço Promo tem primazia sobre o Bruto
+        const precoPromo = parseFloat(product.itab_precopromo) || 0;
+        const precoBruto = parseFloat(product.itab_precobruto) || 0;
+
+        let base = precoPromo > 0 ? precoPromo : precoBruto;
+        let result = base;
+
+        // Aplica sucessão de até 8 descontos (cascata)
+        discounts.forEach(d => {
+            const val = parseFloat(d.toString().replace(',', '.'));
+            if (!isNaN(val) && val > 0) {
+                result *= (1 - val / 100);
+            }
+        });
+
+        return result;
+    };
+
+    const isSimulating = discounts.some(d => parseFloat(d) > 0);
+
     return (
         <div className="h-screen flex flex-col bg-gray-50">
             {/* Header */}
@@ -579,16 +595,22 @@ const FrmProdutos = () => {
                 <div className="grid grid-cols-4 gap-4">
                     <div>
                         <Label className="text-sm font-medium mb-2 block">Indústria</Label>
-                        <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                        <Select value={selectedIndustry} onValueChange={(val) => {
+                            setSelectedIndustry(val);
+                            setSelectedTable('');
+                            fetchTables(val);
+                        }}>
                             <SelectTrigger className="h-9">
                                 <SelectValue placeholder="Selecione a indústria..." />
                             </SelectTrigger>
-                            <SelectContent>
-                                {industries.map(ind => (
-                                    <SelectItem key={ind.for_codigo} value={ind.for_codigo.toString()}>
-                                        {ind.for_nomered}
-                                    </SelectItem>
-                                ))}
+                            <SelectContent className="z-[9999]">
+                                {industries
+                                    .filter(ind => ind.for_codigo && String(ind.for_codigo).trim() !== "")
+                                    .map(ind => (
+                                        <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
+                                            {ind.for_nomered || "Indústria sem nome"}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -603,12 +625,14 @@ const FrmProdutos = () => {
                             <SelectTrigger className="h-9">
                                 <SelectValue placeholder="Selecione a tabela..." />
                             </SelectTrigger>
-                            <SelectContent>
-                                {tables.map((table, idx) => (
-                                    <SelectItem key={idx} value={table.itab_tabela}>
-                                        {table.itab_tabela}
-                                    </SelectItem>
-                                ))}
+                            <SelectContent className="z-[9999]">
+                                {tables
+                                    .filter(table => table.itab_tabela && String(table.itab_tabela).trim() !== "")
+                                    .map((table, idx) => (
+                                        <SelectItem key={`${table.itab_tabela}-${idx}`} value={table.itab_tabela}>
+                                            {table.itab_tabela}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -625,6 +649,47 @@ const FrmProdutos = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Calculadora de Descontos (Simulação) */}
+            {selectedTable && (
+                <div className="bg-white border-b px-6 py-3">
+                    <div className="flex items-center gap-3 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50">
+                        <div className="flex items-center gap-2 mr-4 shrink-0">
+                            <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
+                                <Calculator size={18} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-blue-800 uppercase tracking-wider leading-none">Calculadora</span>
+                                <span className="text-xs font-bold text-blue-600/70">8 Níveis</span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-1 gap-2 overflow-x-auto no-scrollbar">
+                            {discounts.map((d, i) => (
+                                <div key={i} className="flex flex-col gap-1 min-w-[70px]">
+                                    <span className="text-[9px] font-bold text-blue-400 uppercase text-center">{i + 1}º DESC</span>
+                                    <Input
+                                        value={d}
+                                        onChange={(e) => handleDiscountChange(i, e.target.value)}
+                                        placeholder="0%"
+                                        className="h-9 truncate text-center text-sm font-black border-blue-200 bg-white text-blue-700 focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDiscounts(Array(8).fill(''))}
+                            className="h-9 px-4 text-[10px] font-black text-blue-400 hover:text-blue-600 hover:bg-blue-100 uppercase tracking-widest shrink-0"
+                            disabled={!isSimulating}
+                        >
+                            Limpar Tudo
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {/* Toolbar */}
             <div className="bg-white border-b px-6 py-3 flex items-center gap-3">
@@ -720,38 +785,41 @@ const FrmProdutos = () => {
                             <table className="w-full">
                                 <thead className="bg-gray-100 border-b">
                                     <tr>
-                                        <th className="text-left p-3 text-xs font-semibold text-gray-700 w-32">
+                                        <th className="text-left p-3 text-sm font-semibold text-gray-700 w-32">
                                             ID
                                         </th>
-                                        <th className="text-left p-3 text-xs font-semibold text-gray-700 w-40">
+                                        <th className="text-left p-3 text-sm font-semibold text-gray-700 w-40">
                                             CÓDIGO
                                         </th>
-                                        <th className="text-left p-3 text-xs font-semibold text-gray-700">
+                                        <th className="text-left p-3 text-sm font-semibold text-gray-700">
                                             Produto
                                         </th>
-                                        <th className="text-right p-3 text-xs font-semibold text-gray-700 w-28">
+                                        <th className="text-right p-3 text-sm font-semibold text-gray-700 w-28">
                                             Preço Bruto
                                         </th>
-                                        <th className="text-right p-3 text-xs font-semibold text-gray-700 w-28">
+                                        <th className="text-right p-3 text-sm font-semibold text-gray-700 w-28">
                                             Preço Promo
                                         </th>
-                                        <th className="text-right p-3 text-xs font-semibold text-gray-700 w-28">
+                                        <th className="text-right p-3 text-sm font-semibold text-gray-700 w-28">
                                             Preço Especial
                                         </th>
-                                        <th className="text-right p-3 text-xs font-semibold text-gray-700 w-28 bg-purple-50">
-                                            Preço Líquido
+                                        <th className={`text-right p-3 text-sm font-semibold w-32 transition-colors ${isSimulating ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-inset' : 'bg-purple-50 text-gray-700'}`}>
+                                            {isSimulating ? 'LÍQUIDO (SIMULADO)' : 'PREÇO LÍQUIDO'}
                                         </th>
-                                        <th className="text-center p-3 text-xs font-semibold text-gray-700 w-20">
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-20">
                                             IPI %
                                         </th>
-                                        <th className="text-center p-3 text-xs font-semibold text-gray-700 w-20">
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-20">
                                             ST %
                                         </th>
-                                        <th className="text-left p-3 text-xs font-semibold text-gray-700 w-32">
+                                        <th className="text-left p-3 text-sm font-semibold text-gray-700 w-32">
                                             Cód. Normaliz.
                                         </th>
-                                        <th className="text-center p-3 text-xs font-semibold text-gray-700 w-24">
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-24">
                                             Status
+                                        </th>
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-28">
+                                            Ações
                                         </th>
                                     </tr>
                                 </thead>
@@ -760,43 +828,61 @@ const FrmProdutos = () => {
                                         <ContextMenu key={product.itab_idprod}>
                                             <ContextMenuTrigger asChild>
                                                 <tr className="border-b hover:bg-gray-50 cursor-pointer">
-                                                    <td className="p-3 text-xs text-gray-900 font-mono">
+                                                    <td className="p-3 text-sm text-gray-900 font-mono">
                                                         {product.itab_idprod}
                                                     </td>
-                                                    <td className="p-3 text-xs text-blue-700 font-bold font-mono">
+                                                    <td className="p-3 text-sm text-blue-700 font-bold font-mono">
                                                         {product.pro_codprod}
                                                     </td>
-                                                    <td className="p-3 text-xs text-gray-900">
+                                                    <td className="p-3 text-sm text-gray-900">
                                                         {product.pro_nome}
                                                     </td>
-                                                    <td className="p-3 text-xs text-gray-900 text-right font-semibold">
+                                                    <td className="p-3 text-sm text-gray-900 text-right font-semibold">
                                                         {formatCurrency(product.itab_precobruto)}
                                                     </td>
-                                                    <td className="p-3 text-xs text-blue-600 text-right font-semibold">
+                                                    <td className="p-3 text-sm text-blue-600 text-right font-semibold">
                                                         {formatCurrency(product.itab_precopromo)}
                                                     </td>
-                                                    <td className="p-3 text-xs text-green-600 text-right font-semibold">
+                                                    <td className="p-3 text-sm text-green-600 text-right font-semibold">
                                                         {formatCurrency(product.itab_precoespecial)}
                                                     </td>
-                                                    <td className="p-3 text-xs text-purple-700 text-right font-bold bg-purple-50">
-                                                        {product.preco_liquido ? formatCurrency(product.preco_liquido) : '-'}
+                                                    <td className={`p-3 text-sm text-right font-black transition-colors ${isSimulating ? 'bg-blue-50 text-blue-700 text-base' : 'bg-purple-50 text-purple-700'}`}>
+                                                        {formatCurrency(calculateNetPrice(product))}
                                                     </td>
-                                                    <td className="p-3 text-xs text-gray-600 text-center">
+                                                    <td className="p-3 text-sm text-gray-600 text-center">
                                                         {formatPercent(product.itab_ipi)}
                                                     </td>
-                                                    <td className="p-3 text-xs text-gray-600 text-center">
+                                                    <td className="p-3 text-sm text-gray-600 text-center">
                                                         {formatPercent(product.itab_st)}
                                                     </td>
-                                                    <td className="p-3 text-xs text-gray-500 font-mono">
+                                                    <td className="p-3 text-sm text-gray-500 font-mono">
                                                         {product.pro_codigonormalizado || '-'}
                                                     </td>
                                                     <td className="p-3 text-center">
-                                                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${product.itab_status
+                                                        <span className={`inline-block px-2 py-1 text-sm rounded-full ${product.itab_status
                                                             ? 'bg-green-100 text-green-800'
                                                             : 'bg-red-100 text-red-800'
                                                             }`}>
                                                             {product.itab_status ? 'Ativo' : 'Inativo'}
                                                         </span>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleAlterarProduto(product); }}
+                                                                className="p-1.5 rounded-md hover:bg-blue-100 text-blue-600 transition-colors"
+                                                                title="Editar produto"
+                                                            >
+                                                                <Pencil size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleExcluirProduto(product); }}
+                                                                className="p-1.5 rounded-md hover:bg-red-100 text-red-600 transition-colors"
+                                                                title="Excluir produto"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             </ContextMenuTrigger>

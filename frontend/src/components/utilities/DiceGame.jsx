@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, RotateCcw, Pause, Play, Gamepad2, Flame, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -97,6 +97,14 @@ const DiceGame = () => {
         return saved ? parseInt(saved) : 0;
     });
 
+    const rollIntervalRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (rollIntervalRef.current) clearInterval(rollIntervalRef.current);
+        };
+    }, []);
+
     const rollDice = () => {
         if (rolling) return;
 
@@ -105,13 +113,16 @@ const DiceGame = () => {
 
         // Animate through random values
         let count = 0;
-        const interval = setInterval(() => {
+        rollIntervalRef.current = setInterval(() => {
             setDice1(Math.floor(Math.random() * 6) + 1);
             setDice2(Math.floor(Math.random() * 6) + 1);
             count++;
 
             if (count > 12) {
-                clearInterval(interval);
+                if (rollIntervalRef.current) {
+                    clearInterval(rollIntervalRef.current);
+                    rollIntervalRef.current = null;
+                }
 
                 const d1 = Math.floor(Math.random() * 6) + 1;
                 const d2 = Math.floor(Math.random() * 6) + 1;

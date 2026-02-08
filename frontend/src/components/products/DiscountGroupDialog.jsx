@@ -90,16 +90,18 @@ export default function DiscountGroupDialog({ open, onClose, onApply, product })
                                 <SelectValue placeholder="Selecione um grupo..." />
                             </SelectTrigger>
                             <SelectContent className="z-[9999]">
-                                {discountGroups.map((group) => (
-                                    <SelectItem key={group.gde_id} value={group.gde_id.toString()}>
-                                        <div className="flex items-center justify-between w-full gap-4">
-                                            <span className="font-medium">{group.gid} - {group.gde_nome}</span>
-                                            <span className="text-xs text-gray-500">
-                                                {formatPercent(group.gde_desc1)} + {formatPercent(group.gde_desc2)} + {formatPercent(group.gde_desc3)}
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                ))}
+                                {discountGroups
+                                    .filter(group => group.gde_id && String(group.gde_id).trim() !== "")
+                                    .map((group) => (
+                                        <SelectItem key={group.gde_id} value={group.gde_id.toString()}>
+                                            <div className="flex items-center justify-between w-full gap-4">
+                                                <span className="font-medium">{group.gid} - {group.gde_nome}</span>
+                                                <span className="text-xs text-gray-500">
+                                                    {formatPercent(group.gde_desc1)} + {formatPercent(group.gde_desc2)} + {formatPercent(group.gde_desc3)}
+                                                </span>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>

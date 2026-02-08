@@ -41,7 +41,7 @@ async function importarTabelaPreco() {
     try {
         console.log('📂 Lendo arquivo cad_prod.xlsx...');
 
-        const filePath = path.join(__dirname, '../data/cad_prod.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../data/cad_prod.xlsx');
         const workbook = XLSX.readFile(filePath);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];

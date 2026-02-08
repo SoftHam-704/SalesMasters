@@ -2,6 +2,7 @@
 // Manages customer relationship interactions and pipeline
 
 module.exports = function (app, pool) {
+    console.log("🚀 [CRM] Module Loaded - v2026-02-02-FIX-DATA-COLUMN");
 
     // --- PIPELINE / KANBAN ENDPOINTS ---
 
@@ -161,7 +162,7 @@ module.exports = function (app, pool) {
             let query = `
                 SELECT 
                     i.interacao_id,
-                    i.data_hora AS data_interacao,
+                    i.data_interacao,
                     i.descricao,
                     c.cli_nomred,
                     c.cli_codigo,
@@ -198,7 +199,18 @@ module.exports = function (app, pool) {
                 params.push(for_codigo);
             }
 
-            query += ` ORDER BY i.data_hora DESC LIMIT 100`;
+            // New Date Filters
+            const { data_inicio, data_fim } = req.query;
+            if (data_inicio) {
+                query += ` AND i.data_interacao >= $${paramIndex++}::timestamp`;
+                params.push(`${data_inicio} 00:00:00`);
+            }
+            if (data_fim) {
+                query += ` AND i.data_interacao <= $${paramIndex++}::timestamp`;
+                params.push(`${data_fim} 23:59:59`);
+            }
+
+            query += ` ORDER BY i.data_interacao DESC LIMIT 100`;
 
             const result = await pool.query(query, params);
 
@@ -707,8 +719,27 @@ module.exports = function (app, pool) {
     // GET - Sell-out Summary Metrics
     app.get('/api/crm/sellout/summary', async (req, res) => {
         try {
-            const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
-            const lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().substring(0, 7) + '-01';
+            const { for_codigo, cli_codigo, periodo } = req.query;
+
+            // Base Date Logic
+            const baseMonth = periodo ? periodo : new Date().toISOString().substring(0, 7) + '-01';
+            const currentMonth = baseMonth.length === 7 ? baseMonth + '-01' : baseMonth;
+
+            const dateObj = new Date(currentMonth);
+            const lastMonth = new Date(dateObj.setMonth(dateObj.getMonth() - 1)).toISOString().substring(0, 7) + '-01';
+
+            let whereClause = '';
+            let params = [currentMonth, lastMonth];
+            let paramCount = 3;
+
+            if (for_codigo && for_codigo !== 'ALL') {
+                whereClause += ` AND for_codigo = $${paramCount++}`;
+                params.push(parseInt(for_codigo));
+            }
+            if (cli_codigo && cli_codigo !== 'ALL') {
+                whereClause += ` AND cli_codigo = $${paramCount++}`;
+                params.push(parseInt(cli_codigo));
+            }
 
             const summaryQuery = `
                 SELECT 
@@ -717,9 +748,10 @@ module.exports = function (app, pool) {
                     COUNT(DISTINCT cli_codigo) as total_customers,
                     COUNT(DISTINCT for_codigo) as total_industries
                 FROM crm_sellout
+                WHERE 1=1 ${whereClause}
             `;
 
-            const result = await pool.query(summaryQuery, [currentMonth, lastMonth]);
+            const result = await pool.query(summaryQuery, params);
             const stats = result.rows[0];
 
             // Calculate growth
@@ -728,23 +760,106 @@ module.exports = function (app, pool) {
                 growth = ((parseFloat(stats.current_month_total) - parseFloat(stats.last_month_total)) / parseFloat(stats.last_month_total)) * 100;
             }
 
-            // Get trend (last 6 months)
+            // Get trend (Quarterly view: 3 months before and 3 months after selected month)
+            let trendParams = [currentMonth];
+            let trendFilter = '';
+            let trendIdx = 2;
+
+            if (for_codigo && for_codigo !== 'ALL') {
+                trendFilter += ` AND s.for_codigo = $${trendIdx++}`;
+                trendParams.push(parseInt(for_codigo));
+            }
+            if (cli_codigo && cli_codigo !== 'ALL') {
+                trendFilter += ` AND s.cli_codigo = $${trendIdx++}`;
+                trendParams.push(parseInt(cli_codigo));
+            }
+
             const trendResult = await pool.query(`
+                WITH months AS (
+                    SELECT generate_series(
+                        $1::date - INTERVAL '3 months',
+                        $1::date + INTERVAL '3 months',
+                        '1 month'::interval
+                    )::date as mes
+                )
                 SELECT 
-                    TO_CHAR(periodo, 'MM/YYYY') as label,
-                    SUM(valor) as value
-                FROM crm_sellout
-                WHERE periodo >= CURRENT_DATE - INTERVAL '6 months'
-                GROUP BY periodo
-                ORDER BY periodo ASC
-            `);
+                    TO_CHAR(m.mes, 'MM/YYYY') as label,
+                    COALESCE(SUM(s.valor), 0) as value,
+                    COALESCE(SUM(s.quantidade), 0) as volume
+                FROM months m
+                LEFT JOIN crm_sellout s ON s.periodo = m.mes ${trendFilter}
+                GROUP BY m.mes
+                ORDER BY m.mes ASC
+            `, trendParams);
+
+            // NEW: Performance by Client (Ranking do Mês)
+            const buildRankingQuery = (useMaxPeriod = false) => {
+                let rankingParams = [];
+                let rankingWhere = '';
+                let index = 1;
+
+                if (useMaxPeriod) {
+                    // O subquery do MAX deve respeitar os mesmos filtros
+                    let subWhere = '1=1';
+                    let subParams = [];
+                    let subIndex = 1;
+                    if (for_codigo && for_codigo !== 'ALL') {
+                        subWhere += ` AND for_codigo = $${subIndex++}`;
+                        subParams.push(parseInt(for_codigo));
+                    }
+                    if (cli_codigo && cli_codigo !== 'ALL') {
+                        subWhere += ` AND cli_codigo = $${subIndex++}`;
+                        subParams.push(parseInt(cli_codigo));
+                    }
+
+                    rankingWhere = `s.periodo = (SELECT MAX(periodo) FROM crm_sellout WHERE ${subWhere})`;
+                    rankingParams = subParams;
+                    index = subIndex;
+                } else {
+                    rankingWhere = `TO_CHAR(s.periodo, 'YYYY-MM') = TO_CHAR($${index++}::date, 'YYYY-MM')`;
+                    rankingParams.push(currentMonth);
+                }
+
+                if (for_codigo && for_codigo !== 'ALL') {
+                    rankingWhere += ` AND s.for_codigo = $${index++}`;
+                    rankingParams.push(parseInt(for_codigo));
+                }
+                if (cli_codigo && cli_codigo !== 'ALL') {
+                    rankingWhere += ` AND s.cli_codigo = $${index++}`;
+                    rankingParams.push(parseInt(cli_codigo));
+                }
+
+                const sql = `
+                    SELECT 
+                        COALESCE(c.cli_nomred, c.cli_nome, 'Cli: ' || s.cli_codigo) as label,
+                        SUM(s.valor) as value,
+                        SUM(s.quantidade) as volume
+                    FROM crm_sellout s
+                    JOIN clientes c ON s.cli_codigo = c.cli_codigo
+                    WHERE ${rankingWhere}
+                    GROUP BY 1
+                    ORDER BY value DESC
+                    LIMIT 5
+                `;
+                return { sql, params: rankingParams };
+            };
+
+            const rankingObj = buildRankingQuery(false);
+            let rankingResult = await pool.query(rankingObj.sql, rankingObj.params);
+
+            // Se o ranking estiver vazio para o mês selecionado, buscamos o último mês com registros
+            if (rankingResult.rows.length === 0) {
+                const fallbackObj = buildRankingQuery(true);
+                rankingResult = await pool.query(fallbackObj.sql, fallbackObj.params);
+            }
 
             res.json({
                 success: true,
                 data: {
                     ...stats,
                     growth: growth.toFixed(2),
-                    trend: trendResult.rows
+                    trend: trendResult.rows,
+                    ranking: rankingResult.rows
                 }
             });
         } catch (error) {
@@ -1005,4 +1120,117 @@ module.exports = function (app, pool) {
         }
     });
 
+    // ==================== DASHBOARD & STATS ENDPOINTS ====================
+
+    // GET - CRM Summary Stats
+    app.get('/api/crm/stats/summary', async (req, res) => {
+        try {
+            const { ven_codigo } = req.query;
+            let params = [];
+            let whereClause = '';
+
+            if (ven_codigo) {
+                whereClause = ' WHERE ven_codigo = $1';
+                params.push(ven_codigo);
+            }
+
+            // Summary Totals
+            const statsQuery = `
+                SELECT 
+                    COUNT(*) FILTER (WHERE data_interacao::date = CURRENT_DATE) as total_hoje,
+                    COUNT(*) FILTER (WHERE data_interacao >= CURRENT_DATE - INTERVAL '7 days') as total_semana,
+                    COUNT(*) FILTER (WHERE resultado_id IS NULL OR resultado_id = 1) as pendentes
+                FROM crm_interacao
+                ${whereClause}
+            `;
+
+            // Insight 1: Inactivity (Active clients with no interaction in last 7 days)
+            // Considering clients assigned to the seller
+            const inactivityQuery = `
+                SELECT COUNT(*) as count
+                FROM clientes c
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM crm_interacao i 
+                    WHERE i.cli_codigo = c.cli_codigo 
+                    AND i.data_interacao >= CURRENT_DATE - INTERVAL '7 days'
+                )
+                ${ven_codigo ? 'AND c.ven_codigo = $1' : ''}
+            `;
+
+            const query = `
+                SELECT 
+                    COUNT(*) FILTER (WHERE data_interacao::date = CURRENT_DATE) as total_hoje,
+                    COUNT(*) FILTER (WHERE data_interacao >= date_trunc('month', CURRENT_DATE)) as total_mes,
+                    COUNT(*) FILTER (WHERE data_interacao >= CURRENT_DATE - INTERVAL '30 days') as total_30d,
+                    COUNT(*) FILTER (WHERE resultado_id IS NULL OR resultado_id = 1) as pendentes
+                FROM crm_interacao
+                ${whereClause}
+            `;
+
+            const [statsRes, inactRes] = await Promise.all([
+                pool.query(query, params),
+                pool.query(inactivityQuery, params)
+            ]);
+
+            const stats = statsRes.rows[0];
+            const inactCount = inactRes.rows[0].count;
+
+            res.json({
+                success: true,
+                data: {
+                    totalHoje: parseInt(stats.total_hoje || 0),
+                    totalMes: parseInt(stats.total_mes || 0),
+                    total30d: parseInt(stats.total_30d || 0),
+                    totalSemana: parseInt(stats.total_30d || 0), // Alias para manter compatibilidade
+                    pendentes: parseInt(stats.pendentes || 0),
+                    insights: {
+                        inatividade: parseInt(inactCount || 0),
+                        gap: stats.total_30d > 0 ? "Atividade recuperada via migração de dados" : "Sincronizando base histórica..."
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching summary stats:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - Team Live Feed / Real Time Operations
+    app.get('/api/crm/stats/live-feed', async (req, res) => {
+        try {
+            const query = `
+                WITH LastInteractions AS (
+                    SELECT 
+                        i.ven_codigo,
+                        i.cli_codigo,
+                        i.data_interacao,
+                        i.descricao,
+                        ROW_NUMBER() OVER(PARTITION BY i.ven_codigo ORDER BY i.data_interacao DESC) as rn
+                    FROM crm_interacao i
+                )
+                SELECT 
+                    v.ven_nome as name,
+                    c.cli_nomred as task,
+                    li.data_interacao as last_sync,
+                    'Ativo' as status
+                FROM LastInteractions li
+                JOIN vendedores v ON v.ven_codigo = li.ven_codigo
+                JOIN clientes c ON c.cli_codigo = li.cli_codigo
+                WHERE li.rn = 1
+                ORDER BY li.data_interacao DESC
+                LIMIT 5
+            `;
+
+            const result = await pool.query(query);
+            res.json({
+                success: true,
+                data: result.rows
+            });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching live feed stats:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
 };
+

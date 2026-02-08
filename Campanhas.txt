@@ -1,0 +1,15 @@
+CAMPANHAS
+passo a passo
+
+1) Identificacao do cliente, qual cliente, qual o setor, qual a região, quantidade de pessoas na equipe de vendas
+2) Faturamento, quanto o cliente vende em peças e valores monetário. O levantamento precisa ser bimestral, trimestral, semestral ou anual,
+    sempre considerando o Sell-Out alimentado. Baseado na escolha do período, o sistema calcula os dias úteis e apresenta a média diária.
+3) Traçar o objetivo em percentual, o sistema deve solicitar o percentual a ser acrescentado no levantamento do período anterior.
+4) Verba que será empregada (2% sobre o objetivo), o sistema irá calcular o valor objetivado (monetário) e calculará 2%. Isso será a verba solicitada
+    à industria interessada na campanha.
+5) Tema da campanha
+6) Período de duração da campanha
+7) No final, faremos o levantamento do faturamento em quantidade e valor ao final
+8) Verificar se houve crescimento em relação ao objetivo ou não
+9) A justificativa ao final sobre o desempenho da campanha
+10) Identificação das premiações (quais foram os prêmios entregues na campanha)

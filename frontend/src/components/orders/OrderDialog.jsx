@@ -5,7 +5,7 @@ import { Package, X, Zap, Sparkles } from 'lucide-react';
 import OrderForm from './OrderForm';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder }) => {
+const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder, readOnly }) => {
     const handleClose = () => {
         onOpenChange(false);
     };
@@ -34,6 +34,7 @@ const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, sel
                         onClose={handleClose}
                         onSave={handleSave}
                         existingOrder={selectedOrder}
+                        readOnly={readOnly}
                     />
                 </div>
             </DialogContent>

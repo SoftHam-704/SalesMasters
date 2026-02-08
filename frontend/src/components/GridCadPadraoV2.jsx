@@ -16,8 +16,9 @@ const GridCadPadraoV2 = ({
     onNew,
     onEdit,
     onDelete,
+    headerActions // Novo prop para botões extras no header
 }) => {
-    
+
     // RENDER TABLE MODE
     const renderTable = () => {
         // Prepare grid template columns string
@@ -33,8 +34,8 @@ const GridCadPadraoV2 = ({
                 {/* Header Row */}
                 <div className="gridv2-row header-row" style={{ gridTemplateColumns, padding: '0.75rem 1.5rem', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                     {columns.map((col, idx) => (
-                        <div 
-                            key={col.key || idx} 
+                        <div
+                            key={col.key || idx}
                             style={{ textAlign: col.align || 'left' }}
                             className="text-xs font-bold text-gray-500 uppercase tracking-wider"
                         >
@@ -48,14 +49,14 @@ const GridCadPadraoV2 = ({
 
                 {/* Data Rows */}
                 {data.map((item, rowIdx) => (
-                    <motion.div 
-                        key={item.id || rowIdx} 
+                    <motion.div
+                        key={item.id || rowIdx}
                         className="gridv2-row"
                         whileHover={{ scale: 1.005 }}
                         style={{ gridTemplateColumns }}
                     >
                         {columns.map((col, colIdx) => (
-                            <div 
+                            <div
                                 key={`${rowIdx}-${colIdx}`}
                                 style={{ textAlign: col.align || 'left' }}
                                 className={`text-sm text-gray-700 ${col.isId ? 'font-mono text-xs text-gray-400' : ''}`}
@@ -63,27 +64,27 @@ const GridCadPadraoV2 = ({
                                 {col.render ? col.render(item) : item[col.key]}
                             </div>
                         ))}
-                        
+
                         {/* Actions */}
                         <div className="flex justify-center gap-2">
-                             {onEdit && (
-                                 <button onClick={() => onEdit(item)} className="p-1 hover:text-blue-600 transition-colors" title="Editar">
-                                     <Pencil size={16} />
-                                 </button>
-                             )}
-                             {onDelete && (
-                                 <button onClick={() => onDelete(item)} className="p-1 hover:text-red-600 transition-colors" title="Excluir">
-                                     <Trash2 size={16} />
-                                 </button>
-                             )}
+                            {onEdit && (
+                                <button onClick={() => onEdit(item)} className="p-1 hover:text-blue-600 transition-colors" title="Editar">
+                                    <Pencil size={16} />
+                                </button>
+                            )}
+                            {onDelete && (
+                                <button onClick={() => onDelete(item)} className="p-1 hover:text-red-600 transition-colors" title="Excluir">
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 ))}
 
                 {data.length === 0 && (
-                     <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-100">
-                         Nenhum registro encontrado
-                     </div>
+                    <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-100">
+                        Nenhum registro encontrado
+                    </div>
                 )}
             </div>
         );
@@ -152,6 +153,7 @@ const GridCadPadraoV2 = ({
                     <h1>
                         {Icon && <Icon className="icon" />}
                         {title}
+                        {headerActions && <div className="ml-4 inline-flex items-center">{headerActions}</div>}
                     </h1>
                     {subtitle && <p>{subtitle}</p>}
                 </div>

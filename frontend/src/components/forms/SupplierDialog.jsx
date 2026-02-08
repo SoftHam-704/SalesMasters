@@ -11,7 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Plus, Pencil, Trash2, Radio, Search, Image } from "lucide-react";
+import { FileText, Save, Plus, Pencil, Trash2, Radio, Search, Image, MapPin, Phone, Mail } from "lucide-react";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { toast } from "sonner";
 import { ContactDialog } from "./ContactDialog";
@@ -25,28 +25,30 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
     const [loadingContacts, setLoadingContacts] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [goals, setGoals] = useState({});
+    const [editingField, setEditingField] = useState(null);
+    const [tempValue, setTempValue] = useState('');
 
     useEffect(() => {
-        console.log('SupplierDialog Effect:', { supplier, open });
         if (supplier) {
             setFormData(supplier);
             loadContacts(supplier.id);
             loadGoals(supplier.id, selectedYear);
         } else {
-            setFormData({});
+            setFormData({
+                situacao: 'Ativo'
+            });
             setContacts([]);
             setGoals({});
         }
     }, [supplier, selectedYear]);
 
-    // Close if not open
     if (!open) return null;
 
     const loadContacts = async (supplierId) => {
         if (!supplierId) return;
         setLoadingContacts(true);
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/suppliers/${supplierId}/contacts`);
+            const response = await fetch(`${NODE_API_URL}/api/suppliers/${supplierId}/contacts`);
             const result = await response.json();
             if (result.success) {
                 setContacts(result.data);
@@ -73,7 +75,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
         try {
             const response = await fetch(
-                `https://salesmasters.softham.com.br/api/suppliers/${supplier.id}/contacts/${contact.con_codigo}`,
+                `${NODE_API_URL}/api/suppliers/${supplier.id}/contacts/${contact.con_codigo}`,
                 { method: 'DELETE' }
             );
             const result = await response.json();
@@ -93,7 +95,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
     const loadGoals = async (supplierId, year) => {
         if (!supplierId) return;
         try {
-            const response = await fetch(`https://salesmasters.softham.com.br/api/suppliers/${supplierId}/goals/${year}`);
+            const response = await fetch(`${NODE_API_URL}/api/suppliers/${supplierId}/goals/${year}`);
             const result = await response.json();
             if (result.success) {
                 setGoals(result.data);
@@ -107,7 +109,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         if (!supplier?.id) return;
         try {
             const response = await fetch(
-                `https://salesmasters.softham.com.br/api/suppliers/${supplier.id}/goals/${selectedYear}`,
+                `${NODE_API_URL}/api/suppliers/${supplier.id}/goals/${selectedYear}`,
                 {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -151,20 +153,20 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                 throw new Error("Erro na consulta à Receita.");
             }
 
-            const data = await response.json();
+            const apiData = await response.json();
 
             setFormData(prev => ({
                 ...prev,
-                razaoSocial: data.razao_social,
-                nomeReduzido: data.nome_fantasia || data.razao_social.substring(0, 20),
-                endereco: `${data.logradouro}, ${data.numero} ${data.complemento || ''}`,
-                bairro: data.bairro,
-                cidade: data.municipio,
-                uf: data.uf,
-                cep: data.cep,
-                telefone: data.ddd_telefone_1 ? `(${data.ddd_telefone_1}) ${data.telefone1 || ''}` : prev.telefone,
-                email: data.email || prev.email,
-                situacao: data.descricao_situacao_cadastral === 'ATIVA' ? 'Ativo' : 'Inativo'
+                razaoSocial: apiData.razao_social,
+                nomeReduzido: apiData.nome_fantasia || apiData.razao_social.substring(0, 20),
+                endereco: `${apiData.logradouro}, ${apiData.numero} ${apiData.complemento || ''}`,
+                bairro: apiData.bairro,
+                cidade: apiData.municipio,
+                uf: apiData.uf,
+                cep: apiData.cep,
+                telefone: apiData.ddd_telefone_1 ? `(${apiData.ddd_telefone_1}) ${apiData.telefone1 || ''}` : prev.telefone,
+                email: apiData.email || prev.email,
+                situacao: apiData.descricao_situacao_cadastral === 'ATIVA' ? 'Ativo' : 'Inativo'
             }));
 
             toast.dismiss(toastId);
@@ -189,7 +191,6 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         }
     };
 
-    // TABS CONFIGURATION
     const mainTabs = [
         { id: 'principal', label: 'Principal', icon: <FileText size={16} /> },
         { id: 'complemento', label: 'Complemento', icon: <FileText size={16} /> },
@@ -207,138 +208,176 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         switch (activeTab) {
             case 'principal':
                 return (
-                    <div className="space-y-4 p-4">
-                        {/* ROW 1: CNPJ, IE, Situacao */}
-                        <div className="flex gap-4 items-end">
-                            <div className="flex-1 min-w-[200px] relative">
-                                <Label className="text-xs text-muted-foreground">CNPJ <span className="text-[10px] text-gray-400 font-normal">Somente números</span></Label>
-                                <div className="relative flex items-center">
+                    <div className="space-y-6 p-1">
+                        {/* Seção 1: Identificação */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+                                    <FileText size={16} />
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Identificação e Status</h3>
+                            </div>
+
+                            <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-12 md:col-span-5 flex flex-col gap-1">
+                                    <Label>CNPJ (Somente números)</Label>
+                                    <div className="relative group">
+                                        <Input
+                                            className="h-10 text-sm font-mono font-bold pr-10 border-slate-200 group-hover:border-emerald-300 transition-all"
+                                            value={formData.cnpj || ''}
+                                            onChange={(e) => handleChange('cnpj', e.target.value)}
+                                            onFocus={handleCNPJFocus}
+                                            onBlur={handleCNPJBlur}
+                                            readOnly={!!supplier?.id}
+                                        />
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="absolute right-1 top-1 h-8 w-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                            onClick={handleConsultarCNPJ}
+                                            disabled={!!supplier?.id}
+                                        >
+                                            <Search className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="col-span-6 md:col-span-4 flex flex-col gap-1">
+                                    <Label>Inscrição Estadual</Label>
                                     <Input
-                                        className="h-9 text-sm font-mono pr-10 bg-yellow-50/50 border-yellow-200 focus:border-yellow-400"
-                                        value={formData.cnpj || ''}
-                                        onChange={(e) => handleChange('cnpj', e.target.value)}
-                                        onFocus={handleCNPJFocus}
-                                        onBlur={handleCNPJBlur}
-                                        readOnly={!!supplier?.id}
+                                        className="h-10 text-sm font-mono border-slate-200"
+                                        value={formData.inscricao || ''}
+                                        onChange={(e) => handleChange('inscricao', e.target.value)}
                                     />
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="absolute right-0 h-9 w-9 text-muted-foreground hover:text-emerald-600"
-                                        onClick={handleConsultarCNPJ}
-                                        disabled={!!supplier?.id}
-                                        title="Consultar na Receita Federal"
+                                </div>
+                                <div className="col-span-6 md:col-span-3 flex flex-col gap-1">
+                                    <Label>Situação do Cadastro</Label>
+                                    <Select
+                                        value={formData.situacao === "Ativo" ? "ativo" : "inativo"}
+                                        onValueChange={(val) => handleChange('situacao', val === 'ativo' ? 'Ativo' : 'Inativo')}
                                     >
-                                        <Radio className="h-4 w-4" />
-                                    </Button>
+                                        <SelectTrigger className={`h-10 text-sm font-bold ${formData.situacao === 'Ativo' ? 'text-emerald-600 bg-emerald-50/30' : 'text-slate-500 bg-slate-50/30'}`}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="z-[9999]">
+                                            <SelectItem value="ativo">● ATIVO</SelectItem>
+                                            <SelectItem value="inativo">● INATIVO</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
-                            <div className="w-48">
-                                <Label className="text-xs text-muted-foreground">Inscrição</Label>
-                                <Input className="h-9 text-sm bg-muted/10 font-mono" value={formData.inscricao || ''} readOnly />
-                            </div>
-                            <div className="w-40">
-                                <Label className="text-xs text-muted-foreground">Situação</Label>
-                                <Select
-                                    value={formData.situacao === "Ativo" ? "ativo" : "inativo"}
-                                    onValueChange={(val) => handleChange('situacao', val === 'ativo' ? 'Ativo' : 'Inativo')}
-                                >
-                                    <SelectTrigger className="h-9 text-sm">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-[9999]">
-                                        <SelectItem value="ativo">Ativo</SelectItem>
-                                        <SelectItem value="inativo">Inativo</SelectItem>
-                                    </SelectContent>
-                                </Select>
+
+                            <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-12 md:col-span-8 flex flex-col gap-1">
+                                    <Label>Razão Social Completa</Label>
+                                    <Input
+                                        className="h-10 text-sm font-bold border-slate-200 focus:border-emerald-500"
+                                        value={formData.razaoSocial || ''}
+                                        onChange={(e) => handleChange('razaoSocial', e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
+                                    <Label className="text-orange-600 !color-orange-600">Nome Reduzido (Exibição)</Label>
+                                    <Input
+                                        className="h-10 text-sm font-bold text-orange-700 border-orange-200 bg-orange-50/10 focus:border-orange-500 focus:ring-orange-500/10"
+                                        value={formData.nomeReduzido || ''}
+                                        onChange={(e) => handleChange('nomeReduzido', e.target.value)}
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        {/* ROW 2: Razao Social */}
-                        <div>
-                            <Label className="text-xs text-muted-foreground">Razão social</Label>
-                            <Input
-                                className="h-9 text-sm font-bold bg-white text-black text-lg"
-                                value={formData.razaoSocial || ''}
-                                onChange={(e) => handleChange('razaoSocial', e.target.value)}
-                            />
+                        {/* Seção 2: Localização */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <div className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                                    <MapPin size={16} />
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Endereço e Localização</h3>
+                            </div>
+
+                            <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-12 md:col-span-8 flex flex-col gap-1">
+                                    <Label>Logradouro / Endereço</Label>
+                                    <Input
+                                        className="h-10 text-sm border-slate-200"
+                                        value={formData.endereco || ''}
+                                        onChange={(e) => handleChange('endereco', e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
+                                    <Label>Bairro</Label>
+                                    <Input
+                                        className="h-10 text-sm border-slate-200"
+                                        value={formData.bairro || ''}
+                                        onChange={(e) => handleChange('bairro', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-12 md:col-span-7 flex flex-col gap-1">
+                                    <Label>Cidade</Label>
+                                    <Input
+                                        className="h-10 text-sm border-slate-200"
+                                        value={formData.cidade || ''}
+                                        onChange={(e) => handleChange('cidade', e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-4 md:col-span-2 flex flex-col gap-1">
+                                    <Label className="text-center">UF</Label>
+                                    <Input
+                                        className="h-10 text-sm text-center font-bold border-slate-200"
+                                        value={formData.uf || ''}
+                                        onChange={(e) => handleChange('uf', e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-8 md:col-span-3 flex flex-col gap-1">
+                                    <Label>CEP</Label>
+                                    <Input
+                                        className="h-10 text-sm font-mono border-slate-200"
+                                        value={formData.cep || ''}
+                                        onChange={(e) => handleChange('cep', e.target.value)}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        {/* ROW 3: Address */}
-                        <div className="flex gap-4 items-end">
-                            <div className="flex-[2]">
-                                <Label className="text-xs text-muted-foreground">Endereço</Label>
-                                <Input
-                                    className="h-9 text-sm"
-                                    value={formData.endereco || ''}
-                                    onChange={(e) => handleChange('endereco', e.target.value)}
-                                />
+                        {/* Seção 3: Canais de Contato */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg">
+                                    <Phone size={16} />
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">Comunicação Direta</h3>
                             </div>
-                            <div className="flex-1">
-                                <Label className="text-xs text-muted-foreground">Bairro</Label>
-                                <Input
-                                    className="h-9 text-sm"
-                                    value={formData.bairro || ''}
-                                    onChange={(e) => handleChange('bairro', e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex gap-4 items-end">
-                            <div className="flex-[2]">
-                                <Label className="text-xs text-muted-foreground">Cidade</Label>
-                                <Input
-                                    className="h-9 text-sm"
-                                    value={formData.cidade || ''}
-                                    onChange={(e) => handleChange('cidade', e.target.value)}
-                                />
-                            </div>
-                            <div className="w-20">
-                                <Label className="text-xs text-muted-foreground">UF</Label>
-                                <Input
-                                    className="h-9 text-sm text-center"
-                                    value={formData.uf || ''}
-                                    onChange={(e) => handleChange('uf', e.target.value)}
-                                />
-                            </div>
-                            <div className="w-32">
-                                <Label className="text-xs text-muted-foreground">Cep</Label>
-                                <Input
-                                    className="h-9 text-sm"
-                                    value={formData.cep || ''}
-                                    onChange={(e) => handleChange('cep', e.target.value)}
-                                />
-                            </div>
-                        </div>
 
-                        {/* ROW 4: Phones, Email, Reduzido */}
-                        <div className="flex gap-4 items-end">
-                            <div className="w-40">
-                                <Label className="text-xs text-muted-foreground">Telefone</Label>
-                                <Input
-                                    className="h-9 text-sm font-mono"
-                                    value={formData.telefone || ''}
-                                    onChange={(e) => handleChange('telefone', e.target.value)}
-                                />
-                            </div>
-                            <div className="w-40">
-                                <Label className="text-xs text-muted-foreground">Telefone 2</Label>
-                                <Input className="h-9 text-sm font-mono" placeholder="" />
-                            </div>
-                            <div className="flex-[1.5]">
-                                <Label className="text-xs text-muted-foreground">E-mail</Label>
-                                <Input
-                                    className="h-9 text-sm"
-                                    value={formData.email || ''}
-                                    onChange={(e) => handleChange('email', e.target.value)}
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <Label className="text-xs text-muted-foreground font-semibold">Nome reduzido</Label>
-                                <Input
-                                    className="h-9 text-sm font-bold text-red-900 border-red-500 bg-red-50/20"
-                                    value={formData.nomeReduzido || ''}
-                                    onChange={(e) => handleChange('nomeReduzido', e.target.value)}
-                                />
+                            <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-12 md:col-span-3 flex flex-col gap-1">
+                                    <Label>Telefone Fixo</Label>
+                                    <div className="relative">
+                                        <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-300" />
+                                        <Input
+                                            className="h-10 text-sm pl-9 font-mono border-slate-200"
+                                            value={formData.telefone || ''}
+                                            onChange={(e) => handleChange('telefone', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-span-12 md:col-span-3 flex flex-col gap-1">
+                                    <Label>Telefone Auxiliar</Label>
+                                    <Input className="h-10 text-sm font-mono border-slate-200" placeholder="(00) 0000-0000" />
+                                </div>
+                                <div className="col-span-12 md:col-span-6 flex flex-col gap-1">
+                                    <Label>E-mail Corporativo</Label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-300" />
+                                        <Input
+                                            className="h-10 text-sm pl-9 border-slate-200"
+                                            value={formData.email || ''}
+                                            onChange={(e) => handleChange('email', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -346,113 +385,117 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
             case 'complemento':
                 return (
-                    <div className="grid grid-cols-2 gap-4 p-1">
-                        <div className="space-y-1.5">
-                            <div>
-                                <Label className="text-[10px] text-muted-foreground">Imagem para aplicativos</Label>
-                                <Input
-                                    className="h-7 text-xs bg-yellow-50/50 border-yellow-200"
-                                    value={formData.homepage || ''}
-                                    onChange={(e) => handleChange('homepage', e.target.value)}
-                                />
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-1">
+                        <div className="space-y-6">
+                            {/* Logo Upload Section */}
+                            <div className="border border-slate-200 rounded-2xl p-5 bg-white shadow-sm hover:shadow-md transition-shadow">
+                                <div className="flex items-center justify-between mb-4">
+                                    <Label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <Image size={18} className="text-emerald-500" /> Logotipo Institucional
+                                    </Label>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={() => document.getElementById('supplierLogoInput')?.click()}
+                                        variant="outline"
+                                        className="h-8 text-xs font-bold gap-2 border-emerald-100 text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                        <Plus size={14} /> Trocar Imagem
+                                    </Button>
+                                </div>
 
-                            {/* Novo Campo de Logotipo */}
-                            <div>
-                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                    <Image size={12} /> Logotipo (Indústria)
-                                </Label>
-                                <div className="space-y-2 mt-1">
-                                    <div className="relative">
-                                        <Input
-                                            className="h-7 text-xs pr-8"
-                                            value={formData.for_locimagem?.startsWith('data:') ? 'IMAGEM CARREGADA (Base64)' : (formData.for_locimagem || '')}
-                                            readOnly
-                                            placeholder="Selecione uma imagem..."
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => document.getElementById('supplierLogoInput')?.click()}
-                                            className="absolute right-1 top-1 text-gray-400 hover:text-emerald-600"
-                                            title="Carregar Imagem"
-                                        >
-                                            <Search size={14} />
-                                        </button>
-                                        <input
-                                            type="file"
-                                            id="supplierLogoInput"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    // Validar tamanho (ex: 1MB para indústrias para não pesar demais o grid)
-                                                    if (file.size > 1024 * 1024) {
-                                                        toast.error('A imagem é muito grande. O limite é 1MB.');
-                                                        return;
-                                                    }
-
-                                                    const reader = new FileReader();
-                                                    reader.onloadend = () => {
-                                                        const base64String = reader.result;
-                                                        handleChange('for_locimagem', base64String);
-                                                        toast.success('Logotipo carregado! Clique em Salvar para gravar permanentemente.');
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <div className="w-full h-32 border rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                                <div className="space-y-4">
+                                    <div className="w-full h-44 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/30 flex items-center justify-center overflow-hidden group/logo relative">
                                         {formData.for_locimagem ? (
-                                            <img
-                                                src={formData.for_locimagem.startsWith('data:') ? formData.for_locimagem : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_locimagem)}`)}
-                                                alt="Logo"
-                                                className="max-h-full max-w-full object-contain"
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
-                                                }}
-                                            />
+                                            <>
+                                                <img
+                                                    src={formData.for_locimagem.startsWith('data:') ? formData.for_locimagem : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_locimagem)}`)}
+                                                    alt="Logo Preview"
+                                                    className="max-h-[85%] max-w-[85%] object-contain transition-all duration-500 group-hover/logo:scale-110"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                                                    }}
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="h-8 font-bold text-xs"
+                                                        onClick={() => handleChange('for_locimagem', '')}
+                                                    >
+                                                        Remover
+                                                    </Button>
+                                                </div>
+                                            </>
                                         ) : (
-                                            <Image className="text-gray-300" size={24} />
+                                            <div className="flex flex-col items-center gap-3 text-slate-300">
+                                                <div className="p-4 bg-slate-100 rounded-full">
+                                                    <Image size={40} />
+                                                </div>
+                                                <span className="text-xs uppercase font-black tracking-widest text-slate-400">Nenhuma Imagem</span>
+                                            </div>
                                         )}
                                     </div>
+                                    <input
+                                        type="file"
+                                        id="supplierLogoInput"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                if (file.size > 1024 * 1024) {
+                                                    toast.error('A imagem é muito grande. O limite é 1MB.');
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    handleChange('for_locimagem', reader.result);
+                                                    toast.success('Logotipo carregado!');
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                    <p className="text-[10px] text-slate-400 text-center uppercase font-bold">Resolução sugerida: 400x400px • Max 1MB</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col gap-1.5">
+                                    <Label>Cód. Representante</Label>
+                                    <Input className="h-10 text-sm font-bold bg-slate-50 text-center" defaultValue="1" />
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-emerald-600">Comissão de Venda (%)</Label>
+                                    <Input className="h-10 text-sm font-black text-center text-emerald-700 bg-emerald-50 border-emerald-100" defaultValue="5.00" />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex gap-2">
-                                <div className="flex-1">
-                                    <Label className="text-[10px] text-muted-foreground">Cód. representante</Label>
-                                    <Input className="h-7 text-xs text-center bg-muted/10" defaultValue="1" />
-                                </div>
-                                <div className="flex-1">
-                                    <Label className="text-[10px] text-muted-foreground">Comissão (%)</Label>
-                                    <Input className="h-7 text-xs text-center bg-muted/10" defaultValue="5.00%" />
-                                </div>
-                            </div>
-
-                            <div className="bg-muted/10 p-2 rounded-lg border">
-                                <Label className="mb-2 block text-[10px] font-semibold">Desconto padrão da indústria</Label>
-                                <div className="grid grid-cols-5 gap-2">
+                        <div className="space-y-6">
+                            <div className="bg-slate-900 rounded-2xl p-5 shadow-xl">
+                                <Label className="mb-4 block text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-emerald-900/50 pb-2">Descontos Padrão (D1-D10)</Label>
+                                <div className="grid grid-cols-5 gap-3">
                                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                                        <div key={num} className="text-center">
-                                            <div className="text-[9px] text-muted-foreground mb-0.5">{num}º</div>
+                                        <div key={num} className="flex flex-col items-center gap-1 group">
+                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-emerald-400 transition-colors">D{num}</span>
                                             <Input
-                                                className="h-6 text-center text-[10px] px-0.5"
-                                                placeholder="0.00"
+                                                className="h-9 text-center text-sm font-mono font-bold bg-slate-800 border-slate-700 text-emerald-400 p-0 focus:ring-emerald-500/30"
+                                                placeholder="0.0"
                                             />
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Observações movido pra cá */}
-                            <div>
-                                <Label className="text-[10px] text-muted-foreground">Observações</Label>
-                                <Textarea className="h-20 resize-none text-xs bg-muted/10" />
+                            <div className="flex flex-col gap-2">
+                                <Label>Observações Internas e Notas</Label>
+                                <Textarea
+                                    className="h-44 text-sm bg-slate-50 border-slate-200 focus:bg-white leading-relaxed p-4"
+                                    placeholder="Instruções especiais de faturamento, particularidades da indústria..."
+                                />
                             </div>
                         </div>
                     </div>
@@ -465,120 +508,200 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         switch (activeTab) {
             case 'contatos':
                 return (
-                    <div className="w-full text-xs h-full flex flex-col">
-                        <div className="flex justify-between items-center p-1 bg-muted/20 border-b">
-                            <span className="font-semibold text-muted-foreground ml-2">Contatos do Fornecedor</span>
+                    <div className="w-full h-full flex flex-col pt-4">
+                        <div className="flex justify-between items-center mb-4 px-2">
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-black text-lg text-slate-800 tracking-tight">Time de Atendimento</h3>
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-black uppercase">{contacts.length} cadastrados</span>
+                            </div>
                             <Button
                                 size="sm"
                                 onClick={handleNewContact}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-6 text-xs gap-1"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 gap-2 shadow-lg shadow-emerald-600/10"
                                 disabled={!supplier?.id}
                             >
-                                <Plus className="h-3 w-3" /> Novo Contato
+                                <Plus size={16} /> Adicionar Integrante
                             </Button>
                         </div>
-                        <div className="flex-1 overflow-auto bg-white/5">
-                            <div className="grid grid-cols-12 bg-muted/20 p-1.5 font-semibold text-muted-foreground text-[10px] border-b sticky top-0">
-                                <div className="col-span-3 pl-2">Nome</div>
-                                <div className="col-span-2">Cargo</div>
-                                <div className="col-span-2">Telefone</div>
-                                <div className="col-span-2">Celular</div>
-                                <div className="col-span-2">Data nasc</div>
-                                <div className="col-span-1 text-center">Ações</div>
+                        <div className="flex-1 overflow-hidden flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm">
+                            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_0.8fr_80px] bg-slate-50/80 backdrop-blur-sm p-4 font-black text-slate-500 text-[10px] uppercase tracking-widest border-b sticky top-0 z-10">
+                                <div className="pl-2">Nome Completo</div>
+                                <div>Cargo / Função</div>
+                                <div>Ramal / Fixo</div>
+                                <div>Celular / WhatsApp</div>
+                                <div>Aniversário</div>
+                                <div className="text-center">Gerenciar</div>
                             </div>
-                            {loadingContacts ? (
-                                <div className="p-4 text-center text-muted-foreground">Carregando...</div>
-                            ) : contacts.length === 0 ? (
-                                <div className="p-4 text-center text-muted-foreground">Nenhum contato cadastrado</div>
-                            ) : (
-                                contacts.map((contact, i) => (
-                                    <div key={i} className="grid grid-cols-12 p-1.5 border-b border-white/5 hover:bg-white/5 items-center">
-                                        <div className="col-span-3 pl-2 text-blue-400 font-medium">{contact.con_nome}</div>
-                                        <div className="col-span-2">{contact.con_cargo}</div>
-                                        <div className="col-span-2">{contact.con_telefone}</div>
-                                        <div className="col-span-2">{contact.con_celular}</div>
-                                        <div className="col-span-2">{formatBirthDate(contact.con_dtnasc)}</div>
-                                        <div className="col-span-1 flex gap-1 justify-center">
-                                            <Button size="icon" variant="ghost" className="h-5 w-5 hover:text-blue-500" onClick={() => handleEditContact(contact)}>
-                                                <Pencil className="h-3 w-3" />
-                                            </Button>
-                                            <Button size="icon" variant="ghost" className="h-5 w-5 hover:text-red-500" onClick={() => handleDeleteContact(contact)}>
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
+                            <div className="flex-1 overflow-auto divide-y divide-slate-50">
+                                {loadingContacts ? (
+                                    <div className="flex items-center justify-center p-20 flex-col gap-3">
+                                        <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sincronizando contatos...</span>
+                                    </div>
+                                ) : contacts.length === 0 ? (
+                                    <div className="p-20 text-center flex flex-col items-center gap-4">
+                                        <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                                            <Mail size={40} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="font-bold text-slate-400 uppercase text-xs tracking-wider">Nenhum integrante encontrado</p>
+                                            <p className="text-sm text-slate-400">Clique em "Adicionar Integrante" para começar.</p>
                                         </div>
                                     </div>
-                                ))
-                            )}
+                                ) : (
+                                    contacts.map((contact, i) => (
+                                        <div key={i} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_0.8fr_80px] p-4 hover:bg-emerald-50/20 transition-all items-center group">
+                                            <div className="pl-2 flex flex-col">
+                                                <span className="font-bold text-blue-900 text-sm group-hover:text-blue-700 transition-colors">{contact.con_nome}</span>
+                                                <span className="text-[10px] text-slate-400 font-mono">{contact.con_email || 'sem e-mail'}</span>
+                                            </div>
+                                            <div className="text-xs font-bold text-slate-600 uppercase tracking-tight">{contact.con_cargo}</div>
+                                            <div className="text-slate-500 font-mono text-xs">{contact.con_telefone || '-'}</div>
+                                            <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-700">
+                                                {contact.con_celular && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>}
+                                                {contact.con_celular || '-'}
+                                            </div>
+                                            <div className="text-slate-500 px-2 py-1 bg-slate-50 rounded text-xs font-bold inline-block w-fit">{formatBirthDate(contact.con_dtnasc)}</div>
+                                            <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-500 hover:bg-blue-100" onClick={() => handleEditContact(contact)}>
+                                                    <Pencil size={14} />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-100" onClick={() => handleDeleteContact(contact)}>
+                                                    <Trash2 size={14} />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     </div>
                 );
 
             case 'politica_com':
                 return (
-                    <div className="space-y-2 p-2 h-full flex flex-col">
-                        <Label className="text-sm font-semibold text-foreground">Política Comercial</Label>
-                        <Textarea
-                            className="flex-1 bg-yellow-50 border-yellow-200 font-mono text-xs resize-none"
-                            placeholder="Ex: PEDIDO MÍNIMO 500 REAIS..."
-                            value={formData.obs2 || ''}
-                            onChange={(e) => handleChange('obs2', e.target.value)}
-                        />
+                    <div className="space-y-4 pt-4 h-full flex flex-col">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-amber-100 text-amber-700 rounded-lg">
+                                    <FileText size={18} />
+                                </div>
+                                <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Política Comercial e Regras</h4>
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Notas detalhadas para o representante</span>
+                        </div>
+                        <div className="flex-1 relative group">
+                            <div className="absolute top-4 left-4 h-[calc(100%-32px)] w-1 bg-amber-200/50 rounded-full"></div>
+                            <Textarea
+                                className="w-full h-full bg-amber-50/10 border-slate-200 font-mono text-sm resize-none pl-8 pr-6 py-6 focus:ring-amber-500/20 leading-relaxed shadow-inner rounded-2xl"
+                                placeholder="Insira aqui os termos de frete, pedido mínimo, descontos por região, bonificações, etc..."
+                                value={formData.obs2 || ''}
+                                onChange={(e) => handleChange('obs2', e.target.value)}
+                            />
+                        </div>
                     </div>
                 );
 
             case 'meta':
                 return (
-                    <div className="space-y-4 p-2 h-full overflow-auto">
-                        <div className="flex justify-between items-center">
-                            <Label className="text-sm font-semibold text-foreground">Metas Anuais (em Reais)</Label>
-                            <select
-                                className="border rounded px-2 py-1 text-xs"
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                            >
-                                {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
+                    <div className="space-y-6 pt-4 h-full">
+                        <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl shadow-xl">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20"><Radio size={20} className="animate-pulse" /></div>
+                                <div className="flex flex-col">
+                                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Radar de Metas {selectedYear}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Planejamento estratégico de volume de vendas</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Label className="text-white normal-case text-[10px] font-black mr-2">ALTERAR ANO:</Label>
+                                <select
+                                    className="bg-slate-800 border-slate-700 rounded-lg px-4 py-2 text-xs font-black text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-slate-700 transition-colors"
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                                >
+                                    {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-6 gap-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((month) => {
                                 const fieldName = `met_${month.toLowerCase()}`;
                                 const value = goals[fieldName] || 0;
+                                const isEditing = editingField === fieldName;
+
                                 return (
-                                    <div key={month} className="space-y-1">
-                                        <Label className="text-[10px] text-muted-foreground">{month}</Label>
-                                        <Input
-                                            className="text-right text-xs font-mono h-7"
-                                            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
-                                            onChange={(e) => {
-                                                const numericValue = e.target.value.replace(/[^\d,]/g, '').replace(',', '.');
-                                                setGoals(prev => ({ ...prev, [fieldName]: parseFloat(numericValue) || 0 }));
-                                            }}
-                                            onFocus={(e) => { e.target.value = value.toString(); e.target.select(); }}
-                                            onBlur={(e) => {
-                                                const numericValue = parseFloat(e.target.value) || 0;
-                                                setGoals(prev => ({ ...prev, [fieldName]: numericValue }));
-                                            }}
-                                        />
+                                    <div key={month} className={`
+                                        relative overflow-hidden group p-4 rounded-2xl border transition-all duration-300
+                                        ${isEditing ? 'border-blue-500 bg-blue-50/20 ring-4 ring-blue-500/10' : 'border-slate-100 bg-white hover:border-blue-200 hover:shadow-xl hover:shadow-slate-200/40'}
+                                    `}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${isEditing ? 'text-blue-600' : 'text-slate-400'}`}>{month}</span>
+                                            {value > 0 && !isEditing && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>}
+                                        </div>
+
+                                        <div className="relative mt-2">
+                                            <Input
+                                                className={`
+                                                    text-right text-base font-black font-mono h-10 border-none bg-transparent p-0 transition-all
+                                                    ${isEditing ? 'text-blue-600' : 'text-slate-800'}
+                                                `}
+                                                value={isEditing ? tempValue : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                                                onChange={(e) => isEditing && setTempValue(e.target.value)}
+                                                onFocus={() => {
+                                                    setEditingField(fieldName);
+                                                    setTempValue(value ? value.toString().replace('.', ',') : '');
+                                                }}
+                                                onBlur={() => {
+                                                    const numeric = parseFloat(tempValue.replace(/\./g, '').replace(',', '.')) || 0;
+                                                    setGoals(prev => ({ ...prev, [fieldName]: numeric }));
+                                                    setEditingField(null);
+                                                }}
+                                            />
+                                            {isEditing && (
+                                                <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-blue-500 animate-[width-expand_0.3s_ease]"></div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
-                        <div className="flex justify-end">
-                            <Button onClick={handleSaveGoals} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs">
-                                <Save className="h-3 w-3 mr-2" /> Salvar Metas
+
+                        <div className="flex justify-between items-center bg-blue-600 p-5 rounded-3xl shadow-2xl shadow-blue-600/20 translate-y-2">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-blue-100 uppercase tracking-widest">Total Anual Planejado</span>
+                                <span className="text-xl font-black text-white font-mono">
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                                        Object.values(goals).reduce((acc, val) => acc + (parseFloat(val) || 0), 0)
+                                    )}
+                                </span>
+                            </div>
+                            <Button
+                                onClick={handleSaveGoals}
+                                className="bg-white hover:bg-slate-50 text-blue-600 font-extrabold h-12 px-8 gap-3 rounded-2xl shadow-xl hover:scale-105 transition-all"
+                            >
+                                <Save className="h-5 w-5" /> Confirmar Planejamento
                             </Button>
                         </div>
                     </div>
                 );
 
             case 'clientes':
-                return <SupplierCustomersTab supplierId={supplier?.id} />;
+                return (
+                    <div className="h-full bg-white flex flex-col pt-4">
+                        <SupplierCustomersTab supplierId={supplier?.id} />
+                    </div>
+                );
 
             default:
                 return (
-                    <div className="p-8 text-center text-muted-foreground h-full flex items-center justify-center bg-gray-50/50 rounded border border-dashed border-gray-300 m-2">
-                        <p>Funcionalidade "{relatedTabs.find(t => t.id === activeTab)?.label}" em breve.</p>
+                    <div className="p-20 text-center flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 m-2">
+                        <div className="p-5 bg-white rounded-full shadow-sm mb-4">
+                            <FileText size={48} className="text-slate-200" />
+                        </div>
+                        <h5 className="font-bold text-slate-400 uppercase tracking-widest text-sm">Em Desenvolvimento</h5>
+                        <p className="text-slate-400 text-xs mt-1">Esta funcionalidade estará disponível em breve.</p>
                     </div>
                 );
         }
@@ -587,7 +710,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
     return (
         <>
             <FormCadPadrao
-                title={supplier?.id ? `Editar Fornecedor: ${formData.nome || formData.razaoSocial || supplier.id}` : 'Novo Fornecedor'}
+                title={supplier?.id ? `Fornecedor: ${formData.nomeReduzido || formData.razaoSocial || supplier.id}` : 'Novo Fornecedor'}
                 onClose={() => onOpenChange(false)}
                 onSave={() => onSave(formData)}
                 tabs={mainTabs}

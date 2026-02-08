@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-    Search, Plus, Edit, Trash2, Printer,
+    Search, Plus, Edit, Trash2, Printer, Eye,
     Factory, TrendingUp, Package, DollarSign, Calendar,
     ChevronRight, Filter, X, Sparkles, FileText, Copy, Globe,
     Receipt, FileCheck, Repeat, Building2, XCircle, ShoppingCart,
@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import IndustryList from './IndustryList';
 import OrderDialog from './OrderDialog';
+import PortalsDialog from './PortalsDialog';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { toast } from 'sonner';
 import PrintOrderDialog from './PrintOrderDialog';
@@ -43,6 +44,8 @@ const OrderCard = memo(function OrderCard({
     onEdit,
     onPrint,
     onEmail,
+    onView,
+    onPortals,
     onDelete
 }) {
     return (
@@ -61,10 +64,15 @@ const OrderCard = memo(function OrderCard({
                 >
                     {/* Selected Glow Effect */}
                     <div className={cn(
-                        "relative transition-all duration-500 bg-white border border-slate-200 shadow-sm rounded-2xl p-4 overflow-hidden",
-                        order.ped_situacao === "C" ? "border-l-4 border-l-rose-500" :
-                            order.ped_situacao === "F" ? "border-l-4 border-l-blue-500" : "border-l-4 border-l-emerald-500",
-                        isSelected ? "bg-emerald-50/50 border-emerald-500/30 scale-[1.01]" : "hover:bg-slate-50"
+                        "relative transition-all duration-500 border border-slate-200 shadow-sm rounded-2xl p-4 overflow-hidden",
+                        order.ped_situacao === "C" ? "border-l-4 border-l-rose-500 bg-rose-50/40" :
+                            order.ped_situacao === "A" ? "border-l-4 border-l-indigo-500 bg-indigo-50/40" :
+                                order.ped_situacao === "F" ? "border-l-4 border-l-[#648041] bg-emerald-50/40" :
+                                    order.ped_situacao === "G" ? "border-l-4 border-l-[#9160ed] bg-purple-50/40" :
+                                        order.ped_situacao === "B" ? "border-l-4 border-l-[#9160ed] bg-purple-50/40" :
+                                            order.ped_situacao === "E" ? "border-l-4 border-l-[#8b4513] bg-amber-50/40" :
+                                                "border-l-4 border-l-[#0081e6] bg-blue-50/40",
+                        isSelected ? "bg-emerald-100/60 border-emerald-500/30 scale-[1.01] shadow-md" : "hover:brightness-[0.98]"
                     )}>
                         <div className="flex items-center gap-6">
                             {/* Order ID Section */}
@@ -81,15 +89,15 @@ const OrderCard = memo(function OrderCard({
                                     </span>
                                     <h3 className="text-sm font-black text-slate-800 truncate uppercase tracking-tight">{order.cli_nomred}</h3>
                                 </div>
-                                <p className="text-[10px] text-slate-500 truncate font-mono font-bold">{order.cli_nome}</p>
+                                <p className="text-xs text-slate-500 truncate font-mono font-bold">{order.cli_nome}</p>
 
                                 <div className="flex items-center gap-3 mt-2">
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
-                                        <Calendar className="w-3 h-3 text-emerald-600" />
+                                    <div className="flex items-center gap-1 text-xs text-slate-500 font-bold">
+                                        <Calendar className="w-4 h-4 text-emerald-600" />
                                         {formatDate(order.ped_data)}
                                     </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
-                                        <Globe className="w-3 h-3 text-blue-600" />
+                                    <div className="flex items-center gap-1 text-xs text-slate-500 font-bold">
+                                        <Globe className="w-4 h-4 text-blue-600" />
                                         {order.ped_tabela || 'Padrão'}
                                     </div>
                                 </div>
@@ -98,22 +106,42 @@ const OrderCard = memo(function OrderCard({
                             {/* Status Indicators */}
                             <div className="flex flex-col gap-2 items-end">
                                 <div className={cn(
-                                    "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                                    order.ped_situacao === "C" ? "bg-rose-50 text-rose-600 border-rose-200" :
-                                        order.ped_situacao === "F" ? "bg-blue-50 text-blue-600 border-blue-200" :
-                                            "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                    "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                                    order.ped_situacao === "C" ? "bg-rose-50 text-[#f71830] border-rose-200" :
+                                        order.ped_situacao === "A" ? "bg-indigo-50 text-[#4f46e5] border-indigo-200" :
+                                            order.ped_situacao === "F" ? "bg-emerald-50 text-[#648041] border-emerald-200" :
+                                                order.ped_situacao === "G" ? "bg-purple-50 text-[#9160ed] border-purple-200" :
+                                                    order.ped_situacao === "B" ? "bg-purple-50 text-[#9160ed] border-purple-200" :
+                                                        order.ped_situacao === "E" ? "bg-amber-50 text-[#8b4513] border-amber-200" :
+                                                            "bg-blue-50 text-[#0081e6] border-blue-200"
                                 )}>
-                                    {order.ped_situacao === "C" ? "Cotação" : order.ped_situacao === "F" ? "Faturado" : "Executado"}
+                                    <div className="min-w-[150px] text-center">
+                                        {order.ped_situacao === "C" ? "COTAÇÃO PENDENTE" :
+                                            order.ped_situacao === "A" ? "COTAÇÃO CONFIRMADA" :
+                                                order.ped_situacao === "F" ? "FATURADO" :
+                                                    order.ped_situacao === "E" ? "EXCLUÍDO" :
+                                                        order.ped_situacao === "G" ? "GARANTIA" :
+                                                            order.ped_situacao === "B" ? "BONIFICAÇÃO" :
+                                                                order.ped_situacao === "N" ? "NOTIFICAÇÃO" :
+                                                                    "PEDIDO"}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <p className="text-[10px] text-slate-400 uppercase font-black">Total</p>
-                                    <span className="text-sm font-black text-slate-900">
+                                    <p className="text-xs text-slate-400 uppercase font-black">Total</p>
+                                    <span className="text-base font-black text-slate-900">
                                         {formatCurrency(order.ped_totliq)}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-row gap-2 items-center ml-auto">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onView(order); }}
+                                    className="p-2 rounded-lg bg-slate-100 hover:bg-violet-50 border border-slate-200 text-slate-400 hover:text-violet-600 transition-colors shadow-sm"
+                                    title="Visualizar"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                </button>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onEdit(order); }}
                                     className="p-2 rounded-lg bg-slate-100 hover:bg-emerald-50 border border-slate-200 text-slate-400 hover:text-emerald-600 transition-colors shadow-sm"
@@ -122,7 +150,14 @@ const OrderCard = memo(function OrderCard({
                                     <Edit className="w-4 h-4" />
                                 </button>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onPrint(order.ped_pedido, order.ped_industria); }}
+                                    onClick={(e) => { e.stopPropagation(); onPortals(order.ped_pedido); }}
+                                    className="p-2 rounded-lg bg-slate-100 hover:bg-orange-50 border border-slate-200 text-slate-400 hover:text-orange-600 transition-colors shadow-sm"
+                                    title="Portais"
+                                >
+                                    <Globe className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onPrint(order.ped_pedido, order.ped_industria, order.for_nomered || order.for_nome, formatCurrency(order.ped_totliq)); }}
                                     className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
                                     title="Imprimir"
                                 >
@@ -149,16 +184,16 @@ const OrderCard = memo(function OrderCard({
                                 >
                                     <div className="grid grid-cols-4 gap-4">
                                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Bruto</p>
-                                            <p className="text-xs font-black text-slate-700">{formatCurrency(order.ped_totbruto)}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Bruto</p>
+                                            <p className="text-sm font-black text-slate-700">{formatCurrency(order.ped_totbruto)}</p>
                                         </div>
                                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">IPI</p>
-                                            <p className="text-xs font-black text-rose-500">{formatCurrency(order.ped_totalipi)}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">IPI</p>
+                                            <p className="text-sm font-black text-rose-500">{formatCurrency(order.ped_totalipi)}</p>
                                         </div>
                                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 col-span-2">
-                                            <p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Pagamento</p>
-                                            <p className="text-xs font-black text-blue-600 truncate">{order.ped_condpag || 'A Vista'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pagamento</p>
+                                            <p className="text-sm font-black text-blue-600 truncate">{order.ped_condpag || 'A Vista'}</p>
                                         </div>
                                     </div>
 
@@ -178,11 +213,15 @@ const OrderCard = memo(function OrderCard({
                 </motion.div>
             </ContextMenuTrigger>
             <ContextMenuContent className="bg-slate-900 border-emerald-500/20 text-emerald-100">
+                <ContextMenuItem onClick={() => onView(order)} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-emerald-400" />
+                    <span>Visualizar Pedido</span>
+                </ContextMenuItem>
                 <ContextMenuItem onClick={() => onEdit(order)} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
                     <Edit className="h-4 w-4 text-emerald-400" />
                     <span>Editar Registro</span>
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => onPrint(order.ped_pedido, order.ped_industria)} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
+                <ContextMenuItem onClick={() => onPrint(order.ped_pedido, order.ped_industria, order.for_nomered || order.for_nome, formatCurrency(order.ped_totliq))} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
                     <Printer className="h-4 w-4 text-emerald-400" />
                     <span>Imprimir Relatório</span>
                 </ContextMenuItem>
@@ -192,7 +231,7 @@ const OrderCard = memo(function OrderCard({
                     <span>Enviar p/ Cliente</span>
                 </ContextMenuItem>
             </ContextMenuContent>
-        </ContextMenu>
+        </ContextMenu >
     );
 });
 
@@ -201,8 +240,12 @@ export default function OrdersPage() {
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
     const [orderToPrint, setOrderToPrint] = useState(null);
     const [orderToPrintIndustry, setOrderToPrintIndustry] = useState(null);
+    const [orderToPrintIndustryName, setOrderToPrintIndustryName] = useState('');
+    const [orderToPrintTotal, setOrderToPrintTotal] = useState('');
     const [sendEmailDialogOpen, setSendEmailDialogOpen] = useState(false);
     const [orderToEmailData, setOrderToEmailData] = useState(null);
+    const [portalsDialogOpen, setPortalsDialogOpen] = useState(false);
+    const [selectedPortalOrder, setSelectedPortalOrder] = useState(null);
     const [narrative, setNarrative] = useState('');
     const [loadingNarrative, setLoadingNarrative] = useState(false);
 
@@ -225,6 +268,7 @@ export default function OrdersPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+    const [isReadOnly, setIsReadOnly] = useState(false);
     const [stats, setStats] = useState({
         total_vendido: 0,
         total_quantidade: 0,
@@ -374,6 +418,7 @@ export default function OrdersPage() {
             return;
         }
         setSelectedOrderObj(null);
+        setIsReadOnly(false);
         setOrderDialogOpen(true);
     };
 
@@ -505,7 +550,7 @@ export default function OrdersPage() {
                             { label: 'Quantidade', value: Math.round(qtdVendida).toLocaleString(), icon: Package, color: 'blue', bg: 'bg-blue-50', text: 'text-blue-700' },
                             { label: 'PDVs', value: clientesAtendidos, icon: Building2, color: 'purple', bg: 'bg-purple-50', text: 'text-purple-700' },
                             { label: 'Ticket Médio', value: formatCurrency(ticketMedio), icon: TrendingUp, color: 'slate', bg: 'bg-slate-50', text: 'text-slate-700' },
-                            { label: 'Executados', value: countPedidos, icon: ShoppingCart, color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-700' },
+                            { label: 'Pedidos', value: countPedidos, icon: ShoppingCart, color: 'blue', bg: 'bg-blue-50', text: 'text-blue-700' },
                             { label: 'Orçamentos', value: countCotacoes, icon: FileText, color: 'rose', bg: 'bg-rose-50', text: 'text-rose-700' }
                         ].map((stat, i) => (
                             <motion.div
@@ -555,13 +600,20 @@ export default function OrdersPage() {
                                         index={index}
                                         isSelected={selectedOrder === order.ped_numero}
                                         onSelect={(pedNumero) => setSelectedOrder(selectedOrder === pedNumero ? null : pedNumero)}
-                                        onEdit={(ord) => { setSelectedOrderObj(ord); setOrderDialogOpen(true); }}
-                                        onPrint={(pedido, industria) => {
+                                        onView={(ord) => { setSelectedOrderObj(ord); setIsReadOnly(true); setOrderDialogOpen(true); }}
+                                        onEdit={(ord) => { setSelectedOrderObj(ord); setIsReadOnly(false); setOrderDialogOpen(true); }}
+                                        onPrint={(pedido, industria, industryName, total) => {
                                             setOrderToPrint(pedido);
                                             setOrderToPrintIndustry(industria);
+                                            setOrderToPrintIndustryName(industryName);
+                                            setOrderToPrintTotal(total);
                                             setPrintDialogOpen(true);
                                         }}
                                         onEmail={(pedido, industria) => handleOpenEmailDialog(pedido, industria, 'digitacao')}
+                                        onPortals={(orderId) => {
+                                            setSelectedPortalOrder(orderId);
+                                            setPortalsDialogOpen(true);
+                                        }}
                                         onDelete={handleDeleteOrder}
                                     />
                                 ))}
@@ -592,15 +644,104 @@ export default function OrdersPage() {
                     </div>
                 </div>
 
-                <motion.button
-                    whileHover={{ scale: 1.1, translateY: -5 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={handleNewOrder}
-                    className="absolute bottom-24 right-8 z-50 w-16 h-16 bg-emerald-500 text-black rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] flex flex-col items-center justify-center group"
-                >
-                    <Plus className="w-8 h-8 relative z-10" />
-                    <span className="text-[8px] font-black uppercase tracking-tighter leading-none relative z-10">Executar</span>
-                </motion.button>
+                {/* Restore Floating Action Button with Orbiting Rings */}
+                <div className="absolute bottom-24 right-8 z-50 flex flex-col items-center justify-center">
+                    {/* Orbiting rings */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        {/* Ring 1 */}
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                            className="absolute w-[110px] h-[110px] rounded-full border border-dashed border-emerald-500/20"
+                        />
+                        {/* Ring 2 */}
+                        <motion.div
+                            animate={{ rotate: -360 }}
+                            transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                            className="absolute w-[140px] h-[140px] rounded-full border border-dashed border-blue-500/10"
+                        />
+
+                        {/* Orbiting particles */}
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                            className="relative w-20 h-20"
+                        >
+                            {[0, 72, 144, 216, 288].map((angle, i) => (
+                                <motion.div
+                                    key={angle}
+                                    className="absolute w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+                                    style={{
+                                        left: `calc(50% + ${Math.cos((angle * Math.PI) / 180) * 45}px - 3px)`,
+                                        top: `calc(50% + ${Math.sin((angle * Math.PI) / 180) * 45}px - 3px)`,
+                                        background: `linear-gradient(135deg, ${i % 2 === 0 ? '#10b981' : '#3b82f6'}, ${i % 2 === 0 ? '#059669' : '#2563eb'})`,
+                                    }}
+                                    animate={{
+                                        scale: [1, 1.4, 1],
+                                        opacity: [0.4, 1, 0.4],
+                                    }}
+                                    transition={{
+                                        duration: 2,
+                                        repeat: Infinity,
+                                        delay: i * 0.3,
+                                    }}
+                                />
+                            ))}
+                        </motion.div>
+                    </div>
+
+                    {/* Main button */}
+                    <motion.button
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleNewOrder}
+                        className="relative group focus:outline-none"
+                    >
+                        {/* Circle shape with glass effect */}
+                        <div className="relative w-16 h-16 flex items-center justify-center">
+                            {/* Background glow and main disk */}
+                            <motion.div
+                                animate={{
+                                    boxShadow: [
+                                        "0 0 20px rgba(16, 185, 129, 0.4)",
+                                        "0 0 40px rgba(16, 185, 129, 0.6)",
+                                        "0 0 20px rgba(16, 185, 129, 0.4)",
+                                    ],
+                                }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                                className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 shadow-xl"
+                            />
+
+                            {/* Inner Glass Flare */}
+                            <div className="absolute inset-1 rounded-full bg-gradient-to-br from-white/30 to-transparent pointer-events-none" />
+
+                            {/* Icon and Text */}
+                            <div className="relative z-10 flex flex-col items-center justify-center mt-0.5">
+                                <Plus className="w-8 h-8 text-white drop-shadow-md" />
+                                <span className="text-[8px] font-black text-white uppercase tracking-tighter leading-none -mt-1">NOVO</span>
+                            </div>
+
+                            {/* Ripple effect on hover */}
+                            <motion.div
+                                initial={{ scale: 1, opacity: 0 }}
+                                whileHover={{ scale: 1.5, opacity: [0, 0.3, 0] }}
+                                transition={{ duration: 0.8, repeat: Infinity }}
+                                className="absolute inset-0 rounded-full border-2 border-emerald-400 pointer-events-none"
+                            />
+                        </div>
+
+                        {/* Tooltip */}
+                        <div className="absolute right-full mr-5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <div className="px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg whitespace-nowrap shadow-xl border border-white/10">
+                                Novo Pedido
+                                <div className="absolute left-full top-1/2 -translate-y-1/2 border-4 border-transparent border-l-slate-900" />
+                            </div>
+                        </div>
+                    </motion.button>
+                </div>
             </div>
 
             <OrderDialog
@@ -612,12 +753,15 @@ export default function OrdersPage() {
                 selectedIndustry={selectedIndustry}
                 onOrderCreated={handleOrderCreated}
                 selectedOrder={selectedOrderObj}
+                readOnly={isReadOnly}
             />
 
             <PrintOrderDialog
                 isOpen={printDialogOpen}
                 onClose={() => setPrintDialogOpen(false)}
                 orderNumber={orderToPrint}
+                orderToPrintIndustryName={orderToPrintIndustryName}
+                orderTotal={orderToPrintTotal}
                 defaultModel={userParams?.par_pedidopadrao || 1}
                 defaultSorting={userParams?.par_ordemimpressao === 'N' ? 'codigo' : 'digitacao'}
                 onPrint={(model, sorting) => {
@@ -650,6 +794,12 @@ export default function OrdersPage() {
                 onSend={async () => {
                     return new Promise(resolve => setTimeout(resolve, 2000));
                 }}
+            />
+
+            <PortalsDialog
+                open={portalsDialogOpen}
+                onOpenChange={setPortalsDialogOpen}
+                orderId={selectedPortalOrder}
             />
         </div>
     );

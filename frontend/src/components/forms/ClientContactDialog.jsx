@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, X } from "lucide-react";
 import { toast } from "sonner";
+import { NODE_API_URL } from "../../utils/apiConfig";
 
 export function ClientContactDialog({ open, onOpenChange, contact, clientId, onSave }) {
     const [formData, setFormData] = useState({
@@ -66,8 +67,8 @@ export function ClientContactDialog({ open, onOpenChange, contact, clientId, onS
         try {
             const isNew = !contact?.ani_lancto;
             const url = isNew
-                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/contacts`
-                : `https://salesmasters.softham.com.br/api/clients/${clientId}/contacts/${contact.ani_lancto}`;
+                ? `${NODE_API_URL}/api/clients/${clientId}/contacts`
+                : `${NODE_API_URL}/api/clients/${clientId}/contacts/${contact.ani_lancto}`;
 
             const method = isNew ? 'POST' : 'PUT';
 

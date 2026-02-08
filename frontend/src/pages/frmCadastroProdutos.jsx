@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, Package, FileText } from 'lucide-react';
+import { Search, RefreshCw, Package, FileText, Check } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,7 +27,8 @@ const FrmCadastroProdutos = () => {
             const filtered = products.filter(product =>
                 product.pro_codprod?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 product.pro_nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                product.pro_ncm?.toLowerCase().includes(searchTerm.toLowerCase())
+                product.pro_codigonormalizado?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                product.pro_conversao?.toLowerCase().includes(searchTerm.toLowerCase())
             );
             setFilteredProducts(filtered);
         } else {
@@ -116,15 +117,17 @@ const FrmCadastroProdutos = () => {
                             <SelectTrigger className="h-10">
                                 <SelectValue placeholder="Selecione a indústria" />
                             </SelectTrigger>
-                            <SelectContent>
-                                {industries.map((ind) => (
-                                    <SelectItem
-                                        key={ind.for_codigo}
-                                        value={String(ind.for_codigo)}
-                                    >
-                                        {ind.for_nomered || ind.for_nome}
-                                    </SelectItem>
-                                ))}
+                            <SelectContent className="z-[9999]">
+                                {industries
+                                    .filter(ind => ind.for_codigo && String(ind.for_codigo).trim() !== "")
+                                    .map((ind) => (
+                                        <SelectItem
+                                            key={ind.for_codigo}
+                                            value={String(ind.for_codigo)}
+                                        >
+                                            {ind.for_nomered || ind.for_nome || "Indústria sem nome"}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -136,7 +139,7 @@ const FrmCadastroProdutos = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <Input
                                 type="text"
-                                placeholder="Código, descrição ou NCM..."
+                                placeholder="Código, descrição ou Conversão..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 h-10"
@@ -190,7 +193,7 @@ const FrmCadastroProdutos = () => {
                     <div className="bg-white rounded-lg shadow-sm border">
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead className="bg-gray-50 border-b sticky top-0">
+                                <thead className="bg-gray-50 border-b sticky top-0 z-10">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                             Código
@@ -199,22 +202,36 @@ const FrmCadastroProdutos = () => {
                                             Descrição
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                            NCM
+                                            Conversão
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                             Peso
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                            Embalagem
+                                            Emb.
                                         </th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                             Grupo
                                         </th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                            Aplicação
+
+                                        {/* Auto-Categories */}
+                                        <th className="px-2 py-3 text-center text-xs font-black text-emerald-600 uppercase tracking-wider bg-emerald-50">
+                                            LEVE
                                         </th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                            Cód. Barras
+                                        <th className="px-2 py-3 text-center text-xs font-black text-blue-600 uppercase tracking-wider bg-blue-50">
+                                            PESADA
+                                        </th>
+                                        <th className="px-2 py-3 text-center text-xs font-black text-amber-600 uppercase tracking-wider bg-amber-50">
+                                            AGRÍCOLA
+                                        </th>
+                                        <th className="px-2 py-3 text-center text-xs font-black text-purple-600 uppercase tracking-wider bg-purple-50">
+                                            UTIL
+                                        </th>
+                                        <th className="px-2 py-3 text-center text-xs font-black text-rose-600 uppercase tracking-wider bg-rose-50">
+                                            MOTO
+                                        </th>
+                                        <th className="px-2 py-3 text-center text-xs font-black text-orange-600 uppercase tracking-wider bg-orange-50">
+                                            OFF
                                         </th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                             Status
@@ -231,7 +248,7 @@ const FrmCadastroProdutos = () => {
                                                 {product.pro_nome}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600">
-                                                {product.pro_ncm || '-'}
+                                                {product.pro_conversao || '-'}
                                             </td>
                                             <td className="px-4 py-3 text-sm text-gray-600">
                                                 {product.pro_peso ? `${product.pro_peso} kg` : '-'}
@@ -242,11 +259,26 @@ const FrmCadastroProdutos = () => {
                                             <td className="px-4 py-3 text-sm text-gray-600">
                                                 {product.pro_grupo || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                                                {product.pro_aplicacao || '-'}
+                                            {/* Removed 'Aplicação' to make space, as it's often very long and duplicates functionality */}
+
+                                            {/* Categories */}
+                                            <td className="px-2 py-3 text-center bg-emerald-50/30">
+                                                {product.pro_linhaleve ? <Check size={16} className="text-emerald-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">
-                                                {product.pro_codbarras || '-'}
+                                            <td className="px-2 py-3 text-center bg-blue-50/30">
+                                                {product.pro_linhapesada ? <Check size={16} className="text-blue-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
+                                            </td>
+                                            <td className="px-2 py-3 text-center bg-amber-50/30">
+                                                {product.pro_linhaagricola ? <Check size={16} className="text-amber-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
+                                            </td>
+                                            <td className="px-2 py-3 text-center bg-purple-50/30">
+                                                {product.pro_linhautilitarios ? <Check size={16} className="text-purple-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
+                                            </td>
+                                            <td className="px-2 py-3 text-center bg-rose-50/30">
+                                                {product.pro_motocicletas ? <Check size={16} className="text-rose-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
+                                            </td>
+                                            <td className="px-2 py-3 text-center bg-orange-50/30">
+                                                {product.pro_offroad ? <Check size={16} className="text-orange-600 mx-auto" strokeWidth={3} /> : <span className="text-slate-200 text-xs">•</span>}
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.pro_status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'

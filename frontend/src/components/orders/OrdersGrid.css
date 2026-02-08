@@ -74,35 +74,45 @@
     background: var(--bg-secondary);
 }
 
-/* Coloração por situação - Seguindo padrão do sistema */
+/* Coloração por situação - Padrão 2025 */
+.row-pedido {
+    background: rgba(0, 129, 230, 0.05);
+    border-left: 3px solid #0081e6;
+}
+
 .row-cotacao-pendente {
-    background: hsl(0, 72%, 51%, 0.08);
-    border-left: 3px solid var(--danger-color);
+    background: rgba(247, 24, 48, 0.05);
+    border-left: 3px solid #f71830;
 }
 
 .row-cotacao-confirmada {
-    background: hsl(210, 100%, 50%, 0.08);
-    border-left: 3px solid hsl(210, 100%, 50%);
+    background: rgba(17, 136, 195, 0.05);
+    border-left: 3px solid #1188c3;
 }
 
 .row-faturado {
-    background: hsl(160, 84%, 35%, 0.08);
-    border-left: 3px solid var(--success-color);
+    background: rgba(100, 128, 65, 0.05);
+    border-left: 3px solid #648041;
 }
 
 .row-excluido {
-    background: hsl(38, 92%, 50%, 0.08);
-    border-left: 3px solid var(--warning-color);
+    background: rgba(139, 69, 19, 0.05);
+    border-left: 3px solid #8b4513;
 }
 
 .row-garantia {
-    background: hsl(38, 92%, 50%, 0.08);
-    border-left: 3px solid var(--warning-color);
+    background: rgba(145, 96, 237, 0.05);
+    border-left: 3px solid #9160ed;
+}
+
+.row-bonificacao {
+    background: rgba(231, 102, 29, 0.05);
+    border-left: 3px solid #e7661d;
 }
 
 .row-notificacao {
-    background: hsl(38, 92%, 50%, 0.08);
-    border-left: 3px solid var(--warning-color);
+    background: rgba(255, 193, 7, 0.05);
+    border-left: 3px solid #ffc107;
 }
 
 /* Células específicas */

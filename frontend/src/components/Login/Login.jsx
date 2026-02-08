@@ -328,6 +328,11 @@ const Login = () => {
                 onChange={handleInputChange}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSubmit(e);
+                  }
+                }}
                 placeholder="••••••••"
                 required
                 autoComplete="new-password"

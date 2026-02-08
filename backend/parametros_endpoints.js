@@ -8,6 +8,34 @@ module.exports = function (pool) {
     const router = express.Router();
 
     /**
+     * GET /api/parametros/all
+     * Lista todos os usuários que possuem parâmetros definidos
+     */
+    router.get('/parametros/all', async (req, res) => {
+        try {
+            const query = `
+                SELECT p.*, u.nome, u.sobrenome, u.usuario as login_usuario
+                FROM parametros p
+                LEFT JOIN user_nomes u ON p.par_usuario = u.codigo
+                ORDER BY u.nome
+            `;
+            const result = await pool.query(query);
+
+            res.json({
+                success: true,
+                data: result.rows
+            });
+
+        } catch (error) {
+            console.error('❌ [PARAMETROS] Erro ao listar todos:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
+    });
+
+    /**
      * GET /api/parametros/:userId
      * Busca parâmetros de um usuário
      */
@@ -152,6 +180,27 @@ module.exports = function (pool) {
                 success: false,
                 message: error.message
             });
+        }
+    });
+
+    /**
+     * DELETE /api/parametros/:userId
+     * Remove parâmetros de um usuário
+     */
+    router.delete('/parametros/:userId', async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const query = 'DELETE FROM parametros WHERE par_usuario = $1 RETURNING *';
+            const result = await pool.query(query, [userId]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Parâmetros não encontrados' });
+            }
+
+            res.json({ success: true, message: 'Parâmetros removidos com sucesso!' });
+        } catch (error) {
+            console.error('❌ [PARAMETROS] Erro ao excluir:', error);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 

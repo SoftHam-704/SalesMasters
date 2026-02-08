@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Database, ArrowRight, Play, CheckCircle } from 'lucide-react';
 import './DataMigration.css';
 
@@ -33,6 +33,14 @@ export const DataMigration = () => {
         }
     };
 
+    const migrationIntervalRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (migrationIntervalRef.current) clearInterval(migrationIntervalRef.current);
+        };
+    }, []);
+
     const startMigration = () => {
         if (selectedTables.length === 0) {
             alert('Selecione pelo menos uma tabela para migrar');
@@ -45,7 +53,7 @@ export const DataMigration = () => {
 
         // Simular migração
         let currentProgress = 0;
-        const interval = setInterval(() => {
+        migrationIntervalRef.current = setInterval(() => {
             currentProgress += 10;
             setProgress(currentProgress);
 
@@ -58,7 +66,10 @@ export const DataMigration = () => {
             } else if (currentProgress === 100) {
                 setLogs(prev => [...prev, { type: 'success', message: 'Migração concluída com sucesso!' }]);
                 setMigrating(false);
-                clearInterval(interval);
+                if (migrationIntervalRef.current) {
+                    clearInterval(migrationIntervalRef.current);
+                    migrationIntervalRef.current = null;
+                }
             }
         }, 500);
     };

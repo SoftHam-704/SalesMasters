@@ -58,6 +58,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
             setEmbalagem(product.pro_embalagem?.toString() || '');
             setIpi(product.itab_ipi?.toString() || '');
             setSt(product.itab_st?.toString() || '');
+            setPrecoQtd(product.itab_prepeso?.toString() || '');
             setDescontoAdicional(product.itab_descontoadd?.toString() || '');
         } else {
             // Limpar para novo produto
@@ -165,6 +166,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
             st: parseCurrency(st) || 0,
             descontoadd: parseCurrency(descontoAdicional) || 0,
             grupodesconto: parseInt(grupoDesconto) || null,
+            prepeso: parseCurrency(precoQtd) || 0,
         };
 
         onSave(dadosProduto);
@@ -241,21 +243,21 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
 
                                 {/* Família, NCM, FINAME */}
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="Família de produtos"
                                         value={familiaProdutos}
                                         onChange={(e) => setFamiliaProdutos(e.target.value)}
                                     />
                                 </div>
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="NCM"
                                         value={ncm}
                                         onChange={(e) => setNcm(e.target.value)}
                                     />
                                 </div>
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="FINAME"
                                         value={finame}
                                         onChange={(e) => setFiname(e.target.value)}
@@ -284,7 +286,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                                 value="pesada"
                                                 checked={categoria === 'pesada'}
                                                 onChange={(e) => setCategoria(e.target.value)}
-                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
                                             />
                                             Linha pesada
                                         </label>
@@ -295,7 +297,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                                 value="agricola"
                                                 checked={categoria === 'agricola'}
                                                 onChange={(e) => setCategoria(e.target.value)}
-                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
                                             />
                                             Linha agrícola
                                         </label>
@@ -306,7 +308,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                                 value="utilitarios"
                                                 checked={categoria === 'utilitarios'}
                                                 onChange={(e) => setCategoria(e.target.value)}
-                                                 className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
                                             />
                                             Utilitários
                                         </label>
@@ -315,7 +317,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
 
                                 {/* Grupo de produtos, Grupo desconto, Tabela */}
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="Grupo de produtos"
                                         value={grupoProdutos}
                                         onChange={(e) => setGrupoProdutos(e.target.value)}
@@ -323,7 +325,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                     />
                                 </div>
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="Grupo desconto"
                                         value={grupoDesconto}
                                         onChange={(e) => setGrupoDesconto(e.target.value)}
@@ -331,7 +333,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                     />
                                 </div>
                                 <div className="col-4">
-                                     <InputField
+                                    <InputField
                                         label="Tabela"
                                         value={tabelaNome}
                                         onChange={(e) => setTabelaNome(e.target.value)}
@@ -345,7 +347,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                 <h3 className="font-semibold text-sm mb-4">Preços</h3>
                                 <div className="form-grid">
                                     <div className="col-3">
-                                         <InputField
+                                        <InputField
                                             label="Preço bruto"
                                             value={precoBruto}
                                             onChange={handleCurrencyChange(setPrecoBruto)}
@@ -355,7 +357,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                         />
                                     </div>
                                     <div className="col-3">
-                                         <InputField
+                                        <InputField
                                             label="Preço promoção"
                                             value={precoPromocao}
                                             onChange={handleCurrencyChange(setPrecoPromocao)}
@@ -365,7 +367,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                         />
                                     </div>
                                     <div className="col-3">
-                                         <InputField
+                                        <InputField
                                             label="Preço especial"
                                             value={precoEspecial}
                                             onChange={handleCurrencyChange(setPrecoEspecial)}
@@ -375,7 +377,7 @@ const ProductDialog = ({ open, onOpenChange, product, industria, tabela, onSave 
                                         />
                                     </div>
                                     <div className="col-3">
-                                         <InputField
+                                        <InputField
                                             label="Preço > qtd"
                                             value={precoQtd}
                                             onChange={handleCurrencyChange(setPrecoQtd)}

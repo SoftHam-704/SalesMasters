@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tag } from "lucide-react";
 import { toast } from "sonner";
 import CategoryForm from "../components/forms/CategoryForm";
-import GridCadPadraoV2 from "../components/GridCadPadraoV2";
+import GridCadPadrao from "../components/GridCadPadrao";
 import { NODE_API_URL, getApiUrl } from "../utils/apiConfig";
 
 const FrmCategorias = () => {
@@ -11,6 +11,8 @@ const FrmCategorias = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [page, setPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const fetchCategories = async () => {
         setLoading(true);
@@ -18,7 +20,12 @@ const FrmCategorias = () => {
             const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/product-categories'));
             const data = await response.json();
             if (data.success) {
-                setCategories(data.data);
+                const adaptedData = data.data.map(item => ({
+                    id: item.cat_id,
+                    descricao: item.cat_descricao,
+                    _original: item
+                }));
+                setCategories(adaptedData);
             }
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
@@ -43,12 +50,12 @@ const FrmCategorias = () => {
     };
 
     const handleDelete = async (category) => {
-        if (!window.confirm(`Deseja realmente excluir a categoria "${category.cat_descricao}"?`)) {
+        if (!window.confirm(`Deseja realmente excluir a categoria "${category.descricao}"?`)) {
             return;
         }
 
         try {
-            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/product-categories/${category.cat_id}`), {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/product-categories/${category.id}`), {
                 method: 'DELETE'
             });
 
@@ -69,7 +76,7 @@ const FrmCategorias = () => {
     const handleSave = async (formData) => {
         try {
             const url = selectedCategory
-                ? getApiUrl(NODE_API_URL, `/api/v2/product-categories/${selectedCategory.cat_id}`)
+                ? getApiUrl(NODE_API_URL, `/api/v2/product-categories/${selectedCategory.id}`)
                 : getApiUrl(NODE_API_URL, '/api/v2/product-categories');
 
             const method = selectedCategory ? 'PUT' : 'POST';
@@ -95,49 +102,72 @@ const FrmCategorias = () => {
         }
     };
 
+    // Filtrar dados localmente
+    const filteredCategories = useMemo(() => {
+        const term = searchTerm.toLowerCase();
+        return categories.filter(cat =>
+            (cat.descricao || '').toLowerCase().includes(term) ||
+            (cat.id?.toString() || '').includes(term)
+        );
+    }, [categories, searchTerm]);
+
+    // Paginação
+    const paginatedData = useMemo(() => {
+        const start = (page - 1) * ITEMS_PER_PAGE;
+        return filteredCategories.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredCategories, page]);
+
+    const totalPages = Math.ceil(filteredCategories.length / ITEMS_PER_PAGE);
+
     // Definição das colunas
     const columns = [
         {
-            key: 'cat_id',
+            key: 'id',
             label: 'ID',
             width: '80px',
             isId: true
         },
         {
-            key: 'cat_descricao',
+            key: 'descricao',
             label: 'Descrição',
-            cellClass: 'font-semibold text-blue-600'
+            width: '400px',
+            render: (row) => (
+                <span className="font-semibold text-blue-600">{row.descricao}</span>
+            )
         }
     ];
 
-    // Filtrar dados localmente
-    const filteredCategories = searchTerm
-        ? categories.filter(cat =>
-            cat.cat_descricao?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : categories;
-
     return (
-        <>
-            {isFormOpen && (
-                <CategoryForm
-                    data={selectedCategory}
-                    onClose={() => setIsFormOpen(false)}
-                    onSave={handleSave}
-                />
-            )}
+        <div className="h-full bg-slate-50 p-6">
+            <CategoryForm
+                open={isFormOpen}
+                data={selectedCategory}
+                onClose={() => setIsFormOpen(false)}
+                onSave={handleSave}
+            />
 
-            <GridCadPadraoV2
+            <GridCadPadrao
                 title="Categorias de Produtos"
-                subtitle="Gerencie as categorias (Leve, Pesada, etc.)"
+                subtitle={`Gerencie as categorias de produtos (${filteredCategories.length} exibidos de ${categories.length} carregados)`}
                 icon={Tag}
-                data={filteredCategories}
-                titleKey="cat_descricao"
+                data={paginatedData}
+                loading={loading}
+                columns={columns}
                 onNew={handleNew}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                searchValue={searchTerm}
+                onSearchChange={(value) => { setSearchTerm(typeof value === 'string' ? value : value?.target?.value || ''); setPage(1); }}
+                pagination={{
+                    page,
+                    limit: ITEMS_PER_PAGE,
+                    total: filteredCategories.length,
+                    totalPages
+                }}
+                onPageChange={setPage}
+                onRefresh={fetchCategories}
             />
-        </>
+        </div>
     );
 };
 

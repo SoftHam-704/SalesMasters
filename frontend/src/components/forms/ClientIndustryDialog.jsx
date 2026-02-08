@@ -20,6 +20,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 
 const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }) => {
     const [formData, setFormData] = useState({
@@ -47,8 +48,10 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
 
     const [suppliers, setSuppliers] = useState([]);
     const [carriers, setCarriers] = useState([]);
+    const [priceTables, setPriceTables] = useState([]);
     const [loadingSuppliers, setLoadingSuppliers] = useState(false);
     const [loadingCarriers, setLoadingCarriers] = useState(false);
+    const [loadingPriceTables, setLoadingPriceTables] = useState(false);
 
     // Combobox open states
     const [openIndustry, setOpenIndustry] = useState(false);
@@ -108,10 +111,19 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
         }
     }, [open, industry]);
 
+    useEffect(() => {
+        if (formData.cli_forcodigo) {
+            fetchPriceTables(formData.cli_forcodigo);
+        } else {
+            setPriceTables([]);
+        }
+    }, [formData.cli_forcodigo]);
+
     const fetchSuppliers = async () => {
         setLoadingSuppliers(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers');
+            const url = getApiUrl(NODE_API_URL, '/api/suppliers');
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : (data.data || []);
@@ -130,7 +142,8 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
     const fetchCarriers = async () => {
         setLoadingCarriers(true);
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/transportadoras');
+            const url = getApiUrl(NODE_API_URL, '/api/v2/carriers');
+            const response = await fetch(url);
             if (response.ok) {
                 const data = await response.json();
                 const list = Array.isArray(data) ? data : (data.data || []);
@@ -140,6 +153,22 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
             console.error('Error fetching carriers:', error);
         } finally {
             setLoadingCarriers(false);
+        }
+    };
+
+    const fetchPriceTables = async (industryCode) => {
+        setLoadingPriceTables(true);
+        try {
+            const url = getApiUrl(NODE_API_URL, `/api/price-tables/${industryCode}`);
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                setPriceTables(data.success ? data.data : []);
+            }
+        } catch (error) {
+            console.error('Error fetching price tables:', error);
+        } finally {
+            setLoadingPriceTables(false);
         }
     };
 
@@ -161,9 +190,10 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            const baseUrl = `/api/clients/${clientId}/industries`;
             const url = industry
-                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/industries/${industry.cli_lancamento}`
-                : `https://salesmasters.softham.com.br/api/clients/${clientId}/industries`;
+                ? getApiUrl(NODE_API_URL, `${baseUrl}/${industry.cli_lancamento}`)
+                : getApiUrl(NODE_API_URL, baseUrl);
 
             const method = industry ? 'PUT' : 'POST';
 
@@ -346,8 +376,30 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
                         </div>
                     </div>
 
-                    {/* Row 3: Cód Industria, Frete, %Add, %Especial */}
-                    <div className="grid grid-cols-4 gap-4">
+                    {/* Row 3: Tabela, Cód Industria, Frete, %Add, %Especial */}
+                    <div className="grid grid-cols-5 gap-4">
+                        <div>
+                            <Label className="text-xs font-bold text-slate-500">Tabela de Preço</Label>
+                            <Select
+                                value={formData.cli_tabela}
+                                onValueChange={(val) => handleSelectChange('cli_tabela', val)}
+                                disabled={!formData.cli_forcodigo || loadingPriceTables}
+                            >
+                                <SelectTrigger className="h-9 bg-slate-50/50">
+                                    <SelectValue placeholder={loadingPriceTables ? "Carregando..." : "Selecione..."} />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10000]">
+                                    {priceTables.map((table) => {
+                                        const tableName = table.nome_tabela || table.itab_tabela;
+                                        return (
+                                            <SelectItem key={tableName} value={tableName}>
+                                                {tableName}
+                                            </SelectItem>
+                                        );
+                                    })}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div>
                             <Label className="text-xs font-bold text-red-500">Cód. na Indústria</Label>
                             <Input
@@ -358,12 +410,12 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
                             />
                         </div>
                         <div>
-                            <Label className="text-xs text-gray-500">FRETE</Label>
+                            <Label className="text-xs text-gray-500 font-bold">FRETE</Label>
                             <Select
                                 value={formData.cli_frete}
                                 onValueChange={(val) => handleSelectChange('cli_frete', val)}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className="h-9">
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent className="z-[10000]">
@@ -378,7 +430,7 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
                                 name="cli_desc10"
                                 value={formData.cli_desc10}
                                 onChange={handleChange}
-                                className="text-center"
+                                className="text-center h-9"
                                 placeholder="0,00%"
                             />
                         </div>
@@ -388,7 +440,7 @@ const ClientIndustryDialog = ({ open, onOpenChange, industry, clientId, onSave }
                                 name="cli_desc11"
                                 value={formData.cli_desc11}
                                 onChange={handleChange}
-                                className="text-center"
+                                className="text-center h-9"
                                 placeholder="0,00%"
                             />
                         </div>

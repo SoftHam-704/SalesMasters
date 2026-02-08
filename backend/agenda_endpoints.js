@@ -14,7 +14,10 @@ module.exports = (pool) => {
     // GET - Listar tarefas do usuário logado
     router.get('/', async (req, res) => {
         try {
-            const usuarioId = req.headers['x-user-id'] || 1; // Temporário: pegar do token
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
             const {
                 data_inicio,
                 data_fim,
@@ -23,13 +26,16 @@ module.exports = (pool) => {
                 visualizacao
             } = req.query;
 
-            const empresaId = req.headers['x-empresa-id'] || 1;
+            const empresaId = req.headers['x-empresa-id'];
+            if (!empresaId) {
+                return res.status(401).json({ success: false, message: 'Empresa não identificada' });
+            }
 
             let query = `
                 SELECT 
                     a.*
                 FROM agenda a
-                WHERE a.usuario_id = $1 AND (a.empresa_id = $2 OR a.empresa_id IS NULL)
+                WHERE a.usuario_id = $1 AND a.empresa_id = $2
             `;
             const params = [usuarioId, empresaId];
             let paramIndex = 3;
@@ -79,37 +85,44 @@ module.exports = (pool) => {
     // GET - Resumo para o Dashboard (painel de alertas)
     router.get('/resumo', async (req, res) => {
         try {
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            const empresaId = req.headers['x-empresa-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
+            if (!empresaId) {
+                return res.status(401).json({ success: false, message: 'Empresa não identificada' });
+            }
 
             // Tarefas de hoje
             const tarefasHoje = await pool.query(`
                 SELECT COUNT(*) as total 
                 FROM agenda 
-                WHERE usuario_id = $1 
+                WHERE usuario_id = $1 AND empresa_id = $2
                   AND status IN ('pendente', 'em_andamento')
                   AND data_inicio = CURRENT_DATE
-            `, [usuarioId]);
+            `, [usuarioId, empresaId]);
 
             // Tarefas atrasadas
             const atrasadas = await pool.query(`
                 SELECT COUNT(*) as total 
                 FROM agenda 
-                WHERE usuario_id = $1 
+                WHERE usuario_id = $1 AND empresa_id = $2
                   AND status IN ('pendente', 'em_andamento')
                   AND data_inicio < CURRENT_DATE
-            `, [usuarioId]);
+            `, [usuarioId, empresaId]);
 
             // Próximo compromisso
             const proximo = await pool.query(`
                 SELECT titulo, hora_inicio, tipo
                 FROM agenda 
-                WHERE usuario_id = $1 
+                WHERE usuario_id = $1 AND empresa_id = $2
                   AND status IN ('pendente', 'em_andamento')
                   AND data_inicio = CURRENT_DATE
                   AND (hora_inicio IS NULL OR hora_inicio >= CURRENT_TIME)
                 ORDER BY hora_inicio ASC NULLS LAST
                 LIMIT 1
-            `, [usuarioId]);
+            `, [usuarioId, empresaId]);
 
             // Aniversários de hoje (contatos de clientes)
             const aniversarios = await pool.query(`
@@ -140,7 +153,12 @@ module.exports = (pool) => {
     router.get('/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            const empresaId = req.headers['x-empresa-id'];
+
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
 
             const result = await pool.query(`
                 SELECT 
@@ -151,8 +169,8 @@ module.exports = (pool) => {
                 FROM agenda a
                 LEFT JOIN clientes c ON c.cli_codigo = a.cliente_id
                 LEFT JOIN fornecedores f ON f.for_codigo = a.fornecedor_id
-                WHERE a.id = $1 AND a.usuario_id = $2
-            `, [id, usuarioId]);
+                WHERE a.id = $1 AND a.usuario_id = $2 AND a.empresa_id = $3
+            `, [id, usuarioId, empresaId]);
 
             if (result.rows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Tarefa não encontrada' });
@@ -168,8 +186,12 @@ module.exports = (pool) => {
     // POST - Criar nova tarefa
     router.post('/', async (req, res) => {
         try {
-            const usuarioId = req.headers['x-user-id'] || 1;
-            const empresaId = req.headers['x-empresa-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            const empresaId = req.headers['x-empresa-id'];
+
+            if (!usuarioId || !empresaId) {
+                return res.status(401).json({ success: false, message: 'Identificação necessária ausente' });
+            }
             const tarefa = req.body;
 
             const query = `
@@ -234,7 +256,10 @@ module.exports = (pool) => {
     router.put('/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
             const tarefa = req.body;
 
             const query = `
@@ -258,7 +283,7 @@ module.exports = (pool) => {
                     lembrete_ativo = $17,
                     lembrete_antes = $18,
                     cor = $19
-                WHERE id = $20 AND usuario_id = $21
+                WHERE id = $20 AND usuario_id = $21 AND empresa_id = $22
                 RETURNING *
             `;
 
@@ -283,7 +308,8 @@ module.exports = (pool) => {
                 tarefa.lembrete_antes || 15,
                 tarefa.cor || null,
                 id,
-                usuarioId
+                usuarioId,
+                req.headers['x-empresa-id']
             ];
 
             const result = await pool.query(query, values);
@@ -310,7 +336,10 @@ module.exports = (pool) => {
         try {
             const { id } = req.params;
             const { status, notas_conclusao } = req.body;
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
 
             let query = `
                 UPDATE agenda SET
@@ -324,8 +353,9 @@ module.exports = (pool) => {
                 query += `, concluido_em = NOW()`;
             }
 
-            query += ` WHERE id = $${values.length + 1} AND usuario_id = $${values.length + 2} RETURNING *`;
-            values.push(id, usuarioId);
+            const empresaId = req.headers['x-empresa-id'];
+            query += ` WHERE id = $${values.length + 1} AND usuario_id = $${values.length + 2} AND empresa_id = $${values.length + 3} RETURNING *`;
+            values.push(id, usuarioId, empresaId);
 
             const result = await pool.query(query, values);
 
@@ -357,12 +387,16 @@ module.exports = (pool) => {
         try {
             const { id } = req.params;
             const { nova_data, nova_hora, motivo } = req.body;
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
 
+            const empresaId = req.headers['x-empresa-id'];
             // Buscar tarefa atual para salvar data original
             const tarefaAtual = await pool.query(
-                'SELECT data_inicio, data_original, vezes_adiada FROM agenda WHERE id = $1 AND usuario_id = $2',
-                [id, usuarioId]
+                'SELECT data_inicio, data_original, vezes_adiada FROM agenda WHERE id = $1 AND usuario_id = $2 AND empresa_id = $3',
+                [id, usuarioId, empresaId]
             );
 
             if (tarefaAtual.rows.length === 0) {
@@ -381,9 +415,9 @@ module.exports = (pool) => {
                     status = 'adiada',
                     lembrete_enviado = false,
                     notas_conclusao = COALESCE(notas_conclusao, '') || E'\n[Adiada] ' || $5
-                WHERE id = $6 AND usuario_id = $7
+                WHERE id = $6 AND usuario_id = $7 AND empresa_id = $8
                 RETURNING *
-            `, [nova_data, nova_hora || null, dataOriginal, vezesAdiada, motivo || '', id, usuarioId]);
+            `, [nova_data, nova_hora || null, dataOriginal, vezesAdiada, motivo || '', id, usuarioId, empresaId]);
 
             res.json({
                 success: true,
@@ -400,11 +434,15 @@ module.exports = (pool) => {
     router.delete('/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
 
+            const empresaId = req.headers['x-empresa-id'];
             const result = await pool.query(
-                'DELETE FROM agenda WHERE id = $1 AND usuario_id = $2 RETURNING titulo',
-                [id, usuarioId]
+                'DELETE FROM agenda WHERE id = $1 AND usuario_id = $2 AND empresa_id = $3 RETURNING titulo',
+                [id, usuarioId, empresaId]
             );
 
             if (result.rows.length === 0) {
@@ -426,7 +464,10 @@ module.exports = (pool) => {
     // GET - Estatísticas de produtividade
     router.get('/stats/produtividade', async (req, res) => {
         try {
-            const usuarioId = req.headers['x-user-id'] || 1;
+            const usuarioId = req.headers['x-user-id'];
+            if (!usuarioId) {
+                return res.status(401).json({ success: false, message: 'Usuário não identificado' });
+            }
             const { periodo } = req.query; // 'semana', 'mes', 'ano'
 
             let intervalo = '30 days';
@@ -444,16 +485,16 @@ module.exports = (pool) => {
                         1
                     ) as taxa_conclusao
                 FROM agenda
-                WHERE usuario_id = $1
-            `, [usuarioId]);
+                WHERE usuario_id = $1 AND empresa_id = $2
+            `, [usuarioId, req.headers['x-empresa-id']]);
 
             const porTipo = await pool.query(`
                 SELECT tipo, COUNT(*) as total
                 FROM agenda
-                WHERE usuario_id = $1 AND created_at >= NOW() - INTERVAL '${intervalo}'
+                WHERE usuario_id = $1 AND empresa_id = $2 AND created_at >= NOW() - INTERVAL '${intervalo}'
                 GROUP BY tipo
                 ORDER BY total DESC
-            `, [usuarioId]);
+            `, [usuarioId, req.headers['x-empresa-id']]);
 
             res.json({
                 success: true,

@@ -51,7 +51,7 @@ const MONTH_NAMES = {
     9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
 };
 
-const MetasTab = ({ filters }) => {
+const MetasTab = ({ filters, refreshTrigger }) => {
     // Data States
     const [resumo, setResumo] = useState(null);
     const [metasPorMes, setMetasPorMes] = useState([]);
@@ -141,13 +141,14 @@ const MetasTab = ({ filters }) => {
         };
 
         fetchAllData();
-    }, [anoAtual, mesAtual, filters?.industria]);
+    }, [anoAtual, mesAtual, filters?.industria, refreshTrigger]);
 
     // Calculate additional KPIs
     const metasTotais = useMemo(() => {
-        const total = atingimento.reduce((acc, item) => acc + (parseFloat(item.meta_total) || 0), 0);
-        const realizado = atingimento.reduce((acc, item) => acc + (parseFloat(item.realizado_total) || 0), 0);
-        const atingidas = atingimento.filter(item => item.status === 'Acima' || parseFloat(item.percentual_atingimento) >= 100).length;
+        const atingimentoArray = Array.isArray(atingimento) ? atingimento : [];
+        const total = atingimentoArray.reduce((acc, item) => acc + (parseFloat(item.meta_total) || 0), 0);
+        const realizado = atingimentoArray.reduce((acc, item) => acc + (parseFloat(item.realizado_total) || 0), 0);
+        const atingidas = atingimentoArray.filter(item => item.status === 'Acima' || parseFloat(item.percentual_atingimento) >= 100).length;
         return { total, realizado, atingidas, percentual: total > 0 ? (realizado / total * 100) : 0 };
     }, [atingimento]);
 

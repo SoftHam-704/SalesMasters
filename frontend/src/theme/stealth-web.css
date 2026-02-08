@@ -1,0 +1,132 @@
+/* Premium Clean Tactical Theme - Focus on Clarity & Light Aesthetics */
+:root {
+    --web-bg: #f9fafb;
+    /* Slate 50 */
+    --web-surface: #ffffff;
+    --web-border: #e2e8f0;
+    /* Slate 200 */
+    --web-text-primary: #0f172a;
+    /* Slate 900 */
+    --web-text-secondary: #64748b;
+    /* Slate 500 */
+    --web-accent: #10b981;
+    /* Emerald 500 */
+    --web-alert: #f59e0b;
+    /* Amber 500 */
+    --web-brand: #3b82f6;
+    /* Blue 500 */
+}
+
+/* Base Utility Classes */
+.stealth-card {
+    background-color: var(--web-surface);
+    border: 1px solid var(--web-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.stealth-card:hover {
+    border-color: var(--web-brand);
+    box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.05), 0 8px 10px -6px rgba(59, 130, 246, 0.05);
+    transform: translateY(-2px);
+}
+
+.tactical-label {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--web-text-secondary);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* Light Table Style */
+.tactical-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tactical-table tr {
+    border-bottom: 1px solid var(--web-border);
+    background: transparent;
+    transition: background 0.2s ease;
+}
+
+.tactical-table tr:hover {
+    background: #f8fafc;
+}
+
+.tactical-table td,
+.tactical-table th {
+    padding: 16px;
+    color: var(--web-text-primary);
+    font-size: 13px;
+}
+
+.tactical-table th {
+    text-align: left;
+    color: var(--web-text-secondary) !important;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 12px;
+    background: #f1f5f9;
+}
+
+/* Input Styles - Light Premium */
+input.tactical-input-override,
+textarea.tactical-input-override,
+.bg-zinc-950 input,
+.bg-zinc-950 textarea {
+    background-color: #ffffff !important;
+    border: 1px solid var(--web-border) !important;
+    color: var(--web-text-primary) !important;
+    border-radius: 6px !important;
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+input.tactical-input-override:focus {
+    border-color: var(--web-brand) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Scrollbar Clean */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Overrides for containers that were forced to dark */
+.bg-zinc-950 {
+    background-color: var(--web-bg) !important;
+}
+
+.text-white {
+    color: var(--web-text-primary) !important;
+}
+
+.border-zinc-800,
+.border-zinc-900 {
+    border-color: var(--web-border) !important;
+}
+
+.bg-zinc-900 {
+    background-color: #f1f5f9 !important;
+}

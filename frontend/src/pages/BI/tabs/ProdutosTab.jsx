@@ -40,7 +40,7 @@ ChartJS.register(
 
 const API_URL = PYTHON_API_URL;
 
-const ProdutosTab = ({ filters }) => {
+const ProdutosTab = ({ filters, refreshTrigger }) => {
     // State
     const [loading, setLoading] = useState(false);
     const [rankingData, setRankingData] = useState([]);
@@ -112,7 +112,7 @@ const ProdutosTab = ({ filters }) => {
         };
 
         loadInitialData();
-    }, [filters.ano, metricMonth, filters.industria]);
+    }, [filters.ano, metricMonth, filters.industria, refreshTrigger]);
 
     // 2. Load Details when Product Selected
     useEffect(() => {

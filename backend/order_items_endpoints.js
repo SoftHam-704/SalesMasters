@@ -8,7 +8,7 @@ module.exports = function (app, pool) {
             const { pedPedido } = req.params;
             const query = `
                 SELECT * FROM itens_ped 
-                WHERE ite_pedido = $1 
+                WHERE TRIM(ite_pedido) = TRIM($1) 
                 ORDER BY ite_seq
             `;
             const result = await pool.query(query, [pedPedido]);
@@ -161,6 +161,50 @@ module.exports = function (app, pool) {
             if (items && items.length > 0) {
                 for (let i = 0; i < items.length; i++) {
                     const item = items[i];
+
+                    // 🛡️ Fallback: Tentar resolver ID do produto se vier nulo OU ZERO
+                    let resolvedIdProduto = item.ite_idproduto;
+                    // Considera inválido: null, undefined, 0, ''
+                    const isInvalidId = !resolvedIdProduto || resolvedIdProduto === 0 || resolvedIdProduto === '0';
+
+                    if (isInvalidId && item.ite_produto) {
+                        try {
+                            // Buscar primeiro pela indústria, depois global
+                            let lookupQuery = `
+                                SELECT pro_id FROM cad_prod 
+                                WHERE (pro_codprod = $1 OR pro_codigonormalizado = $1)
+                            `;
+                            const params = [item.ite_produto.toString().trim()];
+
+                            if (item.ite_industria) {
+                                lookupQuery += ` AND pro_industria = $2`;
+                                params.push(item.ite_industria);
+                            }
+                            lookupQuery += ` LIMIT 1`;
+
+                            let lookupResult = await client.query(lookupQuery, params);
+
+                            // Se não encontrou com indústria, tenta sem
+                            if (lookupResult.rows.length === 0 && item.ite_industria) {
+                                lookupResult = await client.query(
+                                    `SELECT pro_id FROM cad_prod WHERE pro_codprod = $1 OR pro_codigonormalizado = $1 LIMIT 1`,
+                                    [item.ite_produto.toString().trim()]
+                                );
+                            }
+
+                            if (lookupResult.rows.length > 0) {
+                                resolvedIdProduto = lookupResult.rows[0].pro_id;
+                                console.log(`🔄 [SYNC-RESOLVE] Backend resolveu ${item.ite_produto} -> ID ${resolvedIdProduto}`);
+                            } else {
+                                console.warn(`⚠️ [SYNC-RESOLVE] Produto não encontrado: ${item.ite_produto}`);
+                                resolvedIdProduto = null; // Mantém null se não encontrou
+                            }
+                        } catch (lookupErr) {
+                            console.warn(`⚠️ [SYNC-RESOLVE] Falha ao buscar produto ${item.ite_produto}:`, lookupErr.message);
+                            resolvedIdProduto = null;
+                        }
+                    }
+
                     const query = `
                         INSERT INTO itens_ped (
                             ite_pedido, ite_seq, ite_industria, ite_idproduto, ite_produto, ite_embuch, ite_nomeprod,
@@ -174,7 +218,7 @@ module.exports = function (app, pool) {
                         pedPedido,
                         item.ite_seq || (i + 1),
                         item.ite_industria || null,
-                        item.ite_idproduto || null,
+                        resolvedIdProduto,
                         item.ite_produto,
                         item.ite_embuch || '',
                         item.ite_nomeprod || '',
@@ -257,8 +301,8 @@ module.exports = function (app, pool) {
                     i.ite_st,
                     i.ite_valcomst
                 FROM itens_ped i
-                INNER JOIN pedidos p ON p.ped_pedido = i.ite_pedido
-                WHERE i.ite_produto = $1
+                INNER JOIN pedidos p ON TRIM(p.ped_pedido) = TRIM(i.ite_pedido)
+                WHERE TRIM(i.ite_produto) = TRIM($1)
                   AND p.ped_cliente = $2
                   AND p.ped_industria = $3
                   AND p.ped_situacao NOT IN ('E') -- Excluir pedidos excluídos
@@ -300,8 +344,8 @@ module.exports = function (app, pool) {
                     p.pro_grupo,
                     it.itab_grupodesconto
                 FROM cad_prod p
-                LEFT JOIN cad_itens_tabelapre it 
-                    ON it.itab_idproduto = p.pro_id 
+                LEFT JOIN cad_tabelaspre it 
+                    ON it.itab_idprod = p.pro_id 
                     AND it.itab_tabela = $1
                     AND it.itab_idindustria = $2
                 WHERE p.pro_codprod = ANY($3)

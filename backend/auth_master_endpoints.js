@@ -27,18 +27,21 @@ router.post('/master-login', async (req, res) => {
 
     try {
         const CNPJ_TESTE = '17504829000124';
+        const CNPJ_SOMA = '23929353000176';
         let empresa;
         let dbConfig;
 
         // 1. BUSCAR EMPRESA NO MASTER
         const isDev = process.env.NODE_ENV !== 'production';
 
+        // Usamos regexp_replace para comparar apenas os números do CNPJ no banco também
         const masterQuery = `
-            SELECT id, cnpj, razao_social, status, db_host, db_nome, db_schema, db_usuario, db_senha, db_porta, 
+            SELECT id, cnpj, razao_social, nome_fantasia, status, db_host, db_nome, db_schema, db_usuario, db_senha, db_porta, 
                    COALESCE(limite_sessoes, 999) as limite_sessoes, 
-                   COALESCE(bloqueio_ativo, 'N') as bloqueio_ativo
+                   COALESCE(bloqueio_ativo, 'N') as bloqueio_ativo,
+                   COALESCE(ios_enabled, 'N') as ios_enabled
             FROM empresas 
-            WHERE cnpj = $1 OR REPLACE(REPLACE(REPLACE(cnpj, '.', ''), '/', ''), '-', '') = $1
+            WHERE regexp_replace(cnpj, '[^0-9]', '', 'g') = $1 AND status = 'ATIVO'
         `;
         const masterResult = await masterPool.query(masterQuery, [rawCnpj]);
 
@@ -51,6 +54,7 @@ router.post('/master-login', async (req, res) => {
                 id: 1,
                 cnpj: CNPJ_TESTE,
                 razao_social: 'SOFTHAM SISTEMAS LTDA',
+                nome_fantasia: 'SoftHam Sistemas',
                 status: 'ATIVO',
                 db_host: 'localhost',
                 db_nome: 'basesales',
@@ -59,7 +63,8 @@ router.post('/master-login', async (req, res) => {
                 db_senha: '@12Pilabo',
                 db_porta: 5432,
                 limite_sessoes: 999,
-                bloqueio_ativo: 'N'
+                bloqueio_ativo: 'N',
+                ios_enabled: 'S'
             };
         }
 
@@ -112,10 +117,10 @@ router.post('/master-login', async (req, res) => {
         let userParams;
 
         if (email) {
-            userQuery = `SELECT * FROM usuarios WHERE email = $1 AND empresa_id = $2 AND senha = $3 AND ativo = true`;
+            userQuery = `SELECT * FROM usuarios WHERE email ILIKE $1 AND empresa_id = $2 AND senha = $3 AND ativo = true`;
             userParams = [email, empresa.id, password];
         } else {
-            userQuery = `SELECT * FROM usuarios WHERE nome = $1 AND sobrenome = $2 AND empresa_id = $3 AND senha = $4 AND ativo = true`;
+            userQuery = `SELECT * FROM usuarios WHERE nome ILIKE $1 AND sobrenome ILIKE $2 AND empresa_id = $3 AND senha = $4 AND ativo = true`;
             userParams = [nome, sobrenome, empresa.id, password];
         }
 
@@ -135,40 +140,68 @@ router.post('/master-login', async (req, res) => {
             };
 
             const tenantPool = getTenantPool(empresa.cnpj, dbConfig);
-            const tenantQuery = `
-                SELECT codigo as id, nome, sobrenome, usuario, master as e_admin, gerencia
-                FROM user_nomes
-                WHERE nome ILIKE $1 AND sobrenome ILIKE $2 AND senha = $3
-            `;
-            const tenantResult = await tenantPool.query(tenantQuery, [nome, sobrenome, password]);
+
+            // Força o schema correto para a busca do usuário
+            await tenantPool.query(`SET search_path TO "${dbConfig.schema}", public`);
+
+            let tenantQuery;
+            let tenantParams;
+
+            if (email) {
+                // Tenta buscar por email no tenant (alguns tenants podem ter coluna email em user_nomes ou similar)
+                // Se não existir a coluna email, esse fallback pode falhar, mas vamos tentar o padrão.
+                tenantQuery = `
+                    SELECT codigo as id, nome, sobrenome, usuario, master as e_admin, gerencia
+                    FROM user_nomes
+                    WHERE (usuario ILIKE $1 OR nome || ' ' || sobrenome ILIKE $1) AND senha = $2
+                `;
+                tenantParams = [email, password];
+            } else {
+                tenantQuery = `
+                    SELECT codigo as id, nome, sobrenome, usuario, master as e_admin, gerencia
+                    FROM user_nomes
+                    WHERE nome ILIKE $1 AND sobrenome ILIKE $2 AND senha = $3
+                `;
+                tenantParams = [nome, sobrenome, password];
+            }
+
+            const tenantResult = await tenantPool.query(tenantQuery, tenantParams);
 
             if (tenantResult.rows.length === 0) {
                 return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
             }
 
             const dbUser = tenantResult.rows[0];
-            const isHamilton = dbUser.nome && dbUser.nome.toLowerCase() === 'hamilton' && empresa.cnpj === CNPJ_TESTE;
+
+            // Hamilton Detection (Fallback Path)
+            const isHamilton = (dbUser.usuario && dbUser.usuario.toLowerCase().includes('hamilton')) ||
+                (dbUser.nome && dbUser.nome.toLowerCase().includes('hamilton')) ||
+                (email && email.toLowerCase() === 'hamilton@softham.com.br');
 
             return res.json({
                 success: true,
                 message: 'Login realizado (Fallback Tenant)',
                 user: {
                     id: dbUser.id,
+                    empresa_id: empresa.id,
                     nome: dbUser.nome,
                     sobrenome: dbUser.sobrenome,
-                    email: email || '',
+                    email: email || dbUser.usuario || '',
                     role: isHamilton ? 'superadmin' : (dbUser.e_admin ? 'admin' : (dbUser.gerencia ? 'manager' : 'user')),
-                    empresa: empresa.razao_social,
+                    empresa: empresa.nome_fantasia || empresa.razao_social,
                     cnpj: empresa.cnpj,
-                    biEnabled: empresa.bloqueio_ativo === 'S'
+                    biEnabled: empresa.bloqueio_ativo === 'S',
+                    ios_enabled: empresa.ios_enabled
                 },
                 tenantConfig: { cnpj: empresa.cnpj, dbConfig }
             });
         }
 
         const masterUser = userResult.rows[0];
+
+        // Hamilton Detection (Master Path) - More robust
         const isHamilton = (masterUser.email && masterUser.email.toLowerCase() === 'hamilton@softham.com.br') ||
-            (masterUser.nome && masterUser.nome.toLowerCase() === 'hamilton' && empresa.cnpj === CNPJ_TESTE);
+            (masterUser.nome && masterUser.nome.toLowerCase().includes('hamilton'));
 
         // --- CRIAR SESSÃO ATIVA ---
         const sessionToken = crypto.randomUUID();
@@ -196,13 +229,15 @@ router.post('/master-login', async (req, res) => {
             token: sessionToken,
             user: {
                 id: masterUser.id,
+                empresa_id: empresa.id,
                 nome: masterUser.nome,
                 sobrenome: masterUser.sobrenome,
                 email: masterUser.email,
                 role: isHamilton ? 'superadmin' : (masterUser.e_admin ? 'admin' : 'user'),
-                empresa: empresa.razao_social,
+                empresa: empresa.nome_fantasia || empresa.razao_social,
                 cnpj: empresa.cnpj,
-                biEnabled: empresa.bloqueio_ativo === 'S'
+                biEnabled: empresa.bloqueio_ativo === 'S',
+                ios_enabled: empresa.ios_enabled
             },
             tenantConfig: {
                 cnpj: empresa.cnpj,

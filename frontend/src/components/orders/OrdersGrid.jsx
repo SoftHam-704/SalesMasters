@@ -2,13 +2,29 @@ import './OrdersGrid.css';
 
 const getRowColor = (situacao) => {
     switch (situacao) {
+        case 'P': return 'row-pedido';                 // Azul
         case 'C': return 'row-cotacao-pendente';      // Vermelho
-        case 'A': return 'row-cotacao-confirmada';    // Azul
+        case 'A': return 'row-cotacao-confirmada';    // Azul Claro
         case 'F': return 'row-faturado';              // Verde
         case 'E': return 'row-excluido';              // Marrom
-        case 'G': return 'row-garantia';              // Laranja
+        case 'G': return 'row-garantia';              // Roxo
+        case 'B': return 'row-bonificacao';           // Laranja
         case 'N': return 'row-notificacao';           // Amarelo
-        default: return '';                            // Pedido (P)
+        default: return '';
+    }
+};
+
+const getSituacaoLabel = (situacao) => {
+    switch (situacao) {
+        case 'P': return 'PEDIDO';
+        case 'C': return 'COTAÇÃO PENDENTE';
+        case 'A': return 'COTAÇÃO CONFIRMADA';
+        case 'F': return 'FATURADO';
+        case 'E': return 'EXCLUÍDO';
+        case 'G': return 'GARANTIA';
+        case 'B': return 'BONIFICAÇÃO';
+        case 'N': return 'NOTIFICAÇÃO';
+        default: return situacao || 'PEDIDO';
     }
 };
 
@@ -82,7 +98,7 @@ export default function OrdersGrid({ orders, loading }) {
                             <td>{formatDate(order.ped_data)}</td>
                             <td>{order.cli_nomred}</td>
                             <td className="cell-cliente">{order.cli_razao}</td>
-                            <td className="cell-situacao">{order.ped_situacao}</td>
+                            <td className="cell-situacao">{getSituacaoLabel(order.ped_situacao)}</td>
                             <td className="cell-currency">{formatCurrency(order.ped_totbruto)}</td>
                             <td className="cell-currency">{formatCurrency(order.ped_totliq)}</td>
                             <td className="cell-currency">{formatCurrency(order.ped_totalipi)}</td>

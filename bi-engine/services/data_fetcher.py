@@ -1,67 +1,104 @@
-from functools import lru_cache
+"""
+Data Fetcher Service - Refatorado
+Cache simples em memória com TTL para evitar problemas de lru_cache com DataFrames.
+"""
+import time
 import pandas as pd
 from services.database import execute_query
+from utils.tenant_context import get_tenant_cnpj
 
-@lru_cache(maxsize=32)
-def fetch_faturamento_anual(ano: int) -> pd.DataFrame:
-    """
-    Busca dados de faturamento e quantidade para um ano específico, agrupados por mês.
-    Cacheado para evitar queries repetitivas.
-    """
-    print(f"--- DB HIT: Fetching Faturamento/Mac for {ano} ---", flush=True)
+# Simple in-memory cache with TTL (5 minutes)
+_cache = {}
+_CACHE_TTL = 300  # 5 minutos
+
+def _get_cache_key(prefix: str, tenant_id: str, *args) -> str:
+    """Gera chave única para o cache"""
+    return f"{prefix}_{tenant_id}_{'-'.join(str(a) for a in args)}"
+
+def _get_from_cache(key: str):
+    """Retorna dados do cache se não expirado"""
+    if key in _cache:
+        data, timestamp = _cache[key]
+        if time.time() - timestamp < _CACHE_TTL:
+            return data
+        else:
+            del _cache[key]
+    return None
+
+def _set_cache(key: str, data):
+    """Armazena dados no cache com timestamp"""
+    _cache[key] = (data.copy() if isinstance(data, pd.DataFrame) else data, time.time())
+
+# --- Fetch Functions ---
+
+def _fetch_faturamento_anual(ano: int, tenant_id: str) -> pd.DataFrame:
+    """Busca faturamento anual com cache"""
+    cache_key = _get_cache_key("faturamento", tenant_id, ano)
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached.copy()
+    
+    print(f"--- DB HIT: Fetching Faturamento for {ano} [Tenant: {tenant_id}] ---", flush=True)
     query = """
         SELECT 
             EXTRACT(MONTH FROM p.ped_data) as n_mes,
             SUM(i.ite_totliquido) as v_faturamento,
-            SUM(i.ite_quant) as q_quantidade
+            SUM(i.ite_quant) as q_quantidade,
+            COUNT(DISTINCT i.ite_idproduto) as u_unidades
         FROM pedidos p
-        INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+        INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
         WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
           AND p.ped_situacao IN ('P', 'F')
         GROUP BY 1
         ORDER BY 1
     """
     df = execute_query(query, {"ano": ano})
+    
+    # Só cachear se tiver dados
+    if not df.empty:
+        _set_cache(cache_key, df)
+    
     return df
 
-@lru_cache(maxsize=32)
-def fetch_metas_anuais(ano: int) -> pd.DataFrame:
-    """
-    Busca dados de metas para um ano específico.
-    Cacheado para performance.
-    """
-    print(f"--- DB HIT: Fetching Metas for {ano} ---")
+def _fetch_metas_anuais(ano: int, tenant_id: str) -> pd.DataFrame:
+    """Busca metas anuais com cache"""
+    cache_key = _get_cache_key("metas", tenant_id, ano)
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached.copy()
+    
+    print(f"--- DB HIT: Fetching Metas for {ano} [Tenant: {tenant_id}] ---", flush=True)
     query = """
         SELECT 
-            SUM(met_jan) as m1, SUM(met_fev) as m2, SUM(met_mar) as m3,
-            SUM(met_abr) as m4, SUM(met_mai) as m5, SUM(met_jun) as m6,
-            SUM(met_jul) as m7, SUM(met_ago) as m8, SUM(met_set) as m9,
-            SUM(met_out) as m10, SUM(met_nov) as m11, SUM(met_dez) as m12
+            SUM(met_jan) as met_jan, SUM(met_fev) as met_fev, SUM(met_mar) as met_mar,
+            SUM(met_abr) as met_abr, SUM(met_mai) as met_mai, SUM(met_jun) as met_jun,
+            SUM(met_jul) as met_jul, SUM(met_ago) as met_ago, SUM(met_set) as met_set,
+            SUM(met_out) as met_out, SUM(met_nov) as met_nov, SUM(met_dez) as met_dez
         FROM ind_metas
         WHERE met_ano = :ano
     """
     df = execute_query(query, {"ano": ano})
+    
+    if not df.empty:
+        _set_cache(cache_key, df)
+    
     return df
 
-def clear_cache():
-    """Limpa o cache das funções (útil para reload de dados)"""
-    fetch_faturamento_anual.cache_clear()
-    fetch_metas_anuais.cache_clear()
-
-@lru_cache(maxsize=32)
-def fetch_metas_progresso(ano: int) -> pd.DataFrame:
-    """
-    Busca o progresso de vendas x metas por indústria para todo o ano.
-    Retorna: [industria_nome, total_vendas, total_meta, percentual]
-    """
-    print(f"--- DB HIT: Fetching Metas Progress for {ano} ---", flush=True)
+def _fetch_metas_progresso(ano: int, tenant_id: str) -> pd.DataFrame:
+    """Busca progresso de metas por indústria com cache"""
+    cache_key = _get_cache_key("metas_progresso", tenant_id, ano)
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached.copy()
+    
+    print(f"--- DB HIT: Fetching Metas Progress for {ano} [Tenant: {tenant_id}] ---", flush=True)
     query = """
         WITH vendas_ano AS (
             SELECT 
                 p.ped_industria as industria_id,
                 SUM(i.ite_totliquido) as total_vendido
             FROM pedidos p
-            INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido
+            INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1
@@ -87,26 +124,63 @@ def fetch_metas_progresso(ano: int) -> pd.DataFrame:
         ORDER BY f.for_nomered
     """
     df = execute_query(query, {"ano": ano})
+    
+    if not df.empty:
+        _set_cache(cache_key, df)
+    
     return df
 
-@lru_cache(maxsize=1)
-def fetch_available_filters():
-    """
-    Busca todas as opções de filtros (Indústrias e Clientes).
-    """
-    print("--- DB HIT: Fetching Filter Options ---", flush=True)
+def _fetch_available_filters(tenant_id: str) -> dict:
+    """Busca filtros disponíveis com cache"""
+    cache_key = _get_cache_key("filters", tenant_id)
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        return cached
     
-    # 1. Industries
+    print(f"--- DB HIT: Fetching Filter Options [Tenant: {tenant_id}] ---", flush=True)
+    
     q_ind = "SELECT for_codigo, for_nomered FROM fornecedores ORDER BY for_nomered"
     df_ind = execute_query(q_ind)
     
-    # 2. Clients (Limit to 1000 or similar if needed? User wants dropdown. Let's send all, distinct)
-    # WARNING: Accessing full list of clients might be heavy. But typically 'Active' clients.
-    # For filter purposes, let's keep it simple.
     q_cli = "SELECT cli_codigo, cli_nomred FROM clientes ORDER BY cli_nomred"
     df_cli = execute_query(q_cli)
     
-    return {
+    q_vend = "SELECT ven_codigo, ven_nome FROM vendedores WHERE ven_nome IS NOT NULL ORDER BY ven_nome"
+    df_vend = execute_query(q_vend)
+    
+    result = {
         "industries": df_ind.to_dict('records') if not df_ind.empty else [],
-        "clients": df_cli.to_dict('records') if not df_cli.empty else []
+        "clients": df_cli.to_dict('records') if not df_cli.empty else [],
+        "vendedores": df_vend.to_dict('records') if not df_vend.empty else []
     }
+    
+    # Só cachear se tiver dados
+    if result["industries"]:
+        _set_cache(cache_key, result)
+    
+    return result
+
+# --- Public Functions ---
+
+def fetch_faturamento_anual(ano: int) -> pd.DataFrame:
+    tenant_id = get_tenant_cnpj() or "default"
+    return _fetch_faturamento_anual(ano, tenant_id)
+
+def fetch_metas_anuais(ano: int) -> pd.DataFrame:
+    tenant_id = get_tenant_cnpj() or "default"
+    return _fetch_metas_anuais(ano, tenant_id)
+
+def fetch_metas_progresso(ano: int) -> pd.DataFrame:
+    tenant_id = get_tenant_cnpj() or "default"
+    return _fetch_metas_progresso(ano, tenant_id)
+
+def fetch_available_filters():
+    tenant_id = get_tenant_cnpj() or "default"
+    return _fetch_available_filters(tenant_id)
+
+def clear_cache():
+    """Limpa todo o cache em memória"""
+    global _cache
+    print("--- CACHE CLEARED ---", flush=True)
+    _cache = {}
+

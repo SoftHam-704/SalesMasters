@@ -55,12 +55,13 @@ const BILayoutContent = () => {
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                    <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 p-1">
+                    <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 p-1 gap-1">
                         <select
                             value={filters.mes}
                             onChange={(e) => updateFilters({ mes: e.target.value })}
                             className="bg-transparent text-sm font-bold text-[#334155] border-none focus:ring-0 cursor-pointer py-1 pl-3 pr-8 outline-none"
                         >
+                            <option value="Todos">Todos os Meses</option>
                             {months.map(m => (
                                 <option key={m.value} value={m.value}>{m.label}</option>
                             ))}
@@ -75,6 +76,50 @@ const BILayoutContent = () => {
                                 <option key={y} value={y}>{y}</option>
                             ))}
                         </select>
+
+                        <div className="w-px bg-gray-200 my-1 mx-1"></div>
+
+                        {/* Date Range Picker */}
+                        <div className="flex items-center gap-1">
+                            <Calendar size={14} className="text-gray-400 ml-1" />
+                            <input
+                                type="date"
+                                value={filters.startDate}
+                                onChange={(e) => {
+                                    const newStart = e.target.value;
+                                    if (filters.endDate && newStart > filters.endDate) {
+                                        alert("A data inicial não pode ser maior que a data final.");
+                                        return;
+                                    }
+                                    updateFilters({ startDate: newStart });
+                                }}
+                                className="bg-transparent text-[11px] font-bold text-[#334155] border-none focus:ring-0 cursor-pointer py-1 px-1 outline-none"
+                            />
+                            <span className="text-gray-300 text-xs">→</span>
+                            <input
+                                type="date"
+                                value={filters.endDate}
+                                onChange={(e) => {
+                                    const newEnd = e.target.value;
+                                    if (filters.startDate && newEnd < filters.startDate) {
+                                        alert("A data final não pode ser menor que a data inicial.");
+                                        return;
+                                    }
+                                    updateFilters({ endDate: newEnd });
+                                }}
+                                className="bg-transparent text-[11px] font-bold text-[#334155] border-none focus:ring-0 cursor-pointer py-1 px-1 outline-none"
+                            />
+                            {(filters.startDate || filters.endDate) && (
+                                <button
+                                    onClick={() => updateFilters({ startDate: '', endDate: '' })}
+                                    className="text-[10px] text-red-500 font-bold hover:text-red-700 px-1"
+                                    title="Limpar período"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+
                         <button
                             onClick={handleRefresh}
                             disabled={loading}

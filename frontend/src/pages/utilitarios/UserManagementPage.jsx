@@ -26,7 +26,7 @@ import {
     ShieldAlert
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 import { getApiUrl, NODE_API_URL } from '@/utils/apiConfig';
 
 const UserManagementPage = () => {
@@ -654,7 +654,7 @@ const GroupModal = ({ isOpen, onClose, group, setGroup, onSave }) => {
                         <X size={20} />
                     </button>
                 </div>
-                <div className="p-8 space-y-6">
+                <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Código do Grupo</label>
                         <input
@@ -779,7 +779,7 @@ const UserModal = ({ isOpen, onClose, user, grupos, onSave }) => {
                     </button>
                 </div>
 
-                <div className="p-8 grid grid-cols-2 gap-6">
+                <div className="p-8 grid grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
                     <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Nome</label>
                         <input type="text" value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value.toUpperCase() })}

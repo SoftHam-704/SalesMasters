@@ -11,9 +11,9 @@ module.exports = (pool) => {
 
 
     // ============================================================================
-    // GET /api/price-tables - Listar todas as tabelas de preço disponíveis
+    // GET /api/price-tables/ - Listar todas as tabelas de preço disponíveis
     // ============================================================================
-    router.get('/price-tables', async (req, res) => {
+    router.get('/', async (req, res) => {
         try {
             const query = `
             SELECT DISTINCT 
@@ -48,9 +48,17 @@ module.exports = (pool) => {
     // ============================================================================
     // GET /api/price-tables/:industria - Listar tabelas de uma indústria
     // ============================================================================
-    router.get('/price-tables/:industria', async (req, res) => {
+    router.get('/:industria', async (req, res) => {
         try {
             const { industria } = req.params;
+
+            // DEBUG: Detectar chamadas incorretas (formato industria_tabela)
+            if (industria && (industria.includes('_') || industria.includes('&') || industria.includes('.'))) {
+                console.warn(`⚠️ [PRICE-TABLES] Chamada suspeita detectada! industria="${industria}"`);
+                console.warn(`⚠️ [PRICE-TABLES] O parâmetro deveria ser apenas o código numérico da indústria.`);
+                console.warn(`⚠️ [PRICE-TABLES] User-Agent: ${req.headers['user-agent']}`);
+                console.warn(`⚠️ [PRICE-TABLES] Referer: ${req.headers['referer'] || 'N/A'}`);
+            }
 
             const query = `
             SELECT DISTINCT 
@@ -83,7 +91,7 @@ module.exports = (pool) => {
     // ============================================================================
     // GET /api/price-tables/:industria/:tabela/products - Produtos de uma tabela
     // ============================================================================
-    router.get('/price-tables/:industria/:tabela/products', async (req, res) => {
+    router.get('/:industria/:tabela/products', async (req, res) => {
         try {
             const { industria, tabela } = req.params;
             const { page = 1, limit = 50 } = req.query;
@@ -131,23 +139,41 @@ module.exports = (pool) => {
     // ============================================================================
     // GET /api/price-tables/:industria/:tabela/products-full - TODA a tabela para memtable
     // ============================================================================
-    router.get('/price-tables/:industria/:tabela/products-full', async (req, res) => {
+    router.get('/:industria/:tabela/products-full', async (req, res) => {
+        console.log(`🚀 [PRODUCTS-FULL] Request recebido: ${req.method} ${req.originalUrl}`);
         try {
-            const { industria, tabela } = req.params;
+            let { industria, tabela } = req.params;
 
-            console.log(`📋 [MEMTABLE] Carregando tabela completa: Indústria=${industria}, Tabela=${tabela}`);
+            console.log(`📋 [MEMTABLE] Request recebido: Indústria=${industria}, Tabela="${tabela}", query.tabela="${req.query.tabela}"`);
+            console.log(`📋 [MEMTABLE] Full URL: ${req.originalUrl}`);
 
+            // Suporte a passar tabela via query parameter (para evitar problemas com barras / na URL)
+            if (req.query.tabela) {
+                tabela = req.query.tabela;
+            }
+
+            // console.log(`📋 [MEMTABLE] Carregando tabela completa: Indústria=${industria}, Tabela="${tabela}"`);
+
+            // Usar a função que foi corrigida para usar itab_idindustria
+            // Incluindo p.pro_id para que o frontend tenha o ID do produto
+            // Incluindo p.pro_peso e p.pro_mult para lógica de preço por peso/quantidade
             const query = `
-            SELECT * 
-            FROM vw_produtos_precos
-            WHERE pro_industria = $1 
-              AND itab_tabela = $2
-            ORDER BY pro_nome
-        `;
+                SELECT f.*, 
+                       p.pro_id,
+                       p.pro_codigonormalizado, 
+                       p.pro_nome as pro_nome_prod,
+                       p.pro_codprod,
+                       p.pro_peso,
+                       p.pro_conversao,
+                       p.pro_codigooriginal
+                FROM fn_listar_produtos_tabela($1::integer, $2::text) f
+                LEFT JOIN cad_prod p ON f.itab_idprod = p.pro_id
+                ORDER BY f.pro_nome
+            `;
 
             const result = await pool.query(query, [industria, tabela]);
 
-            console.log(`📋 [MEMTABLE] Carregados ${result.rows.length} produtos`);
+            // console.log(`📋 [MEMTABLE] Carregados ${result.rows.length} produtos`);
 
             res.json({
                 success: true,
@@ -166,7 +192,7 @@ module.exports = (pool) => {
     // ============================================================================
     // POST /api/price-tables/import - Importar tabela de preço
     // ============================================================================
-    router.post('/price-tables/import', async (req, res) => {
+    router.post('/import', async (req, res) => {
         try {
             const {
                 industria,
@@ -202,7 +228,7 @@ module.exports = (pool) => {
                         // 1. UPSERT do produto (dados fixos)
                         // Casting explícito para garantir tipos no Postgres
                         const upsertProdutoResult = await client.query(
-                            `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                            `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                             [
                                 Number(industria),
                                 produto.codigo,
@@ -215,11 +241,82 @@ module.exports = (pool) => {
                                 produto.ncm || null,
                                 produto.origem || null,
                                 produto.aplicacao || null,
-                                produto.codbarras || null
+                                produto.codbarras || null,
+                                produto.conversao || null
                             ]
                         );
 
                         const proId = upsertProdutoResult.rows[0].fn_upsert_produto;
+
+                        // =================================================================================
+                        // LOGICA DE SEGMENTAÇÃO AUTOMÁTICA (MULTI-LABEL)
+                        // =================================================================================
+                        const categoryText = (produto.categoria || '').toUpperCase();
+
+                        if (categoryText) {
+                            const flags = {
+                                pro_linhaleve: false,
+                                pro_linhapesada: false,
+                                pro_linhaagricola: false,
+                                pro_linhautilitarios: false,
+                                pro_motocicletas: false,
+                                pro_offroad: false
+                            };
+
+                            // 1. LINHA LEVE
+                            if (categoryText.includes("LEVE") || categoryText.includes("PASSEIO") || categoryText.includes("AUTO")) {
+                                flags.pro_linhaleve = true;
+                            }
+                            // 2. LINHA PESADA
+                            if (categoryText.includes("PESAD") || categoryText.includes("CAMINHAO") || categoryText.includes("TRUCK") || categoryText.includes("CARRETA")) {
+                                flags.pro_linhapesada = true;
+                            }
+                            // 3. AGRÍCOLA
+                            if (categoryText.includes("AGR") || categoryText.includes("TRATOR") || categoryText.includes("RURAL")) {
+                                flags.pro_linhaagricola = true;
+                            }
+                            // 4. UTILITÁRIOS
+                            if (categoryText.includes("UTIL") || categoryText.includes("VANS") || categoryText.includes("PICK") || categoryText.includes("CAMIONETE")) {
+                                flags.pro_linhautilitarios = true;
+                            }
+                            // 5. MOTOS
+                            if (categoryText.includes("MOTO") || categoryText.includes("DUAS RODAS")) {
+                                flags.pro_motocicletas = true;
+                            }
+                            // 6. OFF-ROAD
+                            if (categoryText.includes("OFF") || categoryText.includes("TRILHA") || categoryText.includes("CROSS")) {
+                                flags.pro_offroad = true;
+                            }
+                            // 7. UNIVERSAL
+                            if (categoryText.includes("UNIVERSAL")) {
+                                flags.pro_linhaleve = true;
+                                flags.pro_linhapesada = true;
+                                flags.pro_linhaagricola = true;
+                                flags.pro_linhautilitarios = true;
+                            }
+
+                            if (Object.values(flags).some(v => v === true)) {
+                                await client.query(`
+                                    UPDATE cad_prod SET
+                                        pro_linhaleve = CASE WHEN $2 = true THEN true ELSE pro_linhaleve END,
+                                        pro_linhapesada = CASE WHEN $3 = true THEN true ELSE pro_linhapesada END,
+                                        pro_linhaagricola = CASE WHEN $4 = true THEN true ELSE pro_linhaagricola END,
+                                        pro_linhautilitarios = CASE WHEN $5 = true THEN true ELSE pro_linhautilitarios END,
+                                        pro_motocicletas = CASE WHEN $6 = true THEN true ELSE pro_motocicletas END,
+                                        pro_offroad = CASE WHEN $7 = true THEN true ELSE pro_offroad END
+                                    WHERE pro_id = $1
+                                `, [
+                                    proId,
+                                    flags.pro_linhaleve,
+                                    flags.pro_linhapesada,
+                                    flags.pro_linhaagricola,
+                                    flags.pro_linhautilitarios,
+                                    flags.pro_motocicletas,
+                                    flags.pro_offroad
+                                ]);
+                            }
+                        }
+                        // =================================================================================
 
                         // Verificar se é novo ou atualizado (opcional, apenas para o resumo informativo)
                         const checkExisting = await client.query(
@@ -239,7 +336,7 @@ module.exports = (pool) => {
                         const grupoDescontoFinal = grupoDeDescontoValue ? Number(grupoDeDescontoValue) : null;
 
                         await client.query(
-                            `SELECT fn_upsert_preco($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+                            `SELECT fn_upsert_preco($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                             [
                                 Number(proId),
                                 Number(industria),
@@ -252,7 +349,8 @@ module.exports = (pool) => {
                                 grupoDescontoFinal,
                                 Number(produto.descontoadd || 0),
                                 dataTabela || new Date(),
-                                dataVencimento || null
+                                dataVencimento || null,
+                                Number(produto.prepeso || 0)
                             ]
                         );
 
@@ -343,7 +441,7 @@ module.exports = (pool) => {
     // ============================================================================
     // DELETE /api/price-tables/:industria/:tabela - Deletar tabela de preço
     // ============================================================================
-    router.delete('/price-tables/:industria/:tabela', async (req, res) => {
+    router.delete('/:industria/:tabela', async (req, res) => {
         try {
             const { industria, tabela } = req.params;
 
@@ -385,7 +483,7 @@ module.exports = (pool) => {
                 `UPDATE cad_tabelaspre 
                  SET itab_descontoadd = 0 
                  WHERE itab_idprod = $1 
-                   AND itab_idindustria = $2 
+                   AND itab_industria = $2 
                    AND itab_tabela = $3 
                  RETURNING *`,
                 [productId, industria, tabela]

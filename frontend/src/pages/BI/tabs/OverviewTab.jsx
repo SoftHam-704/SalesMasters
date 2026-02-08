@@ -20,7 +20,7 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('pt-BR').format(value || 0);
 };
 
-const OverviewTab = ({ filters }) => {
+const OverviewTab = ({ filters, refreshTrigger }) => {
     const [metrics, setMetrics] = useState(null);
     const [loading, setLoading] = useState(false);
     const [industries, setIndustries] = useState([]);
@@ -38,8 +38,10 @@ const OverviewTab = ({ filters }) => {
             try {
                 const params = {
                     ano: filters.ano,
-                    mes: MONTHS_MAP[filters.mes] || 'Todos',
-                    industria: selectedIndustry?.codigo || null
+                    mes: filters.mes,
+                    industria: selectedIndustry?.codigo || null,
+                    startDate: filters.startDate,
+                    endDate: filters.endDate
                 };
 
                 const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/summary');
@@ -56,7 +58,7 @@ const OverviewTab = ({ filters }) => {
         };
 
         fetchMetrics();
-    }, [filters.ano, filters.mes, selectedIndustry]);
+    }, [filters.ano, filters.mes, filters.startDate, filters.endDate, selectedIndustry, refreshTrigger]);
 
     // Fetch Top Industries for Bubble Chart
     useEffect(() => {
@@ -64,8 +66,10 @@ const OverviewTab = ({ filters }) => {
             try {
                 const params = {
                     ano: filters.ano,
-                    mes: MONTHS_MAP[filters.mes] || 'Todos',
-                    metrica: filters.metrica
+                    mes: filters.mes,
+                    metrica: filters.metrica,
+                    startDate: filters.startDate,
+                    endDate: filters.endDate
                 };
 
                 const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/top-industries');
@@ -80,7 +84,7 @@ const OverviewTab = ({ filters }) => {
         };
 
         fetchIndustries();
-    }, [filters.ano, filters.mes, filters.metrica]);
+    }, [filters.ano, filters.mes, filters.metrica, filters.startDate, filters.endDate, refreshTrigger]);
 
     // Fetch Goals Scroller Data
     useEffect(() => {
@@ -142,7 +146,7 @@ const OverviewTab = ({ filters }) => {
         };
 
         fetchDashboardData();
-    }, [filters.ano, filters.metrica, selectedIndustry]);
+    }, [filters.ano, filters.metrica, selectedIndustry, refreshTrigger]);
 
     return (
         <div className="h-full overflow-y-auto p-5 scroll-smooth" id="central-panel-scroll">

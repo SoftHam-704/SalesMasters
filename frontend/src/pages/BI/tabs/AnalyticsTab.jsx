@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../../../utils/formatters';
 import PortfolioAnalysis from '../PortfolioAnalysis';
-import InsightsCard from '../../../components/InsightsCard';
+// import InsightsCard from '../../../components/InsightsCard';
 import PriorityActions from '../../../components/PriorityActions';
 import CommercialEfficiency from '../../../components/CommercialEfficiency';
 import CustomerComparison from '../../../components/CustomerComparison';
+import ValueQuantityAnomaly from '../../../components/ValueQuantityAnomaly';
 import { PYTHON_API_URL, getApiUrl } from '../../../utils/apiConfig';
 
 // Mapping months to numeric strings for API calls
@@ -31,7 +32,7 @@ const MONTHS_MAP = {
     'Dezembro': '12'
 };
 
-const AnalyticsTab = ({ filters }) => {
+const AnalyticsTab = ({ filters, refreshTrigger }) => {
     // UI States - viewMode removed as per request
 
     // Data States
@@ -58,13 +59,17 @@ const AnalyticsTab = ({ filters }) => {
 
         const fetchData = async () => {
             setLoading(true);
+            // Reset states but keep advancedInsights if they are from the same context (optional, but safer to reset for now)
+            // setAdvancedInsights([]); 
             try {
                 const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/analytics/full-tab');
                 const res = await axios.get(url, {
                     params: {
                         ano: filters.ano,
                         mes: filters.mes,
-                        industryId: filters.industria === 'Todos' ? null : filters.industria
+                        industryId: filters.industria === 'Todos' ? null : filters.industria,
+                        startDate: filters.startDate,
+                        endDate: filters.endDate
                     }
                 });
 
@@ -74,7 +79,7 @@ const AnalyticsTab = ({ filters }) => {
                 setKpis(data.kpis || {});
                 setAbcData(data.portfolio_abc || []);
                 setClientVariations(data.client_variations || []);
-                setAdvancedInsights(data.advanced_insights || []);
+                // setAdvancedInsights(data.advanced_insights || []); // Now fetched separately
 
                 // Fetch filter options separately if needed, but for now we focus on analytics
                 const filtersUrl = getApiUrl(PYTHON_API_URL, '/api/dashboard/filters-options');
@@ -88,7 +93,40 @@ const AnalyticsTab = ({ filters }) => {
         };
 
         fetchData();
-    }, [filters.ano, filters.mes, filters.industria]);
+    }, [filters.ano, filters.mes, filters.industria, filters.startDate, filters.endDate, refreshTrigger]);
+
+    // Separate Effect for AI Insights (Non-blocking)
+    useEffect(() => {
+        if (!filters || !filters.ano) return;
+
+        const fetchInsights = async () => {
+            // Don't show global loading indicator for this background task
+            try {
+                const url = getApiUrl(PYTHON_API_URL, '/api/dashboard/analytics/ai-alerts');
+                const res = await axios.get(url, {
+                    params: {
+                        ano: filters.ano,
+                        mes: filters.mes,
+                        industryId: filters.industria === 'Todos' ? null : filters.industria,
+                        startDate: filters.startDate,
+                        endDate: filters.endDate
+                    }
+                });
+                // AI Insights fetching logic removed to be replaced by new implementation
+                /*
+                if (res.data && Array.isArray(res.data)) {
+                    setAdvancedInsights(res.data);
+                }
+                */
+            } catch (error) {
+                console.error("[AnalyticsTab] Error fetching AI insights:", error);
+                // Fallback or empty state
+            }
+        };
+
+        setAdvancedInsights([]); // Clear previous insights while loading new ones
+        fetchInsights();
+    }, [filters.ano, filters.mes, filters.industria, filters.startDate, filters.endDate, refreshTrigger]);
 
     const handleCompare = async () => {
         if (!refClientId || !targetClientId) return;
@@ -105,7 +143,7 @@ const AnalyticsTab = ({ filters }) => {
             setCompLoading(false);
         }
     };
-    const totalCatalogItems = abcData.reduce((acc, curr) => acc + curr.qtd_itens, 0);
+    const totalCatalogItems = (Array.isArray(abcData) ? abcData : []).reduce((acc, curr) => acc + (curr?.qtd_itens || 0), 0);
 
     if (loading) return (
         <div className="p-10 text-center flex flex-col items-center gap-4">
@@ -116,122 +154,27 @@ const AnalyticsTab = ({ filters }) => {
 
     return (
         <div className="p-0 overflow-y-auto h-full pb-20 bg-slate-50">
-            {/* TOP SUMMARY SECTION: ALERTS & KPIs SIDE-BY-SIDE */}
             <div className="px-6 py-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    {/* 1. RISK ANALYSIS (Critical Alerts) - Restored */}
-                    <div className="lg:col-span-1 bg-[#fffbeb] rounded-xl shadow-sm border border-amber-100 p-6 flex flex-col h-full">
-                        <div className="flex items-center gap-3 mb-6">
-                            <AlertTriangle className="text-amber-600 font-bold" size={20} />
-                            <h2 className="text-[12px] font-black text-amber-900 uppercase tracking-widest">
-                                ANÁLISES DE RISCO
-                            </h2>
-                        </div>
-
-                        <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px]">
-                            {advancedInsights.map((insight, idx) => (
-                                <div key={idx} className="bg-white rounded-lg p-4 flex items-center gap-4 shadow-sm border-l-4 border-amber-500 transition-all hover:bg-slate-50">
-                                    <div className="flex-1">
-                                        <h4 className="font-bold text-[14px] text-[#4d2c00] leading-tight">
-                                            {insight.title}
-                                        </h4>
-                                        <p className="text-[11px] text-slate-500 mt-0.5 font-medium italic">{insight.subtitle}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* 2. KPI CARDS (Middle Column) */}
-                    <div className="lg:col-span-1">
-                        <div className="grid grid-cols-2 gap-4 h-full">
-                            <DetailedMetricCard
-                                label={filters.mes === 'Todos' ? 'Valor Vendido' : `Valor Vendido (${filters.mes})`}
-                                value={kpis?.valor_total || 0}
-                                target={kpis?.meta_valor_total || 0}
-                                leftColor="bg-slate-800"
-                            />
-                            <DetailedMetricCard
-                                label={filters.mes === 'Todos' ? 'Nº de Pedidos' : `Nº de Pedidos (${filters.mes})`}
-                                value={kpis?.qtd_pedidos || 0}
-                                target={kpis?.meta_qtd_pedidos || 0}
-                                infoTooltip="Meta: +15% sobre o período anterior"
-                                formatValue={formatNumber}
-                                leftColor="bg-slate-800"
-                            />
-                            <DetailedMetricCard
-                                label="Ticket Médio"
-                                value={kpis?.ticket_medio || 0}
-                                target={kpis?.meta_ticket_medio || 0}
-                                footerExplanation="Meta proj. sobre período anterior + 15%"
-                                leftColor="bg-slate-800"
-                            />
-                            <DetailedMetricCard
-                                label="Clientes Ativos"
-                                value={kpis?.clientes_ativos || 0}
-                                target={kpis?.meta_clientes_ativos || 0}
-                                formatValue={formatNumber}
-                                footerExplanation="Meta proj. sobre período anterior + 15%"
-                                leftColor="bg-slate-800"
-                            />
-                        </div>
-                    </div>
-
-                    {/* 3. INSIGHTS CARD (Right Column) */}
-                    <div className="lg:col-span-1 h-full">
-                        <InsightsCard ano={filters.ano} industryId={filters.industria?.codigo} />
-                    </div>
+                {/* 1. TOP SECTION: PRIORITY ACTIONS & EFFICIENCY (Split into 2 columns) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <PriorityActions filters={filters} refreshTrigger={refreshTrigger} />
+                    <CommercialEfficiency filters={filters} refreshTrigger={refreshTrigger} />
                 </div>
 
-                {/* 3. MAIN CONTENT GRID */}
+                {/* 2. MAIN CONTENT GRID: CUSTOMER COMPARISON & EVOLUTION MAP */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* LEFT COLUMN (2/3) */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* PORTFOLIO ABC ANALYSIS */}
-                        <div className="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
-                            <div className="flex items-center justify-between mb-8">
-                                <h3 className="text-base font-black text-slate-800 flex items-center gap-3">
-                                    <BarChart2 className="text-emerald-500" size={24} />
-                                    PORTFÓLIO DA INDÚSTRIA: ANALISE DE CURVA ABC
-                                </h3>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-                                    {totalCatalogItems} ITENS CATALOGADOS
-                                </div>
-                            </div>
-
-                            {filters.industria === 'Todos' ? (
-                                <div className="py-20 flex flex-col items-center text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                    <div className="p-4 bg-amber-100 text-amber-600 rounded-full mb-4 animate-pulse">
-                                        <AlertTriangle size={32} />
-                                    </div>
-                                    <h4 className="text-slate-800 font-bold text-lg mb-2">INDÚSTRIA NÃO SELECIONADA</h4>
-                                    <p className="max-w-xs text-slate-500 text-sm font-medium leading-relaxed">
-                                        Selecione uma indústria específica nos filtros acima para gerar o cálculo dinâmico da Curva ABC.
-                                    </p>
-                                </div>
-                            ) : (
-                                <PortfolioAnalysis filters={filters} />
-                            )}
-                        </div>
-
-                        {/* CLIENT COMPARISON TABLE - Now using new component */}
+                    {/* LEFT COLUMN (2/3) - CUSTOMER COMPARISON */}
+                    <div className="lg:col-span-2">
                         <CustomerComparison ano={parseInt(filters?.ano) || 2025} />
                     </div>
 
-                    {/* RIGHT COLUMN (1/3) */}
-                    <div className="space-y-8">
-                        {/* DISCOVERIES CARD (AI) */}
-                        {/* RIGHT COLUMN (1/3) */}
-
-                        {/* PRIORITY ACTIONS CARD - Now using new component */}
-                        <PriorityActions />
-
-                        {/* EFFICIENCY STATISTICS - Now using new component */}
-                        <CommercialEfficiency />
+                    {/* RIGHT COLUMN (1/3) - EVOLUTION MAP (YoY Matrix) */}
+                    <div className="lg:col-span-1">
+                        <ValueQuantityAnomaly filters={filters} refreshTrigger={refreshTrigger} />
                     </div>
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 };
 

@@ -1,200 +1,182 @@
 import * as XLSX from 'xlsx';
 
 /**
- * Export order data to Excel file
- * @param {Object} order - Order header data
- * @param {Array} items - Order items
+ * Formata data corrigindo o problema de fuso horário (UTC paridade com PDF)
  */
-export function exportOrderToExcel(order, items) {
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
+const formatDate = (dateString) => {
+    if (!dateString) return '—';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    } catch {
+        return dateString;
+    }
+};
 
-    // Build the data array for the worksheet
+/**
+ * Formata valores numéricos para padrão BRL (Opcional para Excel, melhor manter número puro e formatar a célula)
+ * mas para AOAs, números puros são melhores para cálculos posteriores no Excel.
+ */
+const r2 = (v) => Math.round((parseFloat(v) || 0) * 100) / 100;
+
+/**
+ * Constrói texto de descontos compostos do pedido (Header)
+ */
+const getOrderDiscountText = (order) => {
+    const discs = [];
+    for (let i = 1; i <= 10; i++) {
+        const val = parseFloat(order[`ped_desc${i}`]);
+        if (val > 0) discs.push(`${val.toFixed(2)}%`);
+    }
+    return discs.length > 0 ? discs.join(' + ') : '0.00%';
+};
+
+/**
+ * Lógica comum para construir o conteúdo da planilha
+ */
+function buildWsData(order, items) {
     const wsData = [];
 
-    // Row 1: Empty
+    // Título Principal
+    wsData.push(['RELATÓRIO DE PEDIDO - SALESMASTERS']);
+    wsData.push(['Gerado em:', new Date().toLocaleString('pt-BR')]);
     wsData.push([]);
 
-    // Row 2: Pedido Nr (label)
-    wsData.push(['Pedido Nr:']);
+    // Identificação da Indústria
+    wsData.push(['INDUSTRIA / FORNECEDOR']);
+    wsData.push(['Nome:', order.for_nome || order.for_nomered || '—']);
+    wsData.push([]);
 
-    // Row 3: Pedido Nº, value, Ped.Cliente:, value, Data:, date
+    // Dados Cabeçalho do Pedido
+    wsData.push(['DADOS DO PEDIDO']);
+    wsData.push(['Nº Pedido:', order.ped_pedido || '—', '', 'Data Emissão:', formatDate(order.ped_data)]);
+    wsData.push(['Pedido Cliente:', order.ped_cliind || '—', '', 'Situação:', order.ped_situacao === 'P' ? 'Pendente' : order.ped_situacao]);
+    wsData.push(['Vendedor:', order.ven_nome || '—', '', 'Fone Vendedor:', order.ven_fone1 || '—']);
+    wsData.push(['Descontos do Pedido:', getOrderDiscountText(order)]);
+    wsData.push([]);
+
+    // Dados do Cliente
+    wsData.push(['DADOS DO CLIENTE']);
+    wsData.push(['Razão Social:', order.cli_nome || '—']);
+    wsData.push(['CNPJ/CPF:', order.cli_cnpj || '—', '', 'Insc. Est.:', order.cli_inscricao || '—']);
+    wsData.push(['Endereço:', `${order.cli_endereco || ''}, ${order.cli_numero || ''}`]);
+    wsData.push(['Bairro:', order.cli_bairro || '—', '', 'Cidade/UF:', `${order.cli_cidade || ''} / ${order.cli_uf || ''}`]);
+    wsData.push(['Comprador:', order.ped_comprador || '—', '', 'Telefone:', order.cli_fone1 || '—']);
+    wsData.push([]);
+
+    // Condições Comerciais
+    wsData.push(['CONDIÇÕES E LOGÍSTICA']);
+    wsData.push(['Cond. Pagamento:', order.ped_condpag || '—']);
+    wsData.push(['Transportadora:', order.tra_nome || '—', '', 'Frete:', order.ped_tipofrete === 'F' ? 'FOB' : 'CIF']);
+    wsData.push([]);
+
+    // Cabeçalho da Tabela de Itens
+    wsData.push(['ITENS DO PEDIDO']);
     wsData.push([
-        'Pedido Nº:', order.ped_pedido || '',
-        '', '',
-        'Ped.Cliente:', order.ped_nffat || '',
-        '', '',
-        'Data:', formatDate(order.ped_data)
+        'CÓDIGO',
+        'DESCRIÇÃO',
+        'UNID',
+        'REF. ORIGINAL',
+        'QTD',
+        'PREÇO BRUTO',
+        'PREÇO LÍQUIDO',
+        'TOTAL LÍQUIDO',
+        'IPI %',
+        'VALOR IPI',
+        'VALOR ST',
+        'TOTAL C/ IMPOSTOS'
     ]);
 
-    // Row 4: Cliente
-    wsData.push([
-        'Cliente:', order.cli_nome || ''
-    ]);
-
-    // Row 5: Endereço
-    wsData.push([
-        'Endereço:', `${order.cli_endereco || ''} Bairro.: ${order.cli_bairro || ''}`,
-        '', '', '', '',
-        'Cidade/UF:', `${order.cli_cidade || ''} / ${order.cli_uf || ''}`,
-        '', '',
-        'CEP:', order.cli_cep || ''
-    ]);
-
-    // Row 6: CNPJ
-    wsData.push([
-        'CNPJ:', order.cli_cnpj || '',
-        '', '',
-        'INSCRIÇÃO:', order.cli_inscricao || '',
-        '', '',
-        'Telefone:', order.cli_fone1 || ''
-    ]);
-
-    // Row 7: Nº Itens
-    wsData.push([
-        'Nº Itens:', items.length
-    ]);
-
-    // Row 8: Condições
-    wsData.push([
-        'Condições:', order.ped_condpag || ''
-    ]);
-
-    // Row 9: Transportadora
-    wsData.push([
-        'Transportadora:', order.tra_nome || '',
-        '', '',
-        'Telefone:', order.tra_fone || '',
-        '', '',
-        'FRETE:', order.ped_tipofrete === 'F' ? 'FOB' : 'CIF'
-    ]);
-
-    // Row 10: Desconto aplicado
-    const discountText = buildDiscountText(items[0]);
-    wsData.push([
-        `Desconto aplicado itens abaixo: ${discountText}`
-    ]);
-
-    // Row 11: Headers
-    wsData.push([
-        'CÓDIGO', 'DESCRIÇÃO', 'ITEM', 'COMPLEMENTO',
-        'QTD.', 'PREÇO BRUTO', 'PREÇO LÍQUIDO', 'TOTAL LÍQUIDO',
-        'IPI %', 'UNIT. COM IPI', 'TOTAL COM IPI',
-        'ST %', 'UNIT COM IPIST', 'TOTAL COM IMPOSTOS'
-    ]);
-
-    // Helper to round to 2 decimal places
-    const r2 = (v) => Math.round((parseFloat(v) || 0) * 100) / 100;
-
-    // Data rows
-    items.forEach((item, index) => {
-        const ipiPercent = r2(item.ite_ipi);
-        const stPercent = r2(item.ite_st);
-        const precoLiquido = r2(item.ite_puniliq);
-        const precoBruto = r2(item.ite_puni);
-        const totalLiquido = r2(item.ite_totliquido);
-        const unitComIpi = r2(precoLiquido * (1 + ipiPercent / 100));
-        const totalComIpi = r2(totalLiquido * (1 + ipiPercent / 100));
-        const unitComIpiSt = r2(precoLiquido * (1 + (ipiPercent + stPercent) / 100));
-        const totalComImpostos = r2(totalLiquido + (parseFloat(item.ite_valipi) || 0) + (parseFloat(item.ite_valst) || 0));
+    items.forEach((item) => {
+        const liq = parseFloat(item.ite_totliquido) || 0;
+        const ipiVal = parseFloat(item.ite_valipi) || 0;
+        const stVal = parseFloat(item.ite_valst) || 0;
+        const totalComImp = liq + ipiVal + stVal;
 
         wsData.push([
             item.ite_produto || '',
             item.ite_nomeprod || '',
             item.ite_embuch || '',
-            item.ite_embuch || '',
-            parseInt(item.ite_quant) || 0,
-            precoBruto,
-            precoLiquido,
-            totalLiquido,
-            ipiPercent,
-            unitComIpi,
-            totalComIpi,
-            stPercent,
-            unitComIpiSt,
-            totalComImpostos
+            item.pro_codigooriginal || '',
+            parseFloat(item.ite_quant) || 0,
+            r2(item.ite_puni),
+            r2(item.ite_puniliq),
+            r2(liq),
+            r2(item.ite_ipi),
+            r2(ipiVal),
+            r2(stVal),
+            r2(totalComImp)
         ]);
     });
 
-    // Empty row
     wsData.push([]);
 
-    // Footer row with totals
-    const totalBruto = r2(items.reduce((acc, item) => acc + (parseFloat(item.ite_totbruto) || 0), 0));
-    const totalLiquido = r2(items.reduce((acc, item) => acc + (parseFloat(item.ite_totliquido) || 0), 0));
-    const totalQtd = items.reduce((acc, item) => acc + (parseInt(item.ite_quant) || 0), 0);
-    const totalComImpostos = r2(items.reduce((acc, item) =>
-        acc + (parseFloat(item.ite_totliquido) || 0) + (parseFloat(item.ite_valipi) || 0) + (parseFloat(item.ite_valst) || 0), 0));
+    // Totais Finais
+    const sumLiq = items.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
+    const sumQtd = items.reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
+    const sumIpi = items.reduce((acc, it) => acc + (parseFloat(it.ite_valipi) || 0), 0);
+    const sumSt = items.reduce((acc, it) => acc + (parseFloat(it.ite_valst) || 0), 0);
+    const sumTotal = sumLiq + sumIpi + sumSt;
 
-    wsData.push([
-        '', '', '', '',
-        totalQtd, '', '',
-        'Total líquido:', totalLiquido, '', '', '', '', totalComImpostos
-    ]);
+    wsData.push(['', '', '', 'TOTAIS:', sumQtd, '', '', r2(sumLiq), '', r2(sumIpi), r2(sumSt), r2(sumTotal)]);
+    wsData.push([]);
+    wsData.push(['OBSERVAÇÕES']);
+    wsData.push([order.ped_obs || '—']);
 
-    // Observations row
-    wsData.push(['Observações:', order.ped_obs || '']);
+    return wsData;
+}
 
-    // Create worksheet
+/**
+ * Export order data to Excel file for Download
+ */
+export function exportOrderToExcel(order, items) {
+    const wb = XLSX.utils.book_new();
+    const wsData = buildWsData(order, items);
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Set column widths
+    // Ajuste de colunas
     ws['!cols'] = [
-        { wch: 12 },  // A - CÓDIGO
-        { wch: 35 },  // B - DESCRIÇÃO
-        { wch: 15 },  // C - ITEM
-        { wch: 15 },  // D - COMPLEMENTO
-        { wch: 8 },   // E - QTD
-        { wch: 12 },  // F - PREÇO BRUTO
-        { wch: 12 },  // G - PREÇO LÍQUIDO
-        { wch: 14 },  // H - TOTAL LÍQUIDO
-        { wch: 8 },   // I - IPI %
-        { wch: 14 },  // J - UNIT COM IPI
-        { wch: 14 },  // K - TOTAL COM IPI
-        { wch: 8 },   // L - ST %
-        { wch: 14 },  // M - UNIT COM IPIST
-        { wch: 16 },  // N - TOTAL COM IMPOSTOS
+        { wch: 15 }, // Código
+        { wch: 45 }, // Descrição
+        { wch: 8 },  // Unid
+        { wch: 15 }, // Ref
+        { wch: 10 }, // Qtd
+        { wch: 12 }, // Bruto
+        { wch: 12 }, // Líquido
+        { wch: 15 }, // Tot Liq
+        { wch: 8 },  // IPI %
+        { wch: 12 }, // Val IPI
+        { wch: 12 }, // Val ST
+        { wch: 18 }, // Total Final
     ];
 
-    // Add worksheet to workbook
+    // Mesclagem de células para o título
+    ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }
+    ];
+
     XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
-
-    // Generate filename
-    const filename = `Pedido_${order.ped_pedido}_${order.cli_nomred || 'Cliente'}.xlsx`;
-
-    // Save file
+    const filename = `Pedido_${order.ped_pedido || 'S-N'}_${order.cli_nomred || 'Relatorio'}.xlsx`;
     XLSX.writeFile(wb, filename);
-
     return filename;
 }
 
 /**
- * Format date to DD.MM.YYYY
+ * Generate Excel data (array buffer)
  */
-function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-}
+export function generateOrderExcelData(order, items) {
+    const wb = XLSX.utils.book_new();
+    const wsData = buildWsData(order, items);
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-/**
- * Build discount text from item
- */
-function buildDiscountText(item) {
-    if (!item) return '';
+    ws['!cols'] = [
+        { wch: 15 }, { wch: 45 }, { wch: 8 }, { wch: 15 }, { wch: 10 },
+        { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 12 },
+        { wch: 12 }, { wch: 18 }
+    ];
 
-    const discounts = [];
-    for (let i = 1; i <= 10; i++) {
-        const val = parseFloat(item[`ite_des${i}`]) || 0;
-        if (val > 0) {
-            discounts.push(`${val.toFixed(2)}%`);
-        }
-    }
-
-    return discounts.length > 0 ? discounts.join('+') : 'ITENS EM PROMOÇÃO';
+    XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
 }
 
 export default exportOrderToExcel;

@@ -138,37 +138,43 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
+            // Helper para evitar NaN
+            const safeInt = (val) => {
+                const parsed = parseInt(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
             let params = [start, end];
             let paramCounter = 3;
             let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F')`];
 
             // Filtro Indústria (Obrigatório segundo regra, mas vamos deixar flexível no código)
-            if (industria && industria !== 'ALL') {
+            // Filtro Indústria
+            const indId = safeInt(industria);
+            if (indId && industria !== 'ALL') {
                 conditions.push(`p.ped_industria = $${paramCounter}`);
-                params.push(industria);
+                params.push(indId);
                 paramCounter++;
             }
 
             // Filtro Vendedor
-            if (vendedor && vendedor !== 'ALL') {
+            const venId = safeInt(vendedor);
+            if (venId && vendedor !== 'ALL') {
                 conditions.push(`p.ped_vendedor = $${paramCounter}`);
-                params.push(vendedor);
+                params.push(venId);
                 paramCounter++;
             }
 
             // Lógica de Cliente e Grupo
-            if (cliente && cliente !== 'ALL') {
+            const cliId = safeInt(cliente);
+            if (cliId && cliente !== 'ALL') {
                 if (String(grupo) === 'true') {
-                    // Se considerar grupo, precisamos descobrir a rede do cliente primeiro
-                    // e filtrar por ela.
-                    // Para ser eficiente, podemos usar uma subquery na cláusula WHERE
                     conditions.push(`c.cli_redeloja = (SELECT cli_redeloja FROM clientes WHERE cli_codigo = $${paramCounter})`);
-                    params.push(cliente);
+                    params.push(cliId);
                     paramCounter++;
                 } else {
-                    // Filtro simples por cliente
                     conditions.push(`p.ped_cliente = $${paramCounter}`);
-                    params.push(cliente);
+                    params.push(cliId);
                     paramCounter++;
                 }
             }
@@ -185,6 +191,10 @@ module.exports = (pool) => {
                 conditions.push("c.cli_redeloja IS NOT NULL AND TRIM(c.cli_redeloja) <> ''");
             }
 
+            console.log("🚀 [REPORTS] Module Loaded - v2026-02-02-FIX"); // Force log check
+
+            // ... existing code ...
+
             const query = `
                 SELECT 
                     ${clientCol} AS cliente_nome,
@@ -198,10 +208,16 @@ module.exports = (pool) => {
                 JOIN fornecedores f ON p.ped_industria = f.for_codigo
                 WHERE ${conditions.join(' AND ')}
                 GROUP BY 1, 2, 3
-                ORDER BY 2, 1, to_date(to_char(p.ped_data, 'MM/YYYY'), 'MM/YYYY')
+                ORDER BY 2, 1
             `;
 
             console.log("Executando relatório de vendas, params:", params);
+
+            // DEBUG: Verificar Schema e Params
+            const schemaCheck = await pool.query('SELECT current_schema()');
+            console.log(`🔎 [DEBUG VENDAS] Schema Atual: ${schemaCheck.rows[0].current_schema}`);
+            console.log(`🔎 [DEBUG VENDAS] Params:`, params);
+            console.log(`🔎 [DEBUG VENDAS] Query (snippet):`, query.substring(0, 200));
 
             const result = await pool.query(query, params);
 
@@ -216,7 +232,11 @@ module.exports = (pool) => {
 
         } catch (error) {
             console.error('Erro no relatório de vendas:', error);
-            res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
+            res.status(500).json({
+                success: false,
+                message: `Erro ao gerar relatório: ${error.message}`,
+                detail: error.stack
+            });
         }
     });
 
@@ -230,28 +250,37 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
+            // Helper para evitar NaN
+            const safeInt = (val) => {
+                const parsed = parseInt(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
             let params = [start, end];
             let paramCounter = 3;
             let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F')`];
 
             // Filtros comuns
-            if (industria && industria !== 'ALL') {
+            const indId = safeInt(industria);
+            if (indId && industria !== 'ALL') {
                 conditions.push(`p.ped_industria = $${paramCounter}`);
-                params.push(industria);
+                params.push(indId);
                 paramCounter++;
             }
-            if (vendedor && vendedor !== 'ALL') {
+            const venId = safeInt(vendedor);
+            if (venId && vendedor !== 'ALL') {
                 conditions.push(`p.ped_vendedor = $${paramCounter}`);
-                params.push(vendedor);
+                params.push(venId);
                 paramCounter++;
             }
-            if (cliente && cliente !== 'ALL') {
+            const cliId = safeInt(cliente);
+            if (cliId && cliente !== 'ALL') {
                 if (String(grupo) === 'true') {
                     conditions.push(`c.cli_redeloja = (SELECT cli_redeloja FROM clientes WHERE cli_codigo = $${paramCounter})`);
                 } else {
                     conditions.push(`p.ped_cliente = $${paramCounter}`);
                 }
-                params.push(cliente);
+                params.push(cliId);
                 paramCounter++;
             }
             if (String(grupo) === 'true') {
@@ -295,7 +324,7 @@ module.exports = (pool) => {
                         SUM(ip.ite_quant) AS qtd,
                         to_char(MAX(p.ped_data), 'MM/YYYY') AS mes_ref
                     FROM itens_ped ip
-                    JOIN pedidos p ON ip.ite_pedido = p.ped_pedido AND ip.ite_industria = p.ped_industria
+                    JOIN pedidos p ON ip.ite_pedido = p.ped_pedido
                     JOIN clientes c ON p.ped_cliente = c.cli_codigo
                     JOIN fornecedores f ON p.ped_industria = f.for_codigo
                     WHERE ${conditions.join(' AND ')}
@@ -318,7 +347,11 @@ module.exports = (pool) => {
 
         } catch (error) {
             console.error('Erro no Mapa Cli/Ind:', error);
-            res.status(500).json({ success: false, message: 'Erro ao gerar mapa' });
+            res.status(500).json({
+                success: false,
+                message: `Erro ao gerar mapa: ${error.message}`,
+                detail: error.stack
+            });
         }
     });
 
@@ -337,9 +370,10 @@ module.exports = (pool) => {
             let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F')`];
 
             // Filtro Vendedor (Obrigatório pela logica, mas validado no front)
-            if (vendedor && vendedor !== 'ALL') {
+            const parsedVendor = parseInt(vendedor);
+            if (vendedor && vendedor !== 'ALL' && !isNaN(parsedVendor)) {
                 conditions.push(`p.ped_vendedor = $${paramCounter}`);
-                params.push(vendedor);
+                params.push(parsedVendor);
                 paramCounter++;
             }
 
@@ -371,7 +405,11 @@ module.exports = (pool) => {
 
         } catch (error) {
             console.error('Erro no relatório de vendedor:', error);
-            res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
+            res.status(500).json({
+                success: false,
+                message: `Erro ao gerar relatório: ${error.message}`,
+                detail: error.stack
+            });
         }
     });
 
@@ -443,17 +481,20 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
-            if (!industria || industria === 'ALL') {
-                return res.status(400).json({ success: false, message: 'Indústria é obrigatória para este relatório' });
-            }
+            const isAllIndustries = !industria || industria === 'ALL';
 
-            let params = [start, end, industria];
-            let paramCounter = 4;
+            let params = [start, end];
+            let paramCounter = 3;
             let conditions = [
                 `p.ped_data BETWEEN $1 AND $2`,
-                `p.ped_situacao IN ('P', 'F')`,
-                `p.ped_industria = $3`
+                `p.ped_situacao IN ('P', 'F')`
             ];
+
+            if (!isAllIndustries) {
+                conditions.push(`p.ped_industria = $${paramCounter}`);
+                params.push(industria);
+                paramCounter++;
+            }
 
             // Filtro Cliente
             if (cliente && cliente !== 'ALL') {
@@ -483,17 +524,19 @@ module.exports = (pool) => {
                 // Modo "Última compra" - mostra dados do último pedido apenas
                 query = `
                     WITH ultima_compra AS (
-                        SELECT DISTINCT ON (${groupCol})
+                        SELECT DISTINCT ON (${groupCol}${isAllIndustries ? ', f.for_nomered' : ''})
                             ${groupCol} AS cliente,
                             ${isGrouped ? "NULL" : "c.cli_uf"} AS estado,
+                            ${isAllIndustries ? "f.for_nomered AS industria," : ""}
                             p.ped_totliq AS valor,
                             COALESCE((SELECT SUM(ite_quant) FROM itens_ped WHERE ite_pedido = p.ped_pedido), 0) AS qtd,
                             p.ped_data AS data_ultima,
                             CURRENT_DATE - p.ped_data::date AS dias
                         FROM pedidos p
                         JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                        ${isAllIndustries ? "JOIN fornecedores f ON p.ped_industria = f.for_codigo" : ""}
                         WHERE ${conditions.join(' AND ')} ${groupFilter}
-                        ORDER BY ${groupCol}, p.ped_data DESC
+                        ORDER BY ${groupCol}${isAllIndustries ? ', f.for_nomered' : ''}, p.ped_data DESC
                     )
                     SELECT * FROM ultima_compra
                     ORDER BY dias ASC, cliente
@@ -504,19 +547,21 @@ module.exports = (pool) => {
                     SELECT 
                         ${groupCol} AS cliente,
                         ${isGrouped ? "NULL" : "c.cli_uf"} AS estado,
+                        ${isAllIndustries ? "f.for_nomered AS industria," : ""}
                         SUM(p.ped_totliq) AS valor,
                         SUM(COALESCE((SELECT SUM(ite_quant) FROM itens_ped WHERE ite_pedido = p.ped_pedido), 0)) AS qtd,
                         MAX(p.ped_data) AS data_ultima,
                         CURRENT_DATE - MAX(p.ped_data)::date AS dias
                     FROM pedidos p
                     JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                    ${isAllIndustries ? "JOIN fornecedores f ON p.ped_industria = f.for_codigo" : ""}
                     WHERE ${conditions.join(' AND ')} ${groupFilter}
-                    GROUP BY ${groupCol}${isGrouped ? '' : ', c.cli_uf'}
+                    GROUP BY ${groupCol}${isGrouped ? '' : ', c.cli_uf'}${isAllIndustries ? ', f.for_nomered' : ''}
                     ORDER BY dias ASC, cliente
                 `;
             }
 
-            console.log("Executando relatório de últimas compras, modo:", modo, "params:", params);
+            console.log("Executando relatório de últimas compras, modo:", modo, "Industria:", industria, "params:", params);
 
             const result = await pool.query(query, params);
 
@@ -525,7 +570,8 @@ module.exports = (pool) => {
                 valor: parseFloat(row.valor) || 0,
                 qtd: parseInt(row.qtd) || 0,
                 dias: parseInt(row.dias) || 0,
-                data_ultima: row.data_ultima
+                data_ultima: row.data_ultima,
+                industria: row.industria || null
             }));
 
             res.json({ success: true, data });
@@ -788,6 +834,101 @@ module.exports = (pool) => {
         } catch (error) {
             console.error('❌ Erro no comparativo de clientes:', error);
             res.status(500).json({ success: false, message: 'Erro ao gerar comparativo', detail: error.message });
+        }
+    });
+
+    // --- Novo Relatório: Clientes Inativos ---
+    // Filtro por período (meses): 3 (Trimestre), 6 (Semestre), 12 (Anual) ou 0 (Totalmente Inativos)
+    router.get('/clientes-inativos', async (req, res) => {
+        try {
+            const { periodo } = req.query;
+            const months = parseInt(periodo || 0);
+
+            console.log(`🔎 [CLIENTES INATIVOS] Período: ${months} meses`);
+
+            let query = "";
+            let params = [];
+
+            if (months === -1) {
+                // Todos os Clientes Ativos (Base de Cadastro)
+                query = `
+                    SELECT 
+                        c.cli_codigo AS codigo,
+                        c.cli_cnpj AS cnpj,
+                        c.cli_nome AS nome,
+                        c.cli_nomred AS nome_reduzido,
+                        c.cli_fone1 AS telefone,
+                        c.cli_email AS email,
+                        cid.cid_nome AS cidade,
+                        cid.cid_uf AS uf,
+                        v.ven_nome AS vendedor,
+                        (SELECT MAX(ped_data) FROM pedidos WHERE ped_cliente = c.cli_codigo AND ped_situacao <> 'C') AS ultima_compra
+                    FROM clientes c
+                    LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
+                    LEFT JOIN vendedores v ON c.cli_vendedor = v.ven_codigo
+                    WHERE c.cli_tipopes = 'A' OR c.cli_tipopes IS NULL
+                    ORDER BY c.cli_nome ASC
+                `;
+            } else if (months === 0) {
+                // Totalmente Inativos (Nunca compraram)
+                query = `
+                    SELECT 
+                        c.cli_codigo AS codigo,
+                        c.cli_cnpj AS cnpj,
+                        c.cli_nome AS nome,
+                        c.cli_nomred AS nome_reduzido,
+                        c.cli_fone1 AS telefone,
+                        c.cli_email AS email,
+                        cid.cid_nome AS cidade,
+                        cid.cid_uf AS uf,
+                        v.ven_nome AS vendedor,
+                        'NUNCA COMPROU' AS status_inatividade
+                    FROM clientes c
+                    LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
+                    LEFT JOIN vendedores v ON c.cli_vendedor = v.ven_codigo
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM pedidos p WHERE p.ped_cliente = c.cli_codigo
+                    )
+                    ORDER BY c.cli_nome
+                `;
+            } else {
+                // Inativos no período (Sem compras nos últimos X meses)
+                query = `
+                    SELECT 
+                        c.cli_codigo AS codigo,
+                        c.cli_cnpj AS cnpj,
+                        c.cli_nome AS nome,
+                        c.cli_nomred AS nome_reduzido,
+                        c.cli_fone1 AS telefone,
+                        c.cli_email AS email,
+                        cid.cid_nome AS cidade,
+                        cid.cid_uf AS uf,
+                        v.ven_nome AS vendedor,
+                        (SELECT MAX(ped_data) FROM pedidos WHERE ped_cliente = c.cli_codigo) AS ultima_compra
+                    FROM clientes c
+                    LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
+                    LEFT JOIN vendedores v ON c.cli_vendedor = v.ven_codigo
+                    WHERE NOT EXISTS (
+                        SELECT 1 
+                        FROM pedidos p 
+                        WHERE p.ped_cliente = c.cli_codigo 
+                        AND p.ped_data >= CURRENT_DATE - ($1 || ' months')::INTERVAL
+                        AND p.ped_situacao <> 'C'
+                    )
+                    -- Garantir que pelo menos uma compra existiu no passado para não confundir com os "Nunca comprou"
+                    AND EXISTS (
+                        SELECT 1 FROM pedidos p WHERE p.ped_cliente = c.cli_codigo
+                    )
+                    ORDER BY (SELECT MAX(ped_data) FROM pedidos WHERE ped_cliente = c.cli_codigo) ASC
+                `;
+                params.push(months);
+            }
+
+            const result = await pool.query(query, params);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ Erro no relatório de clientes inativos:', error);
+            res.status(500).json({ success: false, message: 'Erro ao buscar clientes inativos', detail: error.message });
         }
     });
 

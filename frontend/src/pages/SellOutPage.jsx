@@ -29,36 +29,59 @@ import {
     AlertCircle,
     UserX,
     MessageCircle,
-    HelpCircle
+    HelpCircle,
+    ArrowLeft
 } from "lucide-react"
 import * as XLSX from 'xlsx'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell } from 'recharts'
 import SellOutHelpModal from "@/components/sellout/SellOutHelpModal"
+import { Combobox } from "@/components/ui/combobox"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
-const StatCard = ({ title, value, subValue, icon: Icon, trend, trendValue }) => (
-    <Card className="bg-white border-2 border-slate-200/60 shadow-lg hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300">
-        <CardContent className="p-6">
+const StatCard = ({ title, value, subValue, icon: Icon, trend, trendValue, colorClass }) => (
+    <Card className="group bg-white dark:bg-slate-900 border-2 border-slate-200/50 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none hover:shadow-2xl hover:border-emerald-500/50 transition-all duration-500 overflow-hidden relative">
+        <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-gradient-to-br ${colorClass} opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700`} />
+
+        <CardContent className="p-6 relative z-10">
             <div className="flex justify-between items-start">
-                <div className="space-y-2">
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wide">{title}</p>
-                    <h3 className="text-3xl font-black text-slate-800">{value}</h3>
-                    {subValue && <p className="text-xs font-semibold text-slate-400">{subValue}</p>}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${colorClass}`} />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter">{value}</h3>
+                        {subValue && (
+                            <p className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full w-fit">
+                                {subValue}
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600 shadow-inner">
+                <div className={`p-4 bg-gradient-to-br ${colorClass} rounded-2xl text-white shadow-lg shadow-emerald-900/10 group-hover:scale-110 transition-transform`}>
                     <Icon className="w-6 h-6" />
                 </div>
             </div>
-            {trend && (
-                <div className="mt-4 flex items-center gap-1.5 p-2 bg-slate-50 rounded-lg w-fit">
-                    {trend === 'up' ? (
-                        <ArrowUpRight className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                        <ArrowDownRight className="w-4 h-4 text-rose-500" />
-                    )}
-                    <span className={trend === 'up' ? "text-emerald-600 text-xs font-bold" : "text-rose-600 text-xs font-bold"}>
-                        {trendValue}%
-                    </span>
-                    <span className="text-slate-400 text-xs font-medium">vs mês anterior</span>
+            {trend && trendValue !== 0 && (
+                <div className="mt-6 flex items-center justify-between">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} rounded-2xl`}>
+                        {trend === 'up' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <span className="text-sm font-black tracking-tight">{trendValue}%</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">vs mês anterior</span>
+                </div>
+            )}
+            {trendValue === 0 && (
+                <div className="mt-6 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-400 rounded-2xl">
+                        <RefreshCw className="w-4 h-4" />
+                        <span className="text-sm font-black tracking-tight">Estável</span>
+                    </div>
                 </div>
             )}
         </CardContent>
@@ -98,10 +121,21 @@ export default function SellOutPage() {
         carregarPendencias()
     }, [])
 
+    // Adicionar listener para recarregar dados quando os filtros de busca mudarem
+    useEffect(() => {
+        carregarDados()
+        carregarSummary()
+    }, [filtroIndustria, filtroCliente, periodo])
+
     const carregarSummary = async () => {
         setLoadingSummary(true)
         try {
-            const res = await axios.get("/crm/sellout/summary")
+            const params = new URLSearchParams()
+            if (filtroIndustria && filtroIndustria !== "ALL") params.append('for_codigo', filtroIndustria)
+            if (filtroCliente && filtroCliente !== "ALL") params.append('cli_codigo', filtroCliente)
+            if (periodo) params.append('periodo', periodo + "-01")
+
+            const res = await axios.get(`/crm/sellout/summary?${params}`)
             setSummary(res.data.data)
         } catch (error) {
             console.error("Erro ao carregar resumo:", error)
@@ -123,8 +157,9 @@ export default function SellOutPage() {
         setLoading(true)
         try {
             const params = new URLSearchParams()
-            if (filtroCliente && filtroCliente !== "ALL") params.append('cli_codigo', filtroCliente)
             if (filtroIndustria && filtroIndustria !== "ALL") params.append('for_codigo', filtroIndustria)
+            if (filtroCliente && filtroCliente !== "ALL") params.append('cli_codigo', filtroCliente)
+            if (periodo) params.append('periodo', periodo + "-01")
 
             const res = await axios.get(`/crm/sellout?${params}`)
             setRegistros(res.data.data || [])
@@ -209,6 +244,19 @@ export default function SellOutPage() {
         }
     }
 
+    const formatCurrencyInput = (val) => {
+        if (!val) return '';
+        const numericValue = val.toString().replace(/\D/g, '');
+        const floatValue = parseFloat(numericValue) / 100;
+        return floatValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const handleCurrencyChange = (e) => {
+        const value = e.target.value.replace(/\D/g, '');
+        const floatValue = parseFloat(value) / 100;
+        setValor(floatValue.toString());
+    };
+
     const limparForm = () => {
         setEditId(null)
         setCliCodigo("")
@@ -219,46 +267,103 @@ export default function SellOutPage() {
     }
 
     const downloadTemplate = () => {
+        // Aba principal de lançamentos
         const template = [
-            { CLI_CODIGO: 123, FOR_CODIGO: 1, PERIODO: "2024-12", VALOR: 15000.00, QUANTIDADE: 50 },
-            { CLI_CODIGO: 456, FOR_CODIGO: 2, PERIODO: "2024-12", VALOR: 8500.00, QUANTIDADE: 30 }
+            { CLI_CODIGO: "Ex: 123", FOR_CODIGO: "Ex: 1", PERIODO: "2026-02", VALOR: 1500.50, QUANTIDADE: 100 },
         ]
-        const ws = XLSX.utils.json_to_sheet(template)
+
+        // Aba de Clientes para consulta
+        const dataClientes = clientes.map(c => ({
+            CODIGO: c.cli_codigo,
+            NOME: c.cli_nomred || c.cli_nome,
+            CIDADE: c.cli_cidade || ""
+        }))
+
+        // Aba de Indústrias para consulta
+        const dataIndustrias = industrias.map(i => ({
+            CODIGO: i.id || i.for_codigo,
+            NOME: i.nome || i.for_nomered || i.for_nome
+        }))
+
         const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, "SellOut")
-        XLSX.writeFile(wb, "template_sellout.xlsx")
-        toast.success("Template baixado!")
+
+        // Criar as planilhas
+        const wsLancamentos = XLSX.utils.json_to_sheet(template)
+        const wsClientes = XLSX.utils.json_to_sheet(dataClientes)
+        const wsIndustrias = XLSX.utils.json_to_sheet(dataIndustrias)
+
+        // Adicionar ao Workbook
+        XLSX.utils.book_append_sheet(wb, wsLancamentos, "Lancamentos")
+        XLSX.utils.book_append_sheet(wb, wsClientes, "LISTA_CLIENTES")
+        XLSX.utils.book_append_sheet(wb, wsIndustrias, "LISTA_INDUSTRIAS")
+
+        // Download
+        XLSX.writeFile(wb, "Template_SellOut_SalesMasters.xlsx")
+        toast.success("Template gerado com dados auxiliares!")
     }
 
     const importarPlanilha = async (e) => {
         const file = e.target.files?.[0]
         if (!file) return
 
-        const loadingToast = toast.loading("Processando planilha...")
+        const loadingToast = toast.loading("Analisando planilha...")
 
         try {
             const reader = new FileReader()
             reader.onload = async (evt) => {
                 const bstr = evt.target?.result
-                const wb = XLSX.read(bstr, { type: 'binary' })
+                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true })
                 const wsname = wb.SheetNames[0]
                 const ws = wb.Sheets[wsname]
                 const jsonData = XLSX.utils.sheet_to_json(ws)
 
-                const data = jsonData.map(row => ({
-                    cli_codigo: row.CLI_CODIGO || row.cli_codigo,
-                    for_codigo: row.FOR_CODIGO || row.for_codigo,
-                    periodo: (row.PERIODO || row.periodo) + "-01",
-                    valor: parseFloat(row.VALOR || row.valor || 0),
-                    quantidade: parseInt(row.QUANTIDADE || row.quantidade || 0)
-                }))
+                if (jsonData.length === 0) {
+                    toast.dismiss(loadingToast)
+                    toast.error("Planilha vazia ou sem dados válidos.")
+                    return
+                }
+
+                const data = jsonData.map((row, index) => {
+                    // Normalizar nomes das colunas (Case insensitive e sem espaços)
+                    const normalizedRow = Object.keys(row).reduce((acc, key) => {
+                        acc[key.trim().toUpperCase()] = row[key]
+                        return acc
+                    }, {})
+
+                    let p = normalizedRow.PERIODO || ""
+
+                    // Tratamento flexível de data
+                    if (p instanceof Date) {
+                        p = p.toISOString().substring(0, 7)
+                    } else if (typeof p === 'string' && p.includes('/') && p.length >= 7) {
+                        const parts = p.split('/')
+                        if (parts.length >= 2) {
+                            if (parts[1].length === 4) p = `${parts[1]}-${parts[0].padStart(2, '0')}` // MM/YYYY
+                            else if (parts[2]?.length === 4) p = `${parts[2]}-${parts[1].padStart(2, '0')}` // DD/MM/YYYY
+                        }
+                    }
+
+                    return {
+                        cli_codigo: parseInt(normalizedRow.CLI_CODIGO || normalizedRow.CLIENTE),
+                        for_codigo: parseInt(normalizedRow.FOR_CODIGO || normalizedRow.INDUSTRIA),
+                        periodo: p.length === 7 ? p + "-01" : p,
+                        valor: parseFloat(normalizedRow.VALOR || 0),
+                        quantidade: parseInt(normalizedRow.QUANTIDADE || normalizedRow.QTD || 0)
+                    }
+                }).filter(row => !isNaN(row.cli_codigo) && !isNaN(row.for_codigo) && row.periodo.length === 10)
+
+                if (data.length === 0) {
+                    toast.dismiss(loadingToast)
+                    toast.error("Nenhum registro válido processado. Verifique os códigos e o formato da data.")
+                    return
+                }
 
                 const res = await axios.post("/crm/sellout/import", { data })
                 toast.dismiss(loadingToast)
-                toast.success(`Importado ${res.data.imported} de ${res.data.total} registros`)
+                toast.success(`Sucesso! ${res.data.imported} registros de sell-out importados.`)
 
                 if (res.data.errors?.length > 0) {
-                    res.data.errors.forEach(err => toast.warning(err))
+                    console.log("Erros durante importação:", res.data.errors)
                 }
 
                 carregarDados()
@@ -268,7 +373,7 @@ export default function SellOutPage() {
             reader.readAsBinaryString(file)
         } catch (error) {
             toast.dismiss(loadingToast)
-            toast.error("Erro ao importar planilha")
+            toast.error("Falha ao processar arquivo Excel")
         }
 
         e.target.value = ""
@@ -298,70 +403,76 @@ export default function SellOutPage() {
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             <SellOutHelpModal open={showHelp} onClose={() => setShowHelp(false)} />
 
-            {/* Elegant Header */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 py-6 shadow-sm">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl shadow-xl shadow-emerald-900/10">
-                            <TrendingUp className="w-6 h-6 text-white" />
+            {/* Elegant Header - Redesigned for Impact */}
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-8 shadow-sm">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="relative group">
+                            <div className="absolute inset-0 bg-emerald-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                            <div className="relative p-4 bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-[28px] shadow-2xl shadow-emerald-900/20 rotate-3 group-hover:rotate-0 transition-all duration-500">
+                                <TrendingUp className="w-8 h-8 text-white" />
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight uppercase">
-                                Rotina de Sell-Out
+                        <div className="space-y-1">
+                            <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter uppercase">
+                                Rotina de <span className="text-emerald-600">Sell-Out</span>
                             </h1>
-                            <div className="flex items-center gap-2 text-slate-500 mt-1">
-                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold border border-slate-200 uppercase tracking-wider">
+                            <div className="flex items-center gap-3">
+                                <span className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                                     Vendas na Ponta
                                 </span>
-                                <span className="text-xs font-medium">Gestão de Performance e Giro</span>
+                                <div className="w-1 h-1 rounded-full bg-slate-300" />
+                                <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-800/50">
+                                    <RefreshCw className="w-3 h-3 animate-spin-slow" /> Tempo Real
+                                </span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowHelp(true)}
-                            className="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 hidden md:flex"
-                        >
-                            <HelpCircle className="w-5 h-5 mr-1" />
-                            Ajuda
-                        </Button>
-                        <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => { carregarDados(); carregarSummary(); carregarPendencias(); }}
-                            className="bg-white hover:bg-slate-50 border-slate-200 shadow-sm"
-                        >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Atualizar
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadTemplate}
-                            className="bg-white border-slate-200 shadow-sm"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Template
-                        </Button>
-                        <label>
-                            <input type="file" accept=".xlsx,.xls" onChange={importarPlanilha} className="hidden" />
-                            <Button size="sm" variant="outline" className="cursor-pointer bg-white border-slate-200 shadow-sm">
-                                <Upload className="w-4 h-4 mr-2" />
-                                Importar
+                    <div className="flex flex-wrap items-center justify-center md:justify-end gap-3 w-full md:w-auto">
+                        <div className="flex items-center bg-slate-50 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-100 dark:border-slate-700/50 mr-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowHelp(true)}
+                                className="text-slate-500 hover:text-emerald-600 rounded-xl"
+                            >
+                                <HelpCircle className="w-5 h-5" />
                             </Button>
-                        </label>
-                        <Button
-                            onClick={() => { setShowForm(!showForm); if (!showForm) limparForm(); }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Novo Registro
-                        </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { carregarDados(); carregarSummary(); carregarPendencias(); }}
+                                className="text-slate-500 hover:text-emerald-600 rounded-xl"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                            </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={downloadTemplate}
+                                className="h-12 px-6 rounded-2xl border-slate-200 dark:border-slate-700 font-bold bg-white dark:bg-slate-800 hover:bg-slate-50 transition-all gap-2"
+                            >
+                                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                <span className="hidden lg:inline">Template</span>
+                            </Button>
+                            <label className="cursor-pointer">
+                                <input type="file" accept=".xlsx,.xls" onChange={importarPlanilha} className="hidden" />
+                                <div className="h-12 px-6 rounded-2xl border border-slate-200 dark:border-slate-700 font-bold bg-white dark:bg-slate-800 hover:bg-slate-50 transition-all gap-2 flex items-center justify-center">
+                                    <Upload className="w-4 h-4 text-blue-600" />
+                                    <span className="hidden lg:inline">Importar</span>
+                                </div>
+                            </label>
+                            <Button
+                                onClick={() => { limparForm(); setShowForm(true); }}
+                                className="h-12 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl shadow-emerald-500/20 gap-2 border-b-4 border-emerald-800 active:border-b-0 transition-all"
+                            >
+                                <Plus className="w-5 h-5" />
+                                <span className="hidden sm:inline">NOVO REGISTRO</span>
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -369,193 +480,40 @@ export default function SellOutPage() {
             <div className="max-w-7xl mx-auto p-8 space-y-8">
 
                 {/* Summary Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Summary Metrics - Fixed Grid for Alignment */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     <StatCard
                         title="Sell-Out Mes Atual"
                         value={formatCurrency(summary?.current_month_total)}
                         icon={TrendingUp}
                         trend={summary?.growth > 0 ? 'up' : 'down'}
                         trendValue={Math.abs(summary?.growth || 0)}
+                        colorClass="from-emerald-500 to-emerald-700"
                     />
                     <StatCard
                         title="Clientes Ativos"
                         value={summary?.total_customers || 0}
                         subValue="Enviaram dados este mês"
                         icon={Users}
+                        colorClass="from-blue-500 to-indigo-700"
                     />
                     <StatCard
                         title="Indústrias"
                         value={summary?.total_industries || 0}
                         subValue="Mapeadas na rotina"
                         icon={Building2}
+                        colorClass="from-cyan-500 to-blue-700"
                     />
                     <StatCard
                         title="Pendências"
                         value={pendencias.length}
                         subValue="Clientes sem reporte"
                         icon={AlertCircle}
+                        colorClass="from-amber-500 to-orange-700"
                     />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Charts & Trends */}
-                    <Card className="lg:col-span-2 bg-white border-2 border-slate-200 shadow-lg hover:shadow-xl transition-all">
-                        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 pb-4">
-                            <div>
-                                <CardTitle className="text-lg font-bold text-slate-800">Tendência de Sell-Out</CardTitle>
-                                <p className="text-xs text-slate-400 mt-1 font-medium uppercase tracking-wide">Histórico dos últimos 6 meses</p>
-                            </div>
-                            <div className="p-2 bg-emerald-50 rounded-lg">
-                                <BarChart3 className="w-5 h-5 text-emerald-600" />
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="h-[280px] w-full mt-4">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={summary?.trend || []}>
-                                        <defs>
-                                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis
-                                            dataKey="label"
-                                            axisLine={false}
-                                            tickLine={false}
-                                            tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }}
-                                            dy={10}
-                                        />
-                                        <YAxis hide />
-                                        <Tooltip
-                                            contentStyle={{
-                                                borderRadius: '12px',
-                                                border: 'none',
-                                                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-                                                fontFamily: 'inherit'
-                                            }}
-                                            formatter={(value) => [formatCurrency(value), 'Valor']}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="value"
-                                            stroke="#10b981"
-                                            strokeWidth={3}
-                                            fillOpacity={1}
-                                            fill="url(#colorValue)"
-                                            animationDuration={1500}
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Manual Entry Form - Collapsible */}
-                    <AnimatePresence>
-                        {showForm && (
-                            <motion.div
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                className="h-full"
-                            >
-                                <Card className="bg-white border-2 border-emerald-100 shadow-xl shadow-emerald-900/10 h-full">
-                                    <CardHeader className="bg-emerald-50/50 border-b border-emerald-100 py-4">
-                                        <CardTitle className="text-md font-bold flex items-center gap-2 text-emerald-900 uppercase tracking-wide">
-                                            <Plus className="w-5 h-5 text-emerald-600" />
-                                            {editId ? "Editar Registro" : "Lançamento Manual"}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="p-6 space-y-5">
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 block">Cliente</label>
-                                                <Select value={cliCodigo} onValueChange={setCliCodigo}>
-                                                    <SelectTrigger className="bg-slate-50 border-slate-200 focus:ring-emerald-500/20">
-                                                        <SelectValue placeholder="Selecione o cliente" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {clientes.map(c => (
-                                                            <SelectItem key={c.cli_codigo} value={c.cli_codigo.toString()}>
-                                                                {c.cli_nomred || c.cli_nome}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 block">Indústria</label>
-                                                <Select value={forCodigo} onValueChange={setForCodigo}>
-                                                    <SelectTrigger className="bg-slate-50 border-slate-200 focus:ring-emerald-500/20">
-                                                        <SelectValue placeholder="Selecione" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {industrias.map(i => (
-                                                            <SelectItem key={i.for_codigo} value={i.for_codigo.toString()}>
-                                                                {i.for_nome}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 block">Período</label>
-                                                    <Input
-                                                        type="month"
-                                                        value={periodo}
-                                                        onChange={e => setPeriodo(e.target.value)}
-                                                        className="bg-slate-50 border-slate-200 focus:ring-emerald-500/20"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 block">Quantidade</label>
-                                                    <Input
-                                                        type="number"
-                                                        placeholder="0"
-                                                        value={quantidade}
-                                                        onChange={e => setQuantidade(e.target.value)}
-                                                        className="bg-slate-50 border-slate-200 focus:ring-emerald-500/20"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1.5 block">Valor Total (R$)</label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder="0,00"
-                                                    value={valor}
-                                                    onChange={e => setValor(e.target.value)}
-                                                    className="bg-slate-50 border-slate-200 text-emerald-700 font-bold text-lg focus:ring-emerald-500/20"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-2 pt-4">
-                                            <Button
-                                                onClick={salvar}
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/20"
-                                            >
-                                                {editId ? "Salvar Alterações" : "Confirmar Lançamento"}
-                                            </Button>
-                                            <Button variant="ghost" onClick={() => setShowForm(false)} className="w-full text-slate-400 hover:text-slate-600">
-                                                Cancelar
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                {/* Tabs System */}
+                {/* Tabs System - Moved up for better visibility */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsList className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm inline-flex">
                         <TabsTrigger
@@ -579,42 +537,318 @@ export default function SellOutPage() {
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="registros" className="space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border-2 border-slate-100 shadow-lg shadow-slate-200/50">
-                            <div className="flex items-center gap-3">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <TabsContent value="registros" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-wrap items-center justify-between gap-6 bg-white dark:bg-slate-900 p-6 rounded-[32px] border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+                            <div className="flex flex-wrap items-center gap-4 flex-1">
+                                <div className="relative flex-1 min-w-[300px] group">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                                        <Search className="w-5 h-5" />
+                                    </div>
                                     <Input
-                                        placeholder="Buscar por cliente ou indústria..."
-                                        className="pl-9 w-80 bg-slate-50 border-slate-200 focus:bg-white transition-all focus:ring-emerald-500/20"
+                                        placeholder="Pesquisar cliente ou indústria..."
+                                        className="h-12 pl-12 pr-4 w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-emerald-500/20 font-medium text-sm transition-all"
                                         value={filtroBusca}
                                         onChange={e => setFiltroBusca(e.target.value)}
                                     />
                                 </div>
+                                <div className="h-10 w-px bg-slate-100 dark:bg-slate-800 hidden lg:block" />
+
+                                <div className="flex items-center gap-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2 hidden sm:block">Período:</label>
+                                    <Input
+                                        type="month"
+                                        className="h-12 w-64 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-emerald-500/20 font-bold text-slate-600 px-4"
+                                        value={periodo}
+                                        onChange={e => setPeriodo(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="h-10 w-px bg-slate-100 dark:bg-slate-800 hidden lg:block" />
+
+                                <div className="flex items-center gap-2 min-w-[200px]">
+                                    <Combobox
+                                        items={[
+                                            { value: "ALL", label: "Todos Clientes" },
+                                            ...clientes.map(c => ({
+                                                value: c.cli_codigo.toString(),
+                                                label: `${c.cli_codigo} - ${c.cli_nomred || c.cli_nome}`
+                                            }))
+                                        ]}
+                                        value={filtroCliente}
+                                        onChange={setFiltroCliente}
+                                        placeholder="Filtrar Cliente..."
+                                        className="h-12 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-xs font-bold text-slate-600 uppercase tracking-widest"
+                                    />
+                                </div>
+
+                                <div className="h-10 w-px bg-slate-100 dark:bg-slate-800 hidden lg:block" />
 
                                 <Select value={filtroIndustria} onValueChange={setFiltroIndustria}>
-                                    <SelectTrigger className="w-48 bg-slate-50 border-slate-200 focus:ring-emerald-500/20">
+                                    <SelectTrigger className="h-12 w-56 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl focus:ring-emerald-500/20 font-bold text-slate-600 dark:text-slate-400 text-xs uppercase tracking-widest">
                                         <SelectValue placeholder="Filtrar Indústria" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="rounded-2xl border-slate-100 shadow-2xl">
                                         <SelectItem value="ALL">Todas Indústrias</SelectItem>
-                                        {industrias.map(i => (
-                                            <SelectItem key={i.for_codigo} value={i.for_codigo.toString()}>
-                                                {i.for_nome}
+                                        {industrias.filter(i => (i.id || i.for_codigo)).map(i => (
+                                            <SelectItem key={i.id || i.for_codigo} value={(i.id || i.for_codigo).toString()}>
+                                                {i.nome || i.for_nomered || i.for_nome}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
 
-                                <Button onClick={carregarDados} variant="ghost" className="text-emerald-600 font-bold px-4 hover:bg-emerald-50 rounded-lg">
-                                    <Filter className="w-4 h-4 mr-2" />
-                                    Filtrar
+                                <Button
+                                    onClick={() => { setFiltroIndustria("ALL"); setFiltroCliente("ALL"); setPeriodo(""); setFiltroBusca(""); }}
+                                    variant="ghost"
+                                    className="h-12 px-4 text-slate-400 hover:text-rose-500 rounded-2xl transition-all"
+                                    title="Limpar Filtros"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
                                 </Button>
                             </div>
 
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest px-4">
-                                Mostrando {filteredRegistros.length} registros
+                            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800/50">
+                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none">
+                                    Total de {filteredRegistros.length} registros
+                                </span>
                             </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Charts & Trends - Optimized Width for new Ranking Chart */}
+                            <Card className="lg:col-span-2 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden group">
+                                <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800/50 p-6 bg-slate-50/30 dark:bg-slate-800/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/10">
+                                            <BarChart3 className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-3">
+                                                <CardTitle className="text-xl font-black text-slate-800 dark:text-white tracking-tighter uppercase whitespace-nowrap">Tendência de <span className="text-emerald-500">Sell-Out</span></CardTitle>
+                                                {summary?.growth !== undefined && (
+                                                    <Badge className={`rounded-xl px-3 py-1 border-none font-black text-[10px] uppercase tracking-widest ${parseFloat(summary.growth) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                        {parseFloat(summary.growth) >= 0 ? '+' : ''}{summary.growth}%
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">Performance filtrada (Visão Trimestral)</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-100 dark:border-slate-700">
+                                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-black uppercase tracking-tighter text-emerald-600 bg-emerald-50 dark:bg-emerald-900/50 rounded-lg">Valor</Button>
+                                        <Button variant="ghost" size="sm" className="h-7 px-3 text-[10px] font-black uppercase tracking-tighter text-slate-400 dark:text-slate-500 rounded-lg">Volume</Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-8">
+                                    <div className="h-[300px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={summary?.trend || []}>
+                                                <defs>
+                                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="6 6" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis
+                                                    dataKey="label"
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}
+                                                    dy={20}
+                                                />
+                                                <YAxis hide />
+                                                <Tooltip
+                                                    cursor={{ stroke: '#10b981', strokeWidth: 2, strokeDasharray: '4 4' }}
+                                                    contentStyle={{
+                                                        borderRadius: '20px',
+                                                        border: 'none',
+                                                        boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+                                                        padding: '16px',
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                        backdropFilter: 'blur(8px)',
+                                                        fontFamily: 'inherit'
+                                                    }}
+                                                    formatter={(value) => [formatCurrency(value), '']}
+                                                    labelStyle={{ color: '#64748b', fontWeight: 900, fontSize: '12px', margin: '0 0 8px 0', textTransform: 'uppercase' }}
+                                                />
+                                                <Area
+                                                    type="monotone"
+                                                    dataKey="value"
+                                                    stroke="#10b981"
+                                                    strokeWidth={4}
+                                                    fillOpacity={1}
+                                                    fill="url(#colorValue)"
+                                                    animationDuration={2000}
+                                                    animationEasing="ease-in-out"
+                                                />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* NEW: Ranking de Clientes (Monitoramento do Mês) */}
+                            <Card className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden group">
+                                <CardHeader className="border-b border-slate-50 dark:border-slate-800/50 p-6 bg-slate-50/30 dark:bg-slate-800/20">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-blue-500 rounded-xl text-white shadow-lg shadow-blue-500/20 ring-4 ring-blue-500/10">
+                                            <Users className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-xl font-black text-slate-800 dark:text-white tracking-tighter uppercase whitespace-nowrap">Ranking de <span className="text-blue-500">Clientes</span></CardTitle>
+                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">Top 5 performance do mês</p>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-8">
+                                    {summary?.ranking?.length > 0 ? (
+                                        <div className="h-[300px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={summary.ranking} layout="vertical" margin={{ left: -20, right: 30 }}>
+                                                    <CartesianGrid strokeDasharray="6 6" horizontal={false} stroke="#f1f5f9" />
+                                                    <XAxis type="number" hide />
+                                                    <YAxis
+                                                        dataKey="label"
+                                                        type="category"
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{ fontSize: 10, fill: '#64748b', fontWeight: 900, textTransform: 'uppercase' }}
+                                                        width={100}
+                                                    />
+                                                    <Tooltip
+                                                        cursor={{ fill: '#f8fafc' }}
+                                                        contentStyle={{
+                                                            borderRadius: '16px',
+                                                            border: 'none',
+                                                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                            fontSize: '11px'
+                                                        }}
+                                                        formatter={(value) => [formatCurrency(value), 'Sell-Out']}
+                                                    />
+                                                    <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={24}>
+                                                        {summary.ranking.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : '#3b82f6'} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    ) : (
+                                        <div className="h-[300px] flex flex-col items-center justify-center text-slate-300">
+                                            <Users className="w-12 h-12 opacity-20 mb-4" />
+                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Sem dados de ranking</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Dialog open={showForm} onOpenChange={setShowForm}>
+                                <DialogContent className="max-w-2xl p-0 bg-transparent border-none shadow-none">
+                                    <Card className="bg-white border-2 border-emerald-500 shadow-2xl shadow-emerald-500/10 overflow-hidden rounded-[32px]">
+                                        <CardHeader className="bg-emerald-600 border-b border-emerald-700 py-6 px-8 relative">
+                                            <CardTitle className="text-xl font-black flex items-center gap-3 text-white uppercase tracking-tighter">
+                                                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                                                    <Plus className="w-5 h-5 text-white" />
+                                                </div>
+                                                {editId ? "Editar Registro" : "Lançamento Manual"}
+                                            </CardTitle>
+                                            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Preencha os dados da venda na ponta</p>
+                                        </CardHeader>
+                                        <CardContent className="p-8 space-y-6">
+                                            <div className="space-y-5">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Cliente / PDV Responsável</label>
+                                                    <Combobox
+                                                        items={clientes.map(c => ({
+                                                            value: c.cli_codigo.toString(),
+                                                            label: `${c.cli_codigo} - ${c.cli_nomred || c.cli_nome}`
+                                                        }))}
+                                                        value={cliCodigo}
+                                                        onChange={setCliCodigo}
+                                                        placeholder="Pesquisar cliente por nome ou código..."
+                                                        searchPlaceholder="Digite para buscar entre +1.000 clientes..."
+                                                        className="h-14 bg-slate-50 border-slate-200 rounded-2xl text-slate-700 font-bold focus:ring-emerald-500/20"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Indústria Representada</label>
+                                                    <Combobox
+                                                        items={industrias.map(i => ({
+                                                            value: (i.id || i.for_codigo).toString(),
+                                                            label: i.nome || i.for_nomered || i.for_nome
+                                                        }))}
+                                                        value={forCodigo}
+                                                        onChange={setForCodigo}
+                                                        placeholder="Selecione a indústria..."
+                                                        className="h-14 bg-slate-50 border-slate-200 rounded-2xl text-slate-700 font-bold focus:ring-emerald-500/20"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Período Fiscal</label>
+                                                    <div className="relative">
+                                                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                                        <Input
+                                                            type="month"
+                                                            value={periodo}
+                                                            onChange={e => setPeriodo(e.target.value)}
+                                                            className="h-14 pl-12 bg-slate-50 border-slate-200 rounded-2xl focus:ring-emerald-500/20 font-bold text-slate-600 w-full"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-5">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Volume / Qtd</label>
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="0"
+                                                            value={quantidade}
+                                                            onFocus={(e) => e.target.select()}
+                                                            onChange={e => setQuantidade(e.target.value)}
+                                                            className="h-14 bg-slate-50 border-slate-200 rounded-2xl focus:ring-emerald-500/20 font-bold text-slate-800 text-lg"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Valor Sell-Out (Total)</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-emerald-600">R$</span>
+                                                            <Input
+                                                                type="text"
+                                                                placeholder="0,00"
+                                                                value={formatCurrencyInput(valor)}
+                                                                onFocus={(e) => e.target.select()}
+                                                                onChange={handleCurrencyChange}
+                                                                className="h-14 pl-11 bg-emerald-50/30 border-emerald-100 text-emerald-700 font-bold text-xl rounded-2xl focus:ring-emerald-500/20 text-right pr-4"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-3 pt-4">
+                                                <Button
+                                                    onClick={salvar}
+                                                    className="h-16 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/20 border-b-4 border-emerald-800 active:border-b-0 transition-all gap-3"
+                                                >
+                                                    <ArrowUpRight className="w-5 h-5" />
+                                                    {editId ? "Salvar Alterações" : "Confirmar Lançamento"}
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => setShowForm(false)}
+                                                    className="h-12 w-full text-slate-400 hover:text-rose-600 font-bold uppercase text-[10px] tracking-widest"
+                                                >
+                                                    Sair sem salvar
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </DialogContent>
+                            </Dialog>
                         </div>
 
                         <Card className="bg-white overflow-hidden border-2 border-slate-200 shadow-lg">
@@ -787,6 +1021,7 @@ export default function SellOutPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+
                 </Tabs>
             </div>
         </div>

@@ -28,7 +28,7 @@ async def get_vendedores():
 
 
 @router.get("/performance")
-async def get_performance(ano: int, mes: int, vendedor: int = None):
+async def get_performance(ano: int, mes: int, metrica: str = 'valor', vendedor: int = None):
     """Retorna ranking de performance dos vendedores (Apenas ativos e que cumprem meta)"""
     try:
         # Join with vendedores table to filter by status and cumpre_metas
@@ -38,7 +38,8 @@ async def get_performance(ano: int, mes: int, vendedor: int = None):
         JOIN vendedores v ON p.vendedor_codigo = v.ven_codigo
         WHERE v.ven_cumpremetas = 'S' AND v.ven_status = 'A'
         """
-        df = execute_query(query, {"ano": ano, "mes": mes, "vendedor": vendedor})
+        query_mes = 1 if mes == 0 else mes
+        df = execute_query(query, {"ano": ano, "mes": query_mes, "vendedor": vendedor})
         
         if not df.empty:
             # --- YoY Calculation ---
@@ -50,7 +51,8 @@ async def get_performance(ano: int, mes: int, vendedor: int = None):
                 JOIN vendedores v ON p.vendedor_codigo = v.ven_codigo
                 WHERE v.ven_cumpremetas = 'S' AND v.ven_status = 'A'
                 """
-                df_prev = execute_query(query_prev, {"ano": ano - 1, "mes": mes, "vendedor": vendedor})
+                query_mes = 1 if mes == 0 else mes
+                df_prev = execute_query(query_prev, {"ano": ano - 1, "mes": query_mes, "vendedor": vendedor})
                 
                 if not df_prev.empty:
                     # Rename col for merge
@@ -128,7 +130,8 @@ async def get_interacoes_crm(ano: int, mes: int, vendedor: int = None):
     """Retorna análise de interações CRM por vendedor"""
     try:
         query = "SELECT * FROM fn_vendedores_interacoes_crm(:ano, :mes, :vendedor)"
-        df = execute_query(query, {"ano": ano, "mes": mes, "vendedor": vendedor})
+        query_mes = 1 if mes == 0 else mes
+        df = execute_query(query, {"ano": ano, "mes": query_mes, "vendedor": vendedor})
         
         if not df.empty:
             data = df.to_dict(orient='records')
@@ -218,7 +221,7 @@ async def get_ia_insights(vendedor: int, ano: int, mes: int):
 
 
 @router.get("/evolucao")
-async def get_evolucao(ano: int, mes: int, vendedor: int = None):
+async def get_evolucao(ano: int, mes: int, metrica: str = 'valor', vendedor: int = None):
     """Retorna evolução de vendas respeitando filtros de contexto"""
     try:
         from datetime import date
@@ -242,10 +245,22 @@ async def get_evolucao(ano: int, mes: int, vendedor: int = None):
         
         for year, month in months:
             vendedor_filter = f"AND p.ped_vendedor = {vendedor}" if vendedor else ""
+            
+            if metrica == 'quantidade':
+                col_sql = "SUM(i.ite_quant)"
+                join_items = "INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria"
+            elif metrica == 'unidades':
+                col_sql = "COUNT(DISTINCT i.ite_idproduto)"
+                join_items = "INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria"
+            else: # valor
+                col_sql = "SUM(p.ped_totliq)"
+                join_items = ""
+
             query = f"""
-            SELECT COALESCE(SUM(p.ped_totliq), 0) as total
+            SELECT COALESCE({col_sql}, 0) as total
             FROM pedidos p
             JOIN vendedores v ON p.ped_vendedor = v.ven_codigo
+            {join_items}
             WHERE EXTRACT(YEAR FROM p.ped_data) = {year}
               AND EXTRACT(MONTH FROM p.ped_data) = {month}
               AND p.ped_situacao IN ('P', 'F')
@@ -280,7 +295,8 @@ async def get_carteira_resumo(ano: int, mes: int, vendedor: int = None):
     """Retorna KPIs de carteira: ativos 90d, inativos, total, % inativos"""
     try:
         query = "SELECT * FROM fn_vendedores_carteira_resumo(:ano, :mes, :vendedor)"
-        df = execute_query(query, {"ano": ano, "mes": mes, "vendedor": vendedor})
+        query_mes = 1 if mes == 0 else mes
+        df = execute_query(query, {"ano": ano, "mes": query_mes, "vendedor": vendedor})
         
         if not df.empty:
             # Aggregate totals across all sellers (or just one if filtered)
@@ -306,7 +322,8 @@ async def get_carteira_por_vendedor(ano: int, mes: int):
     """Retorna dados para gráfico de barras empilhadas (ativos x inativos por vendedor)"""
     try:
         query = "SELECT * FROM fn_vendedores_carteira_resumo(:ano, :mes, NULL)"
-        df = execute_query(query, {"ano": ano, "mes": mes})
+        query_mes = 1 if mes == 0 else mes
+        df = execute_query(query, {"ano": ano, "mes": query_mes})
         
         if not df.empty:
             data = df.to_dict(orient='records')
@@ -323,7 +340,8 @@ async def get_novos_clientes(ano: int, mes: int, vendedor: int = None):
     """Retorna lista de clientes que fizeram primeira compra no período"""
     try:
         query = "SELECT * FROM fn_clientes_primeira_compra(:ano, :mes, :vendedor)"
-        df = execute_query(query, {"ano": ano, "mes": mes, "vendedor": vendedor})
+        query_mes = 1 if mes == 0 else mes
+        df = execute_query(query, {"ano": ano, "mes": query_mes, "vendedor": vendedor})
         
         if not df.empty:
             data = df.to_dict(orient='records')

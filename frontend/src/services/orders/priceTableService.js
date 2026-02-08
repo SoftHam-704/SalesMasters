@@ -26,8 +26,10 @@ export const priceTableService = {
     async getProducts(industryCode, tableName) {
         const encodedIndustry = encodeURIComponent(industryCode);
         const encodedTable = encodeURIComponent(tableName);
+
+        // Passamos 'dummy' no path e a tabela real no query param para evitar erros de / e % na URL path
         const response = await fetch(
-            `${API_BASE_URL}/products/${encodedIndustry}/${encodedTable}`
+            `${API_BASE_URL}/products/${encodedIndustry}/dummy?tabela=${encodedTable}`
         );
         if (!response.ok) {
             throw new Error('Failed to fetch products');
@@ -44,8 +46,10 @@ export const priceTableService = {
     async getProductsFull(industryCode, tableName) {
         const encodedIndustry = encodeURIComponent(industryCode);
         const encodedTable = encodeURIComponent(tableName);
+
+        // Usamos query parameter para a tabela para evitar problemas com / e % na URL path
         const response = await fetch(
-            `${API_BASE_URL}/price-tables/${encodedIndustry}/${encodedTable}/products-full`
+            `${API_BASE_URL}/price-tables/${encodedIndustry}/dummy/products-full?tabela=${encodedTable}`
         );
         if (!response.ok) {
             throw new Error('Failed to load price table memtable');
@@ -64,8 +68,10 @@ export const priceTableService = {
         const encodedIndustry = encodeURIComponent(industryCode);
         const encodedTable = encodeURIComponent(tableName);
         const encodedProduct = encodeURIComponent(productCode);
+
+        // Passamos 'dummy' no path e a tabela real no query param
         const response = await fetch(
-            `${API_BASE_URL}/price-tables/${encodedIndustry}/${encodedTable}/products/${encodedProduct}`
+            `${API_BASE_URL}/price-tables/${encodedIndustry}/dummy/products/${encodedProduct}?tabela=${encodedTable}`
         );
         if (!response.ok) {
             throw new Error('Failed to fetch product');

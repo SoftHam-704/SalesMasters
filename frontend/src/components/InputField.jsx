@@ -25,7 +25,7 @@ const InputField = ({
 
   return (
     <div className={`input-field ${large ? 'large' : ''} ${className || ''}`}>
-      {label && <label>{label}</label>}
+      {label && <label className="field-label">{label}</label>}
       <input
         ref={inputRef}
         type={type}

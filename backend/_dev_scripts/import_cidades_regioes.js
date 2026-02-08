@@ -12,13 +12,13 @@ const pool = new Pool({
     ssl: false
 });
 
-const SCHEMA = 'ro_consult';
+const SCHEMA = process.env.SCHEMA || 'soma';
 
 async function importCidadesRegioes() {
     try {
-        console.log(`🚀 IMPORTANDO VÍNCULO CIDADES-REGIÕES -> SCHEMA: [${SCHEMA}] (SaveInCloud)\n`);
+        console.log(`🚀 IMPORTANDO VÍNCULO CIDADES-REGIÕES -> SCHEMA: [${SCHEMA}]\n`);
 
-        const filePath = path.join(__dirname, '../../data/cidades_regioes.xlsx');
+        const filePath = process.env.EXCEL_FILE || path.join(__dirname, '../../data/cidades_regioes.xlsx');
         if (!require('fs').existsSync(filePath)) {
             console.error(`❌ ERRO: Arquivo não encontrado em ${filePath}`);
             return;
@@ -29,7 +29,6 @@ async function importCidadesRegioes() {
 
         console.log(`📊 ${data.length} registros encontrados no Excel\n`);
 
-        // Set search path to target schema
         await pool.query(`SET search_path TO "${SCHEMA}"`);
 
         let imported = 0;
@@ -45,7 +44,7 @@ async function importCidadesRegioes() {
                 await pool.query(
                     `INSERT INTO cidades_regioes (reg_id, cid_id) 
                      VALUES ($1, $2)
-                     ON CONFLICT DO NOTHING`, // Evita duplicados
+                     ON CONFLICT DO NOTHING`,
                     [reg_id, cid_id]
                 );
                 imported++;
@@ -55,7 +54,6 @@ async function importCidadesRegioes() {
                 }
             } catch (err) {
                 errors++;
-                console.error(`\n❌ Erro no vínculo [REG: ${row.REG_ID} CID: ${row.CID_ID}]: ${err.message}`);
             }
         }
 

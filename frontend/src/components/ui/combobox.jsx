@@ -59,7 +59,7 @@ export function Combobox({
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0" align="start">
-                <Command shouldFilter={false}>
+                <Command shouldFilter={true}>
                     <CommandInput placeholder={searchPlaceholder} />
                     <CommandList>
                         <CommandEmpty>{emptyMessage}</CommandEmpty>
@@ -72,11 +72,13 @@ export function Combobox({
                                         onChange(item.value);
                                         setOpen(false);
                                     }}
+                                    onPointerDown={(e) => e.preventDefault()}
+                                    className="flex items-center px-4 py-3 cursor-pointer text-slate-700 dark:text-slate-200 font-bold text-xs uppercase tracking-tight aria-selected:bg-emerald-50 aria-selected:text-emerald-700 transition-colors pointer-events-auto"
                                 >
                                     <Check
                                         className={cn(
                                             "mr-2 h-4 w-4",
-                                            String(value) === String(item.value) ? "opacity-100" : "opacity-0"
+                                            String(value) === String(item.value) ? "text-emerald-600 opacity-100" : "opacity-0"
                                         )}
                                     />
                                     {item.label}

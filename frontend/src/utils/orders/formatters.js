@@ -9,17 +9,35 @@
  * @param {string} prefix - Prefixo (ex: "HS")
  * @returns {string} Número formatado
  */
-export function formatOrderNumber(number, prefix = 'HS') {
+export function formatOrderNumber(number, prefix = null) {
     if (!number) return '(Novo)';
 
-    // Se já tem o prefixo, retorna como está
-    if (typeof number === 'string' && number.startsWith(prefix)) {
+    let finalPrefix = prefix;
+    if (finalPrefix === null) {
+        // Tenta obter as iniciais do usuário logado como fallback
+        try {
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                const first = user.nome ? user.nome.charAt(0) : '';
+                const last = user.sobrenome ? user.sobrenome.charAt(0) : '';
+                finalPrefix = (first + last).toUpperCase() || 'SM';
+            } else {
+                finalPrefix = 'HS'; // Fallback de compatibilidade se não houver usuário
+            }
+        } catch (e) {
+            finalPrefix = 'HS';
+        }
+    }
+
+    // Se já tem o prefixo (ou qualquer prefixo de 2 letras seguido de números), retorna como está
+    if (typeof number === 'string' && /^[A-Z]{2}\d+/.test(number)) {
         return number;
     }
 
     // Adiciona o prefixo e formata com zeros à esquerda
     const numStr = String(number).padStart(6, '0');
-    return `${prefix}${numStr}`;
+    return `${finalPrefix}${numStr}`;
 }
 
 /**

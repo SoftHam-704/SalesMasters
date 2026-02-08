@@ -17,6 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { NODE_API_URL, getApiUrl } from "../../utils/apiConfig";
 
 export function ClientDiscountDialog({
     isOpen,
@@ -79,7 +80,7 @@ export function ClientDiscountDialog({
 
     const fetchSuppliers = async () => {
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/suppliers?active=true&limit=1000');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/suppliers?active=true&limit=1000'));
             const data = await response.json();
             if (data.success) {
                 setSuppliers(data.data);
@@ -91,10 +92,10 @@ export function ClientDiscountDialog({
 
     const fetchGroups = async () => {
         try {
-            const response = await fetch('https://salesmasters.softham.com.br/api/discount-groups');
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/discount-groups'));
             const data = await response.json();
             console.log('Groups fetched:', data); // Debug
-            setGroups(data);
+            setGroups(data.data || []);
         } catch (error) {
             console.error('Error fetching groups:', error);
         }
@@ -109,11 +110,9 @@ export function ClientDiscountDialog({
         }
 
         try {
-            const url = discount
-                ? `https://salesmasters.softham.com.br/api/clients/${clientId}/discounts/${discount.cli_forcodigo}/${discount.cli_grupo}`
-                : `https://salesmasters.softham.com.br/api/clients/${clientId}/discounts`;
+            const url = getApiUrl(NODE_API_URL, `/api/clients/${clientId}/discounts`);
 
-            const method = discount ? 'PUT' : 'POST';
+            const method = 'POST'; // My backend uses POST with ON CONFLICT DO UPDATE
 
             const response = await fetch(url, {
                 method,
@@ -141,26 +140,26 @@ export function ClientDiscountDialog({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle className="text-base">
+                    <DialogTitle className="text-lg font-bold text-slate-800">
                         {discount ? 'Editar Desconto' : 'Adicionar Desconto'}
                     </DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-3">
                     {/* Supplier and Group Selects */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                            <Label className="text-xs">Indústria:</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-slate-700">Indústria:</Label>
                             <Select
                                 value={formData.cli_forcodigo}
                                 onValueChange={(val) => setFormData({ ...formData, cli_forcodigo: val })}
                             >
-                                <SelectTrigger className="h-8 text-xs bg-yellow-50">
+                                <SelectTrigger className="h-10 text-sm bg-yellow-50/50 border-yellow-100 shadow-sm">
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent className="z-[9999]">
                                     {suppliers.map((supplier) => (
-                                        <SelectItem key={supplier.for_codigo} value={supplier.for_codigo.toString()} className="text-xs">
+                                        <SelectItem key={supplier.for_codigo} value={supplier.for_codigo.toString()} className="text-sm py-2">
                                             {supplier.for_nomered}
                                         </SelectItem>
                                     ))}
@@ -168,19 +167,19 @@ export function ClientDiscountDialog({
                             </Select>
                         </div>
 
-                        <div className="space-y-1">
-                            <Label className="text-xs">Grupo:</Label>
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-semibold text-slate-700">Grupo:</Label>
                             <Select
                                 value={formData.cli_grupo}
                                 onValueChange={(val) => setFormData({ ...formData, cli_grupo: val })}
                             >
-                                <SelectTrigger className="h-8 text-xs bg-gray-100">
+                                <SelectTrigger className="h-10 text-sm bg-slate-50 border-slate-200 shadow-sm">
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent className="z-[9999]">
                                     {groups.map((group) => (
-                                        <SelectItem key={group.gru_codigo} value={group.gru_codigo.toString()} className="text-xs">
-                                            {group.gru_nome}
+                                        <SelectItem key={group.id} value={group.id.toString()} className="text-sm py-2">
+                                            {group.nome}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -196,22 +195,22 @@ export function ClientDiscountDialog({
                     {/* Discount Inputs Grid */}
                     <div className="grid grid-cols-9 gap-2">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                            <div key={num} className="space-y-1">
-                                <Label className="text-[10px] text-center block text-gray-600">{num}º</Label>
+                            <div key={num} className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-center block text-slate-500">{num}º</Label>
                                 <div className="relative">
                                     <Input
-                                        type="text"
-                                        value={formData[`cli_desc${num}`].toFixed(2)}
+                                        type="number"
+                                        step="0.01"
+                                        value={formData[`cli_desc${num}`]}
                                         onChange={(e) => {
-                                            const val = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.');
                                             setFormData({
                                                 ...formData,
-                                                [`cli_desc${num}`]: parseFloat(val) || 0,
+                                                [`cli_desc${num}`]: parseFloat(e.target.value) || 0,
                                             });
                                         }}
-                                        className="h-8 text-[11px] text-center pr-6"
+                                        className="h-10 text-xs font-bold text-center pr-6 bg-white border-slate-200"
                                     />
-                                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
+                                    <span className="absolute right-1.5 text-[10px] top-1/2 -translate-y-1/2 text-slate-400 font-extrabold">
                                         %
                                     </span>
                                 </div>
@@ -220,21 +219,21 @@ export function ClientDiscountDialog({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end gap-2 pt-3 border-t">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                         <Button
                             type="submit"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 px-6 text-sm font-bold shadow-lg shadow-emerald-200"
                         >
-                            <Check className="w-3.5 h-3.5 mr-1.5" />
-                            Salvar
+                            <Check className="w-4 h-4 mr-2" />
+                            Salvar Alterações
                         </Button>
                         <Button
                             type="button"
-                            variant="destructive"
+                            variant="outline"
                             onClick={onClose}
-                            className="h-8 text-xs"
+                            className="h-10 px-6 text-sm font-semibold border-slate-200 text-slate-600"
                         >
-                            <X className="w-3.5 h-3.5 mr-1.5" />
+                            <X className="w-4 h-4 mr-2" />
                             Cancelar
                         </Button>
                     </div>
