@@ -5,18 +5,33 @@ const nodemailer = require('nodemailer');
  * @param {Object} config - SMTP configuration from parameters table
  */
 const createTransporter = (config) => {
+    const port = parseInt(config.par_emailporta) || 587;
+    // Port 465 = implicit SSL (always secure), 587/25 = STARTTLS
+    // par_emailssl is BOOLEAN in DB, not 'S'/'N'
+    const isSecure = port === 465 || config.par_emailssl === true;
+
+    const smtpUser = config.par_emailuser || config.par_email;
+    const hasPassword = !!config.par_emailpassword;
+
+    console.log(`📧 [MAILER] Configurando: host=${config.par_emailserver}, port=${port}, secure=${isSecure}, user=${smtpUser}, hasPass=${hasPassword}`);
+
     return nodemailer.createTransport({
-        host: config.par_emailserver,
-        port: config.par_emailporta || 587,
-        secure: config.par_emailssl === 'S', // true for 465, false for other ports
+        host: (config.par_emailserver || '').trim(),
+        port: port,
+        secure: isSecure,
         auth: {
-            user: config.par_emailuser,
-            pass: config.par_emailpassword,
+            user: smtpUser.trim(),
+            pass: (config.par_emailpassword || '').trim(),
         },
         tls: {
-            // Do not fail on invalid certs
-            rejectUnauthorized: false
-        }
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1'
+        },
+        connectionTimeout: 10000,  // 10s to connect
+        greetingTimeout: 10000,    // 10s to receive greeting
+        socketTimeout: 30000,      // 30s for socket inactivity
+        debug: false,
+        logger: false
     });
 };
 

@@ -120,8 +120,8 @@ const OrderItemEntry = ({
                         ite_nomeprod: importItem.descricao || importItem.ite_nomeprod || product.pro_nome,
                         ite_puni: precoFinal,
                         ite_totbruto: precoFinal,
-                        ite_ipi: product.itab_ipi || 0,
-                        ite_st: product.itab_st || 0,
+                        ite_ipi: typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0),
+                        ite_st: typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0),
                         ite_quant: quant,
                         ite_mult: parseFloat(product.pro_mult) || 0,
                         ite_promocao: importItem.ite_promocao || 'N',
@@ -217,10 +217,14 @@ const OrderItemEntry = ({
 
         return {
             ...item,
+            ite_puni: bruto,
+            ite_totbruto: totBruto,
             ite_puniliq: liquido,
             ite_totliquido: totLiq,
-            ite_valcomipi: valComIpi,
-            ite_valcomst: valComSt
+            ite_valcomipi: valComIpi / (quant || 1),
+            ite_valcomst: valComSt / (quant || 1),
+            ite_totcomst: valComSt,
+            ite_totalipi: valComIpi
         };
     };
 
@@ -365,11 +369,13 @@ const OrderItemEntry = ({
         return {
             ...item,
             ite_puni: bruto,
-            ite_totbruto: bruto,
+            ite_totbruto: totBruto,
             ite_puniliq: liquido,
             ite_totliquido: totLiq,
-            ite_valcomipi: valComIpi,
-            ite_valcomst: valComSt
+            ite_valcomipi: valComIpi / (quant || 1),
+            ite_valcomst: valComSt / (quant || 1),
+            ite_totcomst: valComSt,
+            ite_totalipi: valComIpi
         };
     };
 

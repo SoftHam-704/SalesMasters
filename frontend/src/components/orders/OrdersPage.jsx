@@ -11,7 +11,7 @@ import {
     Factory, TrendingUp, Package, DollarSign, Calendar,
     ChevronRight, Filter, X, Sparkles, FileText, Copy, Globe,
     Receipt, FileCheck, Repeat, Building2, XCircle, ShoppingCart,
-    BarChart2, ArrowRight, Settings, Mail, RefreshCw
+    BarChart2, ArrowRight, Settings, Mail, RefreshCw, ArrowUpDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import IndustryList from './IndustryList';
@@ -100,6 +100,12 @@ const OrderCard = memo(function OrderCard({
                                         <Globe className="w-4 h-4 text-blue-600" />
                                         {order.ped_tabela || 'Padrão'}
                                     </div>
+                                    {order.ped_cliind && (
+                                        <div className="flex items-center gap-1 text-xs font-black px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                                            <ShoppingCart className="w-3.5 h-3.5" />
+                                            {order.ped_cliind}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -200,7 +206,7 @@ const OrderCard = memo(function OrderCard({
                                     <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 no-scrollbar">
                                         {[order.ped_pri, order.ped_seg, order.ped_ter, order.ped_qua, order.ped_qui].map((d, i) => (
                                             d > 0 && (
-                                                <div key={i} className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[9px] font-mono text-slate-600 font-bold">
+                                                <div key={i} className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-mono text-slate-600 font-bold">
                                                     DESC-{i + 1}: {d}%
                                                 </div>
                                             )
@@ -235,7 +241,7 @@ const OrderCard = memo(function OrderCard({
     );
 });
 
-export default function OrdersPage() {
+export default function OrdersPage({ forceProjetos }) {
     const [selectedIndustry, setSelectedIndustry] = useState(null);
     const [printDialogOpen, setPrintDialogOpen] = useState(false);
     const [orderToPrint, setOrderToPrint] = useState(null);
@@ -258,9 +264,10 @@ export default function OrdersPage() {
         ignorarIndustria: false,
         pesquisa: '',
         situacao: 'Z',
-        dataInicio: formatDateInput(new Date(2025, 0, 1)),
+        dataInicio: formatDateInput(new Date(today.getFullYear(), 0, 1)),
         dataFim: formatDateInput(today)
     });
+    const [sortBy, setSortBy] = useState('date-desc');
 
     const [selectedOrderObj, setSelectedOrderObj] = useState(null);
     const [orders, setOrders] = useState([]);
@@ -303,7 +310,7 @@ export default function OrdersPage() {
         if (selectedIndustry || filters.pesquisa || filters.cliente) {
             loadOrders();
         }
-    }, [selectedIndustry, filters]);
+    }, [selectedIndustry, filters, sortBy]);
 
     const loadOrders = async () => {
         setLoading(true);
@@ -326,18 +333,31 @@ export default function OrdersPage() {
 
             if (data.success) {
                 let sortedOrders = [...data.pedidos];
-                const sortType = userParams?.par_ordemped || 'D';
 
-                if (sortType === 'N') {
-                    sortedOrders.sort((a, b) => (parseInt(b.ped_pedido) || 0) - (parseInt(a.ped_pedido) || 0));
-                } else {
-                    sortedOrders.sort((a, b) => {
-                        const dateA = new Date(a.ped_data).getTime();
-                        const dateB = new Date(b.ped_data).getTime();
-                        if (dateB !== dateA) return dateB - dateA;
-                        return (parseInt(b.ped_pedido) || 0) - (parseInt(a.ped_pedido) || 0);
-                    });
-                }
+                sortedOrders.sort((a, b) => {
+                    switch (sortBy) {
+                        case 'date-desc':
+                            return new Date(b.ped_data) - new Date(a.ped_data) || (parseInt(b.ped_pedido) - parseInt(a.ped_pedido));
+                        case 'date-asc':
+                            return new Date(a.ped_data) - new Date(b.ped_data) || (parseInt(a.ped_pedido) - parseInt(b.ped_pedido));
+                        case 'val-desc':
+                            return (b.ped_totliq || 0) - (a.ped_totliq || 0);
+                        case 'val-asc':
+                            return (a.ped_totliq || 0) - (b.ped_totliq || 0);
+                        case 'num-desc':
+                            return (parseInt(b.ped_pedido) || 0) - (parseInt(a.ped_pedido) || 0);
+                        case 'num-asc':
+                            return (parseInt(a.ped_pedido) || 0) - (parseInt(b.ped_pedido) || 0);
+                        case 'ref-asc':
+                            return (a.ped_cliind || "").localeCompare(b.ped_cliind || "");
+                        case 'ref-desc':
+                            return (b.ped_cliind || "").localeCompare(a.ped_cliind || "");
+                        case 'client-asc':
+                            return (a.cli_nomred || "").localeCompare(b.cli_nomred || "");
+                        default:
+                            return new Date(b.ped_data) - new Date(a.ped_data);
+                    }
+                });
 
                 setOrders(sortedOrders);
                 const statsResponse = await fetch(getApiUrl(NODE_API_URL, `/api/orders/stats?${params}`));
@@ -510,7 +530,7 @@ export default function OrdersPage() {
                                 <div className="relative flex items-center bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all duration-300">
                                     <Search className="h-4 w-4 text-slate-400 mr-3" />
                                     <input
-                                        placeholder="BUSCAR CLIENTE OU PEDIDO..."
+                                        placeholder="BUSCAR CLIENTE, PEDIDO OU REF..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         onKeyPress={handleKeyPress}
@@ -526,9 +546,32 @@ export default function OrdersPage() {
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-slate-200 text-slate-800">
                                     <SelectItem value="Z" className="text-[10px] font-black uppercase tracking-widest">Todos</SelectItem>
-                                    <SelectItem value="P" className="text-[10px] font-black uppercase tracking-widest">Pedidos</SelectItem>
-                                    <SelectItem value="F" className="text-[10px] font-black uppercase tracking-widest">Faturados</SelectItem>
-                                    <SelectItem value="C" className="text-[10px] font-black uppercase tracking-widest">Cotações</SelectItem>
+                                    <SelectItem value="P" className="text-[10px] font-black uppercase tracking-widest">Pedido</SelectItem>
+                                    <SelectItem value="F" className="text-[10px] font-black uppercase tracking-widest">Faturado</SelectItem>
+                                    <SelectItem value="C" className="text-[10px] font-black uppercase tracking-widest">Cotação Pendente</SelectItem>
+                                    <SelectItem value="A" className="text-[10px] font-black uppercase tracking-widest">Cotação Confirmada</SelectItem>
+                                    <SelectItem value="B" className="text-[10px] font-black uppercase tracking-widest">Bonificação</SelectItem>
+                                    <SelectItem value="G" className="text-[10px] font-black uppercase tracking-widest">Garantia</SelectItem>
+                                    <SelectItem value="N" className="text-[10px] font-black uppercase tracking-widest">Notificação</SelectItem>
+                                    <SelectItem value="E" className="text-[10px] font-black uppercase tracking-widest">Excluído</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            <Select value={sortBy} onValueChange={setSortBy}>
+                                <SelectTrigger className="w-40 bg-slate-100 border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-xl">
+                                    <ArrowUpDown className="h-3 w-3 mr-2 text-emerald-600" />
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-200 text-slate-800">
+                                    <SelectItem value="date-desc" className="text-[10px] font-black uppercase tracking-widest">Mais Recentes</SelectItem>
+                                    <SelectItem value="date-asc" className="text-[10px] font-black uppercase tracking-widest">Mais Antigos</SelectItem>
+                                    <SelectItem value="val-desc" className="text-[10px] font-black uppercase tracking-widest">Maior Valor</SelectItem>
+                                    <SelectItem value="val-asc" className="text-[10px] font-black uppercase tracking-widest">Menor Valor</SelectItem>
+                                    <SelectItem value="num-desc" className="text-[10px] font-black uppercase tracking-widest">Número (Desc)</SelectItem>
+                                    <SelectItem value="num-asc" className="text-[10px] font-black uppercase tracking-widest">Número (Asc)</SelectItem>
+                                    <SelectItem value="ref-asc" className="text-[10px] font-black uppercase tracking-widest">Ref. Cliente (A-Z)</SelectItem>
+                                    <SelectItem value="ref-desc" className="text-[10px] font-black uppercase tracking-widest">Ref. Cliente (Z-A)</SelectItem>
+                                    <SelectItem value="client-asc" className="text-[10px] font-black uppercase tracking-widest">Cliente (A-Z)</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -754,6 +797,7 @@ export default function OrdersPage() {
                 onOrderCreated={handleOrderCreated}
                 selectedOrder={selectedOrderObj}
                 readOnly={isReadOnly}
+                forceProjetos={forceProjetos}
             />
 
             <PrintOrderDialog
@@ -777,7 +821,7 @@ export default function OrdersPage() {
                     try {
                         const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderToPrint}/print-data?industria=${orderToPrintIndustry}&sortBy=${sorting}`));
                         const data = await response.json();
-                        exportOrderToExcel(data.data.order, data.data.items);
+                        await exportOrderToExcel(data.data.order, data.data.items);
                         toast.success('Excel exportado!');
                         setPrintDialogOpen(false);
                     } catch (error) {

@@ -34,12 +34,15 @@ window.fetch = async (...args) => {
                     // Normaliza CNPJ (remove pontos e traços se necessário, mas o backend espera o que foi gravado)
                     config.headers['x-tenant-cnpj'] = tenantConfig.cnpj;
 
-                    // Log para debug
-                    console.log(`🚀 [FETCH] Tenant: ${tenantConfig.cnpj} | URL: ${url}`);
+                    // Log para debug (opcional, manter apenas se necessário para Troubleshooting)
+                    // console.log(`🚀 [FETCH] Tenant: ${tenantConfig.cnpj} | URL: ${url}`);
                 }
 
                 if (tenantConfig.dbConfig) {
                     config.headers['x-tenant-db-config'] = JSON.stringify(tenantConfig.dbConfig);
+                } else if (tenantConfig.host && tenantConfig.database && tenantConfig.user) {
+                    // Estrutura FLAT (Fallback) - enviamos o objeto inteiro que contém os campos de conexão
+                    config.headers['x-tenant-db-config'] = tenantConfigRaw;
                 }
             } catch (e) {
                 console.error('Erro ao processar tenantConfig no interceptor fetch', e);

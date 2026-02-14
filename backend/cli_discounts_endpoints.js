@@ -1,9 +1,11 @@
+const express = require('express');
 
 // CLI Discounts (cli_descpro) Endpoints
-module.exports = function (app, pool) {
+module.exports = (pool) => {
+    const router = express.Router();
 
     // GET - List all discount groups (from grupo_desc)
-    app.get('/api/discount-groups', async (req, res) => {
+    router.get('/discount-groups', async (req, res) => {
         try {
             const query = `
                 SELECT gru_codigo as id, gru_nome as nome, gru_codigo || ' - ' || gru_nome as label
@@ -19,7 +21,7 @@ module.exports = function (app, pool) {
     });
 
     // GET - Listar todos os descontos de grupo (tabela grupo_desc)
-    app.get('/api/group-discounts', async (req, res) => {
+    router.get('/group-discounts', async (req, res) => {
         try {
             const query = `
                 SELECT gid, gde_desc1, gde_desc2, gde_desc3, gde_desc4, gde_desc5, gde_desc6, gde_desc7, gde_desc8, gde_desc9
@@ -34,7 +36,7 @@ module.exports = function (app, pool) {
     });
 
     // GET - List discounts for a specific client
-    app.get('/api/clients/:id/discounts', async (req, res) => {
+    router.get('/clients/:id/discounts', async (req, res) => {
         try {
             const { id } = req.params;
 
@@ -65,7 +67,7 @@ module.exports = function (app, pool) {
     });
 
     // POST - Add or Update a discount
-    app.post('/api/clients/:id/discounts', async (req, res) => {
+    router.post('/clients/:id/discounts', async (req, res) => {
         try {
             const { id } = req.params;
             const {
@@ -108,7 +110,7 @@ module.exports = function (app, pool) {
     });
 
     // DELETE - Remove a discount
-    app.delete('/api/clients/:id/discounts/:industryId/:groupId', async (req, res) => {
+    router.delete('/clients/:id/discounts/:industryId/:groupId', async (req, res) => {
         try {
             const { id, industryId, groupId } = req.params;
             const query = `
@@ -124,4 +126,6 @@ module.exports = function (app, pool) {
             res.status(500).json({ success: false, message: error.message });
         }
     });
+
+    return router;
 };

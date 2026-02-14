@@ -28,7 +28,7 @@ async def get_vendedores():
 
 
 @router.get("/performance")
-async def get_performance(ano: int, mes: int, vendedor: int = None):
+async def get_performance(ano: int, mes: int, metrica: str = 'valor', vendedor: int = None):
     """Retorna ranking de performance dos vendedores (Apenas ativos e que cumprem meta)"""
     try:
         # Join with vendedores table to filter by status and cumpre_metas
@@ -221,7 +221,7 @@ async def get_ia_insights(vendedor: int, ano: int, mes: int):
 
 
 @router.get("/evolucao")
-async def get_evolucao(ano: int, mes: int, vendedor: int = None):
+async def get_evolucao(ano: int, mes: int, metrica: str = 'valor', vendedor: int = None):
     """Retorna evolução de vendas respeitando filtros de contexto"""
     try:
         from datetime import date
@@ -245,10 +245,22 @@ async def get_evolucao(ano: int, mes: int, vendedor: int = None):
         
         for year, month in months:
             vendedor_filter = f"AND p.ped_vendedor = {vendedor}" if vendedor else ""
+            
+            if metrica == 'quantidade':
+                col_sql = "SUM(i.ite_quant)"
+                join_items = "INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria"
+            elif metrica == 'unidades':
+                col_sql = "COUNT(DISTINCT i.ite_idproduto)"
+                join_items = "INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria"
+            else: # valor
+                col_sql = "SUM(p.ped_totliq)"
+                join_items = ""
+
             query = f"""
-            SELECT COALESCE(SUM(p.ped_totliq), 0) as total
+            SELECT COALESCE({col_sql}, 0) as total
             FROM pedidos p
             JOIN vendedores v ON p.ped_vendedor = v.ven_codigo
+            {join_items}
             WHERE EXTRACT(YEAR FROM p.ped_data) = {year}
               AND EXTRACT(MONTH FROM p.ped_data) = {month}
               AND p.ped_situacao IN ('P', 'F')

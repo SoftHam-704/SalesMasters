@@ -3,43 +3,34 @@ const { Pool } = require('pg');
 const pool = new Pool({
     host: 'node254557-salesmaster.sp1.br.saveincloud.net.br',
     port: 13062,
-    database: 'basesales',
     user: 'webadmin',
-    password: 'ytAyO0u043'
+    password: 'ytAyO0u043',
+    database: 'basesales',
+    ssl: false
 });
 
-async function checkCamilaAgenda() {
+async function debugCamila() {
     try {
-        console.log('--- Checking ro_consult.agenda table existence ---');
-        const resTable = await pool.query(`
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'ro_consult' AND table_name = 'agenda'
-        `);
-        console.log('Table exists:', resTable.rows.length > 0);
+        console.log('--- Debugging Camila Agenda (ID 11) ---');
 
-        if (resTable.rows.length === 0) {
-            console.log('❌ TABLE ro_consult.agenda DOES NOT EXIST!');
+        // 1. Encontrar todos os registros de agenda para usuario_id 11
+        const res = await pool.query("SELECT id, titulo, usuario_id, empresa_id, data_inicio, status FROM ro_consult.agenda WHERE usuario_id::text = '11';");
+        console.log(`Registros totais para Camila (ID 11): ${res.rowCount}`);
+        if (res.rowCount > 0) {
+            console.log('Registros encontrados:', res.rows);
         } else {
-            console.log('\n--- Checking column structure ---');
-            const resCols = await pool.query(`
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_schema = 'ro_consult' AND table_name = 'agenda'
-                ORDER BY ordinal_position
-            `);
-            resCols.rows.forEach(r => console.log(`${r.column_name} (${r.data_type})`));
-
-            console.log('\n--- Checking recent entries for user Camila Almeida ---');
-            // We need to find the user id first. In basesales, which table holds users?
-            // Usually cad_usu or something.
+            console.log('Nenhum registro encontrado com usuario_id = 11');
         }
 
-        await pool.end();
-    } catch (e) {
-        console.error(err);
+        // 2. Verificar as empresas_id presentes na tabela agenda
+        const resEmpresas = await pool.query("SELECT DISTINCT empresa_id FROM ro_consult.agenda;");
+        console.log('Empresas na tabela agenda:', resEmpresas.rows.map(r => r.empresa_id));
+
+    } catch (err) {
+        console.error('Erro:', err);
+    } finally {
         await pool.end();
     }
 }
 
-checkCamilaAgenda();
+debugCamila();

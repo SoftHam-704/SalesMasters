@@ -58,7 +58,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                     if (dataParams.success && dataParams.data) {
                         setSmtpInfo({
                             host: dataParams.data.par_emailserver || '...',
-                            user: dataParams.data.par_emailuser || '...'
+                            user: dataParams.data.par_emailuser || dataParams.data.par_email || '...'
                         });
                         setRecipients(prev => ({
                             ...prev,
@@ -167,7 +167,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
             // 3. Conditional Excel Generation
             if (attachExcel) {
                 addLog("Gerando Excel complementar...");
-                const excelBuffer = generateOrderExcelData(orderData.order, orderData.items);
+                const excelBuffer = await generateOrderExcelData(orderData.order, orderData.items);
                 const excelBase64 = btoa(
                     new Uint8Array(excelBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
                 );
@@ -191,40 +191,46 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
 
     const sendEmail = async (attachments) => {
         addLog("Conectando ao servidor SMTP...");
-        const selectedRecipients = Object.entries(recipients)
-            .filter(([_, v]) => v.enabled && v.email)
-            .map(([_, v]) => v.email);
+        try {
+            const selectedRecipients = Object.entries(recipients)
+                .filter(([_, v]) => v.enabled && v.email)
+                .map(([_, v]) => v.email);
 
-        if (selectedRecipients.length === 0) {
-            throw new Error("Selecione ao menos um destinatário válido.");
+            if (selectedRecipients.length === 0) {
+                throw new Error("Selecione ao menos um destinatário válido.");
+            }
+
+            const payload = {
+                recipients: selectedRecipients,
+                subject: emailData.assunto,
+                text: emailData.texto,
+                userId: JSON.parse(sessionStorage.getItem('user'))?.id || 1,
+                attachments: attachments
+            };
+
+            addLog("Enviando e-mail...");
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/email/send-order`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                addLog("✅ E-mail enviado com sucesso!");
+                toast.success("E-mail enviado com sucesso!");
+                setTimeout(() => onClose(), 1500);
+            } else {
+                throw new Error(result.message || "Falha ao enviar e-mail");
+            }
+        } catch (error) {
+            console.error('Erro no envio de e-mail:', error);
+            addLog(`❌ Erro: ${error.message}`);
+            toast.error(`Erro ao enviar: ${error.message}`);
+        } finally {
+            setLoading(false);
         }
-
-        const payload = {
-            recipients: selectedRecipients,
-            subject: emailData.assunto,
-            text: emailData.texto,
-            userId: JSON.parse(sessionStorage.getItem('user'))?.id || 1,
-            attachments: attachments
-        };
-
-        addLog("Enviando e-mail...");
-        const response = await fetch(getApiUrl(NODE_API_URL, `/api/email/send-order`), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            addLog("✅ E-mail enviado com sucesso!");
-            toast.success("E-mail enviado com sucesso!");
-            setTimeout(() => onClose(), 1500);
-        } else {
-            throw new Error(result.message || "Falha ao enviar e-mail");
-        }
-
-        setLoading(false);
     };
 
     return (
@@ -249,24 +255,24 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="flex h-[560px]">
+                <div className="flex h-[620px]">
                     {/* Left Pane - Content */}
                     <div className="flex-1 flex flex-col overflow-hidden bg-white">
-                        <div className="p-5 flex-1 flex flex-col gap-4 overflow-hidden">
-                            {/* Destinatários Row - Compact */}
-                            <div className="grid grid-cols-1 gap-2">
+                        <div className="p-6 flex-1 flex flex-col gap-6 overflow-hidden">
+                            {/* Destinatários Row */}
+                            <div className="space-y-3">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <Users className="w-3.5 h-3.5 text-blue-600" />
-                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Destinatários</h3>
+                                    <Users className="w-4 h-4 text-blue-600" />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Destinatários</h3>
                                 </div>
-                                <div className="flex flex-col gap-1.5">
+                                <div className="flex flex-col gap-2.5">
                                     {[
                                         { key: 'cliente', label: 'Cliente', icon: Users, color: 'blue' },
                                         { key: 'industria', label: 'Indústria', icon: Building2, color: 'indigo', disabled: isQuotation },
                                         { key: 'escritorio', label: 'Escritório', icon: Building2, color: 'emerald' }
                                     ].map((dest) => (
                                         <div key={dest.key} className={cn(
-                                            "flex items-center gap-3 px-3 py-1.5 rounded-lg border transition-all duration-200",
+                                            "flex items-center gap-4 px-4 py-2.5 rounded-xl border transition-all duration-200",
                                             recipients[dest.key].enabled
                                                 ? "bg-blue-50/50 border-blue-200 shadow-sm ring-1 ring-blue-100/50"
                                                 : "bg-white border-slate-200 hover:border-blue-300"
@@ -276,12 +282,12 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                                                 checked={recipients[dest.key].enabled}
                                                 disabled={dest.disabled}
                                                 onCheckedChange={(val) => setRecipients(p => ({ ...p, [dest.key]: { ...p[dest.key], enabled: val } }))}
-                                                className="w-4 h-4 rounded-md border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                                                className="w-5 h-5 rounded-md border-slate-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                                             />
                                             <Label
                                                 htmlFor={`check-${dest.key}`}
                                                 className={cn(
-                                                    "text-[11px] font-black min-w-[70px] transition-colors",
+                                                    "text-sm font-bold min-w-[80px] transition-colors",
                                                     recipients[dest.key].enabled ? "text-blue-900" : "text-slate-500"
                                                 )}
                                             >
@@ -292,10 +298,10 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                                                 disabled={dest.disabled || !recipients[dest.key].enabled}
                                                 onChange={(e) => setRecipients(p => ({ ...p, [dest.key]: { ...p[dest.key], email: e.target.value } }))}
                                                 className={cn(
-                                                    "h-7 bg-transparent border-0 border-b border-slate-100 rounded-none px-0 text-[11px] font-bold focus:ring-0 focus:border-blue-400 flex-1 transition-all",
+                                                    "h-8 bg-transparent border-0 border-b border-slate-100 rounded-none px-0 text-sm font-medium focus:ring-0 focus:border-blue-500 flex-1 transition-all",
                                                     recipients[dest.key].enabled ? "text-blue-700" : "text-slate-400"
                                                 )}
-                                                placeholder={`E-mail...`}
+                                                placeholder={`E-mail não configurado...`}
                                             />
                                         </div>
                                     ))}
@@ -303,75 +309,75 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                             </div>
 
                             {/* Subject and Attachments Row */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Assunto do e-mail</Label>
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Assunto do e-mail</Label>
                                     <Input
                                         value={emailData.assunto}
                                         onChange={(e) => setEmailData(p => ({ ...p, assunto: e.target.value }))}
-                                        className="h-9 border-slate-200 rounded-lg bg-slate-50/50 text-[11px] font-bold"
+                                        className="h-10 border-slate-200 rounded-xl bg-slate-50/50 text-sm font-medium focus:ring-blue-500"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexos de Envio</Label>
-                                    <div className="flex gap-2">
-                                        <div className="flex-1 flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-[10px] font-bold text-emerald-700">
-                                            <Activity className="w-3 h-3" /> PDF Pronto
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Anexos de Envio</Label>
+                                    <div className="flex gap-3">
+                                        <div className="flex-1 h-10 flex items-center justify-center gap-2 px-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-700">
+                                            <CheckCircle2 className="w-4 h-4" /> PDF Pronto
                                         </div>
                                         <div
                                             onClick={() => setAttachExcel(!attachExcel)}
                                             className={cn(
-                                                "flex-1 flex items-center gap-2 p-2 border rounded-lg text-[10px] font-bold cursor-pointer transition-all",
-                                                attachExcel ? "bg-blue-600 border-blue-700 text-white shadow-md" : "bg-slate-50 border-slate-200 text-slate-400"
+                                                "flex-1 h-10 flex items-center justify-center gap-2 px-3 border rounded-xl text-xs font-bold cursor-pointer transition-all",
+                                                attachExcel ? "bg-blue-600 border-blue-700 text-white shadow-lg active:scale-95" : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                                             )}
                                         >
-                                            <Paperclip className="w-3 h-3" /> {attachExcel ? "+ EXCEL" : "ADD EXCEL?"}
+                                            <Paperclip className="w-4 h-4" /> {attachExcel ? "+ EXCEL ADD" : "ADD EXCEL?"}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Custom Message Area - THE LARGEST ONE */}
-                            <div className="flex-1 flex flex-col min-h-0 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-                                <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mensagem Personalizada do Corpo do E-mail</Label>
-                                    <FileText className="w-3 h-3 text-slate-400" />
+                            {/* Custom Message Area */}
+                            <div className="flex-1 flex flex-col min-h-0 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-inner">
+                                <div className="px-5 py-3 bg-slate-100/50 border-b border-slate-200 flex items-center justify-between">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">Corpo do E-mail</Label>
+                                    <FileText className="w-4 h-4 text-slate-400" />
                                 </div>
                                 <Textarea
                                     value={emailData.texto}
                                     onChange={(e) => setEmailData(p => ({ ...p, texto: e.target.value }))}
-                                    className="flex-1 resize-none border-0 rounded-none bg-transparent font-mono text-[11px] leading-relaxed p-4 focus:ring-0"
+                                    className="flex-1 resize-none border-0 rounded-none bg-transparent font-mono text-xs leading-relaxed p-5 focus:ring-0 text-slate-700"
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Right Pane - Logs (Premium Glass Dark) */}
-                    <div className="w-80 bg-[#0f172a] p-6 flex flex-col border-l border-slate-800">
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-2">
-                                <div className="p-2 bg-emerald-500/10 rounded-xl">
-                                    <Activity className="w-4 h-4 text-emerald-400" />
+                    <div className="w-80 bg-[#0f172a] p-8 flex flex-col border-l border-slate-800">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                    <Activity className="w-5 h-5 text-blue-400" />
                                 </div>
-                                <span className="text-sm font-black text-white tracking-widest uppercase">Status</span>
+                                <span className="text-xs font-bold text-white tracking-widest uppercase">Monitor</span>
                             </div>
-                            {loading && <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />}
+                            {loading && <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />}
                         </div>
 
-                        <ScrollArea className="flex-1 bg-slate-900/50 rounded-2xl border border-slate-800 p-4">
-                            <div className="space-y-3">
+                        <ScrollArea className="flex-1 bg-black/20 rounded-2xl border border-white/5 p-5">
+                            <div className="space-y-4">
                                 {logs.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
-                                        <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-800 flex items-center justify-center">
-                                            <Send className="w-5 h-5 text-slate-600" />
+                                    <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                                        <div className="w-14 h-14 rounded-full border-2 border-dashed border-slate-800 flex items-center justify-center">
+                                            <Send className="w-6 h-6 text-slate-700" />
                                         </div>
-                                        <p className="text-xs text-slate-400 font-medium">Aguardando envio...</p>
+                                        <p className="text-xs text-slate-500 font-medium">Aguardando comando...</p>
                                     </div>
                                 )}
                                 {logs.map((log, i) => (
                                     <div key={i} className="group flex items-start gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
-                                        <div className={`mt-1.5 w-1.5 h-1.5 rounded-full ${log.includes('✅') ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : log.includes('❌') ? 'bg-rose-500' : 'bg-blue-500'}`} />
-                                        <span className="text-[11px] font-mono text-slate-200 leading-tight group-hover:text-white transition-colors">
+                                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${log.includes('✅') ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : log.includes('❌') ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`} />
+                                        <span className="text-[11px] font-mono text-slate-300 leading-tight group-hover:text-white transition-colors">
                                             {log}
                                         </span>
                                     </div>
@@ -379,42 +385,58 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                             </div>
                         </ScrollArea>
 
-                        <div className="mt-6 pt-6 border-t border-slate-700 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black text-white/60 uppercase tracking-wider">SMTP Server</span>
-                                <span className="text-[11px] text-white font-mono font-bold truncate max-w-[140px] px-2 py-0.5 bg-white/5 rounded" title={smtpInfo.host}>{smtpInfo.host}</span>
+                        <div className="mt-8 pt-8 border-t border-white/10 space-y-5">
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Servidor SMTP</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full",
+                                            smtpInfo.host !== '...' ? "bg-emerald-500" : "bg-rose-500"
+                                        )} />
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-tighter">
+                                            {smtpInfo.host !== '...' ? 'Configurado' : 'Pendente'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                                    <span className="text-xs text-blue-50 font-mono font-bold break-all block">
+                                        {smtpInfo.host}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-black text-white/60 uppercase tracking-wider">Email</span>
-                                <div className="flex items-center gap-1.5 overflow-hidden">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981] flex-shrink-0" />
-                                    <span className="text-[11px] text-white font-mono font-bold truncate max-w-[180px]" title={smtpInfo.user}>{smtpInfo.user}</span>
+
+                            <div className="space-y-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">E-mail de Envio</span>
+                                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                                    <span className="text-xs text-blue-50 font-mono font-bold break-all block">
+                                        {smtpInfo.user}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <DialogFooter className="p-4 bg-white border-t border-slate-100 flex items-center justify-between gap-4">
+                <DialogFooter className="p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-6">
                     <Button
                         variant="ghost"
                         onClick={onClose}
-                        className="text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-2xl px-6 h-12 font-bold transition-all"
+                        className="text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-2xl px-8 h-12 font-bold transition-all text-sm"
                     >
                         CANCELAR
                     </Button>
                     <Button
                         onClick={handleSend}
                         disabled={loading}
-                        style={{ color: 'white' }}
-                        className="bg-[#1e40af] hover:bg-[#1e3a8a] !text-white px-8 h-12 rounded-2xl font-bold shadow-xl shadow-blue-900/20 flex items-center gap-3 active:scale-95 transition-all disabled:opacity-50"
+                        className="bg-[#1e40af] hover:bg-[#1e3a8a] text-white px-10 h-12 rounded-2xl font-bold shadow-xl shadow-blue-900/20 flex items-center gap-3 active:scale-95 transition-all text-sm"
                     >
                         {loading ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
-                            <Send className="w-5 h-5" />
+                            <Send className="w-5 h-5 text-white" />
                         )}
-                        <span>ENVIAR E-MAIL AGORA</span>
+                        <span className="text-white">ENVIAR E-MAIL AGORA</span>
                     </Button>
                 </DialogFooter>
             </DialogContent>

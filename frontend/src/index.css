@@ -91,7 +91,8 @@
     --secondary-foreground: 0 0% 88%;
 
     --muted: 220 14% 10%;
-    --muted-foreground: 215 16% 65%; /* Sage Grey equivalent */
+    --muted-foreground: 215 16% 65%;
+    /* Sage Grey equivalent */
 
     --accent: 160 60% 45%;
     --accent-foreground: 220 20% 2%;
@@ -162,7 +163,7 @@
   }
 
   html {
-    font-family: 'Roboto', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   body {
@@ -226,7 +227,7 @@
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     text-transform: uppercase;
   }
 
@@ -258,7 +259,7 @@
     box-shadow: 0 4px 0 #1e40af, 0 10px 20px -5px rgba(59, 130, 246, 0.3) !important;
     transition: all 0.1s ease !important;
     text-transform: uppercase;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.1em;
   }
 
@@ -274,7 +275,7 @@
     box-shadow: 0 4px 0 #047857, 0 10px 20px -5px rgba(16, 185, 129, 0.3) !important;
     transition: all 0.1s ease !important;
     text-transform: uppercase;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.1em;
   }
 

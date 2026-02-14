@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
     Save, Mail, Settings, Monitor, Package, User, Hash, FileText,
     AtSign, ShieldCheck, Server, Key, ListOrdered, MousePointer2,
-    BellRing, PlayCircle, Truck, Layers, Copy, Zap, Info, Plus, ArrowLeft, Trash2
+    BellRing, PlayCircle, Truck, Layers, Copy, Zap, Info, Plus, ArrowLeft, Trash2, CheckCircle2, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -37,7 +37,7 @@ export default function ParametrosPage() {
         par_mostraimpostos: 'S',
         par_qtddecimais: 2,
         par_pedidopadrao: 1,
-        par_telemkttipo: 'P',
+        par_telemkttipo: 'E',
         par_iniciapedido: 'P',
         par_tipofretepadrao: 'F',
         par_emailserver: '',
@@ -56,8 +56,30 @@ export default function ParametrosPage() {
     const [systemUsers, setSystemUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [testingEmail, setTestingEmail] = useState(false);
     const [loggedUser, setLoggedUser] = useState(null);
     const [selectedUserId, setSelectedUserId] = useState(null);
+
+    const handleTestConnection = async () => {
+        setTestingEmail(true);
+        try {
+            const response = await fetch(getApiUrl(NODE_API_URL, '/api/email/test-connection'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(data.message);
+            } else {
+                toast.error(data.message);
+            }
+        } catch (error) {
+            toast.error('Erro técnico ao tentar conectar: ' + error.message);
+        } finally {
+            setTestingEmail(false);
+        }
+    };
 
     useEffect(() => {
         const userStr = sessionStorage.getItem('user');
@@ -181,7 +203,7 @@ export default function ParametrosPage() {
             par_mostraimpostos: 'S',
             par_qtddecimais: 2,
             par_pedidopadrao: 1,
-            par_telemkttipo: 'P',
+            par_telemkttipo: 'E',
             par_iniciapedido: 'P',
             par_tipofretepadrao: 'F',
             par_emailserver: '',
@@ -468,6 +490,13 @@ export default function ParametrosPage() {
                                             <ModernRadioOption field="par_tipopesquisa" value="N" label="Nome Reduzido" currentValue={formData.par_tipopesquisa} />
                                         </RadioGroup>
                                     </SelectionCard>
+
+                                    <SelectionCard title="Tipo CRM/Telemarketing" icon={Zap}>
+                                        <RadioGroup value={formData.par_telemkttipo} onValueChange={(v) => handleFieldChange('par_telemkttipo', v)} className="flex flex-col gap-2">
+                                            <ModernRadioOption field="par_telemkttipo" value="E" label="Efetivo" currentValue={formData.par_telemkttipo} />
+                                            <ModernRadioOption field="par_telemkttipo" value="P" label="Prospecção" currentValue={formData.par_telemkttipo} />
+                                        </RadioGroup>
+                                    </SelectionCard>
                                 </div>
                             </div>
 
@@ -699,6 +728,27 @@ export default function ParametrosPage() {
                                             placeholder="ex: gerencia@empresa.com.br"
                                             className="h-12 bg-gray-50 border-gray-100 rounded-xl font-bold"
                                         />
+                                    </div>
+
+                                    <div className="lg:col-span-4 mt-4 flex justify-end p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleTestConnection}
+                                            disabled={testingEmail}
+                                            className="h-12 px-8 rounded-xl font-black text-xs uppercase tracking-widest border-emerald-200 text-emerald-700 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                        >
+                                            {testingEmail ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Testando Autenticação...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                                    Testar Configurações de E-mail
+                                                </>
+                                            )}
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

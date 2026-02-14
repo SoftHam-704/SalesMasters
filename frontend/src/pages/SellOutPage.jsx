@@ -245,15 +245,19 @@ export default function SellOutPage() {
     }
 
     const formatCurrencyInput = (val) => {
-        if (!val) return '';
-        const numericValue = val.toString().replace(/\D/g, '');
-        const floatValue = parseFloat(numericValue) / 100;
-        return floatValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (val === undefined || val === null || val === '') return '';
+        const number = parseFloat(val);
+        if (isNaN(number)) return '';
+        return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
     const handleCurrencyChange = (e) => {
-        const value = e.target.value.replace(/\D/g, '');
-        const floatValue = parseFloat(value) / 100;
+        const rawValue = e.target.value.replace(/\D/g, '');
+        if (!rawValue) {
+            setValor("");
+            return;
+        }
+        const floatValue = parseFloat(rawValue) / 100;
         setValor(floatValue.toString());
     };
 

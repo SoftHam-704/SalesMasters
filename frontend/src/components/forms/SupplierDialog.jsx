@@ -118,10 +118,14 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
             );
             const result = await response.json();
             if (result.success) {
-                toast.success(result.message);
+                toast.success(result.message || 'Metas salvas com sucesso!');
+            } else {
+                toast.error(result.message || 'Erro ao salvar metas');
+                console.error('[GOALS] Save failed:', result);
             }
         } catch (error) {
-            toast.error('Erro ao salvar metas');
+            toast.error('Erro de conexão ao salvar metas');
+            console.error('[GOALS] Save error:', error);
         }
     };
 
@@ -406,10 +410,10 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
                                 <div className="space-y-4">
                                     <div className="w-full h-44 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/30 flex items-center justify-center overflow-hidden group/logo relative">
-                                        {formData.for_locimagem ? (
+                                        {formData.for_logotipo && formData.for_logotipo.startsWith('data:') ? (
                                             <>
                                                 <img
-                                                    src={formData.for_locimagem.startsWith('data:') ? formData.for_locimagem : getApiUrl(NODE_API_URL, `/api/image?path=${encodeURIComponent(formData.for_locimagem)}`)}
+                                                    src={formData.for_logotipo}
                                                     alt="Logo Preview"
                                                     className="max-h-[85%] max-w-[85%] object-contain transition-all duration-500 group-hover/logo:scale-110"
                                                     onError={(e) => {
@@ -422,7 +426,10 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                                         variant="secondary"
                                                         size="sm"
                                                         className="h-8 font-bold text-xs"
-                                                        onClick={() => handleChange('for_locimagem', '')}
+                                                        onClick={() => {
+                                                            handleChange('for_logotipo', '');
+                                                            handleChange('for_locimagem', '');
+                                                        }}
                                                     >
                                                         Remover
                                                     </Button>
@@ -440,36 +447,110 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                     <input
                                         type="file"
                                         id="supplierLogoInput"
-                                        accept="image/*"
+                                        accept="image/png,image/jpeg,image/gif,image/webp"
                                         className="hidden"
                                         onChange={async (e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) {
-                                                if (file.size > 1024 * 1024) {
-                                                    toast.error('A imagem é muito grande. O limite é 1MB.');
-                                                    return;
-                                                }
-                                                const reader = new FileReader();
-                                                reader.onloadend = () => {
-                                                    handleChange('for_locimagem', reader.result);
-                                                    toast.success('Logotipo carregado!');
-                                                };
-                                                reader.readAsDataURL(file);
+                                            if (!file) return;
+
+                                            // Validar tipo de arquivo
+                                            if (!file.type.startsWith('image/')) {
+                                                alert('Selecione apenas arquivos de imagem (PNG, JPEG, GIF, WebP).');
+                                                return;
                                             }
+
+                                            // Validar tamanho original (max 5MB antes da compressão)
+                                            if (file.size > 5 * 1024 * 1024) {
+                                                alert('A imagem é muito grande (máx. 5MB). Escolha uma imagem menor.');
+                                                return;
+                                            }
+
+                                            // Compressor de imagem estilo MasterFisher
+                                            const compressImage = (imageFile) => {
+                                                return new Promise((resolve, reject) => {
+                                                    const reader = new FileReader();
+                                                    reader.readAsDataURL(imageFile);
+                                                    reader.onload = (event) => {
+                                                        const img = new window.Image();
+                                                        img.src = event.target.result;
+                                                        img.onload = () => {
+                                                            const canvas = document.createElement('canvas');
+                                                            const MAX_WIDTH = 300;
+                                                            const MAX_HEIGHT = 200;
+                                                            let width = img.width;
+                                                            let height = img.height;
+
+                                                            // Redimensionar proporcionalmente
+                                                            if (width > height) {
+                                                                if (width > MAX_WIDTH) {
+                                                                    height *= MAX_WIDTH / width;
+                                                                    width = MAX_WIDTH;
+                                                                }
+                                                            } else {
+                                                                if (height > MAX_HEIGHT) {
+                                                                    width *= MAX_HEIGHT / height;
+                                                                    height = MAX_HEIGHT;
+                                                                }
+                                                            }
+
+                                                            canvas.width = Math.round(width);
+                                                            canvas.height = Math.round(height);
+                                                            const ctx = canvas.getContext('2d');
+                                                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                                                            // Exporta como JPEG comprimido (qualidade 0.7)
+                                                            const base64 = canvas.toDataURL('image/jpeg', 0.7);
+
+                                                            // Validar tamanho final (máx. 100KB de base64)
+                                                            const rawBase64 = base64.replace(/^data:image\/[a-z]+;base64,/, '');
+                                                            if (rawBase64.length > 100000) {
+                                                                // Tentar com qualidade menor
+                                                                const base64Low = canvas.toDataURL('image/jpeg', 0.4);
+                                                                resolve(base64Low);
+                                                            } else {
+                                                                resolve(base64);
+                                                            }
+                                                        };
+                                                        img.onerror = () => reject(new Error('Erro ao carregar imagem'));
+                                                    };
+                                                    reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+                                                });
+                                            };
+
+                                            try {
+                                                const optimizedBase64 = await compressImage(file);
+                                                handleChange('for_logotipo', optimizedBase64);
+                                                handleChange('for_locimagem', ''); // Limpar campo legado
+                                                console.log(`✅ Logo otimizado: ${(optimizedBase64.length / 1024).toFixed(1)} KB (${Math.round(300)}x${Math.round(200)} max)`);
+                                            } catch (err) {
+                                                console.error('❌ Erro ao processar imagem:', err);
+                                                alert('Erro ao processar a imagem. Tente outro arquivo.');
+                                            }
+                                            // Limpar input para permitir re-selecionar o mesmo arquivo
+                                            e.target.value = '';
                                         }}
                                     />
-                                    <p className="text-[10px] text-slate-400 text-center uppercase font-bold">Resolução sugerida: 400x400px • Max 1MB</p>
+                                    <p className="text-[10px] text-slate-400 text-center uppercase font-bold">Imagem será comprimida automaticamente • Máx 300x200px • JPEG</p>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="flex flex-col gap-1.5">
-                                    <Label>Cód. Representante</Label>
-                                    <Input className="h-10 text-sm font-bold bg-slate-50 text-center" defaultValue="1" />
+                                    <Label className="text-blue-600">Cód. Representante (Integrador)</Label>
+                                    <Input
+                                        className="h-10 text-sm font-black text-center text-blue-700 bg-blue-50 border-blue-100"
+                                        value={formData.for_codrep || ''}
+                                        onChange={(e) => handleChange('for_codrep', e.target.value)}
+                                        placeholder="Ex: 1"
+                                    />
                                 </div>
                                 <div className="flex flex-col gap-1.5">
                                     <Label className="text-emerald-600">Comissão de Venda (%)</Label>
-                                    <Input className="h-10 text-sm font-black text-center text-emerald-700 bg-emerald-50 border-emerald-100" defaultValue="5.00" />
+                                    <Input
+                                        className="h-10 text-sm font-black text-center text-emerald-700 bg-emerald-50 border-emerald-100"
+                                        value={formData.for_percom || ''}
+                                        onChange={(e) => handleChange('for_percom', e.target.value)}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -483,6 +564,8 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter group-hover:text-emerald-400 transition-colors">D{num}</span>
                                             <Input
                                                 className="h-9 text-center text-sm font-mono font-bold bg-slate-800 border-slate-700 text-emerald-400 p-0 focus:ring-emerald-500/30"
+                                                value={formData[`for_des${num}`] || ''}
+                                                onChange={(e) => handleChange(`for_des${num}`, e.target.value)}
                                                 placeholder="0.0"
                                             />
                                         </div>
@@ -491,12 +574,16 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <Label>Observações Internas e Notas</Label>
+                                <Label>Observações Internas (Notas Privadas)</Label>
                                 <Textarea
-                                    className="h-44 text-sm bg-slate-50 border-slate-200 focus:bg-white leading-relaxed p-4"
-                                    placeholder="Instruções especiais de faturamento, particularidades da indústria..."
+                                    className="h-28 text-sm bg-slate-50 border-slate-200 focus:bg-white leading-relaxed p-4"
+                                    value={formData.observacoes || ''}
+                                    onChange={(e) => handleChange('observacoes', e.target.value)}
+                                    placeholder="Instruções internas..."
                                 />
                             </div>
+
+
                         </div>
                     </div>
                 );
@@ -595,8 +682,8 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                             <Textarea
                                 className="w-full h-full bg-amber-50/10 border-slate-200 font-mono text-sm resize-none pl-8 pr-6 py-6 focus:ring-amber-500/20 leading-relaxed shadow-inner rounded-2xl"
                                 placeholder="Insira aqui os termos de frete, pedido mínimo, descontos por região, bonificações, etc..."
-                                value={formData.obs2 || ''}
-                                onChange={(e) => handleChange('obs2', e.target.value)}
+                                value={formData.for_obs2 || formData.obs2 || ''}
+                                onChange={(e) => handleChange('for_obs2', e.target.value)}
                             />
                         </div>
                     </div>

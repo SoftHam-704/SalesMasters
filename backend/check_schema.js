@@ -1,28 +1,18 @@
-const { Pool } = require('pg');
-require('dotenv').config();
-
-const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'basesales',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres'
-});
+const { masterPool } = require('./utils/db');
 
 async function checkSchema() {
     try {
-        const res = await pool.query(`
+        const res = await masterPool.query(`
             SELECT column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_name = 'crm_interacao';
+            WHERE table_name = 'usuarios'
         `);
-        console.log('Columns in crm_interacao:');
+        console.log('--- Colunas da tabela usuarios ---');
         console.table(res.rows);
+        process.exit(0);
     } catch (err) {
-        console.error('Error checking schema:', err);
-    } finally {
-        await pool.end();
+        console.error(err);
+        process.exit(1);
     }
 }
-
 checkSchema();

@@ -3,6 +3,7 @@ const path = require('path');
 const { getCurrentPool } = require('./utils/context');
 
 module.exports = function (app, pool) {
+    console.log('✅ [PORTAL] portal_integration_endpoints.js INITIALIZED');
 
     // Helper para formatar moeda
     const formatCurrency = (value) => {
@@ -206,9 +207,84 @@ module.exports = function (app, pool) {
             res.send(buffer);
 
         } catch (error) {
-            console.error('❌ [PORTAL] Erro:', error);
+            console.error('❌ [PORTAL] Erro Viemar:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     };
 
+    // --------------------------------------------------------------------------------
+    // 4. SAMPEL (Excel)
+    // --------------------------------------------------------------------------------
+    app.get('/api/orders/:pedPedido/export/sampel', async (req, res) => {
+        console.log(`📡 [PORTAL] SAMPEL export requested for: ${req.params.pedPedido}`);
+        exportSampel(req, res);
+    });
+
+    const exportSampel = async (req, res) => {
+        const { pedPedido } = req.params;
+        const currentPool = getCurrentPool();
+
+        if (!currentPool) return res.status(403).json({ success: false, message: 'Falta contexto do tenant.' });
+
+        try {
+            // Fetch order and client info
+            const orderQuery = `
+                SELECT p.ped_pedido, p.ped_tabela, c.cli_cnpj
+                FROM pedidos p
+                LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                WHERE TRIM(p.ped_pedido) = TRIM($1)
+            `;
+            const orderResult = await currentPool.query(orderQuery, [pedPedido]);
+
+            if (orderResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+            const order = orderResult.rows[0];
+
+            // Fetch items
+            const itemsQuery = `SELECT ite_produto, ite_quant FROM itens_ped WHERE TRIM(ite_pedido) = TRIM($1) ORDER BY ite_seq`;
+            const items = (await currentPool.query(itemsQuery, [pedPedido])).rows;
+
+            if (items.length === 0) return res.status(404).json({ success: false, message: 'Pedido sem itens.' });
+
+            // Preparar dados para o Excel conforme print 2
+            // Colunas: CNPJ | PEDIDO REPRES | TABELA PRECO | ITEM | QUANTIDADE
+            const header = [["CNPJ", "PEDIDO REPRES", "TABELA PRECO", "ITEM", "QUANTIDADE"]];
+            const dataRows = items.map(item => [
+                (order.cli_cnpj || '').replace(/\D/g, ''), // CNPJ apenas números
+                order.ped_pedido || '',
+                order.ped_tabela || '',
+                item.ite_produto || '',
+                item.ite_quant || 0
+            ]);
+
+            const finalData = [...header, ...dataRows];
+
+            // Criar Workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(finalData);
+
+            // Garantir que as colunas tenham uma largura mínima para visibilidade das labels
+            const wscols = [
+                { wch: 18 }, // CNPJ
+                { wch: 15 }, // PEDIDO REPRES
+                { wch: 15 }, // TABELA PRECO
+                { wch: 15 }, // ITEM
+                { wch: 12 }  // QUANTIDADE
+            ];
+            ws['!cols'] = wscols;
+
+            XLSX.utils.book_append_sheet(wb, ws, "Planilha1");
+
+            // Gerar Buffer
+            const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+            res.setHeader('Content-Disposition', `attachment; filename=SAMPEL_${pedPedido}.xlsx`);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            console.log(`✅ [PORTAL] SAMPEL Excel gerado e enviado: SAMPEL_${pedPedido}.xlsx`);
+            res.send(buffer);
+
+        } catch (error) {
+            console.error('❌ [PORTAL] Erro SAMPEL:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    };
 };

@@ -25,8 +25,13 @@ axios.interceptors.request.use(
                     if (tenantConfig.cnpj) {
                         config.headers['x-tenant-cnpj'] = tenantConfig.cnpj;
                     }
+
+                    // Se tiver dbConfig (estrutura nova/padrão) ou se for a estrutura flat (legada/fallback)
                     if (tenantConfig.dbConfig) {
                         config.headers['x-tenant-db-config'] = JSON.stringify(tenantConfig.dbConfig);
+                    } else if (tenantConfig.host && tenantConfig.database && tenantConfig.user) {
+                        // Estrutura FLAT (Fallback) - enviamos o objeto inteiro que contém os campos de conexão
+                        config.headers['x-tenant-db-config'] = tenantConfigRaw;
                     }
                 } catch (e) {
                     console.error('Erro ao processar tenantConfig no interceptor axios', e);

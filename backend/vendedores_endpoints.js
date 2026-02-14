@@ -32,8 +32,12 @@ module.exports = (pool) => {
                 LIMIT $1 OFFSET $2
             `;
 
-            // Busca o total global para o frontend saber quantas páginas existem
-            const countQuery = `SELECT COUNT(*) as total FROM vendedores ${whereClause}`;
+            // Para o count, precisamos de uma cópia da whereClause que use $1 ao invés de $3 se search existir
+            const countWhereClause = search
+                ? "WHERE ven_nome IS NOT NULL AND (ven_nome ILIKE $1 OR ven_email ILIKE $1 OR ven_nomeusu ILIKE $1)"
+                : "WHERE ven_nome IS NOT NULL";
+
+            const countQuery = `SELECT COUNT(*) as total FROM vendedores ${countWhereClause}`;
 
             const [dataResult, countResult] = await Promise.all([
                 pool.query(dataQuery, params),
@@ -42,14 +46,16 @@ module.exports = (pool) => {
 
             const total = parseInt(countResult.rows[0]?.total || 0);
 
-            // RETORNO EXATO QUE O FRONTEND ESPERA
+            // RETORNO EXATO QUE O FRONTEND ESPERA (com objeto pagination)
             res.json({
                 success: true,
                 data: dataResult.rows,
-                total: total,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(total / parseInt(limit))
+                pagination: {
+                    total: total,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(total / parseInt(limit))
+                }
             });
         } catch (error) {
             console.error('Error fetching sellers:', error);
@@ -111,6 +117,168 @@ module.exports = (pool) => {
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== METAS ROUTES ====================
+
+    // GET - Listar metas de um vendedor (por ano ou todos)
+    router.get('/:id/metas', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { ano } = req.query;
+
+            let query = `
+                SELECT 
+                    vm.met_id,
+                    vm.met_ano,
+                    vm.met_industria,
+                    vm.met_vendedor,
+                    vm.met_jan, vm.met_fev, vm.met_mar, vm.met_abr,
+                    vm.met_mai, vm.met_jun, vm.met_jul, vm.met_ago,
+                    vm.met_set, vm.met_out, vm.met_nov, vm.met_dez,
+                    f.for_nomered as industria_nome
+                FROM vend_metas vm
+                LEFT JOIN fornecedores f ON f.for_codigo = vm.met_industria
+                WHERE vm.met_vendedor = $1
+            `;
+            const params = [id]; // Mantendo original para suportar leading zeros se for string
+
+            if (ano) {
+                query += ` AND vm.met_ano = $2`;
+                params.push(parseInt(ano));
+            }
+
+            query += ` ORDER BY vm.met_ano DESC, f.for_nomered`;
+
+            const result = await pool.query(query, params);
+
+            res.json({
+                success: true,
+                data: result.rows
+            });
+        } catch (error) {
+            console.error('Error fetching seller metas:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao buscar metas: ${error.message}`
+            });
+        }
+    });
+
+    // POST - Criar nova meta
+    router.post('/:id/metas', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const meta = req.body;
+
+            const targetId = id; // Mantendo string
+            const targetYear = parseInt(meta.met_ano);
+            const targetIndustry = parseInt(meta.met_industria);
+
+            // Verificar se já existe meta para este vendedor/ano/indústria
+            const existCheck = await pool.query(
+                'SELECT met_id FROM vend_metas WHERE met_vendedor = $1 AND met_ano = $2 AND met_industria = $3',
+                [targetId, targetYear, targetIndustry]
+            );
+
+            if (existCheck.rows.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Já existe uma meta para este vendedor/ano/indústria'
+                });
+            }
+
+            const query = `
+                INSERT INTO vend_metas (
+                    met_vendedor, met_ano, met_industria,
+                    met_jan, met_fev, met_mar, met_abr, met_mai, met_jun,
+                    met_jul, met_ago, met_set, met_out, met_nov, met_dez
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                ) RETURNING *
+            `;
+
+            const values = [
+                targetId, targetYear, targetIndustry,
+                parseFloat(meta.met_jan) || 0, parseFloat(meta.met_fev) || 0, parseFloat(meta.met_mar) || 0,
+                parseFloat(meta.met_abr) || 0, parseFloat(meta.met_mai) || 0, parseFloat(meta.met_jun) || 0,
+                parseFloat(meta.met_jul) || 0, parseFloat(meta.met_ago) || 0, parseFloat(meta.met_set) || 0,
+                parseFloat(meta.met_out) || 0, parseFloat(meta.met_nov) || 0, parseFloat(meta.met_dez) || 0
+            ];
+
+            const result = await pool.query(query, values);
+
+            res.status(201).json({
+                success: true,
+                data: result.rows[0],
+                message: 'Meta criada com sucesso!'
+            });
+        } catch (error) {
+            console.error('Error creating seller meta:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao criar meta: ${error.message}`
+            });
+        }
+    });
+
+    // PUT - Atualizar meta existente
+    router.put('/:id/metas/:metaId', async (req, res) => {
+        try {
+            const { id, metaId } = req.params;
+            const meta = req.body;
+
+            const query = `
+                UPDATE vend_metas SET
+                    met_ano = $1, met_industria = $2,
+                    met_jan = $3, met_fev = $4, met_mar = $5, met_abr = $6,
+                    met_mai = $7, met_jun = $8, met_jul = $9, met_ago = $10,
+                    met_set = $11, met_out = $12, met_nov = $13, met_dez = $14
+                WHERE met_id = $15 AND met_vendedor = $16
+                RETURNING *
+            `;
+
+            const values = [
+                parseInt(meta.met_ano), parseInt(meta.met_industria),
+                parseFloat(meta.met_jan) || 0, parseFloat(meta.met_fev) || 0, parseFloat(meta.met_mar) || 0,
+                parseFloat(meta.met_abr) || 0, parseFloat(meta.met_mai) || 0, parseFloat(meta.met_jun) || 0,
+                parseFloat(meta.met_jul) || 0, parseFloat(meta.met_ago) || 0, parseFloat(meta.met_set) || 0,
+                parseFloat(meta.met_out) || 0, parseFloat(meta.met_nov) || 0, parseFloat(meta.met_dez) || 0,
+                metaId, id
+            ];
+
+            const result = await pool.query(query, values);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Meta não encontrada' });
+            }
+
+            res.json({ success: true, data: result.rows[0], message: 'Meta atualizada com sucesso!' });
+        } catch (error) {
+            console.error('Error updating seller meta:', error);
+            res.status(500).json({ success: false, message: `Erro ao atualizar meta: ${error.message}` });
+        }
+    });
+
+    // DELETE - Remover meta
+    router.delete('/:id/metas/:metaId', async (req, res) => {
+        try {
+            const { id, metaId } = req.params;
+
+            const result = await pool.query(
+                'DELETE FROM vend_metas WHERE met_id = $1 AND met_vendedor = $2 RETURNING *',
+                [metaId, id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Meta não encontrada' });
+            }
+
+            res.json({ success: true, message: 'Meta excluída com sucesso!' });
+        } catch (error) {
+            console.error('Error deleting seller meta:', error);
+            res.status(500).json({ success: false, message: `Erro ao excluir meta: ${error.message}` });
         }
     });
 

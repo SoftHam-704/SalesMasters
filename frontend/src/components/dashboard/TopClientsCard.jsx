@@ -47,24 +47,39 @@ export const TopClientsCard = ({ clients, loading }) => {
                             key={client.cliente_codigo}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
+                            whileHover={{ x: 4, backgroundColor: 'rgba(0,0,0,0.02)' }}
                             transition={{ delay: 0.1 * index }}
                             className="client-item"
+                            style={{
+                                background: 'transparent',
+                                borderBottom: '1px solid var(--border-color)',
+                                padding: '8px 4px',
+                                borderRadius: 0,
+                                marginBottom: 0
+                            }}
                         >
                             <div className="client-rank">
-                                <span className={`rank-badge rank-${index + 1}`}>
+                                <span className={`rank-badge rank-${index + 1}`} style={{ boxShadow: 'none' }}>
                                     {index + 1}
                                 </span>
                             </div>
                             <div className="client-info">
-                                <div className="client-name">{client.cliente_nome}</div>
-                                <div className="client-stats">
+                                <div className="client-name" style={{
+                                    textTransform: 'capitalize',
+                                    fontWeight: '400',
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-primary)'
+                                }}>
+                                    {client.cliente_nome?.toLowerCase()}
+                                </div>
+                                <div className="client-stats" style={{ opacity: 0.8 }}>
                                     <span className="stat">
-                                        <DollarSign size={12} />
+                                        <DollarSign size={10} />
                                         {formatCurrency(client.total_vendido)}
                                     </span>
                                     <span className="stat-separator">·</span>
                                     <span className="stat">
-                                        {client.quantidade_pedidos} pedidos
+                                        {client.quantidade_pedidos} ped.
                                     </span>
                                 </div>
                             </div>

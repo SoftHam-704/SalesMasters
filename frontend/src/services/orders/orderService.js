@@ -110,4 +110,20 @@ export const orderService = {
 
         return response.json();
     },
+
+    /**
+     * Busca sugestões inteligentes baseadas no histórico do cliente na indústria
+     * @param {string} clienteId
+     * @param {string} industriaId
+     * @param {string} tabelaId
+     * @returns {Promise<{success: boolean, data: Array}>}
+     */
+    async getSmartSuggestions(clienteId, industriaId, tabelaId) {
+        const url = `${API_BASE_URL}/orders/smart-suggestions?clienteId=${clienteId}&industriaId=${industriaId}&tabelaId=${tabelaId || ''}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Failed to fetch smart suggestions');
+        }
+        return response.json();
+    }
 };

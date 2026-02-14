@@ -16,7 +16,10 @@ function dbContextMiddleware(getTenantPool, masterPool) {
             if (!pool && tenantDbConfigRaw) {
                 try {
                     const dbConfig = JSON.parse(tenantDbConfigRaw);
-                    pool = getTenantPool(tenantCnpj, dbConfig);
+                    // Só aceita configuração via header se tiver SENHA e USUÁRIO
+                    if (dbConfig.user && dbConfig.password) {
+                        pool = getTenantPool(tenantCnpj, dbConfig);
+                    }
                 } catch (e) { }
             }
 
@@ -31,6 +34,7 @@ function dbContextMiddleware(getTenantPool, masterPool) {
 
                     if (result.rows.length > 0) {
                         const emp = result.rows[0];
+
                         const dbConfig = {
                             host: emp.db_host,
                             database: emp.db_nome,

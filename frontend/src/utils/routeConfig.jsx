@@ -4,7 +4,7 @@ import {
     Home, Users, Building2, UserCircle, Tag, Layers,
     Package, Settings, Sparkles, RefreshCw,
     ShoppingCart, DollarSign, PieChart, FileText, Wrench, Upload, Gamepad, Calendar,
-    BarChart2
+    BarChart2, MapPin, User
 } from 'lucide-react';
 
 export const routeConfig = {
@@ -47,7 +47,14 @@ export const routeConfig = {
     '/estatisticos/mapa-cliente-geral': { label: 'Mapa Cli/Geral', icon: <BarChart2 size={16} /> },
     '/estatisticos/grupo-lojas': { label: 'Grupo de Lojas', icon: <Building2 size={16} /> },
     '/estatisticos/prod-unica-compra': { label: 'Prod Única Compra', icon: <Package size={16} /> },
-    '/estatisticos/clientes-atual-ant': { label: 'Clientes MoM', icon: <BarChart2 size={16} /> }
+    '/estatisticos/clientes-atual-ant': { label: 'Clientes MoM', icon: <BarChart2 size={16} /> },
+
+    // RepCRM Specialist
+    '/repcrm/dashboard': { label: 'Dashboard CRM', icon: <Sparkles size={16} /> },
+    '/repcrm/cliente/:id': { label: 'Ficha 360º', icon: <User size={16} /> },
+    '/repcrm/comissoes': { label: 'Comissões CRM', icon: <DollarSign size={16} /> },
+    '/repcrm/visitas': { label: 'Visitas CRM', icon: <MapPin size={16} /> },
+    '/repcrm/config': { label: 'Configurações CRM', icon: <Settings size={16} /> }
 };
 
 export const getRouteInfo = (path) => {

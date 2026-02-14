@@ -1,6 +1,6 @@
 {
-    "name": "SalesMaster Pro",
-    "short_name": "SalesMaster",
+    "name": "SalesMasters",
+    "short_name": "SalesMasters",
     "description": "Sistema de Gestão de Vendas Premium",
     "start_url": "/",
     "display": "standalone",
@@ -8,7 +8,13 @@
     "theme_color": "#10b981",
     "icons": [
         {
-            "src": "/assets/icone_masters_2025-BH3dNFup.png",
+            "src": "/logo192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/logo512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"

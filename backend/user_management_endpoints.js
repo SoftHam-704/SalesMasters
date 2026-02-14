@@ -156,7 +156,13 @@ module.exports = function (pool) {
                     { idx: 640, label: 'Jogo de Dados' },
                     { idx: 601, label: 'Usuários do sistema' },
                     { idx: 611, label: 'Parâmetros' },
-                    { idx: 612, label: 'Configurações' }
+                    { idx: 612, label: 'Configurações' },
+
+                    { idx: 70, label: 'REPCRM SPECIALIST', isParent: true },
+                    { idx: 701, label: 'Dashboard CRM' },
+                    { idx: 702, label: 'Gestão de Comissões' },
+                    { idx: 703, label: 'Relatórios de Visita' },
+                    { idx: 704, label: 'Configurações CRM' }
                 ];
 
                 const insertQuery = `

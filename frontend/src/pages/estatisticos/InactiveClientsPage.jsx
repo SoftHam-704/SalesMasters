@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Search, UserX, Calendar, RefreshCcw } from 'lucide-react';
+import { Download, Search, UserX, Calendar, RefreshCcw, TrendingUp, DollarSign, Users, Award } from 'lucide-react';
 import axios from '@/lib/axios';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
@@ -67,6 +67,11 @@ export default function InactiveClientsPage() {
             'Telefone': item.telefone,
             'Email': item.email,
             'Status': periodo === -1 ? 'Ativo' : (periodo === 0 ? 'Nunca Comprou' : `Inativo há +${periodo} meses`),
+            'Frequência (Dias)': Math.round(item.frequencia_dias || 0),
+            'Dias Inativo': item.dias_inativo || 0,
+            'Pedidos Perdidos': item.pedidos_perdidos || 0,
+            'Ticket Médio': item.potential_ticket || 0,
+            'Receita Potencial': item.receita_potencial || 0,
             'Última Compra': item.ultima_compra ? new Date(item.ultima_compra).toLocaleDateString() : '-'
         }));
 
@@ -109,6 +114,67 @@ export default function InactiveClientsPage() {
                     </div>
                 </div>
 
+                {/* KPI Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card className="border-l-4 border-l-rose-500 shadow-sm">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className="p-3 bg-rose-50 rounded-lg text-rose-600">
+                                <TrendingUp className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Receita a Recuperar</p>
+                                <h3 className="text-xl font-black text-slate-800">
+                                    R$ {data.reduce((acc, curr) => acc + (parseFloat(curr.receita_potencial) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </h3>
+                                <p className="text-[10px] text-rose-600 font-bold italic">Baseado em pedidos perdidos</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
+                                <Users className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Clientes no Limbo</p>
+                                <h3 className="text-xl font-black text-slate-800">{data.length}</h3>
+                                <p className="text-[10px] text-slate-400 font-medium">Inativos no período</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-emerald-500 shadow-sm">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
+                                <DollarSign className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket Média Recup.</p>
+                                <h3 className="text-xl font-black text-slate-800">
+                                    R$ {data.length > 0
+                                        ? (data.reduce((acc, curr) => acc + (parseFloat(curr.potential_ticket) || 0), 0) / data.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                                        : '0,00'}
+                                </h3>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-amber-500 shadow-sm">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
+                                <Award className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Maior Potencial</p>
+                                <h3 className="text-xl font-black text-slate-800">
+                                    R$ {Math.max(...data.map(d => parseFloat(d.receita_potencial) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </h3>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
                 {/* Filters */}
                 <Card className="border-slate-200 shadow-sm">
                     <CardContent className="p-4 flex flex-wrap gap-2 items-center">
@@ -142,8 +208,10 @@ export default function InactiveClientsPage() {
                                         <TableHead>Nome Cliente</TableHead>
                                         <TableHead>Cidade</TableHead>
                                         <TableHead>Vendedor</TableHead>
-                                        <TableHead>Telefone</TableHead>
-                                        <TableHead>Email</TableHead>
+                                        <TableHead className="text-right">Freq. (dias)</TableHead>
+                                        <TableHead className="text-right">Perdidos</TableHead>
+                                        <TableHead className="text-right">Ticket Médio</TableHead>
+                                        <TableHead className="text-right font-bold text-rose-600">Receita Potencial</TableHead>
                                         <TableHead className="text-right">Última Compra</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -184,8 +252,18 @@ export default function InactiveClientsPage() {
                                                 <TableCell className="text-xs font-semibold text-slate-700">
                                                     {item.vendedor || '-'}
                                                 </TableCell>
-                                                <TableCell className="text-slate-600 font-numeric">{item.telefone || '-'}</TableCell>
-                                                <TableCell className="text-slate-600 text-xs">{item.email || '-'}</TableCell>
+                                                <TableCell className="text-right text-xs font-medium text-slate-500">
+                                                    {Math.round(item.frequencia_dias) || '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs font-black text-rose-500">
+                                                    {item.pedidos_perdidos || 0}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs font-medium text-slate-600">
+                                                    {item.potential_ticket ? `R$ ${parseFloat(item.potential_ticket).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-sm font-black text-rose-700 bg-rose-50/50">
+                                                    {item.receita_potencial ? `R$ ${parseFloat(item.receita_potencial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                                                </TableCell>
                                                 <TableCell className="text-right font-medium">
                                                     <span className={periodo === -1 ? "text-emerald-600" : "text-rose-600"}>
                                                         {item.ultima_compra ? new Date(item.ultima_compra).toLocaleDateString() : 'Nunca'}

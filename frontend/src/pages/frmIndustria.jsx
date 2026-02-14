@@ -56,9 +56,28 @@ const FrmIndustria = () => {
                 email: item.for_email || item.email || '',
                 fax: item.for_fax || '',
                 obs2: item.for_obs2 || '',
+                for_obs2: item.for_obs2 || '',
                 homepage: item.for_homepage || '',
                 for_locimagem: item.for_locimagem || '',
                 for_logotipo: item.for_logotipo || '',
+                // Descontos D1-D10
+                for_des1: item.for_des1 ?? 0,
+                for_des2: item.for_des2 ?? 0,
+                for_des3: item.for_des3 ?? 0,
+                for_des4: item.for_des4 ?? 0,
+                for_des5: item.for_des5 ?? 0,
+                for_des6: item.for_des6 ?? 0,
+                for_des7: item.for_des7 ?? 0,
+                for_des8: item.for_des8 ?? 0,
+                for_des9: item.for_des9 ?? 0,
+                for_des10: item.for_des10 ?? 0,
+                // Comissão e Representante
+                for_percom: item.for_percom ?? 0,
+                for_codrep: item.for_codrep ?? '',
+                // Observações internas
+                observacoes: item.observacoes || '',
+                // Tipo de frete
+                for_tipofrete: item.for_tipofrete || 'F',
                 situacao: (item.for_tipo2 === 'A' || item.situacao === 'A' || item.situacao === 'Ativo') ? "Ativo" : "Inativo",
                 _original: item
             }));
@@ -103,7 +122,25 @@ const FrmIndustria = () => {
                 for_obs2: data.for_obs2 || data.obs2 || '',
                 for_homepage: data.for_homepage || data.homepage || '',
                 for_locimagem: data.for_locimagem || '',
-                for_logotipo: data.for_logotipo || ''
+                for_logotipo: data.for_logotipo || '',
+                // Descontos D1-D10
+                for_des1: data.for_des1 ?? 0,
+                for_des2: data.for_des2 ?? 0,
+                for_des3: data.for_des3 ?? 0,
+                for_des4: data.for_des4 ?? 0,
+                for_des5: data.for_des5 ?? 0,
+                for_des6: data.for_des6 ?? 0,
+                for_des7: data.for_des7 ?? 0,
+                for_des8: data.for_des8 ?? 0,
+                for_des9: data.for_des9 ?? 0,
+                for_des10: data.for_des10 ?? 0,
+                // Comissão e Representante
+                for_percom: data.for_percom ?? 0,
+                for_codrep: data.for_codrep ?? '',
+                // Observações internas
+                observacoes: data.observacoes || '',
+                // Tipo de frete
+                for_tipofrete: data.for_tipofrete || 'F'
             };
 
             const response = await fetch(url, {

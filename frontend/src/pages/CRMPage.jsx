@@ -107,7 +107,8 @@ const CRMDashboard = ({
     industryStats,
     fetchClients,
     lastPurchases,
-    loading
+    loading,
+    onEditInteraction
 }) => {
     return (
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto overflow-y-auto h-full custom-scrollbar">
@@ -225,9 +226,9 @@ const CRMDashboard = ({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {[
                     { label: 'Hoje', value: stats.totalHoje, icon: Zap, color: 'text-blue-600', trend: 'Live', trendColor: 'text-blue-600 bg-blue-50 border-blue-100' },
-                    { label: 'Mês Corrente', value: stats.totalMes || stats.totalSemana, icon: Target, color: 'text-emerald-600', trend: 'Alvo', trendColor: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+                    { label: 'Mês Corrente', value: stats.totalMes, icon: Target, color: 'text-emerald-600', trend: 'Alvo', trendColor: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
                     { label: 'Acompanhamentos', value: stats.pendentes, icon: AlertTriangle, color: 'text-amber-600', trend: 'Atenção', trendColor: 'text-amber-600 bg-amber-50 border-amber-100' },
-                    { label: 'Histórico 30d', value: stats.total30d || stats.totalSemana, icon: Activity, color: 'text-slate-600', trend: 'Sincro', trendColor: 'text-slate-600 bg-slate-50 border-slate-100' }
+                    { label: 'Histórico 360', value: stats.totalPeriodo || stats.total30d, icon: Activity, color: 'text-slate-600', trend: 'Sincro', trendColor: 'text-slate-600 bg-slate-50 border-slate-100' }
                 ].map((m, i) => (
                     <div key={i} className="stealth-card relative overflow-hidden group border-slate-200 bg-white">
                         <div className="flex justify-between items-start mb-4">
@@ -264,6 +265,7 @@ const CRMDashboard = ({
                                     <th>Último Cliente</th>
                                     <th>Horário</th>
                                     <th>Status</th>
+                                    <th className="text-right">Ação</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -286,6 +288,16 @@ const CRMDashboard = ({
                                             )}>
                                                 {row.status}
                                             </Badge>
+                                        </td>
+                                        <td className="text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                                                onClick={() => onEditInteraction(row)}
+                                            >
+                                                <Pencil size={14} />
+                                            </Button>
                                         </td>
                                     </tr>
                                 ))}
@@ -447,7 +459,13 @@ export default function CRMPage() {
 
     useEffect(() => {
         if (filterCli) {
-            fetch(`${NODE_API_URL}/api/crm/client/${filterCli}/last-purchases`)
+            let params = [];
+            if (filterInd && filterInd !== 'all') params.push(`for_codigo=${filterInd}`);
+            if (dataInicio) params.push(`data_inicio=${dataInicio}`);
+            if (dataFim) params.push(`data_fim=${dataFim}`);
+
+            const queryStr = params.length > 0 ? `?${params.join('&')}` : '';
+            fetch(`${NODE_API_URL}/api/crm/client/${filterCli}/last-purchases${queryStr}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) setLastPurchases(data.data);
@@ -456,7 +474,7 @@ export default function CRMPage() {
         } else {
             setLastPurchases([]);
         }
-    }, [filterCli]);
+    }, [filterCli, filterInd, dataInicio, dataFim]);
 
     const refreshData = async () => {
         setLoading(true);
@@ -468,10 +486,12 @@ export default function CRMPage() {
             let intUrl = `${NODE_API_URL}/api/crm/interacoes`;
             let queryParams = [];
 
-            if (venCodigo) {
-                queryParams.push(`ven_codigo=${venCodigo}`);
-            } else if (filterVen) {
+            if (filterVen) {
                 queryParams.push(`ven_nome=${encodeURIComponent(filterVen)}`);
+            } else {
+                // Se o filtro de nome estiver vazio, não enviamos ven_codigo para mostrar tudo
+                // a menos que queiramos forçar a visão do usuário logado por padrão.
+                // Conforme pedido: "caso contrario tem que mostrar tudo"
             }
 
             if (filterCli) queryParams.push(`cli_codigo=${filterCli}`);
@@ -484,7 +504,7 @@ export default function CRMPage() {
             const [intRes, pipeRes, indRes, statsRes, teamLiveRes, teamStatsRes, indStatsRes] = await Promise.all([
                 fetch(`${intUrl}${queryStr}`),
                 fetch(`${NODE_API_URL}/api/crm/pipeline${queryStr}`),
-                fetch(`${NODE_API_URL}/api/suppliers`),
+                fetch(`${NODE_API_URL}/api/suppliers?userId=${user.id}&clientId=${filterCli || ''}`),
                 fetch(`${statsUrl}${queryStr}`),
                 fetch(`${NODE_API_URL}/api/crm/stats/live-feed${queryStr}`),
                 fetch(`${NODE_API_URL}/api/crm/stats/team${queryStr}`),
@@ -657,6 +677,7 @@ export default function CRMPage() {
                                     setFilterVen={setFilterVen}
                                     lastPurchases={lastPurchases}
                                     loading={loading}
+                                    onEditInteraction={(item) => { setSelectedInteraction(item); setNovaInteracaoOpen(true); }}
                                 />
                             ) : viewMode === 'kanban' ? (
                                 <div className="h-full p-6 pt-2 overflow-x-auto custom-scrollbar">
@@ -715,7 +736,7 @@ export default function CRMPage() {
                                             </Select>
                                         </div>
                                         {(filterCli || filterInd || dataInicio || dataFim) && (
-                                            <Button variant="ghost" onClick={() => { setFilterCli(null); setFilterInd(''); setDataInicio(''); setDataFim(''); }} className="h-11 px-4 text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-widest">
+                                            <Button variant="ghost" onClick={() => { setFilterCli(null); setFilterInd('all'); setDataInicio(''); setDataFim(''); }} className="h-11 px-4 text-[10px] font-bold text-zinc-500 hover:text-white uppercase tracking-widest">
                                                 <FilterX size={14} className="mr-2" /> Reset
                                             </Button>
                                         )}
@@ -805,7 +826,7 @@ export default function CRMPage() {
                                                                     "{item.descricao || "Relatório sem observações."}"
                                                                 </p>
                                                             </div>
-                                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center">
+                                                            <div className="opacity-40 group-hover:opacity-100 transition-opacity flex flex-col justify-center">
                                                                 <button onClick={() => { setSelectedInteraction(item); setNovaInteracaoOpen(true); }} className="p-2 text-zinc-700 hover:text-white">
                                                                     <Pencil size={14} />
                                                                 </button>

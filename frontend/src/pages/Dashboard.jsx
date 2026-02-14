@@ -60,6 +60,7 @@ const Dashboard = () => {
     const [sellOutSummary, setSellOutSummary] = useState(null);
     const [loadingSellOut, setLoadingSellOut] = useState(true);
 
+
     const fetchSellOutSummary = async () => {
         try {
             setLoadingSellOut(true);
@@ -305,6 +306,7 @@ const Dashboard = () => {
                 onYearChange={setSelectedYear}
                 onMonthChange={setSelectedMonth}
             />
+
 
             {/* Metrics Grid */}
             <div className="metrics-grid">

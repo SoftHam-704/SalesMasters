@@ -52,6 +52,12 @@ module.exports = (pool) => {
         try {
             const { industria } = req.params;
 
+            // Validação de segurança para evitar erros de cast (ex: $1 = '...')
+            const targetId = parseInt(industria);
+            if (isNaN(targetId)) {
+                return res.json({ success: true, data: [], message: 'ID da indústria inválido' });
+            }
+
             // DEBUG: Detectar chamadas incorretas (formato industria_tabela)
             if (industria && (industria.includes('_') || industria.includes('&') || industria.includes('.'))) {
                 console.warn(`⚠️ [PRICE-TABLES] Chamada suspeita detectada! industria="${industria}"`);

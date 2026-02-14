@@ -69,7 +69,13 @@ async def get_evolution(ano: int, metrica: str = 'valor'):
         if df_fat.empty:
             return []
 
-        col_name = 'v_faturamento' if metrica == 'valor' else 'q_quantidade'
+        if metrica == 'valor':
+            col_name = 'v_faturamento'
+        elif metrica == 'quantidade':
+            col_name = 'q_quantidade'
+        else:
+            col_name = 'u_unidades'
+            
         data_dict = {int(row['n_mes']): float(row[col_name]) for _, row in df_fat.iterrows()}
         
         result = []

@@ -42,6 +42,12 @@ import UserManagementPage from '../pages/utilitarios/UserManagementPage';
 import AgendaPage from '../pages/AgendaPage';
 import IntelligencePage from '../pages/IntelligencePage';
 import FinancialDashboardPage from '../pages/financial/FinancialDashboardPage';
+import ProjectModeToggle from '../components/utilities/ProjectModeToggle';
+import EmailCenterPage from '../pages/utilitarios/EmailCenterPage';
+import RepCrmDashboard from '../pages/repcrm/RepCrmDashboard';
+import RepCrmPlaceholder from '../pages/repcrm/RepCrmPlaceholder';
+import RepCrmClient360 from '../pages/repcrm/RepCrmClient360';
+import RepCrmMetasConfig from '../pages/repcrm/RepCrmMetasConfig';
 
 // Mapeamento Centralizado de Rotas para Componentes com Props
 // Estatísticos
@@ -57,6 +63,9 @@ import MapaQuantidadePage from '../pages/estatisticos/MapaQuantidadePage';
 import ProdutosUnicaCompraPage from '../pages/estatisticos/ProdutosUnicaCompraPage';
 import UltimasComprasPage from '../pages/estatisticos/UltimasComprasPage';
 import InactiveClientsPage from '../pages/estatisticos/InactiveClientsPage';
+import SalesByFamilyPage from '../pages/reports/SalesByFamilyPage';
+import SalesByProductPage from '../pages/reports/SalesByProductPage';
+import CustomerReducedEngine from '../components/reports/CustomerReducedEngine';
 
 
 // Mapeamento Centralizado de Rotas para Componentes com Props
@@ -67,6 +76,7 @@ export const componentMapping = {
     // Vendas
     '/vendas/pedidos': { component: OrdersPage },
     '/pedidos': { component: OrdersPage },
+    '/pedidos-projetos': { component: OrdersPage, props: { forceProjetos: true } },
     '/vendas/campanhas': { component: FrmCampanhas },
     '/industrias': { component: FrmIndustria },
     '/clientes': { component: FrmClientes },
@@ -98,6 +108,11 @@ export const componentMapping = {
     '/estatisticos/ultimas-compras': { component: UltimasComprasPage },
     '/estatisticos/clientes-inativos': { component: InactiveClientsPage },
 
+    // Relatórios de Movimentação
+    '/relatorios/vendas-familia': { component: SalesByFamilyPage },
+    '/relatorios/vendas-produto': { component: SalesByProductPage },
+    '/print/customers-reduced': { component: CustomerReducedEngine },
+
     // Utilitários
     '/utilitarios/importacao-precos': { component: FrmImportacaoPrecos },
     '/utilitarios/catalogo-produtos': { component: FrmCadastroProdutos },
@@ -106,6 +121,8 @@ export const componentMapping = {
     '/utilitarios/jogo-dados': { component: DiceGame },
     '/utilitarios/tetris': { component: TetrisGame },
     '/utilitarios/usuarios': { component: UserManagementPage },
+    '/utilitarios/modo-projetos': { component: ProjectModeToggle },
+    '/utilitarios/envio-emails': { component: EmailCenterPage },
 
     // Outros
     '/agenda': { component: AgendaPage },
@@ -117,6 +134,14 @@ export const componentMapping = {
 
     '/movimentacoes/sell-out': { component: SellOutPage },
     '/configuracoes/crm': { component: CRMSettings },
+
+    // RepCRM Specialist
+    '/repcrm/dashboard': { component: RepCrmDashboard },
+    '/repcrm/cliente/:id': { component: RepCrmClient360 },
+    '/repcrm/comissoes': { component: RepCrmPlaceholder, props: { title: 'Gestão de Comissões' } },
+    '/repcrm/visitas': { component: RepCrmPlaceholder, props: { title: 'Relatórios de Visita' } },
+    '/repcrm/config': { component: RepCrmMetasConfig },
+    '/repcrm/metas': { component: RepCrmMetasConfig },
 
     // Financeiro
     '/financeiro/plano-contas': { component: ChartOfAccountsPage },

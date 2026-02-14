@@ -73,10 +73,44 @@ data/itens_ped.csv
 login/*.mp4
 
 # Temp Python scripts at root
-analyze_price_list.py
+check_*.py
+inspect_*.py
+import_*.py
+debug_*.py
+find_*.py
+test_*.py
+search_*.py
+sync_*.py
+analyze_*.py
+apply_*.py
+fix_*.py
+register_*.py
+reimport_*.py
+run_*.py
+safe_*.py
+scan_*.py
+seed_*.py
+simulate_*.py
+truncate_*.py
+update_*.py
+verify_*.py
+*.txt
+*.sql
+*.bat
+create_*.js
+fix_*.js
+test_*.js
+emergency_*.js
 
+# Legacy directories
+_legacy_scripts/
+_maintenance_scripts/
+BACKUP_ORDERS_SCREENS/
+deploy_temp/
+data/
+
+# Backend/Frontend dev scripts
 backend/_dev_scripts/*.sql
-
 backend/_dev_scripts/*.js
 
 *.log

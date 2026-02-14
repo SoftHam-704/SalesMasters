@@ -3,13 +3,22 @@ require('dotenv').config();
 
 // Pool dedicado ao banco MASTER (Central de Controle - NUVEM)
 const masterPool = new Pool({
-    host: 'node254557-salesmaster.sp1.br.saveincloud.net.br',
-    port: 13062,
-    database: 'salesmasters_master',
-    user: 'webadmin',
-    password: 'ytAyO0u043',
-    max: 10,
-    idleTimeoutMillis: 30000
+    host: process.env.MASTER_DB_HOST || 'node254557-salesmaster.sp1.br.saveincloud.net.br',
+    port: parseInt(process.env.MASTER_DB_PORT || '13062'),
+    database: process.env.MASTER_DB_DATABASE || 'salesmasters_master',
+    user: process.env.MASTER_DB_USER || 'webadmin',
+    password: process.env.MASTER_DB_PASSWORD || 'ytAyO0u043',
+    max: parseInt(process.env.MASTER_DB_MAX_CONNS || '10'),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+});
+
+// Verificação inicial de conexão do Master
+masterPool.on('error', (err) => {
+    console.error('❌ [DATABASE MASTER] Erro inesperado no pool:', err.message);
+    if (err.code === 'ECONNREFUSED') {
+        console.warn('⚠️ [DATABASE MASTER] Conexão recusada. Verifique se o IP/Porta estão corretos ou se o Banco Master está ativo.');
+    }
 });
 
 // Cache global persistente
@@ -32,7 +41,7 @@ function getTenantPool(tenantKey, config = null) {
             database: config.database,
             user: config.user,
             password: config.password,
-            max: 20,
+            max: 15, // Aumentado para 15
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 10000
         };

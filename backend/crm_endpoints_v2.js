@@ -48,13 +48,6 @@ module.exports = function (app, pool) {
                 params.push(`%${ven_nome}%`);
             }
 
-            if (ven_codigo) {
-                // Determine if we filter strictly by seller or show all if manager
-                // For now, let's keep it open or filter if param passed
-                query += ' WHERE o.ven_codigo = $1';
-                params.push(ven_codigo);
-            }
-
             const oppsRes = await pool.query(query, params);
             const opportunities = oppsRes.rows;
 
@@ -154,6 +147,93 @@ module.exports = function (app, pool) {
         }
     });
 
+    // --- CLIENT 360 & INTELLIGENCE ENDPOINTS ---
+
+    // GET - Client Penetration Matrix (GAPs)
+    // Crosses suppliers with client orders across ALL history
+    app.get('/api/crm/client-matrix/:id', async (req, res) => {
+        try {
+            const { id } = req.params; // cli_codigo
+
+            const query = `
+                WITH client_purchases AS (
+                    SELECT 
+                        ped_industria,
+                        SUM(ped_totliq) as total_valor,
+                        COUNT(*) as total_pedidos
+                    FROM pedidos
+                    WHERE ped_cliente = $1
+                    GROUP BY ped_industria
+                )
+                SELECT 
+                    f.for_codigo as id,
+                    f.for_nomered as name,
+                    CASE WHEN cp.ped_industria IS NOT NULL THEN 'active' ELSE 'gap' END as status,
+                    COALESCE(cp.total_valor, 0) as value_raw,
+                    COALESCE(cp.total_pedidos, 0) as pedidos_count
+                FROM fornecedores f
+                LEFT JOIN client_purchases cp ON cp.ped_industria = f.for_codigo
+                WHERE f.for_tipo2 <> 'I' -- Exclude inactive industries
+                ORDER BY status, name
+            `;
+
+            const result = await pool.query(query, [id]);
+
+            // Format for frontend
+            const formatted = result.rows.map(row => ({
+                id: row.id,
+                name: row.name,
+                status: row.status,
+                value: row.value_raw > 0 ? `R$ ${(row.value_raw / 1000).toFixed(1)}k` : 'R$ 0'
+            }));
+
+            res.json({ success: true, data: formatted });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching client matrix:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // --- CHECK-IN / GEOLOCATION ENDPOINTS ---
+
+    // POST - Register Check-in
+    app.post('/api/crm/checkin', async (req, res) => {
+        try {
+            const { ven_codigo, cli_codigo, latitude, longitude, precisao, observacao, tipo } = req.body;
+
+            if (!ven_codigo || !cli_codigo) {
+                return res.status(400).json({ success: false, message: 'ven_codigo e cli_codigo são obrigatórios' });
+            }
+
+            // Ensure table exists (Safe check-in creation logic)
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS crm_checkins (
+                    id SERIAL PRIMARY KEY,
+                    ven_codigo INTEGER,
+                    cli_codigo INTEGER,
+                    latitude NUMERIC,
+                    longitude NUMERIC,
+                    precisao NUMERIC,
+                    observacao TEXT,
+                    tipo VARCHAR(50) DEFAULT 'VISITA',
+                    data_checkin TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+
+            const result = await pool.query(`
+                INSERT INTO crm_checkins 
+                (ven_codigo, cli_codigo, latitude, longitude, precisao, observacao, tipo)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `, [ven_codigo, cli_codigo, latitude, longitude, precisao, observacao || null, tipo || 'VISITA']);
+
+            res.json({ success: true, data: result.rows[0], message: 'Check-in realizado com sucesso!' });
+        } catch (error) {
+            console.error('❌ [CRM] Error on check-in:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
     // --- INTERACTIONS ENDPOINTS (EXISTING) ---
 
     // GET - List interactions for a seller
@@ -208,17 +288,17 @@ module.exports = function (app, pool) {
                     SELECT 1 FROM crm_interacao_industria ii 
                     WHERE ii.interacao_id = i.interacao_id AND ii.for_codigo = $${paramIndex++}
                 )`;
-                params.push(for_codigo);
+                params.push(parseInt(for_codigo));
             }
 
-            // New Date Filters
+            // New Date Filters - DATE type based filtering
             if (data_inicio) {
-                query += ` AND i.data_interacao >= $${paramIndex++}::timestamp`;
-                params.push(`${data_inicio} 00:00:00`);
+                query += ` AND i.data_interacao::date >= $${paramIndex++}::date`;
+                params.push(data_inicio);
             }
             if (data_fim) {
-                query += ` AND i.data_interacao <= $${paramIndex++}::timestamp`;
-                params.push(`${data_fim} 23:59:59`);
+                query += ` AND i.data_interacao::date <= $${paramIndex++}::date`;
+                params.push(data_fim);
             }
 
             query += ` ORDER BY i.data_interacao DESC LIMIT 100`;
@@ -1110,23 +1190,36 @@ module.exports = function (app, pool) {
 
     // --- DASHBOARD & STATS ENDPOINTS ---
 
-    // GET - CRM Summary Stats
     app.get('/api/crm/stats/summary', async (req, res) => {
         try {
-            const { ven_codigo, ven_nome } = req.query;
+            const { ven_codigo, ven_nome, data_inicio, data_fim, for_codigo } = req.query;
             let params = [];
             let whereClause = ' WHERE 1=1';
 
-            if (ven_codigo && !isNaN(parseInt(ven_codigo))) {
-                whereClause += ' AND i.ven_codigo = $1';
-                params.push(parseInt(ven_codigo));
-            } else if (ven_nome) {
-                // We need to join in the subqueries if we filter by name
+            // Prioridade ao Nome (Operador) conforme pedido
+            if (ven_nome) {
                 whereClause += ' AND EXISTS (SELECT 1 FROM vendedores v WHERE v.ven_codigo = i.ven_codigo AND v.ven_nome ILIKE $1)';
                 params.push(`%${ven_nome}%`);
+            } else if (ven_codigo && !isNaN(parseInt(ven_codigo))) {
+                whereClause += ' AND i.ven_codigo = $1';
+                params.push(parseInt(ven_codigo));
             }
 
-            // Inactivity Insight
+            if (for_codigo && for_codigo !== 'all' && !isNaN(parseInt(for_codigo))) {
+                const fIdx = params.length + 1;
+                // Check if interaction is linked to this industry
+                whereClause += ` AND EXISTS (SELECT 1 FROM crm_interacao_industria ii WHERE ii.interacao_id = i.interacao_id AND ii.for_codigo = $${fIdx})`;
+                params.push(parseInt(for_codigo));
+            }
+
+            // Inactivity Insight (Fixed logic)
+            let inactivityWhere = '';
+            let inactivityParams = [];
+            if (ven_codigo && !isNaN(parseInt(ven_codigo))) {
+                inactivityWhere = ' AND c.cli_vendedor = $1';
+                inactivityParams.push(parseInt(ven_codigo));
+            }
+
             const inactivityQuery = `
                 SELECT COUNT(*) as count
                 FROM clientes c
@@ -1135,22 +1228,31 @@ module.exports = function (app, pool) {
                     WHERE i.cli_codigo = c.cli_codigo 
                     AND i.data_interacao >= CURRENT_DATE - INTERVAL '30 days'
                 )
-                ${ven_codigo && !isNaN(parseInt(ven_codigo)) ? 'AND c.ven_codigo = $1' : ''}
+                ${inactivityWhere}
             `;
+
+            const startDate = data_inicio ? `${data_inicio} 00:00:00` : null;
+            const endDate = data_fim ? `${data_fim} 23:59:59` : null;
+
+            const queryParams = [...params];
+            const pIdx = queryParams.length;
 
             const statsQuery = `
                 SELECT 
                     COUNT(*) FILTER (WHERE data_interacao::date = CURRENT_DATE) as total_hoje,
                     COUNT(*) FILTER (WHERE data_interacao >= date_trunc('month', CURRENT_DATE)) as total_mes,
                     COUNT(*) FILTER (WHERE data_interacao >= CURRENT_DATE - INTERVAL '30 days') as total_30d,
-                    COUNT(*) FILTER (WHERE resultado_id IS NULL OR resultado_id = 1) as pendentes
+                    COUNT(*) FILTER (WHERE resultado_id IS NULL OR resultado_id = 1) as pendentes,
+                    COUNT(*) FILTER (WHERE $${pIdx + 1}::timestamp IS NULL OR (data_interacao >= $${pIdx + 1} AND data_interacao <= $${pIdx + 2})) as total_periodo
                 FROM crm_interacao i
                 ${whereClause}
             `;
 
+            queryParams.push(startDate, endDate);
+
             const [statsRes, inactRes] = await Promise.all([
-                pool.query(statsQuery, params),
-                pool.query(inactivityQuery, params)
+                pool.query(statsQuery, queryParams),
+                pool.query(inactivityQuery, inactivityParams)
             ]);
 
             const stats = statsRes.rows[0];
@@ -1162,7 +1264,7 @@ module.exports = function (app, pool) {
                     totalHoje: parseInt(stats.total_hoje || 0),
                     totalMes: parseInt(stats.total_mes || 0),
                     total30d: parseInt(stats.total_30d || 0),
-                    totalSemana: parseInt(stats.total_30d || 0),
+                    totalPeriodo: parseInt(stats.total_periodo || 0),
                     pendentes: parseInt(stats.pendentes || 0),
                     insights: {
                         inatividade: parseInt(inactCount || 0),
@@ -1183,6 +1285,7 @@ module.exports = function (app, pool) {
             const { ven_codigo, ven_nome, cli_codigo, for_codigo, data_inicio, data_fim } = req.query;
             let query = `
                 SELECT 
+                    i.*,
                     v.ven_nome as name,
                     c.cli_nomred as task,
                     i.data_interacao as last_sync,
@@ -1333,9 +1436,10 @@ module.exports = function (app, pool) {
     app.get('/api/crm/client/:id/last-purchases', async (req, res) => {
         try {
             const { id } = req.params;
+            const { for_codigo, data_inicio, data_fim } = req.query;
             console.log(`📦 [CRM V2] Fetching last purchases for client ${id}`);
 
-            const query = `
+            let query = `
                 SELECT 
                     p.ped_pedido as id,
                     p.ped_data as date,
@@ -1346,11 +1450,29 @@ module.exports = function (app, pool) {
                 FROM pedidos p
                 LEFT JOIN fornecedores f ON p.ped_industria = f.for_codigo
                 WHERE p.ped_cliente = $1
-                AND p.ped_situacao <> 'C'
-                ORDER BY p.ped_data DESC
-                LIMIT 10
+                AND p.ped_situacao IN ('P', 'F')
             `;
-            const result = await pool.query(query, [id]);
+            const params = [id];
+            let pIdx = 2;
+
+            if (for_codigo && for_codigo !== 'all' && for_codigo !== '') {
+                query += ` AND p.ped_industria = $${pIdx++}`;
+                params.push(for_codigo);
+            }
+
+            if (data_inicio) {
+                query += ` AND p.ped_data >= $${pIdx++}`;
+                params.push(data_inicio);
+            }
+
+            if (data_fim) {
+                query += ` AND p.ped_data <= $${pIdx++}`;
+                params.push(data_fim);
+            }
+
+            query += ` ORDER BY p.ped_data DESC LIMIT 10`;
+
+            const result = await pool.query(query, params);
             console.log(`✅ [CRM V2] Found ${result.rows.length} purchases for client ${id}`);
             res.json({ success: true, data: result.rows });
         } catch (error) {

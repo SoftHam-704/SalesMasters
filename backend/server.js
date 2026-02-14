@@ -125,17 +125,49 @@ app.use('/api/master', masterPanelRoutes);
 
 // --- ENDPOINT DE DEBUG DE DEPLOY (Prioridade Máxima) ---
 app.get('/api/deploy-test', (req, res) => {
+    const parentDir = path.resolve(__dirname, '..');
+    let parentContents = [];
+    let frontendContents = [];
+    let distContents = [];
+
+    try { parentContents = fs.readdirSync(parentDir); } catch (e) { parentContents = ['ERRO: ' + e.message]; }
+
+    // Verificar se existe frontend/ ou dist/ no mesmo nível ou acima
+    const possiblePaths = {
+        'backend/../frontend/dist': path.resolve(__dirname, '..', 'frontend', 'dist'),
+        'backend/../dist': path.resolve(__dirname, '..', 'dist'),
+        'backend/dist': path.resolve(__dirname, 'dist'),
+        'cwd/frontend/dist': path.resolve(process.cwd(), 'frontend', 'dist'),
+        'cwd/dist': path.resolve(process.cwd(), 'dist'),
+    };
+
+    const pathResults = {};
+    for (const [label, p] of Object.entries(possiblePaths)) {
+        const exists = fs.existsSync(p);
+        let contents = [];
+        if (exists) {
+            try { contents = fs.readdirSync(p).slice(0, 15); } catch (e) { }
+        }
+        pathResults[label] = { path: p, exists, contents };
+    }
+
+    // Verificar frontend/
+    const frontendDir = path.resolve(parentDir, 'frontend');
+    if (fs.existsSync(frontendDir)) {
+        try { frontendContents = fs.readdirSync(frontendDir); } catch (e) { }
+    }
+
     const debugData = {
         dirname: __dirname,
         cwd: process.cwd(),
         node_version: process.version,
         env_node_env: process.env.NODE_ENV,
+        parent_dir: parentDir,
+        parent_contents: parentContents,
+        frontend_folder_contents: frontendContents,
+        path_checks: pathResults,
         mobile_path: path.resolve(__dirname, '..', 'mobile'),
         mobile_exists: fs.existsSync(path.resolve(__dirname, '..', 'mobile')),
-        mobile_index: path.join(path.resolve(__dirname, '..', 'mobile'), 'index.html'),
-        mobile_index_exists: fs.existsSync(path.join(path.resolve(__dirname, '..', 'mobile'), 'index.html')),
-        frontend_path: path.resolve(__dirname, '..', 'frontend'),
-        frontend_exists: fs.existsSync(path.resolve(__dirname, '..', 'frontend')),
     };
     res.json({ success: true, debug: debugData });
 });
@@ -160,11 +192,13 @@ app.use('/api', require('./cli_aniv_endpoints')(pool));
 app.use('/api/suppliers', require('./suppliers_endpoints')(pool));
 app.use('/api/sellers', require('./vendedores_endpoints')(pool));
 app.use('/api/reports', require('./reports_endpoints_v2')(pool));
+app.use('/api', require('./cli_discounts_endpoints')(pool));
 app.use('/api/intelligence', require('./client_intelligence_endpoints')(pool));
 app.use('/api/metas', require('./metas_endpoints')(pool));
 app.use('/api/agenda', require('./agenda_endpoints')(pool));
 app.use('/api/chat', require('./chat_endpoints')(pool));
 app.use('/api/financeiro', require('./financial_endpoints')(pool));
+app.use('/api/marketing', require('./marketing_email_endpoints')(pool));
 
 // Mobile-specific endpoints (isolado para evitar conflitos com web)
 app.use('/api/mobile', require('./mobile_endpoints')(pool));
@@ -174,7 +208,7 @@ app.get('/api/orders/:pedPedido', async (req, res, next) => {
     const { pedPedido } = req.params;
 
     // Lista de palavras-chave reservadas que NÃO são IDs de pedido
-    const reserved = ['industries', 'clients', 'stats', 'next-number', 'product-history', 'calculate-group-discounts', 'batch-last-prices', 'batch-original-codes', 'deploy-test'];
+    const reserved = ['industries', 'clients', 'stats', 'next-number', 'product-history', 'calculate-group-discounts', 'batch-last-prices', 'batch-original-codes', 'deploy-test', 'smart-suggestions'];
     if (reserved.includes(pedPedido)) {
         return next();
     }
@@ -278,8 +312,10 @@ require('./email_endpoints')(app, pool);
 require('./pdf_save_endpoints')(app, pool);
 require('./crm_endpoints_v2')(app, pool);
 require('./narratives_endpoints')(app);
-require('./cli_discounts_endpoints')(app, pool);
+// require('./cli_discounts_endpoints')(app, pool); // Migrado para Router pattern acima
+require('./smart_suggestion_endpoints')(app, pool);
 require('./portal_integration_endpoints')(app, pool);
+// require('./smart_ia_suggestion_endpoints')(app, pool); // Migrado para client_intelligence_endpoints.js
 
 
 app.get('/api/health', (req, res) => {
@@ -454,7 +490,29 @@ app.get('/api/dashboard/sales-performance', async (req, res) => {
 
 // --- CONFIGURAÇÃO APP MOBILE PWA (PRIORIDADE ALTA) ---
 const mobilePath = path.resolve(__dirname, '..', 'mobile');
-const frontendPath = path.resolve(__dirname, '..', 'frontend');
+
+// Busca flexível pela pasta do Frontend (dist)
+const possibleFrontendPaths = [
+    path.resolve(__dirname, '..', 'frontend', 'dist'), // Padrão Local
+    path.resolve(__dirname, '..', 'frontend'),         // Conteúdo direto em frontend/
+    path.resolve(__dirname, '..', 'dist'),             // Se dist foi subida na raiz
+    path.resolve(__dirname, 'dist'),                   // Dentro do backend
+    path.resolve(process.cwd(), 'frontend', 'dist'),   // Relativo ao processo
+    path.resolve(process.cwd(), 'dist')                // Relativo ao processo (raiz)
+];
+
+const frontendPath = possibleFrontendPaths.find(p => {
+    return fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'));
+}) || possibleFrontendPaths[0];
+const frontendExists = fs.existsSync(frontendPath) && fs.existsSync(path.join(frontendPath, 'index.html'));
+
+console.log(`📂 [DEBUG] Current dir (__dirname): ${__dirname}`);
+console.log(`📂 [DEBUG] Process CWDir: ${process.cwd()}`);
+console.log(`🌐 [DEPLOY] Web System Configuration: PathExists=${frontendExists} | Final Path=${frontendPath}`);
+
+if (!frontendExists) {
+    console.error(`❌ [DEPLOY] Frontend folder NOT FOUND. Contents of parent:`, fs.readdirSync(path.join(__dirname, '..')));
+}
 
 // Rota específica para o Mobile
 if (fs.existsSync(mobilePath)) {
@@ -477,23 +535,34 @@ if (fs.existsSync(mobilePath)) {
 
 
 // Rota para o Sistema Web
-if (process.env.NODE_ENV === 'production' || fs.existsSync(frontendPath)) {
+const isProduction = process.env.NODE_ENV === 'production';
+
+console.log(`🌐 [DEPLOY] Web System Configuration: Production=${isProduction} | PathExists=${frontendExists} | Path=${frontendPath}`);
+
+if (isProduction || frontendExists) {
     app.use(express.static(frontendPath));
-    app.get(/(.*)/, (req, res, next) => {
-        if (req.path.startsWith('/api') || req.path.startsWith('/app')) return next();
+
+    // Fallback Universal para SPA (React) - Regex compatível com Express 5+ / path-to-regexp moderno
+    app.get(/^\/(?!api|app|images|bi-api).*$/, (req, res, next) => {
+        // Ignorar rotas de API e App Mobile
+        if (req.path.startsWith('/api') || req.path.startsWith('/app') || req.path.startsWith('/images') || req.path.startsWith('/bi-api')) {
+            return next();
+        }
+
         const indexPath = path.join(frontendPath, 'index.html');
         res.sendFile(indexPath, (err) => {
             if (err) {
                 if (!res.headersSent) {
                     console.error('❌ [DEPLOY] Error sending web index:', err.message);
-                    res.status(500).send(`Erro interno: Não foi possível carregar o sistema web em ${indexPath}. Erro: ${err.message}`);
+                    res.status(500).send(`Erro interno: Não foi possível carregar o sistema web. Certifique-se de que a pasta 'dist' foi enviada para ${frontendPath}`);
                 }
             }
         });
     });
 } else {
+    // Fallback básico para quando o frontend não está disponível
     app.get('/', (req, res) => {
-        res.json({ success: true, message: 'SalesMasters Backend running', version: '1.0.0' });
+        res.json({ success: true, message: 'SalesMasters Backend running', version: '1.2.1' });
     });
 }
 
@@ -2131,6 +2200,9 @@ app.delete('/api/v2/carriers/:id', async (req, res) => {
 // ==================== ORDER PRINTING ENDPOINTS ====================
 require('./order_print_endpoints')(app, pool);
 
+// ==================== REPORTS ENDPOINTS ====================
+require('./reports_endpoints')(app, pool);
+
 // ==================== PRICE TABLES ENDPOINTS ====================
 
 // Endpoints are registered at the end of the file starting from line 4790
@@ -3002,7 +3074,8 @@ app.post('/api/import/suppliers-xlsx', async (req, res) => {
 
 
 // GET - Buscar fornecedor por ID
-app.get('/api/suppliers/:id', async (req, res) => {
+// Rota renomeada para evitar conflito
+app.get('/api/suppliers-OLD/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query('SELECT * FROM fornecedores WHERE for_codigo = $1', [id]);
@@ -3027,7 +3100,8 @@ app.get('/api/suppliers/:id', async (req, res) => {
 });
 
 // POST - Criar novo fornecedor
-app.post('/api/suppliers', async (req, res) => {
+// Rota renomeada para evitar conflito
+app.post('/api/suppliers-OLD', async (req, res) => {
     try {
         const supplier = req.body;
 
@@ -3101,72 +3175,9 @@ app.post('/api/suppliers', async (req, res) => {
     }
 });
 
-// PUT - Atualizar fornecedor (Chave: CNPJ)
-// PUT - Atualizar fornecedor (Chave: Código ID)
-app.put('/api/suppliers/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const supplier = req.body;
-
-        if (!id) {
-            return res.status(400).json({ success: false, message: 'ID é obrigatório para atualização' });
-        }
-
-        const query = `
-            UPDATE fornecedores SET
-                for_nome = $1, for_endereco = $2, for_bairro = $3, for_cidade = $4,
-                for_uf = $5, for_cep = $6, for_fone = $7, for_fone2 = $8,
-                for_fax = $9, for_inscricao = $10, for_email = $11,
-                for_tipo2 = $12, for_nomered = $13, for_obs2 = $14,
-                for_homepage = $15, for_locimagem = $16, for_logotipo = $17,
-                for_cgc = $18
-            WHERE for_codigo = $19
-            RETURNING *
-        `;
-
-        const values = [
-            supplier.for_nome,
-            supplier.for_endereco || '',
-            supplier.for_bairro || '',
-            supplier.for_cidade || '',
-            supplier.for_uf || '',
-            supplier.for_cep || '',
-            supplier.for_fone || '',
-            supplier.for_fone2 || '',
-            supplier.for_fax || '',
-            supplier.for_inscricao || '',
-            supplier.for_email || '',
-            supplier.for_tipo2 || 'A',
-            supplier.for_nomered,
-            supplier.for_obs2 || '',
-            supplier.for_homepage || '',
-            supplier.for_locimagem || '',
-            supplier.for_logotipo || '',
-            supplier.for_cgc, // Now part of SET, not WHERE
-            id // The ID is the key
-        ];
-
-        const result = await pool.query(query, values);
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Fornecedor não encontrado com este ID'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Fornecedor atualizado com sucesso!',
-            data: result.rows[0]
-        });
-    } catch (error) {
-        console.error("Erro UPDATE Fornecedor:", error);
-        res.status(500).json({
-            success: false,
-            message: `Erro ao atualizar fornecedor: ${error.message}`
-        });
-    }
+// Rota renomeada para evitar conflito com suppliers_endpoints.js modularizado
+app.put('/api/suppliers-OLD/:id', async (req, res) => {
+    res.status(410).send('Rota desativada em favor do módulo suppliers_endpoints.js');
 });
 
 // DELETE - Excluir fornecedor
@@ -3865,7 +3876,8 @@ app.delete('/api/clients/:id', async (req, res) => {
 // ==================== ANNUAL GOALS ENDPOINTS ====================
 
 // GET - Buscar metas de um fornecedor por ano
-app.get('/api/suppliers/:supplierId/goals/:year', async (req, res) => {
+// Rota renomeada para evitar conflito
+app.get('/api/suppliers-OLD/:supplierId/goals/:year', async (req, res) => {
     try {
         const { supplierId, year } = req.params;
         const result = await pool.query(
@@ -3900,7 +3912,8 @@ app.get('/api/suppliers/:supplierId/goals/:year', async (req, res) => {
 });
 
 // PUT - Atualizar/Criar metas de um fornecedor para um ano
-app.put('/api/suppliers/:supplierId/goals/:year', async (req, res) => {
+// Rota renomeada para evitar conflito
+app.put('/api/suppliers-OLD/:supplierId/goals/:year', async (req, res) => {
     try {
         const { supplierId, year } = req.params;
         const goals = req.body;
@@ -4977,158 +4990,6 @@ app.get('/api/regions', async (req, res) => {
 
 // ==================== SELLER GOALS/METAS ENDPOINTS ====================
 
-// GET - Listar metas de um vendedor (por ano ou todos)
-app.get('/api/sellers/:id/metas', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { ano } = req.query;
-
-        let query = `
-            SELECT 
-                vm.met_id,
-                vm.met_ano,
-                vm.met_industria,
-                vm.met_vendedor,
-                vm.met_jan, vm.met_fev, vm.met_mar, vm.met_abr,
-                vm.met_mai, vm.met_jun, vm.met_jul, vm.met_ago,
-                vm.met_set, vm.met_out, vm.met_nov, vm.met_dez,
-                f.for_nomered as industria_nome
-            FROM vend_metas vm
-            LEFT JOIN fornecedores f ON f.for_codigo = vm.met_industria
-            WHERE vm.met_vendedor = $1
-        `;
-        const params = [id];
-
-        if (ano) {
-            query += ` AND vm.met_ano = $2`;
-            params.push(ano);
-        }
-
-        query += ` ORDER BY vm.met_ano DESC, f.for_nomered`;
-
-        const result = await pool.query(query, params);
-
-        res.json({
-            success: true,
-            data: result.rows
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar metas: ${error.message}`
-        });
-    }
-});
-
-// POST - Criar nova meta
-app.post('/api/sellers/:id/metas', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const meta = req.body;
-
-        // Verificar se já existe meta para este vendedor/ano/indústria
-        const existCheck = await pool.query(
-            'SELECT met_id FROM vend_metas WHERE met_vendedor = $1 AND met_ano = $2 AND met_industria = $3',
-            [id, meta.met_ano, meta.met_industria]
-        );
-
-        if (existCheck.rows.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Já existe uma meta para este vendedor/ano/indústria'
-            });
-        }
-
-        const query = `
-            INSERT INTO vend_metas (
-                met_vendedor, met_ano, met_industria,
-                met_jan, met_fev, met_mar, met_abr, met_mai, met_jun,
-                met_jul, met_ago, met_set, met_out, met_nov, met_dez
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-            ) RETURNING *
-        `;
-
-        const values = [
-            id,
-            meta.met_ano,
-            meta.met_industria,
-            meta.met_jan || 0, meta.met_fev || 0, meta.met_mar || 0, meta.met_abr || 0,
-            meta.met_mai || 0, meta.met_jun || 0, meta.met_jul || 0, meta.met_ago || 0,
-            meta.met_set || 0, meta.met_out || 0, meta.met_nov || 0, meta.met_dez || 0
-        ];
-
-        const result = await pool.query(query, values);
-
-        res.status(201).json({
-            success: true,
-            data: result.rows[0],
-            message: 'Meta criada com sucesso!'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: `Erro ao criar meta: ${error.message}`
-        });
-    }
-});
-
-// PUT - Atualizar meta existente
-app.put('/api/sellers/:id/metas/:metaId', async (req, res) => {
-    try {
-        const { id, metaId } = req.params;
-        const meta = req.body;
-
-        const query = `
-            UPDATE vend_metas SET
-                met_ano = $1, met_industria = $2,
-                met_jan = $3, met_fev = $4, met_mar = $5, met_abr = $6,
-                met_mai = $7, met_jun = $8, met_jul = $9, met_ago = $10,
-                met_set = $11, met_out = $12, met_nov = $13, met_dez = $14
-            WHERE met_id = $15 AND met_vendedor = $16
-            RETURNING *
-        `;
-
-        const values = [
-            meta.met_ano, meta.met_industria,
-            meta.met_jan || 0, meta.met_fev || 0, meta.met_mar || 0, meta.met_abr || 0,
-            meta.met_mai || 0, meta.met_jun || 0, meta.met_jul || 0, meta.met_ago || 0,
-            meta.met_set || 0, meta.met_out || 0, meta.met_nov || 0, meta.met_dez || 0,
-            metaId, id
-        ];
-
-        const result = await pool.query(query, values);
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Meta não encontrada' });
-        }
-
-        res.json({ success: true, data: result.rows[0], message: 'Meta atualizada com sucesso!' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: `Erro ao atualizar meta: ${error.message}` });
-    }
-});
-
-// DELETE - Remover meta
-app.delete('/api/sellers/:id/metas/:metaId', async (req, res) => {
-    try {
-        const { id, metaId } = req.params;
-
-        const result = await pool.query(
-            'DELETE FROM vend_metas WHERE met_id = $1 AND met_vendedor = $2 RETURNING *',
-            [metaId, id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Meta não encontrada' });
-        }
-
-        res.json({ success: true, message: 'Meta excluída com sucesso!' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: `Erro ao excluir meta: ${error.message}` });
-    }
-});
-
 // ==================== PRODUCT GROUPS ENDPOINTS ====================
 
 // GET - Listar todos os grupos de produtos
@@ -5428,10 +5289,11 @@ app.get('/api/orders', async (req, res) => {
 
         // Filter by search term (order number or client name)
         if (pesquisa) {
-            query += ` AND(
-        p.ped_pedido ILIKE $${paramIndex} OR
-                c.cli_nomred ILIKE $${paramIndex}
-    )`;
+            query += ` AND (
+                p.ped_pedido ILIKE $${paramIndex} OR
+                c.cli_nomred ILIKE $${paramIndex} OR
+                p.ped_cliind ILIKE $${paramIndex}
+            )`;
             params.push(`%${pesquisa}%`);
             paramIndex++;
         }

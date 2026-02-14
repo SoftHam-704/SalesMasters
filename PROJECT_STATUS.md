@@ -1,9 +1,16 @@
 # 📋 Status do Projeto SalesMasters
 
-**Última atualização**: 13/12/2025 17:38
+**Última atualização**: 13/02/2026 14:55
+
+> [!CAUTION]
+> **ESTRATÉGIA SEVENREP (BERTOLINI)**:
+> 1. **Venda de PROJETOS**, não produtos de prateleira!
+> 2. **PRIORIDADE #1**: Automação de WhatsApp (Gargalo principal).
+> 3. **CRM**: Mina de ouro de 1.000 clientes sem gestão.
 
 > [!IMPORTANT]
-> **REGRA CRÍTICA**: A partir de agora, TODOS os dados são REAIS.
+> **REGRA CRÍTICA GERAL**: A partir de agora, TODOS os dados são REAIS.
+
 > - ❌ Sem mock data
 > - ✅ Apenas dados do PostgreSQL
 > - ✅ Todas as operações devem ser reais (CREATE, UPDATE, DELETE)
@@ -129,12 +136,13 @@ FIREBIRD_DATABASE=C:\SalesMasters\Dados50\Nova\basesales.fdb
 
 ---
 
-## 📝 Observações Importantes
-
-1. **WireCrypt**: Firebird 3.0+ exige criptografia. node-firebird não suporta. Solução: exportar CSV.
-2. **Migração**: Usar CSV como intermediário entre Firebird e PostgreSQL.
-3. **Status Ativo/Inativo**: Campo `FOR_TIPO2` (A/I) → `active` (boolean).
-4. **18 anos de experiência**: Sistema robusto e complexo de representação comercial.
+## 📝 Detalhes Críticos
+1. **Modelo de Venda**: Focado em Projetos de Sistemas de Armazenagem (Bertolini).
+2. **Interface**: Deve utilizar o formulário especializado `OrderFormProjetos.jsx`.
+3. **Fluxo de Dados**: Os pedidos e itens no schema `sevenrep` devem suportar campos específicos de projeto (metragens, especificações técnicas, etc).
+4. **Prioridade Máxima (URGENTE)**: Automação de WhatsApp para triagem de leads e atendimento de alta demanda.
+5. **Estratégia CRM**: Foco em Gestão de Relacionamento para os 1.000+ clientes inativos (reativação e mimos).
+6. **Contrato**: Esforço total na entrega para garantir a satisfação do representante e do grupo.
 
 ---
 

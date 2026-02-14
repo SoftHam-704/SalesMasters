@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Building2, ExternalLink, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -104,6 +104,34 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 console.error('Erro na exportação:', error);
                 toast.error('Erro ao conectar com servidor.');
             }
+        } else if (portal === 'SAMPEL') {
+            try {
+                const toastId = toast.loading('Gerando planilha SAMPEL...');
+                const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/sampel`), {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `SAMPEL_${orderId}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    toast.success(`Arquivo SAMPEL_${orderId}.xlsx baixado com sucesso!`, { id: toastId });
+                } else {
+                    const data = await response.json();
+                    toast.error(`Erro: ${data.message || 'Falha no download'}`, { id: toastId });
+                }
+            } catch (error) {
+                console.error('Erro na exportação SAMPEL:', error);
+                toast.error('Erro ao conectar com servidor.');
+            }
         } else {
             toast.info(`Integração ${portal} em desenvolvimento.`);
         }
@@ -111,10 +139,17 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[850px] p-0 border-none bg-transparent shadow-none">
+            <DialogContent className="max-w-[850px] p-0 border-none bg-transparent shadow-none" hideCloseButton>
+                {/* Acessibilidade para Screen Readers */}
+                <div className="sr-only">
+                    <DialogTitle>Portais Industriais de Exportação</DialogTitle>
+                    <DialogDescription>
+                        Selecione um dos portais industriais disponíveis para exportar os dados do pedido.
+                    </DialogDescription>
+                </div>
+
                 <div className="relative bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200">
 
-                    {/* Header Moderno e Clean */}
                     <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-50 rounded-lg border border-blue-100">
@@ -125,7 +160,14 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-1">Selecione o destino da exportação</p>
                             </div>
                         </div>
-                        {/* Botão de fechar nativo do DialogContent já existe */}
+
+                        {/* Botão de Fechar Customizado */}
+                        <button
+                            onClick={() => onOpenChange(false)}
+                            className="p-2 hover:bg-slate-100 rounded-xl transition-colors duration-200 group"
+                        >
+                            <X className="h-5 w-5 text-slate-400 group-hover:text-slate-600" />
+                        </button>
                     </div>
 
                     {/* Grid com Design de Cards Interativos */}

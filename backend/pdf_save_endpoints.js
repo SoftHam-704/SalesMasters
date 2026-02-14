@@ -32,9 +32,9 @@ module.exports = function (app, pool) {
             const sanitizedIndustryName = industryName.replace(/[<>:"/\\|?*]/g, '_').trim().toUpperCase();
             const folderPath = path.join(pastaBasica, 'Pedidos', sanitizedIndustryName);
 
-            // Create folder structure if it doesn't exist
+            // Create folder structure if it doesn't exist asynchronously
             if (!fs.existsSync(folderPath)) {
-                fs.mkdirSync(folderPath, { recursive: true });
+                await fs.promises.mkdir(folderPath, { recursive: true });
                 console.log(`📁 [SAVE-PDF] Created folder: ${folderPath}`);
             }
 
@@ -43,9 +43,9 @@ module.exports = function (app, pool) {
             const fileName = `${orderNumber}-${sanitizedClientName}.pdf`;
             const filePath = path.join(folderPath, fileName);
 
-            // Decode base64 and save to file
+            // Decode base64 and save to file asynchronously
             const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-            fs.writeFileSync(filePath, pdfBuffer);
+            await fs.promises.writeFile(filePath, pdfBuffer);
 
             console.log(`✅ [SAVE-PDF] PDF saved: ${filePath}`);
 

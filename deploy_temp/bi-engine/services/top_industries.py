@@ -37,6 +37,7 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
                 f.for_homepage as imagem_url,
                 SUM(i.ite_totliquido) as total_vendas,
                 SUM(i.ite_quant) as total_quantidade,
+                COUNT(DISTINCT i.ite_idproduto) as total_unidades,
                 COUNT(DISTINCT p.ped_pedido) as total_pedidos
             FROM pedidos p
             JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
@@ -56,6 +57,7 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
             vi.imagem_url,
             vi.total_vendas,
             vi.total_quantidade,
+            vi.total_unidades,
             vi.total_pedidos,
             CASE 
                 WHEN tg.grand_total_vendas > 0 
@@ -65,7 +67,11 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
         FROM vendas_industria vi
         CROSS JOIN total_geral tg
         ORDER BY 
-            CASE WHEN :metrica = 'quantidade' THEN vi.total_quantidade ELSE vi.total_vendas END DESC
+            CASE 
+                WHEN :metrica = 'quantidade' THEN vi.total_quantidade 
+                WHEN :metrica = 'unidades' THEN vi.total_unidades
+                ELSE vi.total_vendas 
+            END DESC
         LIMIT :limit
     """
     
@@ -82,6 +88,7 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
                 # Use pd.to_numeric or safe defaults
                 total_vendas = float(row.get('total_vendas', 0) if pd.notna(row.get('total_vendas')) else 0)
                 total_quantidade = float(row.get('total_quantidade', 0) if pd.notna(row.get('total_quantidade')) else 0)
+                total_unidades = int(row.get('total_unidades', 0) if pd.notna(row.get('total_unidades')) else 0)
                 total_pedidos = int(row.get('total_pedidos', 0) if pd.notna(row.get('total_pedidos')) else 0)
                 
                 result.append({
@@ -90,8 +97,9 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
                     "imagem_url": row.get('imagem_url') if pd.notna(row.get('imagem_url')) else None,
                     "total_vendas": total_vendas,
                     "total_quantidade": total_quantidade,
+                    "total_unidades": total_unidades,
                     "total_pedidos": total_pedidos,
-                    "percentual": str(row.get('percentual', '0')),
+                    "percentual": float(row.get('percentual', 0) if pd.notna(row.get('percentual')) else 0.0),
                     "ranking": idx + 1
                 })
             except Exception as e:

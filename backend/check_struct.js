@@ -1,0 +1,18 @@
+
+const { masterPool } = require('./utils/db');
+
+async function check() {
+    try {
+        const res = await masterPool.query(`
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'cad_tabelaspre'
+        `);
+        console.log(JSON.stringify(res.rows, null, 2));
+    } catch (e) {
+        console.error(e);
+    } finally {
+        process.exit();
+    }
+}
+check();

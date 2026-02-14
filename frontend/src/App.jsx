@@ -10,8 +10,8 @@ import './App.css';
 
 import { TabControl } from './components/settings/TabControl';
 import OrderReportEngine from './components/orders/OrderReportEngine';
+import CustomerReducedEngine from './components/reports/CustomerReducedEngine';
 import ChatWidget from './components/chat/ChatWidget';
-
 
 function App() {
   const isPrintView = window.location.pathname.startsWith('/print/');
@@ -68,6 +68,7 @@ function App() {
     <Routes>
       {/* Rotas Especiais */}
       <Route path="/print/order/:id" element={<OrderReportEngine />} />
+      <Route path="/print/customers-reduced" element={<CustomerReducedEngine />} />
       <Route path="/demo-cloud" element={<DemoCloud />} />
       <Route path="/login" element={
         isAuthenticated ? <Navigate to="/" replace /> : <Login />

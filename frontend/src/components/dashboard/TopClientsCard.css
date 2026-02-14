@@ -25,14 +25,18 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.625rem;
+    padding: 0.5rem 0.25rem;
     border-radius: var(--radius-md);
     transition: all 0.2s ease;
-    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.client-item:last-child {
+    border-bottom: none;
 }
 
 .client-item:hover {
-    background: var(--bg-hover);
+    background: var(--bg-secondary);
     transform: translateX(4px);
 }
 
@@ -44,28 +48,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.7rem;
+    font-weight: 600;
     color: white;
-    background: var(--text-secondary);
+    background: #94a3b8;
 }
 
 .rank-badge.rank-1 {
-    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+    background: #f59e0b;
 }
 
 .rank-badge.rank-2 {
-    background: linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%);
-    box-shadow: 0 2px 8px rgba(192, 192, 192, 0.3);
+    background: #94a3b8;
 }
 
 .rank-badge.rank-3 {
-    background: linear-gradient(135deg, #CD7F32 0%, #B87333 100%);
-    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.3);
+    background: #b45309;
 }
 
 .client-info {
@@ -75,9 +76,9 @@
 
 .client-name {
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-primary);
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.1rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

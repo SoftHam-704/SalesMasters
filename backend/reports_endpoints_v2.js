@@ -29,8 +29,40 @@ module.exports = (pool) => {
 
             const result = await pool.query(query, params);
 
+            // Buscar Meta Centralizada (se houver)
+            let meta_total = 0;
+            try {
+                const monthName = p_month ? ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][p_month - 1] : null;
+                let metaQuery = '';
+                let metaParams = [parseInt(ano)];
+
+                if (monthName) {
+                    metaQuery = `SELECT SUM(met_${monthName}) as meta FROM ind_metas WHERE met_ano = $1`;
+                    if (p_industry) {
+                        metaQuery += ` AND met_industria = $2`;
+                        metaParams.push(p_industry);
+                    }
+                } else {
+                    // Soma ano todo
+                    metaQuery = `SELECT SUM(met_jan + met_fev + met_mar + met_abr + met_mai + met_jun + met_jul + met_ago + met_set + met_out + met_nov + met_dez) as meta FROM ind_metas WHERE met_ano = $1`;
+                    if (p_industry) {
+                        metaQuery += ` AND met_industria = $2`;
+                        metaParams.push(p_industry);
+                    }
+                }
+
+                const metaRes = await pool.query(metaQuery, metaParams);
+                meta_total = parseFloat(metaRes.rows[0]?.meta || 0);
+            } catch (e) {
+                console.error("⚠️ Erro ao buscar meta para dashboard:", e.message);
+            }
+
             if (result.rows.length > 0) {
-                res.json({ success: true, data: result.rows[0] });
+                const data = {
+                    ...result.rows[0],
+                    meta_total: meta_total
+                };
+                res.json({ success: true, data });
             } else {
                 res.json({ success: false, message: 'Nenhum dado encontrado' });
             }
@@ -810,8 +842,8 @@ module.exports = (pool) => {
             }
 
             const result = await pool.query(
-                `SELECT * FROM fn_itens_nunca_comprados($1, $2)`,
-                [industria, cliente]
+                `SELECT * FROM fn_itens_nunca_comprados($1::integer, $2::integer)`,
+                [parseInt(industria), parseInt(cliente)]
             );
 
             console.log(`✅ [ITENS NUNCA COMPRADOS] Retornados ${result.rows.length} produtos`);
@@ -835,8 +867,8 @@ module.exports = (pool) => {
             }
 
             const result = await pool.query(
-                `SELECT * FROM fn_comparativo_clientes($1, $2, $3, $4, $5, $6)`,
-                [industria, clienteRef, clienteAlvo, dataInicial, dataFinal, modo]
+                `SELECT * FROM fn_comparativo_clientes($1::integer, $2::integer, $3::integer, $4::date, $5::date, $6::varchar)`,
+                [parseInt(industria), parseInt(clienteRef), parseInt(clienteAlvo), dataInicial, dataFinal, modo]
             );
 
             res.json({ success: true, data: result.rows });
@@ -903,6 +935,26 @@ module.exports = (pool) => {
             } else {
                 // Inativos no período (Sem compras nos últimos X meses)
                 query = `
+                    WITH stats AS (
+                        SELECT 
+                            p.ped_cliente,
+                            -- Ticket Médio
+                            AVG(p.ped_totliq) AS ticket_medio,
+                            -- Data da primeira e última compra
+                            MIN(p.ped_data) AS primeira_compra,
+                            MAX(p.ped_data) AS ultima_compra,
+                            -- Quantidade total de pedidos
+                            COUNT(*) AS total_pedidos,
+                            -- Frequência de compra (dias entre pedidos)
+                            CASE 
+                                WHEN COUNT(*) > 1 THEN 
+                                    (EXTRACT(EPOCH FROM (MAX(p.ped_data)::timestamp - MIN(p.ped_data)::timestamp)) / 86400) / (COUNT(*) - 1)
+                                ELSE NULL -- Cliente de compra única
+                            END AS frequencia_dias
+                        FROM pedidos p
+                        WHERE p.ped_situacao <> 'C'
+                        GROUP BY p.ped_cliente
+                    )
                     SELECT 
                         c.cli_codigo AS codigo,
                         c.cli_cnpj AS cnpj,
@@ -913,8 +965,26 @@ module.exports = (pool) => {
                         cid.cid_nome AS cidade,
                         cid.cid_uf AS uf,
                         v.ven_nome AS vendedor,
-                        (SELECT MAX(ped_data) FROM pedidos WHERE ped_cliente = c.cli_codigo) AS ultima_compra
+                        s.ultima_compra,
+                        s.ticket_medio AS potential_ticket,
+                        s.total_pedidos AS qtd_pedidos,
+                        COALESCE(s.frequencia_dias, 0) AS frequencia_dias,
+                        -- Dias de inatividade (subtração direta de datas no PG resulta em inteiro)
+                        (CURRENT_DATE - s.ultima_compra::date) AS dias_inativo,
+                        -- Pedidos Perdidos = FLOOR(Dias Inativo / Frequência)
+                        CASE 
+                            WHEN s.frequencia_dias > 0 THEN 
+                                FLOOR((CURRENT_DATE - s.ultima_compra::date) / s.frequencia_dias)
+                            ELSE 0 
+                        END AS pedidos_perdidos,
+                        -- Receita Potencial = Pedidos Perdidos * Ticket Médio
+                        CASE 
+                            WHEN s.frequencia_dias > 0 THEN 
+                                FLOOR((CURRENT_DATE - s.ultima_compra::date) / s.frequencia_dias) * s.ticket_medio
+                            ELSE 0
+                        END AS receita_potencial
                     FROM clientes c
+                    JOIN stats s ON c.cli_codigo = s.ped_cliente
                     LEFT JOIN cidades cid ON c.cli_idcidade = cid.cid_codigo
                     LEFT JOIN vendedores v ON c.cli_vendedor = v.ven_codigo
                     WHERE NOT EXISTS (
@@ -924,11 +994,7 @@ module.exports = (pool) => {
                         AND p.ped_data >= CURRENT_DATE - ($1 || ' months')::INTERVAL
                         AND p.ped_situacao <> 'C'
                     )
-                    -- Garantir que pelo menos uma compra existiu no passado para não confundir com os "Nunca comprou"
-                    AND EXISTS (
-                        SELECT 1 FROM pedidos p WHERE p.ped_cliente = c.cli_codigo
-                    )
-                    ORDER BY (SELECT MAX(ped_data) FROM pedidos WHERE ped_cliente = c.cli_codigo) ASC
+                    ORDER BY receita_potencial DESC, s.ultima_compra ASC
                 `;
                 params.push(months);
             }
@@ -953,8 +1019,8 @@ module.exports = (pool) => {
             }
 
             const result = await pool.query(
-                `SELECT * FROM fn_mapa_cliente_geral($1, $2, $3, $4, $5)`,
-                [dataInicial, dataFinal, industria, cliente, grupo === 'true']
+                `SELECT * FROM fn_mapa_cliente_geral($1::date, $2::date, $3::integer, $4::integer, $5::boolean)`,
+                [dataInicial, dataFinal, parseInt(industria), parseInt(cliente), grupo === 'true']
             );
 
             res.json({ success: true, data: result.rows });

@@ -4,7 +4,7 @@ import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 
 const instance = axios.create({
     baseURL: getApiUrl(NODE_API_URL, '/api'),
-    timeout: 30000,
+    timeout: 60000,
     headers: {
         'Content-Type': 'application/json'
     }

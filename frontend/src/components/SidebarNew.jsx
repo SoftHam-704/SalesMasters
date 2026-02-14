@@ -36,7 +36,11 @@ import {
     MessageCircle,
     Route,
     MapPin,
-    UserX
+    UserX,
+    Construction,
+    HardHat,
+    Layers,
+    Boxes
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -157,6 +161,11 @@ export const Sidebar = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    // Configuração do Tenant para Menu Dinâmico
+    const tenantConfigStr = sessionStorage.getItem('tenantConfig');
+    const tenantConfig = tenantConfigStr ? JSON.parse(tenantConfigStr) : {};
+    const isProjetos = tenantConfig.ramoatv === 'Projetos' || tenantConfig.ramoatv === 'Logística';
+
     // Determine active page
     const isActive = (path) => {
         if (path === "/" && location.pathname === "/") return true;
@@ -167,12 +176,17 @@ export const Sidebar = () => {
     const [dbType, setDbType] = useState(null);
     const [companyName, setCompanyName] = useState('');
     const [lastSync, setLastSync] = useState(null);
-    const [openSectionId, setOpenSectionId] = useState('movimentacoes');
+    const [openSectionId, setOpenSectionId] = useState(null);
     const [userPermissions, setUserPermissions] = useState(null);
     const [isMaster, setIsMaster] = useState(false);
     const [isGerencia, setIsGerencia] = useState(false);
     const [isBiEnabled, setIsBiEnabled] = useState(false);
     const [chatNaoLidas, setChatNaoLidas] = useState(0);
+    const [openSubSectionId, setOpenSubSectionId] = useState(null);
+
+    const toggleSubSection = (id) => {
+        setOpenSubSectionId(prev => prev === id ? null : id);
+    };
 
     // Escutar eventos de novas mensagens do chat para atualizar o badge
     React.useEffect(() => {
@@ -366,7 +380,15 @@ export const Sidebar = () => {
                         onToggle={() => handleToggleSection('movimentacoes')}
                         accentColor="#059669"
                     >
-                        {canAccess(207) && <NavItem icon={ShoppingCart} label="Pedidos de Venda" active={isActive("/pedidos")} onClick={() => navigate("/pedidos")} />}
+                        {canAccess(207) && (
+                            <NavItem
+                                icon={isProjetos ? HardHat : ShoppingCart}
+                                label={isProjetos ? "Gestão de Projetos" : "Pedidos de Venda"}
+                                active={isActive("/pedidos") && location.pathname === "/pedidos"}
+                                onClick={() => navigate("/pedidos")}
+                            />
+                        )}
+
                         {canAccess(207) && <NavItem icon={Target} label="Campanhas" active={isActive("/vendas/campanhas")} onClick={() => navigate("/vendas/campanhas")} badge="BETA" badgeClassName="bg-purple-100 text-purple-700 font-bold" />}
                         {canAccess(205) && <NavItem icon={FileText} label="Baixa via XML" active={isActive("/movimentacoes/baixa-xml")} onClick={() => navigate("/movimentacoes/baixa-xml")} />}
                         {canAccess(208) && <NavItem icon={TrendingUp} label="SELL-OUT" active={isActive("/movimentacoes/sell-out")} onClick={() => navigate("/movimentacoes/sell-out")} />}
@@ -420,6 +442,22 @@ export const Sidebar = () => {
                     </CollapsibleSection>
                 )}
 
+                {/* CRM-Rep MASTER */}
+                {canAccess(70) && (
+                    <CollapsibleSection
+                        icon={Sparkles}
+                        title="CRM-Rep Master"
+                        isOpen={openSectionId === 'repcrm'}
+                        onToggle={() => handleToggleSection('repcrm')}
+                        accentColor="#F59E0B"
+                    >
+                        {canAccess(701) && <NavItem icon={LayoutDashboard} label="Dashboard CRM" active={isActive("/repcrm/dashboard")} onClick={() => navigate("/repcrm/dashboard")} badge="PRO" badgeClassName="bg-blue-100 text-blue-700 font-bold" />}
+                        {canAccess(702) && <NavItem icon={Wallet} label="Gestão de Comissões" active={isActive("/repcrm/comissoes")} onClick={() => navigate("/repcrm/comissoes")} />}
+                        {canAccess(703) && <NavItem icon={MapPin} label="Relatórios de Visita" active={isActive("/repcrm/visitas")} onClick={() => navigate("/repcrm/visitas")} />}
+                        {canAccess(704) && <NavItem icon={Target} label="Gestão de Metas" active={isActive("/repcrm/config")} onClick={() => navigate("/repcrm/config")} />}
+                    </CollapsibleSection>
+                )}
+
                 {/* RELATÓRIOS */}
                 {canAccess(55) && (
                     <CollapsibleSection
@@ -429,8 +467,80 @@ export const Sidebar = () => {
                         onToggle={() => handleToggleSection('relatorios')}
                         accentColor="#F59E0B"
                     >
-                        {canAccess(551) && <NavItem icon={Database} label="Cadastros" active={isActive("/relatorios/cadastros")} onClick={() => navigate("/relatorios/cadastros")} />}
-                        {canAccess(552) && <NavItem icon={ArrowLeftRight} label="Movimentação" active={isActive("/relatorios/movimentacao")} onClick={() => navigate("/relatorios/movimentacao")} />}
+                        {canAccess(551) && (
+                            <div className="mb-1">
+                                <button
+                                    onClick={() => toggleSubSection('rel_cadastros')}
+                                    className="w-full flex items-center gap-2 px-4 py-2 mt-2 hover:bg-slate-200/50 rounded-lg transition-colors group"
+                                >
+                                    <Database size={14} className={cn("transition-colors", openSubSectionId === 'rel_cadastros' ? "text-blue-600" : "text-slate-400")} />
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest italic flex-1 text-left", openSubSectionId === 'rel_cadastros' ? "text-blue-700" : "text-slate-500")}>
+                                        Cadastros
+                                    </span>
+                                    <ChevronRight className={cn("w-3 h-3 text-slate-400 transition-transform duration-200", openSubSectionId === 'rel_cadastros' && "rotate-90 text-blue-500")} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {openSubSectionId === 'rel_cadastros' && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pl-6 border-l border-slate-200 ml-6 mt-1 mb-2 space-y-0.5">
+                                                <NavItem
+                                                    icon={Users}
+                                                    label="clientes reduzido"
+                                                    active={isActive("/print/customers-reduced")}
+                                                    onClick={() => navigate('/print/customers-reduced')}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+                        {canAccess(552) && (
+                            <div className="mb-1">
+                                <button
+                                    onClick={() => toggleSubSection('rel_movimentacoes')}
+                                    className="w-full flex items-center gap-2 px-4 py-2 mt-1 hover:bg-slate-200/50 rounded-lg transition-colors group"
+                                >
+                                    <ArrowLeftRight size={14} className={cn("transition-colors", openSubSectionId === 'rel_movimentacoes' ? "text-emerald-600" : "text-slate-400")} />
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest italic flex-1 text-left", openSubSectionId === 'rel_movimentacoes' ? "text-emerald-700" : "text-slate-500")}>
+                                        Movimentação
+                                    </span>
+                                    <ChevronRight className={cn("w-3 h-3 text-slate-400 transition-transform duration-200", openSubSectionId === 'rel_movimentacoes' && "rotate-90 text-emerald-500")} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {openSubSectionId === 'rel_movimentacoes' && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pl-6 border-l border-slate-200 ml-6 mt-1 mb-2 space-y-0.5">
+                                                <NavItem
+                                                    icon={Layers}
+                                                    label="venda por família"
+                                                    active={isActive("/relatorios/vendas-familia")}
+                                                    onClick={() => navigate("/relatorios/vendas-familia")}
+                                                />
+                                                <NavItem
+                                                    icon={Boxes}
+                                                    label="venda por produto"
+                                                    active={isActive("/relatorios/vendas-produto")}
+                                                    onClick={() => navigate("/relatorios/vendas-produto")}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
                         {canAccess(553) && <NavItem icon={DollarSign} label="Financeiro" active={isActive("/relatorios/financeiro")} onClick={() => navigate("/relatorios/financeiro")} />}
 
                         {canAccess(555) && <NavItem icon={TrendingUp} label="Faturamento" active={isActive("/relatorios/faturamento")} onClick={() => navigate("/relatorios/faturamento")} />}
@@ -448,6 +558,7 @@ export const Sidebar = () => {
                         accentColor="#4B5563"
                     >
                         {canAccess(610) && <NavItem icon={Package} label="Catálogo Digital" active={isActive("/utilitarios/catalogo-produtos")} onClick={() => navigate("/utilitarios/catalogo-produtos")} />}
+                        {canAccess(650) && <NavItem icon={MessageSquare} label="Envio de emails" active={isActive("/utilitarios/envio-emails")} onClick={() => navigate("/utilitarios/envio-emails")} />}
                         {canAccess(620) && <NavItem icon={Sparkles} label="Assistente IA" active={isActive("/assistente")} onClick={() => navigate("/assistente")} />}
                         {canAccess(630) && <NavItem icon={Gamepad2} label="🎮 Tetris" active={isActive("/utilitarios/tetris")} onClick={() => navigate("/utilitarios/tetris")} />}
                         {canAccess(640) && <NavItem icon={Gamepad2} label="🎲 Jogo de Dados" active={isActive("/utilitarios/jogo-dados")} onClick={() => navigate("/utilitarios/jogo-dados")} />}

@@ -84,7 +84,13 @@ const ItemsModel13 = ({ groupedItems }) => {
     const allItems = Object.values(groupedItems).flat();
     const subTotalBruto = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
     const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const subTotalComImpostos = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totcomst) || parseFloat(it.ite_totalipi) || parseFloat(it.ite_totliquido) || 0), 0);
+    const subTotalComImpostos = allItems.reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
+
 
     return (
         <View style={{ marginBottom: 3 }}>
@@ -111,8 +117,12 @@ const ItemsModel13 = ({ groupedItems }) => {
             {allItems.map((item, idx) => {
                 globalSeq++;
                 const comp = item.pro_codigooriginal || '';
-                const unitComImpostos = parseFloat(item.ite_valcomst) || parseFloat(item.ite_valcomipi) || parseFloat(item.ite_puniliq);
-                const totComImpostos = parseFloat(item.ite_totcomst) || parseFloat(item.ite_totalipi) || parseFloat(item.ite_totliquido);
+                const quant = parseFloat(item.ite_quant) || 1;
+                const totLiq = parseFloat(item.ite_totliquido) || 0;
+                const ipiRate = parseFloat(item.ite_ipi) || 0;
+                const stRate = parseFloat(item.ite_st) || 0;
+                const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
+                const unitComImpostos = totComImpostos / quant;
 
                 return (
                     <View key={idx} style={{ ...styles.tableRowDashed, borderBottomColor: '#cbd5e1' }} wrap={false}>
@@ -137,7 +147,6 @@ const ItemsModel13 = ({ groupedItems }) => {
                 <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalBruto)}</Text>
                 <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalLiq)}</Text>
                 <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
-                <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
             </View>
         </View>
     );
@@ -149,7 +158,12 @@ const ItemsModel12 = ({ groupedItems }) => {
     const allItems = Object.values(groupedItems).flat();
     const subTotalBruto = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
     const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const subTotalComImpostos = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totcomst) || parseFloat(it.ite_totalipi) || parseFloat(it.ite_totliquido) || 0), 0);
+    const subTotalComImpostos = allItems.reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     return (
         <View style={{ marginBottom: 3 }}>
@@ -173,8 +187,12 @@ const ItemsModel12 = ({ groupedItems }) => {
 
             {allItems.map((item, idx) => {
                 globalSeq++;
-                const unitComImpostos = parseFloat(item.ite_valcomst) || parseFloat(item.ite_valcomipi) || parseFloat(item.ite_puniliq);
-                const totComImpostos = parseFloat(item.ite_totcomst) || parseFloat(item.ite_totalipi) || parseFloat(item.ite_totliquido);
+                const quant = parseFloat(item.ite_quant) || 1;
+                const totLiq = parseFloat(item.ite_totliquido) || 0;
+                const ipiRate = parseFloat(item.ite_ipi) || 0;
+                const stRate = parseFloat(item.ite_st) || 0;
+                const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
+                const unitComImpostos = totComImpostos / quant;
 
                 return (
                     <View key={idx} style={styles.tableRowDashed} wrap={false}>
@@ -196,8 +214,8 @@ const ItemsModel12 = ({ groupedItems }) => {
                 <Text style={{ width: '64%' }}></Text>
                 <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalBruto)}</Text>
                 <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalLiq)}</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}>{fv(subTotalComImpostos)}</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}>{fv(subTotalComImpostos)}</Text>
+                <Text style={{ width: '10%', textAlign: 'right' }}></Text>
+                <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
             </View>
         </View>
     );
@@ -612,10 +630,10 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                         {(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) && <Text style={{ fontSize: 8 }}>E-mail: /</Text>}
                     </View>
 
-                    {/* Right: Industry Logo */}
+                    {/* Right: Industry Logo — com proteção anti-freeze */}
                     <View style={{ width: '20%', alignItems: 'flex-end', justifyContent: 'center' }}>
                         {industryLogo ? (
-                            <Image src={industryLogo} style={{ width: 80, height: 40, objectFit: 'contain' }} />
+                            <Image src={industryLogo} style={{ maxWidth: 80, maxHeight: 40, objectFit: 'contain' }} />
                         ) : (
                             <View style={{ width: 80, height: 40, backgroundColor: '#f1f5f9', borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' }}>
                                 <Text style={{ fontSize: 6, color: '#94a3b8' }}>LOGO</Text>
@@ -906,6 +924,12 @@ const ObservationsSection = ({ order, highlighted = false }) => (
 const TotalsSection = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     return (
         <View style={{ borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', padding: 5, marginTop: 3 }}>
@@ -934,7 +958,7 @@ const TotalsSection = ({ order, items }) => {
                     </View>
                     <View style={{ flexDirection: 'row' }}>
                         <Text style={{ ...styles.label, width: 80 }}>Total do pedido:</Text>
-                        <Text style={{ fontSize: 10, fontWeight: 'bold', width: 100, color: '#1e40af' }}>{fv(parseFloat(order.ped_totalipi || order.ped_totliq) + parseFloat(order.ped_vlrist || 0))}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: 'bold', width: 100, color: '#1e40af' }}>{fv(totalComImpostos)}</Text>
                     </View>
                 </View>
                 {/* Right column - Seller */}
@@ -959,6 +983,12 @@ const ReportFooter = ({ pageNumber, totalPages }) => (
 const TotalsSection3 = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     return (
         <View style={{ borderWidth: 0.5, borderColor: '#000000', borderStyle: 'solid', padding: 5, marginTop: 3 }}>
@@ -978,7 +1008,7 @@ const TotalsSection3 = ({ order, items }) => {
                     </View>
                     <View style={{ flexDirection: 'row', marginBottom: 2 }}>
                         <Text style={{ ...styles.label, width: 90 }}>Total do pedido:</Text>
-                        <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1e40af' }}>{fv(parseFloat(order.ped_totalipi || order.ped_totliq) + parseFloat(order.ped_vlrist || 0))}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#1e40af' }}>{fv(totalComImpostos)}</Text>
                     </View>
                     <View style={{ flexDirection: 'row' }}>
                         <Text style={{ ...styles.label, width: 90 }}>Vendedor:</Text>
@@ -1320,7 +1350,12 @@ const ItemsModel8 = ({ groupedItems, order }) => {
 const TotalsSection9 = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
-    const totalImp = parseFloat(order.ped_totalipi || 0) + parseFloat(order.ped_vlrist || 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     return (
         <View style={{ borderWidth: 0.5, borderColor: '#000000', borderStyle: 'solid', padding: 5, marginTop: 3 }}>
@@ -1334,7 +1369,7 @@ const TotalsSection9 = ({ order, items }) => {
                     </View>
                     <View style={{ flexDirection: 'row', marginBottom: 2 }}>
                         <Text style={{ ...styles.label, width: 120 }}>Total líquido c/ impostos:</Text>
-                        <Text style={{ fontSize: 9, fontWeight: 'bold', width: 80 }}>{fv(parseFloat(order.ped_totliq) + totalImp)}</Text>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold', width: 80 }}>{fv(totalComImpostos)}</Text>
                         <Text style={{ ...styles.label, width: 150 }}>Qtd total:</Text>
                         <Text style={{ fontSize: 9, fontWeight: 'bold' }}>{totalQtd}</Text>
                     </View>
@@ -1606,7 +1641,12 @@ const ItemsModel2 = ({ groupedItems }) => {
 const TotalsSection14 = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
-    const totalComImpostos = parseFloat(order.ped_totliq) + parseFloat(order.ped_totalipi || 0) + parseFloat(order.ped_vlrist || 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     const BoxHeader = ({ title }) => (
         <View style={{ backgroundColor: '#64748b', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
@@ -1652,7 +1692,12 @@ const TotalsSection14 = ({ order, items }) => {
 const TotalsSection13 = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
-    const totalComImpostos = parseFloat(order.ped_totliq) + parseFloat(order.ped_totalipi || 0) + parseFloat(order.ped_vlrist || 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     const BoxHeader = ({ title }) => (
         <View style={{ backgroundColor: '#94a3b8', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
@@ -1712,7 +1757,12 @@ const TotalsSection13 = ({ order, items }) => {
 const TotalsSection12 = ({ order, items }) => {
     const totalItems = items?.length || 0;
     const totalQtd = (items || []).reduce((acc, it) => acc + (parseFloat(it.ite_quant) || 0), 0);
-    const totalComImpostos = parseFloat(order.ped_totliq) + parseFloat(order.ped_totalipi || 0) + parseFloat(order.ped_vlrist || 0);
+    const totalComImpostos = (items || []).reduce((acc, it) => {
+        const totLiq = parseFloat(it.ite_totliquido) || 0;
+        const ipiRate = parseFloat(it.ite_ipi) || 0;
+        const stRate = parseFloat(it.ite_st) || 0;
+        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+    }, 0);
 
     return (
         <View>
@@ -1885,25 +1935,93 @@ const TotalsSection2 = ({ order, items }) => {
 };
 
 // Helper to ensure Base64 has correct prefix and is clean
-const formatBase64 = (data) => {
+// MAX_LOGO_BASE64_SIZE: Aumentado para 500KB para logotipos de REP que podem ser maiores
+// react-pdf/renderer pode travar com imagens gigantes, mas 500KB é seguro para logos.
+const MAX_LOGO_BASE64_SIZE = 500000;
+const MAX_INDUSTRY_LOGO_SIZE = 150000;
+
+// Detecta se uma string é um caminho de arquivo (NÃO base64)
+const isFilePath = (str) => {
+    if (!str || typeof str !== 'string') return false;
+    // Windows paths: C:\..., D:\..., \\server\...
+    if (/^[A-Za-z]:[\\\/]/.test(str)) return true;
+    if (str.startsWith('\\\\')) return true;
+    // Unix paths: /home/..., /var/...
+    if (/^\/[a-z]/i.test(str) && str.includes('/')) return true;
+    // File extensions sem base64
+    if (/\.(png|jpg|jpeg|gif|bmp|svg|webp)$/i.test(str)) return true;
+    return false;
+};
+
+const formatBase64 = (data, label = 'Image') => {
     if (!data) return '';
 
-    // Convert to string if it's a Buffer/binary
-    let base64String = typeof data === 'string' ? data : String(data);
+    // If it's a PG Buffer object {type: 'Buffer', data: [...]}
+    if (typeof data === 'object' && data.type === 'Buffer' && Array.isArray(data.data)) {
+        try {
+            // Rejeita buffers muito grandes antes de processar
+            if (data.data.length > MAX_LOGO_BASE64_SIZE) {
+                console.warn(`⚠️ [${label}] Buffer muito grande (${(data.data.length / 1024).toFixed(1)}KB) — ignorado para evitar freeze.`);
+                return '';
+            }
+            const uint8Array = new Uint8Array(data.data);
+            let binary = '';
+            for (let i = 0; i < uint8Array.byteLength; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            data = window.btoa(binary);
+        } catch (e) {
+            console.error('Erro ao converter Buffer para Base64:', e);
+            return '';
+        }
+    }
 
-    // Clean string: remove any existing data:image prefix to avoid double-prefixing
-    // and remove all whitespace/newlines
-    let cleanString = base64String.replace(/^data:image\/[a-z]+;base64,/, '').replace(/[\n\r\s]/g, '');
+    // Convert to string and clean
+    let cleanString = typeof data === 'string' ? data : String(data);
 
-    if (cleanString.length < 20) return ''; // Too short
+    // PROTEÇÃO: Rejeitar caminhos de arquivo (for_locimagem guarda path, não base64)
+    if (isFilePath(cleanString)) {
+        console.warn(`⚠️ [${label}] Valor é um caminho de arquivo, não base64: "${cleanString.substring(0, 50)}..." — ignorado.`);
+        return '';
+    }
 
-    // Detect MIME type via standard base64 markers
-    let mime = 'image/png'; // Default
-    if (cleanString.startsWith('/9j/')) mime = 'image/jpeg';
-    else if (cleanString.startsWith('R0lGOD')) mime = 'image/gif';
-    else if (cleanString.startsWith('PHN2Zy')) mime = 'image/svg+xml';
+    // Se já é uma data URL válida, validar e retornar
+    if (cleanString.startsWith('data:image')) {
+        const rawBase64 = cleanString.replace(/^data:image\/[a-z+]+;base64,/, '');
+        if (rawBase64.length > MAX_LOGO_BASE64_SIZE) {
+            console.warn(`⚠️ [${label}] Logotipo muito grande (${(rawBase64.length / 1024).toFixed(1)}KB) — ignorado.`);
+            return '';
+        }
+        if (rawBase64.length < 20) return '';
+        return cleanString;
+    }
 
-    return `data:${mime};base64,${cleanString}`;
+    // Raw base64 string (sem prefixo data:image)
+    let rawBase64 = cleanString.replace(/[\n\r\s]/g, '');
+
+    // PROTEÇÃO ANTI-FREEZE: Limite rigoroso para react-pdf
+    if (rawBase64.length > MAX_LOGO_BASE64_SIZE) {
+        console.warn(`⚠️ [${label}] Logotipo muito grande (${(rawBase64.length / 1024).toFixed(1)}KB base64) — ignorado para evitar travamento do navegador.`);
+        return '';
+    }
+
+    if (rawBase64.length < 20) return '';
+
+    // Validar que é realmente base64 (só caracteres válidos)
+    if (!/^[A-Za-z0-9+/=]+$/.test(rawBase64)) {
+        console.warn(`⚠️ [${label}] String não é base64 válido — ignorado.`);
+        return '';
+    }
+
+    // Detect MIME type pelos primeiros bytes do base64
+    let mime = 'image/png';
+    const start = rawBase64.substring(0, 10);
+    if (start.match(/^\/9j\//)) mime = 'image/jpeg';
+    else if (start.startsWith('iVBORw')) mime = 'image/png';
+    else if (start.startsWith('R0lGOD')) mime = 'image/gif';
+    else if (start.startsWith('PHN2Zy')) mime = 'image/svg+xml';
+
+    return `data:${mime};base64,${rawBase64}`;
 };
 
 // ============================================================================
@@ -1926,7 +2044,8 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
         rep_cep: companyData?.cep || ''
     };
     const logo = formatBase64(companyData?.logotipo, 'RepLogo'); // Base64 from empresa_status
-    const industryLogo = formatBase64(order?.industry_logotipo || order?.for_locimagem || order?.for_logotipo);
+    // Logotipo da indústria desativado temporariamente por performance/solicitação
+    const industryLogo = null;
 
     // Group items by discount
     const groupedItems = groupItemsByDiscount(items);
@@ -2008,7 +2127,7 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
                 orientation={isLandscape ? 'landscape' : 'portrait'}
                 style={styles.page}
             >
-                {/* Header */}
+                {/* Header - Logotipo da Indústria desativado por performance conforme solicitado */}
                 <ReportHeader
                     order={order}
                     repInfo={repInfo}

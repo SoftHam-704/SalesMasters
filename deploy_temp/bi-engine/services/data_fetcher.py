@@ -43,7 +43,8 @@ def _fetch_faturamento_anual(ano: int, tenant_id: str) -> pd.DataFrame:
         SELECT 
             EXTRACT(MONTH FROM p.ped_data) as n_mes,
             SUM(i.ite_totliquido) as v_faturamento,
-            SUM(i.ite_quant) as q_quantidade
+            SUM(i.ite_quant) as q_quantidade,
+            COUNT(DISTINCT i.ite_idproduto) as u_unidades
         FROM pedidos p
         INNER JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
         WHERE EXTRACT(YEAR FROM p.ped_data) = :ano

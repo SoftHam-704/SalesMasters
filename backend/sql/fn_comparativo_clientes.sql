@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS fn_comparativo_clientes(INTEGER, INTEGER, INTEGER, DATE, DATE, VARCHAR);
+
 CREATE OR REPLACE FUNCTION fn_comparativo_clientes(
     p_industria INTEGER,
     p_cliente_ref INTEGER,
@@ -10,7 +12,9 @@ RETURNS TABLE (
     codigo VARCHAR,
     descricao VARCHAR,
     qtd_ref NUMERIC,
-    qtd_alvo NUMERIC
+    val_ref NUMERIC,
+    qtd_alvo NUMERIC,
+    val_alvo NUMERIC
 ) AS $$
 BEGIN
     -- Mode 'GAP': Itens que Referência comprou mas Alvo NÃO comprou
@@ -20,7 +24,8 @@ BEGIN
             SELECT 
                 ip.ite_produto, 
                 MAX(ip.ite_nomeprod) as nome_historico,
-                SUM(ip.ite_quant) as quant
+                SUM(ip.ite_quant) as quant,
+                SUM(ip.ite_totliquido) as valor
             FROM itens_ped ip
             JOIN pedidos p ON ip.ite_pedido = p.ped_pedido
             WHERE p.ped_industria = p_industria
@@ -32,7 +37,8 @@ BEGIN
         xAlvo AS (
             SELECT 
                 ip.ite_produto, 
-                SUM(ip.ite_quant) as quant
+                SUM(ip.ite_quant) as quant,
+                SUM(ip.ite_totliquido) as valor
             FROM itens_ped ip
             JOIN pedidos p ON ip.ite_pedido = p.ped_pedido
             WHERE p.ped_industria = p_industria
@@ -45,7 +51,9 @@ BEGIN
             x1.ite_produto::VARCHAR as codigo,
             COALESCE(x1.nome_historico, 'SEM DESCRIÇÃO')::VARCHAR as descricao,
             COALESCE(x1.quant, 0)::NUMERIC,
-            COALESCE(x2.quant, 0)::NUMERIC
+            COALESCE(x1.valor, 0)::NUMERIC,
+            COALESCE(x2.quant, 0)::NUMERIC,
+            COALESCE(x2.valor, 0)::NUMERIC
         FROM xRef x1
         LEFT JOIN xAlvo x2 ON x1.ite_produto = x2.ite_produto
         WHERE (x2.quant IS NULL OR x2.quant = 0)
@@ -58,7 +66,8 @@ BEGIN
             SELECT 
                 ip.ite_produto, 
                 MAX(ip.ite_nomeprod) as nome_historico,
-                SUM(ip.ite_quant) as quant
+                SUM(ip.ite_quant) as quant,
+                SUM(ip.ite_totliquido) as valor
             FROM itens_ped ip
             JOIN pedidos p ON ip.ite_pedido = p.ped_pedido
             WHERE p.ped_industria = p_industria
@@ -70,7 +79,8 @@ BEGIN
         xAlvo AS (
             SELECT 
                 ip.ite_produto, 
-                SUM(ip.ite_quant) as quant
+                SUM(ip.ite_quant) as quant,
+                SUM(ip.ite_totliquido) as valor
             FROM itens_ped ip
             JOIN pedidos p ON ip.ite_pedido = p.ped_pedido
             WHERE p.ped_industria = p_industria
@@ -83,7 +93,9 @@ BEGIN
             x1.ite_produto::VARCHAR as codigo,
             COALESCE(x1.nome_historico, 'SEM DESCRIÇÃO')::VARCHAR as descricao,
             COALESCE(x1.quant, 0)::NUMERIC,
-            COALESCE(x2.quant, 0)::NUMERIC
+            COALESCE(x1.valor, 0)::NUMERIC,
+            COALESCE(x2.quant, 0)::NUMERIC,
+            COALESCE(x2.valor, 0)::NUMERIC
         FROM xRef x1
         JOIN xAlvo x2 ON x1.ite_produto = x2.ite_produto
         ORDER BY descricao;

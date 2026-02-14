@@ -99,9 +99,9 @@ export default function ComparativoClientesPage() {
             row.codigo,
             row.descricao,
             Number(row.qtd_ref),
-            Number(row.valor_ref),
+            Number(row.val_ref),
             Number(row.qtd_alvo),
-            Number(row.valor_alvo)
+            Number(row.val_alvo)
         ])
 
         const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
@@ -129,8 +129,10 @@ export default function ComparativoClientesPage() {
     const [colWidths, setColWidths] = useState({
         codigo: 80,
         descricao: 300,
-        qtd_ref: 100,
-        qtd_alvo: 100
+        qtd_ref: 80,
+        val_ref: 100,
+        qtd_alvo: 80,
+        val_alvo: 100
     })
     const [resizing, setResizing] = useState(null) // { key: 'codigo', startX: 100, startWidth: 80 }
 
@@ -324,9 +326,19 @@ export default function ComparativoClientesPage() {
                                             <Resizer colKey="qtd_ref" />
                                         </TableHead>
 
+                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-blue-900/70 group select-none block" style={{ width: colWidths.val_ref, height: 30 }}>
+                                            Ref (Valor)
+                                            <Resizer colKey="val_ref" />
+                                        </TableHead>
+
                                         <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-red-900/50 group select-none block" style={{ width: colWidths.qtd_alvo, height: 30 }}>
                                             Alvo (Qtd)
                                             <Resizer colKey="qtd_alvo" />
+                                        </TableHead>
+
+                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-red-900/70 group select-none block" style={{ width: colWidths.val_alvo, height: 30 }}>
+                                            Alvo (Valor)
+                                            <Resizer colKey="val_alvo" />
                                         </TableHead>
 
                                     </TableRow>
@@ -347,9 +359,16 @@ export default function ComparativoClientesPage() {
                                                 {formatNumber(row.qtd_ref)}
                                             </TableCell>
 
-                                            {/* Alvo */}
+                                            <TableCell className="py-1 px-2 text-xs text-right font-medium text-blue-700 border-r border-slate-200 bg-blue-50/50 truncate block" style={{ width: colWidths.val_ref }}>
+                                                {formatCurrency(row.val_ref)}
+                                            </TableCell>
+
                                             <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-slate-200 bg-red-50/30 truncate block ${Number(row.qtd_alvo) === 0 ? 'text-red-300' : 'text-slate-700'}`} style={{ width: colWidths.qtd_alvo }}>
                                                 {formatNumber(row.qtd_alvo)}
+                                            </TableCell>
+
+                                            <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-slate-200 bg-red-50/50 truncate block ${Number(row.val_alvo) === 0 ? 'text-red-300' : 'text-rose-700'}`} style={{ width: colWidths.val_alvo }}>
+                                                {formatCurrency(row.val_alvo)}
                                             </TableCell>
                                         </TableRow>
                                     ))}

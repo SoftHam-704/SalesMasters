@@ -21,10 +21,12 @@ import {
     FileText, User, MapPin, MoreHorizontal, FileUp, Copy,
     RefreshCw, Tag, DollarSign, Eraser, Star, StarOff, Percent, HelpCircle, CheckSquare,
     FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck, MessageSquare, Eye,
-    Users, History, XCircle
+    Users, History, XCircle, Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SmartOrderDialog } from './SmartOrderDialog';
+import { HistorySuggestionDialog } from './HistorySuggestionDialog';
+import IASuggestionDialog from './IASuggestionDialog';
 import OrderItemEntry from './OrderItemEntry';
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 import {
@@ -154,6 +156,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
     // F5 Help Dialog State
     const [showF5Help, setShowF5Help] = useState(false);
+
+    // Smart Suggestion (History) State
+    const [showHistorySuggestions, setShowHistorySuggestions] = useState(false);
+    const [showIASuggestions, setShowIASuggestions] = useState(false);
 
     const [openSituacao, setOpenSituacao] = useState(false);
     const [openFrete, setOpenFrete] = useState(false);
@@ -748,6 +754,35 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
         }
     };
 
+    // Handler para adicionar itens da sugestão inteligente (Histórico)
+    const handleAddHistoryItems = async (items) => {
+        setIsImporting(true);
+        try {
+            // Se o pedido não estiver persistido, salva primeiro
+            let pid = formData.ped_pedido;
+            if (!isPersisted || pid === '(Novo)') {
+                const saved = await handleSave({ silent: true });
+                if (saved && saved.ped_pedido) pid = saved.ped_pedido;
+                else return;
+            }
+
+            // Mapeia para o formato esperado pelo frontend
+            // (OrderItemEntry cuidará da sincronização final ou podemos fazer aqui)
+            // Para simplificar e aproveitar a lógica existente de importação:
+            setImportedItems(items);
+            setJustImported(true);
+            setActiveTab('F3'); // Vai para a aba de itens para conferir
+
+            toast.success(`${items.length} itens sugeridos carregados para conferência!`);
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao importar sugestões.");
+        } finally {
+            setIsImporting(false);
+            setTimeout(() => setJustImported(false), 2000);
+        }
+    };
+
     // Reusable handler for Smart Order suggestions (IA)
     const handleSmartImportItems = async (items) => {
         setIsImporting(true);
@@ -840,8 +875,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     ite_nomeprod: product.pro_nome,
                     ite_quant: parseFloat(item.quantidade || item.quant || item.ite_quant) || 1,
                     ite_puni: finalPrice,
-                    ite_ipi: product.itab_ipi || 0,
-                    ite_st: product.itab_st || 0,
+                    ite_ipi: typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0),
+                    ite_st: typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0),
                     ite_des1: isPromo ? 0 : (formData.ped_pri || 0),
                     ite_des2: isPromo ? 0 : (formData.ped_seg || 0),
                     ite_des3: isPromo ? 0 : (formData.ped_ter || 0),
@@ -1055,13 +1090,13 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     const dbNum = parseInt(dbNorm, 10);
                     if (!isNaN(codigoNum) && !isNaN(dbNum) && codigoNum === dbNum) return true;
 
-                    // Strategy 5: Partial Match (Equivalente ao LIKE do SQL)
-                    if (codigoNorm.length >= 4) {
-                        if (dbNorm.includes(codigoNorm) ||
-                            (dbNormRec && dbNormRec.includes(codigoNorm)) ||
-                            (dbNormConv && dbNormConv.includes(codigoNorm)) ||
-                            (dbNormOrig && dbNormOrig.includes(codigoNorm))) return true;
-                    }
+                    // Strategy 5: Partial Match (REMOVIDO: Causava erro em códigos curtos como AL-63 vs AL-631)
+                    // if (codigoNorm.length >= 4) {
+                    //    if (dbNorm.includes(codigoNorm) ||
+                    //        (dbNormRec && dbNormRec.includes(codigoNorm)) ||
+                    //        (dbNormConv && dbNormConv.includes(codigoNorm)) ||
+                    //        (dbNormOrig && dbNormOrig.includes(codigoNorm))) return true;
+                    // }
 
                     // Strategy 6: Fragments Match (Inteligência para códigos compostos "A / B")
                     if (fragments.length > 0) {
@@ -1118,8 +1153,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     ite_nomeprod: product.pro_nome,
                     ite_quant: quant,
                     ite_puni: precoUnitario,
-                    ite_ipi: product.itab_ipi || 0,
-                    ite_st: product.itab_st || 0,
+                    ite_ipi: typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0),
+                    ite_st: typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0),
                     ite_des1: isPromo ? 0 : (formData.ped_pri || 0),
                     ite_des2: isPromo ? 0 : (formData.ped_seg || 0),
                     ite_des3: isPromo ? 0 : (formData.ped_ter || 0),
@@ -1935,7 +1970,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
         // Se alterou campos que afetam totais, recalcula tudo
         if (['ite_puni', 'ite_quant', 'ite_des1', 'ite_des2', 'ite_des3', 'ite_des4',
             'ite_des5', 'ite_des6', 'ite_des7', 'ite_des8', 'ite_des9',
-            'ite_des10', 'ite_ipi', 'ite_st'].includes(field) || field.startsWith('ite_des')) {
+            'ite_des10', 'ite_esp', 'ite_ipi', 'ite_st'].includes(field) || field.startsWith('ite_des')) {
             newItems[idx] = calculateGridItemTotals(newItems[idx]);
         }
 
@@ -2078,29 +2113,67 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                 disabled={readOnly}
                                             />
                                         </div>
-                                        <div className="col-span-7">
+                                        <div className="col-span-7 flex flex-col">
                                             <Label className={labelClasses}>Situação</Label>
-                                            <Select
-                                                value={formData.ped_situacao}
-                                                onValueChange={(value) => handleFieldChange('ped_situacao', value)}
-                                                disabled={readOnly}
-                                            >
-                                                <SelectTrigger className={inputClasses}>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent className="z-[9999]" position="popper">
-                                                    {situacaoOptions.map((opt) => (
-                                                        <SelectItem key={opt.value} value={opt.value}>
-                                                            {opt.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <Select
+                                                        value={formData.ped_situacao}
+                                                        onValueChange={(value) => handleFieldChange('ped_situacao', value)}
+                                                        disabled={readOnly}
+                                                    >
+                                                        <SelectTrigger className={inputClasses}>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="z-[9999]" position="popper">
+                                                            {situacaoOptions.map((opt) => (
+                                                                <SelectItem key={opt.value} value={opt.value}>
+                                                                    {opt.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                {/* BOTÃO HISTÓRICO */}
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => setShowHistorySuggestions(true)}
+                                                    disabled={!formData.ped_cliente || !formData.ped_industria || readOnly}
+                                                    title="Sugestão baseada no histórico"
+                                                    className={cn(
+                                                        "h-10 px-4 rounded-xl text-[10px] uppercase tracking-tighter transition-all flex items-center gap-2",
+                                                        formData.ped_cliente && formData.ped_industria
+                                                            ? "bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 !text-white shadow-lg shadow-blue-500/20 active:scale-95"
+                                                            : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    <History className={cn("h-4 w-4", formData.ped_cliente && formData.ped_industria ? "!text-white animate-pulse" : "text-slate-400")} />
+                                                    <span className={formData.ped_cliente && formData.ped_industria ? "!text-white" : ""}>Histórico</span>
+                                                </Button>
+
+                                                {/* BOTÃO SUGESTÃO (IA) */}
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => setShowIASuggestions(true)}
+                                                    disabled={!formData.ped_cliente || !formData.ped_industria || readOnly}
+                                                    title="Sugestão baseada em Inteligência Artificial"
+                                                    className={cn(
+                                                        "h-10 px-4 rounded-xl text-[10px] uppercase tracking-tighter transition-all flex items-center gap-2",
+                                                        formData.ped_cliente && formData.ped_industria
+                                                            ? "bg-gradient-to-br from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 !text-white shadow-lg shadow-purple-500/20 active:scale-95"
+                                                            : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    <Sparkles className={cn("h-4 w-4", formData.ped_cliente && formData.ped_industria ? "!text-white animate-pulse" : "text-slate-400")} />
+                                                    <span className={formData.ped_cliente && formData.ped_industria ? "!text-white" : ""}>Sugestão</span>
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
 
                                     {/* Row 2: Client */}
-                                    <div className="flex flex-col gap-1.5">
+                                    <div className="flex flex-col gap-1.5 mt-5">
                                         <DbComboBox
                                             label="Cliente (F8-Pesquisar)"
                                             placeholder="Busque por nome, CNPJ ou código..."
@@ -2473,6 +2546,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                             <th className="p-1.5 border-b text-left min-w-[150px]">Descrição</th>
                                             <th className="p-1.5 border-b text-center">Quant</th>
                                             <th className="p-1.5 border-b text-right">Unitário</th>
+                                            <th className="p-1.5 border-b text-center text-blue-600">Desc %</th>
                                             <th className="p-1.5 border-b text-right">Uni. Lq</th>
                                             <th className="p-1.5 border-b text-right">Un. Imp.</th>
                                             <th className="p-1.5 border-b text-right">Total br.</th>
@@ -2500,6 +2574,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                     <td className="p-1.5 truncate max-w-[200px] font-medium text-slate-700">{item.ite_nomeprod}</td>
                                                     <td className="p-1.5 text-center font-bold text-slate-900">{parseFloat(item.ite_quant || 0).toFixed(1)}</td>
                                                     <td className="p-1.5 text-right text-slate-600">{parseFloat(item.ite_totbruto || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="p-1.5 text-center font-bold text-blue-600">
+                                                        {item.ite_totbruto > 0 ? `${((1 - (item.ite_puniliq / item.ite_totbruto)) * 100).toFixed(2)}%` : '0,00%'}
+                                                    </td>
                                                     <td className="p-1.5 text-right font-bold text-emerald-600">{parseFloat(item.ite_puniliq || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-1.5 text-right text-slate-500">{(parseFloat(item.ite_valcomipi || 0) / (parseFloat(item.ite_quant) || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-1.5 text-right text-slate-500">{(parseFloat(item.ite_totbruto || 0) * (parseFloat(item.ite_quant) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -2714,12 +2791,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                         <th className="px-3 py-2 text-left border-b border-r border-slate-300 min-w-[200px]">Descrição</th>
                                         <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[70px]">Quant</th>
                                         <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Bruto</th>
+                                        <th className="px-1 py-1 text-center font-bold text-blue-700 border-b border-r border-slate-300 min-w-[65px]">Desc %</th>
                                         <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Líquido</th>
                                         <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Total</th>
                                         <th className="px-3 py-2 text-right border-b border-r border-slate-300 min-w-[120px]">Final</th>
                                         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
                                             <th key={n} className="px-1 py-1 text-center font-bold text-blue-700 border-b border-r border-slate-300 min-w-[65px]">{n}º</th>
                                         ))}
+                                        <th className="px-1 py-1 text-center font-bold text-indigo-700 border-b border-r border-slate-300 min-w-[65px]">ESP %</th>
                                         <th className="px-1 py-1 text-center font-bold text-amber-700 border-b border-r border-slate-300 min-w-[65px]">ADD %</th>
                                         <th className="px-1 py-1 text-center font-bold text-slate-700 border-b border-r border-slate-300 min-w-[65px]">IPI %</th>
                                         <th className="px-1 py-1 text-center font-bold text-slate-700 border-b border-r border-slate-300 min-w-[65px]">ST %</th>
@@ -2784,6 +2863,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                         className="w-full text-right text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium"
                                                     />
                                                 </td>
+                                                <td className="px-1 py-1 text-center font-bold text-blue-700 border-r border-slate-300/50 bg-blue-50/10">
+                                                    {parseFloat(item.ite_puni || 0) > 0 ? `${((1 - (parseFloat(item.ite_puniliq || 0) / parseFloat(item.ite_puni || 0))) * 100).toFixed(2)}%` : '0,00%'}
+                                                </td>
                                                 <td className="px-3 py-1 text-right font-bold text-slate-900 border-r border-slate-300/50">
                                                     {parseFloat(item.ite_puniliq || 0).toFixed(2)}
                                                 </td>
@@ -2809,6 +2891,21 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                         </div>
                                                     </td>
                                                 ))}
+
+                                                {/* ESP */}
+                                                <td className="px-0 py-0 text-center bg-indigo-50/20 relative min-w-[65px] border-r border-slate-300/50">
+                                                    <div className="flex items-center justify-center px-1">
+                                                        <input
+                                                            type="text"
+                                                            value={typeof item.ite_esp === 'number' ? item.ite_esp.toFixed(2) : (item.ite_esp ?? '')}
+                                                            onChange={(e) => handleGridEdit(idx, 'ite_esp', e.target.value)}
+                                                            onBlur={(e) => handleGridEdit(idx, 'ite_esp', parseFloat(e.target.value || 0).toFixed(2))}
+                                                            disabled={readOnly}
+                                                            className="w-full text-right text-[13px] h-8 bg-transparent text-indigo-700 font-bold focus:bg-white focus:ring-1 focus:ring-indigo-500 border-none p-0 pr-0.5"
+                                                        />
+                                                        <span className="text-xs text-indigo-600/70 ml-0.5">%</span>
+                                                    </div>
+                                                </td>
 
                                                 {/* ADD */}
                                                 <td className="px-0 py-0 text-center bg-amber-50/20 relative min-w-[65px] border-r border-slate-300/50">
@@ -2920,6 +3017,46 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                 <span className="text-xs font-medium text-slate-400">
                                     {(formData.ped_obs || '').length} caracteres
                                 </span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* 02: Importação Arquivo Texto */}
+                    <div className={cn("absolute inset-0 flex flex-col p-4 gap-4 overflow-hidden", activeTab !== '02' && "hidden")}>
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-full relative overflow-hidden">
+                            <div className="flex items-center gap-3 mb-4 z-10">
+                                <div className="p-2 bg-blue-100 rounded-xl">
+                                    <FileText className="h-6 w-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">Importação de Arquivo Texto</h3>
+                                    <p className="text-xs text-slate-500">Cole o conteúdo do arquivo (linhas PP2...) para processar os itens.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 z-10 bg-slate-50 rounded-xl border border-slate-200 p-2 flex flex-col focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                <textarea
+                                    value={txtContent}
+                                    onChange={(e) => setTxtContent(e.target.value)}
+                                    className="flex-1 bg-transparent border-none focus:ring-0 text-xs font-mono resize-none p-2 text-slate-700 placeholder:text-slate-400"
+                                    placeholder="Cole aqui as linhas do arquivo..."
+                                    spellCheck={false}
+                                />
+                                <div className="border-t border-slate-200 pt-3 flex justify-between items-center px-1">
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        {txtContent.split('\n').filter(l => l.trim()).length} linhas identificadas
+                                    </span>
+                                    <Button
+                                        onClick={handleTxtImport}
+                                        disabled={txtImporting || !txtContent.trim()}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white h-9 px-6 text-xs font-bold shadow-md shadow-blue-500/20"
+                                    >
+                                        {txtImporting ? (
+                                            <><Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> PROCESSANDO...</>
+                                        ) : (
+                                            <><FileUp className="h-3.5 w-3.5 mr-2" /> PROCESSAR ARQUIVO</>
+                                        )}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3193,6 +3330,23 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 formData={formData}
                 selectedIndustry={selectedIndustry}
                 clientName={(auxData.clients || []).find(c => String(c.cli_codigo) === String(formData.ped_cliente))?.cli_nomred}
+            />
+
+            <HistorySuggestionDialog
+                isOpen={showHistorySuggestions}
+                onClose={() => setShowHistorySuggestions(false)}
+                clienteId={formData.ped_cliente}
+                industriaId={formData.ped_industria || selectedIndustry?.for_codigo}
+                tabelaId={formData.ped_tabela}
+                onAddItems={handleAddHistoryItems}
+            />
+
+            <IASuggestionDialog
+                isOpen={showIASuggestions}
+                onClose={() => setShowIASuggestions(false)}
+                clienteId={formData.ped_cliente}
+                industriaId={formData.ped_industria || selectedIndustry?.for_codigo}
+                onAddItems={handleAddHistoryItems}
             />
         </div >
     );

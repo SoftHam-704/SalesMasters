@@ -27,10 +27,10 @@ def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'v
         # 4. Client Analysis (Lollipop & Churn)
         # Churn analysis usually needs a full reference year, but we can make it more flexible later.
         # For now, we'll keep it by year but can pass start/end for filtering current active clients.
-        client_metrics = get_client_analysis(ano, industry_id)
+        client_metrics = get_client_analysis(ano, industry_id, startDate, endDate)
         
         # 5. Main Chart (Monthly Sales with YoY Flag) - NOW WITH METRIC SUPPORT
-        monthly_sales = get_monthly_sales_chart(ano, industry_id, metrica)
+        monthly_sales = get_monthly_sales_chart(ano, industry_id, metrica, startDate, endDate)
         
         # 6. Recent Orders Table
         orders_table = get_recent_orders(ano, month_int, industry_id, startDate, endDate)
@@ -39,7 +39,7 @@ def get_industry_details(ano: int, mes: str, industry_id: int, metrica: str = 'v
         metadata = get_industry_metadata(ano, month_int, industry_id, startDate, endDate)
 
         # 8. Narrative / Performance Insights
-        narrative = get_industry_narrative(ano, industry_id)
+        narrative = get_industry_narrative(ano, industry_id, startDate, endDate)
 
         return {
             "success": True,
@@ -107,7 +107,7 @@ def get_industry_metadata(ano: int, mes: int, ind_id: int, startDate: str = None
     }
 
 
-def get_industry_narrative(ano, ind_id):
+def get_industry_narrative(ano, ind_id, startDate=None, endDate=None):
     """Generate intelligent narrative for industry performance analysis"""
     
     MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -119,7 +119,7 @@ def get_industry_narrative(ano, ind_id):
         ind_nome = df_name.iloc[0]['nome'] if not df_name.empty else "Indústria"
         
         # 2. Get monthly sales with YoY comparison
-        monthly_data = get_monthly_sales_chart(ano, ind_id)
+        monthly_data = get_monthly_sales_chart(ano, ind_id, 'valor', startDate, endDate)
         
         # 3. Get goals from ind_metas
         query_goals = """
@@ -329,17 +329,23 @@ def get_funnel_sparkline(ano, mes, ind_id, startDate=None, endDate=None):
     if df.empty: return []
     return df.to_dict('records')
 
-def get_client_analysis(ano, ind_id):
+def get_client_analysis(ano, ind_id, startDate=None, endDate=None):
     """Lollipop Chart Data (Clients per Month) + Churn Matrix Table"""
     
+    # Base Filter
+    if startDate and endDate:
+        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    else:
+        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
+
     # 1. Lollipop Data (Active Clients by Month)
-    query_monthly = """
+    query_monthly = f"""
         SELECT 
             EXTRACT(MONTH FROM p.ped_data) as mes,
             COUNT(DISTINCT p.ped_cliente) as qtd_clientes
         FROM pedidos p
         WHERE p.ped_industria = :ind_id
-          AND EXTRACT(YEAR FROM p.ped_data) = :ano
+          AND {date_filter}
           AND p.ped_situacao IN ('P', 'F')
         GROUP BY 1
         ORDER BY 1
@@ -426,13 +432,20 @@ def get_client_analysis(ano, ind_id):
     
     return {"lollipop": lollipop, "matrix": matrix_enriched}
 
-def get_monthly_sales_chart(ano, ind_id, metrica='valor'):
+def get_monthly_sales_chart(ano, ind_id, metrica='valor', startDate=None, endDate=None):
     """Monthly sales/quantity/units compared to last year to flip colors"""
     
+    # Date Filtering Logic
+    if startDate and endDate:
+        # Current range and Previous Year range
+        date_cond = f"(p.ped_data BETWEEN '{startDate}' AND '{endDate}' OR p.ped_data BETWEEN ('{startDate}'::date - INTERVAL '1 year') AND ('{endDate}'::date - INTERVAL '1 year'))"
+    else:
+        date_cond = f"EXTRACT(YEAR FROM p.ped_data) IN ({ano}, {ano}-1)"
+
     # Select the appropriate aggregation based on metric
     if metrica == 'quantidade':
         # Join with items to get quantity
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM p.ped_data) as mes,
                 EXTRACT(YEAR FROM p.ped_data) as ano,
@@ -440,37 +453,37 @@ def get_monthly_sales_chart(ano, ind_id, metrica='valor'):
             FROM pedidos p
             JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_industria = :ind
-              AND EXTRACT(YEAR FROM p.ped_data) IN (:ano, :ano-1)
+              AND {date_cond}
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """
     elif metrica == 'unidades':
         # Count distinct SKUs (products)
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM p.ped_data) as mes,
                 EXTRACT(YEAR FROM p.ped_data) as ano,
-                COUNT(DISTINCT i.ite_produto) as total
+                COUNT(DISTINCT i.ite_idproduto) as total
             FROM pedidos p
             JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             WHERE p.ped_industria = :ind
-              AND EXTRACT(YEAR FROM p.ped_data) IN (:ano, :ano-1)
+              AND {date_cond}
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """
     else:
         # Default: valor (sales)
-        query = """
+        query = f"""
             SELECT 
                 EXTRACT(MONTH FROM ped_data) as mes,
                 EXTRACT(YEAR FROM ped_data) as ano,
                 SUM(ped_totliq) as total
-            FROM pedidos
-            WHERE ped_industria = :ind
-              AND EXTRACT(YEAR FROM ped_data) IN (:ano, :ano-1)
-              AND ped_situacao IN ('P', 'F')
+            FROM pedidos p
+            WHERE p.ped_industria = :ind
+              AND {date_cond}
+              AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1, 2
             ORDER BY 1, 2
         """

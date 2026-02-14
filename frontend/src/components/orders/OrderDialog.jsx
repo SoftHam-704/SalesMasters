@@ -1,11 +1,19 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Package, X, Zap, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import OrderForm from './OrderForm';
-import { motion, AnimatePresence } from 'framer-motion';
+import OrderFormProjetos from './OrderFormProjetos';
 
-const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder, readOnly }) => {
+const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder, readOnly, forceProjetos }) => {
+    // Detect Tenant Type
+    const tenantConfigStr = sessionStorage.getItem('tenantConfig');
+    let isProjetos = forceProjetos || false;
+    try {
+        if (!isProjetos && tenantConfigStr) {
+            const config = JSON.parse(tenantConfigStr);
+            isProjetos = config.ramoatv === 'Projetos' || config.ramoatv === 'Logística';
+        }
+    } catch (e) { console.error("Error parsing tenant config", e); }
+
     const handleClose = () => {
         onOpenChange(false);
     };
@@ -17,19 +25,15 @@ const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, sel
         handleClose();
     };
 
+    const FormComponent = isProjetos ? OrderFormProjetos : OrderForm;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="w-[1450px] max-w-[98vw] p-0 gap-0 bg-white border border-slate-200 shadow-2xl h-[95vh] flex flex-col overflow-hidden rounded-[2rem] transition-all duration-700 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95"
-            >
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 z-[100]" />
+            <DialogContent className="w-[1450px] max-w-[98vw] p-0 gap-0 bg-white border border-slate-200 shadow-2xl h-[95vh] flex flex-col overflow-hidden rounded-[2rem] transition-all duration-700 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95">
+                <div className={`absolute top-0 left-0 w-full h-1.5 z-[100] ${isProjetos ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500' : 'bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500'}`} />
 
                 <div className="flex-1 overflow-hidden relative">
-                    {/* Interior Glows */}
-                    <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-                    <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
-
-                    <OrderForm
+                    <FormComponent
                         selectedIndustry={selectedIndustry}
                         onClose={handleClose}
                         onSave={handleSave}
