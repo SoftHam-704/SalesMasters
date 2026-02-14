@@ -344,14 +344,16 @@ export const Sidebar = () => {
                         badge="PRO"
                         badgeClassName="bg-emerald-100 text-emerald-700 border-emerald-200"
                     />
-                    <NavItem
-                        icon={HardHat}
-                        label="Console de Projetos"
-                        active={isActive("/projetos/console")}
-                        onClick={() => navigate("/projetos/console")}
-                        badge="MASTER"
-                        badgeClassName="bg-blue-600 text-white border-transparent animate-pulse"
-                    />
+                    {isProjetos && (
+                        <NavItem
+                            icon={HardHat}
+                            label="Console de Projetos"
+                            active={isActive("/projetos/console")}
+                            onClick={() => navigate("/projetos/console")}
+                            badge="MASTER"
+                            badgeClassName="bg-blue-600 text-white border-transparent animate-pulse"
+                        />
+                    )}
                 </div>
 
                 {/* CADASTROS */}
@@ -388,10 +390,10 @@ export const Sidebar = () => {
                         onToggle={() => handleToggleSection('movimentacoes')}
                         accentColor="#059669"
                     >
-                        {canAccess(207) && (
+                        {canAccess(207) && !isProjetos && (
                             <NavItem
-                                icon={isProjetos ? HardHat : ShoppingCart}
-                                label={isProjetos ? "Gestão de Projetos" : "Pedidos de Venda"}
+                                icon={ShoppingCart}
+                                label="Pedidos de Venda"
                                 active={isActive("/pedidos") && location.pathname === "/pedidos"}
                                 onClick={() => navigate("/pedidos")}
                             />
