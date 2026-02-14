@@ -22,5 +22,10 @@ Adaptar o SalesMasters para o nicho de Engenharia/Projetos (Venda Consultiva de 
 2. **Definição de Hierarquia:** Decidir se os dados técnicos ficam nos itens ou se migram para as observações do pedido (`ped_obs` / `ped_obs_tecnicas`).
 3. **Plano de Automação Leads:** Desenhar o fluxo de entrada do WhatsApp para o Dashboard.
 
+## ✅ Concluído (Sessão Atual)
+1. **Console de Projetos MASTER:** Criada via `ProjectConsole.jsx` com interface premium, pipeline de status dinâmico e Radar de Viabilidade.
+2. **Independência Total:** Mapeamento de rotas e menus isolados para não impactar o sistema tradicional.
+3. **Design System Bertollini:** Implementação de identidade visual vibrante (Azul Royal + Esmeralda) com foco em alta legibilidade.
+
 ---
-*Anotado em: 13/02/2026*
+*Anotado em: 14/02/2026*

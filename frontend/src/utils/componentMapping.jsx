@@ -23,6 +23,7 @@ import OrdersPage from '../components/orders/OrdersPage';
 import DiceGame from '../components/utilities/DiceGame';
 import TetrisGame from '../components/utilities/TetrisGame';
 import ParametrosPage from '../components/parametros/ParametrosPage';
+import ProjectConsole from '../pages/projects/ProjectConsole';
 
 import CRMPage from '../pages/CRMPage';
 import CRMSettings from '../pages/crm/CRMSettings';
@@ -157,6 +158,9 @@ export const componentMapping = {
     '/financeiro/relatorios/contas-receber': { component: AccountsReceivableReportPage },
     '/financeiro/relatorios/dre': { component: DREPage },
     '/financeiro/dashboard': { component: FinancialDashboardPage },
+
+    // Projetos Bertolini
+    '/projetos/console': { component: ProjectConsole },
 
 
 
