@@ -5353,14 +5353,19 @@ app.get('/api/orders/stats', async (req, res) => {
 
         console.log('📊 [STATS] Fetching order stats:', { dataInicio, dataFim, industria });
 
-        const query = `SELECT * FROM get_orders_stats($1, $2, $3)`;
+        let industryId = null;
+        if (industria && industria !== 'all' && industria !== 'false' && !isNaN(parseInt(industria))) {
+            industryId = parseInt(industria);
+        }
+
         const params = [
             dataInicio || null,
             dataFim || null,
-            industria && industria !== 'all' ? parseInt(industria) : null
+            industryId
         ];
 
-        const result = await pool.query(query, params);
+        const targetPool = req.pool || pool;
+        const result = await targetPool.query(query, params);
 
         if (result.rows.length > 0) {
             const stats = result.rows[0];
@@ -5621,7 +5626,8 @@ app.put('/api/orders/:pedPedido', async (req, res) => {
             finalIndId
         ];
 
-        const result = await pool.query(query, values);
+        const targetPool = req.pool || pool;
+        const result = await targetPool.query(query, values);
 
         if (result.rows.length === 0) {
             return res.status(404).json({

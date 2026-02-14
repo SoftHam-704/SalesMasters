@@ -151,17 +151,25 @@ module.exports = (pool) => {
                     $21, $22, $23, $24, $25, $26, $27, $28
                 ) RETURNING *
             `;
+
+            // Prepare codrep with NaN protection
+            let codrepRef = null;
+            if (d.for_codrep && d.for_codrep !== '') {
+                const parsed = parseInt(d.for_codrep);
+                if (!isNaN(parsed)) codrepRef = parsed;
+            }
+
             const values = [
                 nextId,
                 cleanedNome, cleanedNomered, d.for_cgc || '',
                 cleanedEndereco, cleanedBairro, cleanedCidade,
                 d.for_uf || '', d.for_cep || '', d.for_fone || '', d.for_tipo2 || 'A',
                 d.for_email || '', d.for_logotipo || null,
-                parseFloat(d.for_des1 || 0), parseFloat(d.for_des2 || 0), parseFloat(d.for_des3 || 0),
-                parseFloat(d.for_des4 || 0), parseFloat(d.for_des5 || 0), parseFloat(d.for_des6 || 0),
-                parseFloat(d.for_des7 || 0), parseFloat(d.for_des8 || 0), parseFloat(d.for_des9 || 0),
-                parseFloat(d.for_des10 || 0), parseFloat(d.for_percom || 0),
-                (d.for_codrep && d.for_codrep !== '') ? parseInt(d.for_codrep) : null,
+                parseFloat(d.for_des1 || 0) || 0, parseFloat(d.for_des2 || 0) || 0, parseFloat(d.for_des3 || 0) || 0,
+                parseFloat(d.for_des4 || 0) || 0, parseFloat(d.for_des5 || 0) || 0, parseFloat(d.for_des6 || 0) || 0,
+                parseFloat(d.for_des7 || 0) || 0, parseFloat(d.for_des8 || 0) || 0, parseFloat(d.for_des9 || 0) || 0,
+                parseFloat(d.for_des10 || 0) || 0, parseFloat(d.for_percom || 0) || 0,
+                codrepRef,
                 d.for_tipofrete || 'F', d.observacoes || '', d.for_obs2 || ''
             ];
 
@@ -203,16 +211,23 @@ module.exports = (pool) => {
                 WHERE for_codigo = $28
                 RETURNING *
             `;
+            // Prepare codrep with NaN protection
+            let codrepRef = null;
+            if (d.for_codrep && d.for_codrep !== '') {
+                const parsed = parseInt(d.for_codrep);
+                if (!isNaN(parsed)) codrepRef = parsed;
+            }
+
             const values = [
                 d.for_nome || '', cleanedNomered, d.for_cgc || '',
                 d.for_endereco || '', d.for_bairro || '', d.for_cidade || '',
                 d.for_uf || '', d.for_cep || '', d.for_fone || '', d.for_tipo2 || 'A',
                 d.for_email || '', d.for_logotipo || null,
-                parseFloat(d.for_des1 || 0), parseFloat(d.for_des2 || 0), parseFloat(d.for_des3 || 0),
-                parseFloat(d.for_des4 || 0), parseFloat(d.for_des5 || 0), parseFloat(d.for_des6 || 0),
-                parseFloat(d.for_des7 || 0), parseFloat(d.for_des8 || 0), parseFloat(d.for_des9 || 0),
-                parseFloat(d.for_des10 || 0), parseFloat(d.for_percom || 0),
-                (d.for_codrep && d.for_codrep !== '') ? parseInt(d.for_codrep) : null,
+                parseFloat(d.for_des1 || 0) || 0, parseFloat(d.for_des2 || 0) || 0, parseFloat(d.for_des3 || 0) || 0,
+                parseFloat(d.for_des4 || 0) || 0, parseFloat(d.for_des5 || 0) || 0, parseFloat(d.for_des6 || 0) || 0,
+                parseFloat(d.for_des7 || 0) || 0, parseFloat(d.for_des8 || 0) || 0, parseFloat(d.for_des9 || 0) || 0,
+                parseFloat(d.for_des10 || 0) || 0, parseFloat(d.for_percom || 0) || 0,
+                codrepRef,
                 d.for_tipofrete || 'F', d.observacoes || '', d.for_obs2 || '',
                 id
             ];

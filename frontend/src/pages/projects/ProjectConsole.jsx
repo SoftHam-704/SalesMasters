@@ -25,7 +25,13 @@ import {
 import './ProjectConsole.css';
 
 const ProjectConsole = () => {
-    const [activeStep, setActiveStep] = useState(2); // Inicia no Briefing para demonstração
+    const [activeStep, setActiveStep] = useState(3);
+
+    // Get industry from session (Multi-tenant context)
+    const selectedIndustryStr = sessionStorage.getItem('selectedIndustry');
+    const selectedIndustry = selectedIndustryStr ? JSON.parse(selectedIndustryStr) : null;
+    const industryName = selectedIndustry?.for_nomered || 'SOLUÇÕES';
+
     const [projectData, setProjectData] = useState({
         cliente: '',
         titulo: 'CONSTRUTORA ALIANÇA - GALPÃO ALPHA 01',
@@ -62,7 +68,7 @@ const ProjectConsole = () => {
             <header className="project-header">
                 <div className="project-title-group">
                     <span className="project-subtitle">Divisão de Projetos Especiais</span>
-                    <h1>BERTOLLINI <span style={{ fontWeight: 400 }}>ENG</span></h1>
+                    <h1>{industryName} <span style={{ fontWeight: 400 }}>ENGINEERING</span></h1>
                     <div className="flex items-center gap-3 mt-4">
                         <span className="technical-badge">ID: PRJ-2026-089</span>
                         <span className="technical-badge" style={{ background: '#ecfdf5', color: '#065f46', borderColor: '#d1fae5' }}>
@@ -230,7 +236,7 @@ const ProjectConsole = () => {
                     </section>
 
                     <section className="premium-card bg-gradient-to-br from-blue-900 to-indigo-950 text-white border-none">
-                        <h3 className="text-xl font-black mb-2">Bertollini <span className="text-blue-400">AI</span></h3>
+                        <h3 className="text-xl font-black mb-2">{industryName} <span className="text-blue-400">AI</span></h3>
                         <p className="text-blue-200 text-xs font-medium leading-relaxed mb-6">
                             Baseado no histórico de projetos similares em {projectData.cidade}, recomendo reforçar o isolamento térmico da cobertura devido à amplitude térmica da região.
                         </p>
