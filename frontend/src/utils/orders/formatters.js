@@ -82,7 +82,24 @@ export function formatPercentage(value, decimals = 2) {
 export function formatDate(date, includeTime = false) {
     if (!date) return '';
 
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    let dateObj;
+    if (typeof date === 'string') {
+        let cleanStr = date;
+        // Se a data veio do banco como ISO limpo de meia-noite UTC, limpe para apenas a data
+        if (cleanStr.includes('T00:00:00.000Z') || cleanStr.includes('T00:00:00Z')) {
+            cleanStr = cleanStr.split('T')[0];
+        }
+
+        // Formato 'YYYY-MM-DD' puro é tratado como UTC pelo JS por padrão. 
+        // Adicionar 'T00:00:00' força tratar como data local (fuso horário atual).
+        if (cleanStr.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+            dateObj = new Date(cleanStr + 'T00:00:00');
+        } else {
+            dateObj = new Date(cleanStr);
+        }
+    } else {
+        dateObj = date; // Already a Date object
+    }
 
     if (isNaN(dateObj.getTime())) return '';
 
@@ -108,11 +125,31 @@ export function formatDate(date, includeTime = false) {
 export function formatDateISO(date) {
     if (!date) return '';
 
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    let dateObj;
+    if (typeof date === 'string') {
+        let cleanStr = date;
+        if (cleanStr.includes('T00:00:00.000Z') || cleanStr.includes('T00:00:00Z')) {
+            cleanStr = cleanStr.split('T')[0];
+        }
+
+        // Se já for YYYY-MM-DD limpo
+        if (cleanStr.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+            return cleanStr;
+        } else {
+            dateObj = new Date(cleanStr);
+        }
+    } else {
+        dateObj = date;
+    }
 
     if (isNaN(dateObj.getTime())) return '';
 
-    return dateObj.toISOString().split('T')[0];
+    // Gera um ISO evitando pegar o equivalente de UTC que pode pular 1 dia
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
 }
 
 /**
