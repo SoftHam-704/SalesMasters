@@ -79,14 +79,17 @@ module.exports = function (pool) {
                     continue;
                 }
 
-                // Para cada indústra que tem esse produto, vamos ver se o cliente tem tabela
+                // Removemos o filtro de tabela mandatória: o cliente pode comprar de qualquer indústria.
+                // Agora o sistema apenas buscará o produto, identificará a indústria (fábrica), e procurará:
+                // 1. Tabela específica se ele tiver (clientConditions).
+                // 2. Tabela Zero/Padrao (tabela '0' ou nula) caso ele não tenha vínculo com a indústria.
+
                 let matchedInAnyIndustry = false;
 
                 for (const product of productRes.rows) {
-                    const conditions = clientConditions[product.pro_industria];
-                    if (!conditions) continue; // Cliente não trabalha com essa indústria ou não tem tabela definida
+                    const conditions = clientConditions[product.pro_industria] || { cli_tabela: '0' }; // Use tabela '0' (padrão) se não tiver vínculo
 
-                    // 3. Buscar preço na tabela específica
+                    // Buscar preço na tabela específica ou na tabela zero
                     const priceQuery = `
                         SELECT 
                             itab_precobruto,
@@ -95,9 +98,13 @@ module.exports = function (pool) {
                             itab_grupodesconto
                         FROM cad_tabelaspre
                         WHERE itab_idprod = $1 
-                          AND itab_tabela = $2
+                        ORDER BY (itab_tabela = $2) DESC, itab_precobruto DESC
                         LIMIT 1
                     `;
+                    // O ORDER BY assegura que:
+                    // 1º tenta a tabela exata do cliente ($2)
+                    // Se não achar, pega o primeiro preço cadastrado no banco para esse produto.
+
                     const priceRes = await pool.query(priceQuery, [product.pro_id, conditions.cli_tabela]);
 
                     if (priceRes.rows.length > 0) {
@@ -114,7 +121,7 @@ module.exports = function (pool) {
                         }
 
                         results.push({
-                            pro_id: product.pro_id, // Adicionado para facilitar o faturamento
+                            pro_id: product.pro_id,
                             codigo: product.pro_codprod,
                             descricao: product.pro_nome,
                             quantidade: qty,
@@ -125,11 +132,11 @@ module.exports = function (pool) {
                             industria_nome: product.industria_nome,
                             industria_cnpj: product.industria_cnpj,
                             is_promo: isPromo,
-                            tabela: conditions.cli_tabela,
-                            descontos: conditions // Passamos os descontos do cliente para o front calcular
+                            tabela: conditions.cli_tabela === '0' ? 'Padrão' : conditions.cli_tabela,
+                            descontos: conditions.cli_tabela === '0' ? {} : conditions // zeros se n for a tabela do cara
                         });
                         matchedInAnyIndustry = true;
-                        break; // Se achou em uma indústria válida para o cliente, paramos (prioridade da primeira que der match)
+                        break;
                     }
                 }
 
@@ -137,7 +144,7 @@ module.exports = function (pool) {
                     notFound.push({
                         codigo: searchCode,
                         quantidade: qty,
-                        motivo: 'Produto existe mas cliente não tem tabela ativa para esta indústria'
+                        motivo: 'Produto encontrado, mas sem preço castrado no sistema.'
                     });
                 }
             }
