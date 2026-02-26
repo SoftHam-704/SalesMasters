@@ -104,11 +104,13 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
             const userData = userJson ? JSON.parse(userJson) : null;
             const userName = userData ? `${userData.nome} ${userData.sobrenome || ''}`.trim() : 'USUÁRIO';
 
+            const clientOrderNum = order?.ped_pedcli || order?.ped_pedindu || order?.ped_pedindustria || '';
+
             setEmailData({
-                assunto: `Ref. pedido nº ${order?.ped_pedido}${order?.ped_pedcli ? ` (Cli: ${order.ped_pedcli})` : ''} do cliente: ${order?.cli_nomred || order?.cli_nome}`,
+                assunto: `Ref. pedido nº ${order?.ped_pedido}${clientOrderNum ? ` (Cli: ${clientOrderNum})` : ''} do cliente: ${order?.cli_nomred || order?.cli_nome}`,
                 anexos: `${order?.ped_pedido}-${order?.cli_nomred || 'CLIENTE'}.pdf`,
                 texto: `Pedido nº...............: ${order?.ped_pedido}\n` +
-                    (order?.ped_pedcli ? `Ped. Cliente nº.........: ${order.ped_pedcli}\n` : '') +
+                    (clientOrderNum ? `Ped. Cliente nº.........: ${clientOrderNum}\n` : '') +
                     `Data do lançamento......: ${dateStr}\n` +
                     `Cliente.................: ${order?.cli_nome}\n` +
                     `Cidade..................: ${order?.cli_cidade || ''} - ${order?.cli_uf || ''}\n\n` +

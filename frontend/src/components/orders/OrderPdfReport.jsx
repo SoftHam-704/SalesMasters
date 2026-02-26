@@ -658,15 +658,14 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                     </View>
                 </View>
 
-                {/* Model 11, 12, 13 and 14 Top Info Expansion */}
                 {[11, 12, 13, 14].includes(modelNum) && (
                     <View style={{ borderTopWidth: 0.5, borderTopColor: '#000', borderTopStyle: 'solid', paddingTop: 2, flexDirection: 'row', justifyContent: 'space-between' }}>
                         <View style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 2 }}>
-                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Cotação nº: </Text><Text style={styles.value}>{order.ped_pedido}</Text></View>
+                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>{titulo} nº: </Text><Text style={styles.value}>{order.ped_pedido}</Text></View>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Data: </Text><Text style={styles.value}>{formatDate(order.ped_data)}</Text></View>
                         </View>
                         <View style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 5 }}>
-                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Nº pedido cliente: </Text><Text style={styles.value}>{order.ped_pedcli || ''}</Text></View>
+                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Nº pedido cliente: </Text><Text style={styles.value}>{order.ped_pedcli || order.ped_pedindu || order.ped_pedindustria || ''}</Text></View>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Cond. Pagamento: </Text><Text style={{ ...styles.value, color: '#dc2626' }}>{order.order_payment_type || order.ped_condpag || ''}</Text></View>
                         </View>
                         <View style={{ flex: 0.8, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 5 }}>
@@ -698,38 +697,6 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                 )}
 
                 {/* Model 11 and 12 extra info below header */}
-                {(modelNum === 11 || modelNum === 12) && (
-                    <View style={{ marginTop: 2, padding: 3, borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid' }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Cotação nº: </Text>
-                                <Text style={styles.value}>{order.ped_pedido || ''}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Nº pedido cliente: </Text>
-                                <Text style={styles.value}>{order.ped_pedcli || ''}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Lista: </Text>
-                                <Text style={{ ...styles.value, fontWeight: 'bold', textDecoration: 'underline' }}>LISTA ATUAL</Text>
-                            </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Data: </Text>
-                                <Text style={styles.value}>{formatDate(order.ped_data)}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Cond. Pagamento: </Text>
-                                <Text style={{ ...styles.value, color: '#dc2626', fontWeight: 'bold' }}>{order.order_payment_type || order.ped_condpag || ''}</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row' }}>
-                                <Text style={styles.label}>Frete: </Text>
-                                <Text style={{ ...styles.value, color: '#dc2626', fontWeight: 'bold' }}>{order.ped_tipofrete === 'C' ? 'FRETE CIF' : 'FRETE FOB'}</Text>
-                            </View>
-                        </View>
-                    </View>
-                )}
 
             </View>
         </View>
@@ -929,8 +896,8 @@ const ObservationsSection = ({ order, highlighted = false }) => (
     <View style={{ marginBottom: 3, marginTop: 2 }}>
         <Text style={{ ...styles.label, ...styles.redLabel, fontSize: 8 }}>Observações:</Text>
         <View style={{ borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', padding: 3, minHeight: 25 }}>
-            {order.ped_pedindu && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 2, color: '#1e40af' }}>Nº PEDIDO INDÚSTRIA: {order.ped_pedindu}</Text>
+            {(order.ped_pedindu || order.ped_pedindustria) && (
+                <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 2, color: '#1e40af' }}>Nº PEDIDO INDÚSTRIA: {order.ped_pedindu || order.ped_pedindustria}</Text>
             )}
             <Text style={{ fontSize: 7, color: highlighted ? '#dc2626' : '#000000', fontWeight: highlighted ? 'bold' : 'normal' }}>
                 {order.ped_obs || ''}
