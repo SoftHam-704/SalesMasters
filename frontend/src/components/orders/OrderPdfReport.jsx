@@ -79,199 +79,215 @@ const ItemsModel14 = ({ groupedItems, order }) => {
 };
 
 // Model 13: Landscape Table - Sq, Prod, Comp, Nº Ped, Desc, Quant, Bruto, Liq, C/Imp, Total, IPI, ST
-const ItemsModel13 = ({ groupedItems }) => {
+const ItemsModel13 = ({ groupedItems, order }) => {
     let globalSeq = 0;
-    const allItems = Object.values(groupedItems).flat();
-    const subTotalBruto = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
-    const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const subTotalComImpostos = allItems.reduce((acc, it) => {
-        const totLiq = parseFloat(it.ite_totliquido) || 0;
-        const ipiRate = parseFloat(it.ite_ipi) || 0;
-        const stRate = parseFloat(it.ite_st) || 0;
-        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
-    }, 0);
-
 
     return (
         <View style={{ marginBottom: 3 }}>
-            <View style={{ backgroundColor: '#64748b', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 7, color: '#ffffff' }}>
-                    Descontos: 78.00%+10.00%+10.00%+10.00%+10.00%
-                </Text>
-            </View>
-            <View style={{ ...styles.tableHeader, backgroundColor: '#64748b', color: '#ffffff', borderBottomWidth: 0 }}>
-                <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
-                <Text style={{ width: '6%', textAlign: 'center' }}>Produto:</Text>
-                <Text style={{ width: '8%', textAlign: 'center' }}>Complemento</Text>
-                <Text style={{ width: '8%', textAlign: 'center' }}>Nº pedido</Text>
-                <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
-                <Text style={{ width: '4%', textAlign: 'center' }}>Quant</Text>
-                <Text style={{ width: '7%', textAlign: 'right' }}>Bruto</Text>
-                <Text style={{ width: '7%', textAlign: 'right' }}>Líquido</Text>
-                <Text style={{ width: '7%', textAlign: 'right' }}>C/Imposto</Text>
-                <Text style={{ width: '7%', textAlign: 'right' }}>Total</Text>
-                <Text style={{ width: '3%', textAlign: 'right' }}>IPI</Text>
-                <Text style={{ width: '3%', textAlign: 'right' }}>ST</Text>
-            </View>
-
-            {allItems.map((item, idx) => {
-                globalSeq++;
-                const comp = item.pro_codigooriginal || '';
-                const quant = parseFloat(item.ite_quant) || 1;
-                const totLiq = parseFloat(item.ite_totliquido) || 0;
-                const ipiRate = parseFloat(item.ite_ipi) || 0;
-                const stRate = parseFloat(item.ite_st) || 0;
-                const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
-                const unitComImpostos = totComImpostos / quant;
+            {Object.entries(groupedItems).map(([discountLabel, items]) => {
+                const subTotalBruto = items.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
+                const subTotalLiq = items.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
+                const subTotalComImpostos = items.reduce((acc, it) => {
+                    const totLiq = parseFloat(it.ite_totliquido) || 0;
+                    const ipiRate = parseFloat(it.ite_ipi) || 0;
+                    const stRate = parseFloat(it.ite_st) || 0;
+                    return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+                }, 0);
 
                 return (
-                    <View key={idx} style={{ ...styles.tableRowDashed, borderBottomColor: '#cbd5e1' }} wrap={false}>
-                        <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
-                        <Text style={{ width: '6%', textAlign: 'center', color: '#1e40af', fontWeight: 'bold' }}>{item.ite_produto}</Text>
-                        <Text style={{ width: '8%', textAlign: 'center', fontSize: 6 }}>{comp}</Text>
-                        <Text style={{ width: '8%', textAlign: 'center', fontSize: 6 }}></Text>
-                        <Text style={{ flex: 1, paddingLeft: 2, color: '#1e40af', fontWeight: 'bold' }}>{item.ite_nomeprod}</Text>
-                        <Text style={{ width: '4%', textAlign: 'center', fontWeight: 'bold', color: '#1e40af' }}>{item.ite_quant}</Text>
-                        <Text style={{ width: '7%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
-                        <Text style={{ width: '7%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ width: '7%', textAlign: 'right' }}>{fv(unitComImpostos)}</Text>
-                        <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(totComImpostos)}</Text>
-                        <Text style={{ width: '3%', textAlign: 'right', fontSize: 5 }}>{fv(item.ite_ipi)}</Text>
-                        <Text style={{ width: '3%', textAlign: 'right', fontSize: 5 }}>{fv(item.ite_st)}</Text>
+                    <View key={discountLabel} style={{ marginBottom: 5 }}>
+                        <View style={{ backgroundColor: '#64748b', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 7, color: '#ffffff' }}>
+                                Descontos: {discountLabel}
+                            </Text>
+                        </View>
+                        <View style={{ ...styles.tableHeader, backgroundColor: '#64748b', color: '#ffffff', borderBottomWidth: 0 }}>
+                            <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
+                            <Text style={{ width: '6%', textAlign: 'center' }}>Produto:</Text>
+                            <Text style={{ width: '8%', textAlign: 'center' }}>Complemento</Text>
+                            <Text style={{ width: '8%', textAlign: 'center' }}>Nº pedido</Text>
+                            <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
+                            <Text style={{ width: '4%', textAlign: 'center' }}>Quant</Text>
+                            <Text style={{ width: '7%', textAlign: 'right' }}>Bruto</Text>
+                            <Text style={{ width: '7%', textAlign: 'right' }}>Líquido</Text>
+                            <Text style={{ width: '7%', textAlign: 'right' }}>C/Imposto</Text>
+                            <Text style={{ width: '7%', textAlign: 'right' }}>Total</Text>
+                            <Text style={{ width: '3%', textAlign: 'right' }}>IPI</Text>
+                            <Text style={{ width: '3%', textAlign: 'right' }}>ST</Text>
+                        </View>
+
+                        {items.map((item, idx) => {
+                            globalSeq++;
+                            const comp = item.pro_codigooriginal || '';
+                            const quant = parseFloat(item.ite_quant) || 1;
+                            const totLiq = parseFloat(item.ite_totliquido) || 0;
+                            const ipiRate = parseFloat(item.ite_ipi) || 0;
+                            const stRate = parseFloat(item.ite_st) || 0;
+                            const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
+                            const unitComImpostos = totComImpostos / quant;
+
+                            return (
+                                <View key={idx} style={{ ...styles.tableRowDashed, borderBottomColor: '#cbd5e1' }} wrap={false}>
+                                    <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
+                                    <Text style={{ width: '6%', textAlign: 'center', color: '#1e40af', fontWeight: 'bold' }}>{item.ite_produto}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'center', fontSize: 6 }}>{comp}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'center', fontSize: 6 }}>{order.ped_pedcli || order.ped_pedindustria || ''}</Text>
+                                    <Text style={{ flex: 1, paddingLeft: 2, color: '#1e40af', fontWeight: 'bold' }}>{item.ite_nomeprod}</Text>
+                                    <Text style={{ width: '4%', textAlign: 'center', fontWeight: 'bold', color: '#1e40af' }}>{item.ite_quant}</Text>
+                                    <Text style={{ width: '7%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
+                                    <Text style={{ width: '7%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
+                                    <Text style={{ width: '7%', textAlign: 'right' }}>{fv(unitComImpostos)}</Text>
+                                    <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(totComImpostos)}</Text>
+                                    <Text style={{ width: '3%', textAlign: 'right', fontSize: 5 }}>{fv(item.ite_ipi)}</Text>
+                                    <Text style={{ width: '3%', textAlign: 'right', fontSize: 5 }}>{fv(item.ite_st)}</Text>
+                                </View>
+                            );
+                        })}
+
+                        <View style={{ flexDirection: 'row', borderTopWidth: 0.5, marginTop: 2 }}>
+                            <Text style={{ width: '68%' }}></Text>
+                            <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalBruto)}</Text>
+                            <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalLiq)}</Text>
+                            <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
+                        </View>
                     </View>
                 );
             })}
-
-            <View style={{ flexDirection: 'row', borderTopWidth: 0.5, marginTop: 2 }}>
-                <Text style={{ width: '68%' }}></Text>
-                <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalBruto)}</Text>
-                <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalLiq)}</Text>
-                <Text style={{ width: '7%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
-            </View>
         </View>
     );
 };
 
 // Model 12: Specific Calculations per Item - Sq, Prod, Desc, Quant, Un.Bruto, Un.Liq, Unit c/IPI e ST, Total c/IPI e ST, IPI, ST
-const ItemsModel12 = ({ groupedItems }) => {
+const ItemsModel12 = ({ groupedItems, order }) => {
     let globalSeq = 0;
-    const allItems = Object.values(groupedItems).flat();
-    const subTotalBruto = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
-    const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const subTotalComImpostos = allItems.reduce((acc, it) => {
-        const totLiq = parseFloat(it.ite_totliquido) || 0;
-        const ipiRate = parseFloat(it.ite_ipi) || 0;
-        const stRate = parseFloat(it.ite_st) || 0;
-        return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
-    }, 0);
 
     return (
         <View style={{ marginBottom: 3 }}>
-            <View style={{ backgroundColor: '#ffffff', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 7 }}>
-                    Descontos: <Text style={{ fontWeight: 'normal' }}>78.00%+10.00%+10.00%+10.00%+10.00%</Text>
-                </Text>
-            </View>
-            <View style={{ ...styles.tableHeader, borderBottomWidth: 0 }}>
-                <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
-                <Text style={{ width: '7%', textAlign: 'center' }}>Produto:</Text>
-                <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
-                <Text style={{ width: '5%', textAlign: 'center' }}>Quant</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>Un.Bruto</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>Un.liquido</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}>Unit. c/IPI e ST</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}>Tot c/IPI e ST</Text>
-                <Text style={{ width: '4%', textAlign: 'right' }}>IPI</Text>
-                <Text style={{ width: '4%', textAlign: 'right' }}>ST</Text>
-            </View>
-
-            {allItems.map((item, idx) => {
-                globalSeq++;
-                const quant = parseFloat(item.ite_quant) || 1;
-                const totLiq = parseFloat(item.ite_totliquido) || 0;
-                const ipiRate = parseFloat(item.ite_ipi) || 0;
-                const stRate = parseFloat(item.ite_st) || 0;
-                const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
-                const unitComImpostos = totComImpostos / quant;
+            {Object.entries(groupedItems).map(([discountLabel, items]) => {
+                const subTotalBruto = items.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
+                const subTotalLiq = items.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
+                const subTotalComImpostos = items.reduce((acc, it) => {
+                    const totLiq = parseFloat(it.ite_totliquido) || 0;
+                    const ipiRate = parseFloat(it.ite_ipi) || 0;
+                    const stRate = parseFloat(it.ite_st) || 0;
+                    return acc + (totLiq * (1 + ipiRate / 100) * (1 + stRate / 100));
+                }, 0);
 
                 return (
-                    <View key={idx} style={styles.tableRowDashed} wrap={false}>
-                        <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
-                        <Text style={{ width: '7%', textAlign: 'center' }}>{item.ite_produto}</Text>
-                        <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
-                        <Text style={{ width: '5%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ width: '10%', textAlign: 'right' }}>{fv(unitComImpostos)}</Text>
-                        <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(totComImpostos)}</Text>
-                        <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
-                        <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_st)}</Text>
+                    <View key={discountLabel} style={{ marginBottom: 5 }}>
+                        <View style={{ backgroundColor: '#ffffff', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 7 }}>
+                                Descontos: <Text style={{ fontWeight: 'normal' }}>{discountLabel}</Text>
+                            </Text>
+                        </View>
+                        <View style={{ ...styles.tableHeader, borderBottomWidth: 0 }}>
+                            <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
+                            <Text style={{ width: '7%', textAlign: 'center' }}>Produto:</Text>
+                            <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
+                            <Text style={{ width: '5%', textAlign: 'center' }}>Quant</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>Un.Bruto</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>Un.liquido</Text>
+                            <Text style={{ width: '10%', textAlign: 'right' }}>Unit. c/IPI e ST</Text>
+                            <Text style={{ width: '10%', textAlign: 'right' }}>Tot c/IPI e ST</Text>
+                            <Text style={{ width: '4%', textAlign: 'right' }}>IPI</Text>
+                            <Text style={{ width: '4%', textAlign: 'right' }}>ST</Text>
+                        </View>
+
+                        {items.map((item, idx) => {
+                            globalSeq++;
+                            const quant = parseFloat(item.ite_quant) || 1;
+                            const totLiq = parseFloat(item.ite_totliquido) || 0;
+                            const ipiRate = parseFloat(item.ite_ipi) || 0;
+                            const stRate = parseFloat(item.ite_st) || 0;
+                            const totComImpostos = totLiq * (1 + ipiRate / 100) * (1 + stRate / 100);
+                            const unitComImpostos = totComImpostos / quant;
+
+                            return (
+                                <View key={idx} style={styles.tableRowDashed} wrap={false}>
+                                    <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
+                                    <Text style={{ width: '7%', textAlign: 'center' }}>{item.ite_produto}</Text>
+                                    <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
+                                    <Text style={{ width: '5%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
+                                    <Text style={{ width: '10%', textAlign: 'right' }}>{fv(unitComImpostos)}</Text>
+                                    <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(totComImpostos)}</Text>
+                                    <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
+                                    <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_st)}</Text>
+                                </View>
+                            );
+                        })}
+
+                        <View style={{ ...styles.subTotalRow, borderTopWidth: 0.5, marginTop: 2 }}>
+                            <Text style={{ width: '64%' }}></Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalBruto)}</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalLiq)}</Text>
+                            <Text style={{ width: '10%', textAlign: 'right' }}></Text>
+                            <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
+                        </View>
                     </View>
                 );
             })}
-
-            <View style={{ ...styles.subTotalRow, borderTopWidth: 0.5, marginTop: 2 }}>
-                <Text style={{ width: '64%' }}></Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalBruto)}</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalLiq)}</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}></Text>
-                <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalComImpostos)}</Text>
-            </View>
         </View>
     );
 };
 
 // Model 11: Light Table - Sq, Prod, Conv/Comp, Desc, Quant, Un.Bruto, Un.Liq, Total, IPI
-const ItemsModel11 = ({ groupedItems }) => {
+const ItemsModel11 = ({ groupedItems, order }) => {
     let globalSeq = 0;
-    const allItems = Object.values(groupedItems).flat();
-    const subTotalBruto = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
-    const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
 
     return (
         <View style={{ marginBottom: 3 }}>
-            <View style={{ backgroundColor: '#ffffff', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 7 }}>
-                    Descontos: <Text style={{ fontWeight: 'normal' }}>78.00%+10.00%+10.00%+10.00%+10.00%</Text>
-                </Text>
-            </View>
-            <View style={{ ...styles.tableHeader, borderBottomWidth: 0 }}>
-                <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
-                <Text style={{ width: '8%', textAlign: 'center' }}>Produto:</Text>
-                <Text style={{ width: '12%', textAlign: 'center' }}>Cod.orig/Conv./Comp</Text>
-                <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
-                <Text style={{ width: '6%', textAlign: 'center' }}>Quant</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>Un.Bruto</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>Un.liquido</Text>
-                <Text style={{ width: '10%', textAlign: 'right' }}>Total lqdo</Text>
-                <Text style={{ width: '4%', textAlign: 'right' }}>IPI</Text>
-            </View>
+            {Object.entries(groupedItems).map(([discountLabel, items]) => {
+                const subTotalBruto = items.reduce((acc, it) => acc + (parseFloat(it.ite_totbruto) || 0), 0);
+                const subTotalLiq = items.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
 
-            {allItems.map((item, idx) => {
-                globalSeq++;
-                const conv = item.pro_codigooriginal || item.ite_embuch || '';
                 return (
-                    <View key={idx} style={styles.tableRowDashed} wrap={false}>
-                        <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
-                        <Text style={{ width: '8%', textAlign: 'center' }}>{item.ite_produto}</Text>
-                        <Text style={{ width: '12%', textAlign: 'center', fontSize: 6 }}>{conv}</Text>
-                        <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
-                        <Text style={{ width: '6%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
-                        <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
+                    <View key={discountLabel} style={{ marginBottom: 5 }}>
+                        <View style={{ backgroundColor: '#ffffff', padding: 2, borderBottomWidth: 0.5, borderBottomColor: '#000', borderBottomStyle: 'solid' }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 7 }}>
+                                Descontos: <Text style={{ fontWeight: 'normal' }}>{discountLabel}</Text>
+                            </Text>
+                        </View>
+                        <View style={{ ...styles.tableHeader, borderBottomWidth: 0 }}>
+                            <Text style={{ width: '3%', textAlign: 'center' }}>Sq:</Text>
+                            <Text style={{ width: '8%', textAlign: 'center' }}>Produto:</Text>
+                            <Text style={{ width: '12%', textAlign: 'center' }}>Cod.orig/Conv./Comp</Text>
+                            <Text style={{ flex: 1, paddingLeft: 2 }}>Descrição do produto:</Text>
+                            <Text style={{ width: '6%', textAlign: 'center' }}>Quant</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>Un.Bruto</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>Un.liquido</Text>
+                            <Text style={{ width: '10%', textAlign: 'right' }}>Total lqdo</Text>
+                            <Text style={{ width: '4%', textAlign: 'right' }}>IPI</Text>
+                        </View>
+
+                        {items.map((item, idx) => {
+                            globalSeq++;
+                            const conv = item.pro_codigooriginal || item.ite_embuch || '';
+                            return (
+                                <View key={idx} style={styles.tableRowDashed} wrap={false}>
+                                    <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'center' }}>{item.ite_produto}</Text>
+                                    <Text style={{ width: '12%', textAlign: 'center', fontSize: 6 }}>{conv}</Text>
+                                    <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
+                                    <Text style={{ width: '6%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
+                                    <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
+                                    <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
+                                    <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
+                                </View>
+                            );
+                        })}
+
+                        <View style={{ ...styles.subTotalRow, borderTopWidth: 0.5, marginTop: 2 }}>
+                            <Text style={{ width: '70%' }}></Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalBruto)}</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalLiq)}</Text>
+                            <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalLiq)}</Text>
+                        </View>
                     </View>
                 );
             })}
-
-            <View style={{ ...styles.subTotalRow, borderTopWidth: 0.5, marginTop: 2 }}>
-                <Text style={{ width: '70%', textAlign: 'left', paddingLeft: 2 }}>Sub-total:</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalBruto)}</Text>
-                <Text style={{ width: '8%', textAlign: 'right' }}>{fv(subTotalLiq)}</Text>
-                <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(subTotalLiq)}</Text>
-                <Text style={{ width: '4%' }}></Text>
-            </View>
         </View>
     );
 };
@@ -627,7 +643,7 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                         {(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) && repInfo?.rep_cnpj && <Text style={{ fontSize: 8 }}>CNPJ: {repInfo.rep_cnpj}</Text>}
                         <Text style={{ fontSize: 8 }}>{(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) ? `End: ${repEnderecoCompleto}` : repEnderecoCompleto}</Text>
                         <Text style={{ fontSize: 8 }}>{(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) ? `Fones: ${repInfo?.rep_fone || ''}` : repCidadeInfo}</Text>
-                        {(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) && <Text style={{ fontSize: 8 }}>E-mail: /</Text>}
+                        {(modelNum === 5 || modelNum === 10 || modelNum === 11 || modelNum === 12 || modelNum === 13) && repInfo?.rep_user_email && <Text style={{ fontSize: 8 }}>E-mail: {repInfo.rep_user_email}</Text>}
                     </View>
 
                     {/* Right: Industry Logo — com proteção anti-freeze */}
@@ -910,9 +926,12 @@ const CarrierSection = ({ order, hideTitle = false, noBorder = false }) => {
     );
 };      // Observations section
 const ObservationsSection = ({ order, highlighted = false }) => (
-    <View style={{ marginBottom: 3 }}>
+    <View style={{ marginBottom: 3, marginTop: 2 }}>
         <Text style={{ ...styles.label, ...styles.redLabel, fontSize: 8 }}>Observações:</Text>
-        <View style={{ borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', padding: 3, minHeight: 20 }}>
+        <View style={{ borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', padding: 3, minHeight: 25 }}>
+            {order.ped_pedindu && (
+                <Text style={{ fontSize: 8, fontWeight: 'bold', marginBottom: 2, color: '#1e40af' }}>Nº PEDIDO INDÚSTRIA: {order.ped_pedindu}</Text>
+            )}
             <Text style={{ fontSize: 7, color: highlighted ? '#dc2626' : '#000000', fontWeight: highlighted ? 'bold' : 'normal' }}>
                 {order.ped_obs || ''}
             </Text>
@@ -2041,11 +2060,12 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
         rep_bairro: companyData?.bairro || '',
         rep_cidade: companyData?.cidade || '',
         rep_uf: companyData?.uf || '',
-        rep_cep: companyData?.cep || ''
+        rep_cep: companyData?.cep || '',
+        rep_user_email: companyData?.email || ''
     };
     const logo = formatBase64(companyData?.logotipo, 'RepLogo'); // Base64 from empresa_status
-    // Logotipo da indústria desativado temporariamente por performance/solicitação
-    const industryLogo = null;
+    // Logotipo da indústria restaurado com redimensionamento prévio
+    const industryLogo = formatBase64(order.industry_logotipo_resized || order.for_logotipo || order.for_locimagem, 'IndustryLogo');
 
     // Group items by discount
     const groupedItems = groupItemsByDiscount(items);
@@ -2076,11 +2096,11 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
             case 10:
                 return <ItemsModel10 groupedItems={groupedItems} />;
             case 11:
-                return <ItemsModel11 groupedItems={groupedItems} />;
+                return <ItemsModel11 groupedItems={groupedItems} order={order} />;
             case 12:
-                return <ItemsModel12 groupedItems={groupedItems} />;
+                return <ItemsModel12 groupedItems={groupedItems} order={order} />;
             case 13:
-                return <ItemsModel13 groupedItems={groupedItems} />;
+                return <ItemsModel13 groupedItems={groupedItems} order={order} />;
             case 14:
                 return <ItemsModel14 groupedItems={groupedItems} order={order} />;
             default:
