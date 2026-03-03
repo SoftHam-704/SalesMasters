@@ -28,6 +28,7 @@ module.exports = function (app, pool) {
 
     app.post('/api/smart-order/upload', upload.single('file'), async (req, res) => {
         console.log('🔥 [SMART ORDER] ROUTE HIT! Request received.');
+        res.setHeader('X-SM-Version', '1.2.2-VisionFallback');
         try {
             if (!req.file) {
                 console.error('❌ [IA ORDER] No file in request');
