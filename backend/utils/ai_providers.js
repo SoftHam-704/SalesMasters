@@ -214,10 +214,10 @@ class GeminiProvider extends AIProvider {
      */
     async _getModel(config = {}) {
         const modelNames = [
-            "gemini-2.0-flash",        // Tentar o mais novo
-            "gemini-1.5-flash-latest", // Tentar o estável dinâmico
-            "gemini-1.5-flash",        // Tentar o estável fixo
-            "gemini-1.5-pro"           // Último recurso
+            "gemini-3.0-flash",        // Prioritário conforme solicitado
+            "gemini-3.1-pro",          // Fallback potente
+            "gemini-2.0-flash",
+            "gemini-1.5-flash-latest"
         ];
 
         let lastError = null;
@@ -258,7 +258,7 @@ class GeminiProvider extends AIProvider {
         const prompt = `${EXTRACTION_PROMPT}\n\nDados da Planilha:\n${dataString}`;
 
         // Tentativa com retry automático trocando o modelo se der 404 ou 429
-        const modelNames = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+        const modelNames = ["gemini-3.0-flash", "gemini-3.1-pro", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
 
         for (const modelName of modelNames) {
             try {
@@ -296,7 +296,7 @@ class GeminiProvider extends AIProvider {
             EXTRACTION_PROMPT
         ];
 
-        const modelNames = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+        const modelNames = ["gemini-3.0-flash", "gemini-3.1-pro", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
 
         for (const modelName of modelNames) {
             try {
