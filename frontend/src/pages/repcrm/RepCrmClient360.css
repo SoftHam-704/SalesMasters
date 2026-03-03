@@ -47,10 +47,10 @@
 }
 
 .action-btn.primary {
-    background: #2563eb;
+    background: #10b981;
     color: white;
     border: none;
-    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2);
 }
 
 .action-btn.secondary {
@@ -78,7 +78,7 @@
 .profile-avatar {
     width: 64px;
     height: 64px;
-    background: linear-gradient(135deg, #2563eb, #60a5fa);
+    background: linear-gradient(135deg, #10b981, #34d399);
     border-radius: 1.5rem;
     display: flex;
     align-items: center;
@@ -686,10 +686,10 @@
 }
 
 .save-btn {
-    background: #2563eb;
+    background: #10b981;
     color: white;
     border: none;
-    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+    box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2);
 }
 
 .save-btn:disabled {

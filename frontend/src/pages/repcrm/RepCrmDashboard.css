@@ -87,24 +87,25 @@
     flex-shrink: 0;
 }
 
+/* Atualizado para Fresh Corporate Palette */
 .repcrm-kpi-icon-wrapper.blue {
     background: #eff6ff;
-    color: #2563eb;
+    color: #60a5fa; /* Blue-400 */
 }
 
 .repcrm-kpi-icon-wrapper.emerald {
     background: #ecfdf5;
-    color: #059669;
+    color: #10b981; /* Emerald-500 */
 }
 
 .repcrm-kpi-icon-wrapper.amber {
-    background: #fffbeb;
-    color: #d97706;
+    background: #fff7ed; /* Orange-50 */
+    color: #fb923c; /* Orange-400 */
 }
 
 .repcrm-kpi-icon-wrapper.purple {
-    background: #f5f3ff;
-    color: #7c3aed;
+    background: #eef2ff; /* Indigo-50 */
+    color: #818cf8; /* Indigo-400 */
 }
 
 .repcrm-kpi-title {
@@ -118,7 +119,7 @@
 .repcrm-kpi-value {
     font-size: 1.75rem;
     font-weight: 800;
-    color: #0f172a;
+    color: #1e293b; /* Slate-800 */
     letter-spacing: -0.01em;
     margin: 0.25rem 0 0.5rem 0;
 }
@@ -140,13 +141,13 @@
 }
 
 .repcrm-kpi-trend.positive {
-    background: #f0fdf4;
-    color: #166534;
+    background: #ecfdf5; /* Emerald-50 */
+    color: #10b981;    /* Emerald-500 */
 }
 
 .repcrm-kpi-trend.negative {
-    background: #fef2f2;
-    color: #991b1b;
+    background: #fef2f2; /* Red-50 */
+    color: #dc2626;    /* Red-600 */
 }
 
 .repcrm-kpi-subvalue {
@@ -194,14 +195,14 @@
 .repcrm-card-title {
     font-size: 1.125rem;
     font-weight: 700;
-    color: #0f172a;
+    color: #1e293b;
     letter-spacing: -0.01em;
 }
 
 .repcrm-card-action {
     font-size: 0.75rem;
     font-weight: 800;
-    color: #2563eb;
+    color: #10b981; /* Emerald-500 */
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -231,7 +232,7 @@
     width: 140px;
     font-size: 0.75rem;
     font-weight: 800;
-    color: #475569;
+    color: #64748b;
     text-transform: uppercase;
 }
 
@@ -254,19 +255,19 @@
 }
 
 .step-prospeccao .step-bar {
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    background: linear-gradient(90deg, #60a5fa, #3b82f6); /* Blue Light */
 }
 
 .step-proposta .step-bar {
-    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    background: linear-gradient(90deg, #fb923c, #f97316); /* Orange Light */
 }
 
 .step-negociacao .step-bar {
-    background: linear-gradient(90deg, #1d4ed8, #2563eb);
+    background: linear-gradient(90deg, #facc15, #eab308); /* Yellow */
 }
 
 .step-fechamento .step-bar {
-    background: linear-gradient(90deg, #1e40af, #1d4ed8);
+    background: linear-gradient(90deg, #34d399, #10b981); /* Emerald */
 }
 
 /* Opportunities */
@@ -331,8 +332,8 @@
 
 /* Agenda Section */
 .repcrm-count-badge {
-    background: #f0fdf4;
-    color: #166534;
+    background: #ecfdf5;
+    color: #10b981;
     padding: 0.25rem 0.75rem;
     border-radius: 9999px;
     font-size: 0.75rem;
@@ -355,14 +356,14 @@
 }
 
 .repcrm-visit-item.active {
-    background: #eff6ff;
-    border-color: #dbeafe;
+    background: #ecfdf5; /* Emerald-50 */
+    border-color: #d1fae5; /* Emerald-100 */
 }
 
 .visit-time {
     font-size: 0.75rem;
     font-weight: 900;
-    color: #2563eb;
+    color: #10b981; /* Emerald-500 */
     width: 45px;
 }
 
@@ -387,7 +388,7 @@
     font-size: 0.625rem;
     font-weight: 800;
     text-transform: uppercase;
-    color: #2563eb;
+    color: #10b981;
     background: white;
     padding: 0.25rem 0.5rem;
     border-radius: 0.5rem;
@@ -478,11 +479,11 @@
 .repcrm-fab-main {
     width: 64px;
     height: 64px;
-    background: #2563eb;
+    background: #10b981; /* Emerald-500 */
     border-radius: 50%;
     border: none;
     color: white;
-    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -492,7 +493,7 @@
 
 .repcrm-fab-main:hover {
     transform: scale(1.1);
-    box-shadow: 0 15px 30px -5px rgba(37, 99, 235, 0.5);
+    box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.5);
 }
 
 .repcrm-fab-main.active {

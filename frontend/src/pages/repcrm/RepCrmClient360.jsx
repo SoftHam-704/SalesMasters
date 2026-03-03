@@ -255,7 +255,7 @@ const RepCrmClient360 = () => {
                         <StatMiniCard label="Venda Média" value={formatCurrency(18500)} color="text-blue-600" />
                         <StatMiniCard label="Inadimplência" value={formatCurrency(0)} color="text-emerald-600" />
                         <StatMiniCard label="Último Pedido" value="12 dias" color="text-slate-600" />
-                        <StatMiniCard label="Positivação" value="84%" color="text-purple-600" />
+                        <StatMiniCard label="Positivação" value="84%" color="text-blue-500" />
                     </div>
 
                     <button
@@ -377,7 +377,7 @@ const RepCrmClient360 = () => {
                     </div>
 
                     <div className="side-card alerts-card">
-                        <h4 className="side-card-title text-rose-600">Pontos de Atenção</h4>
+                        <h4 className="side-card-title text-red-600">Pontos de Atenção</h4>
                         <div className="alert-item">
                             <AlertCircle size={14} />
                             <span>Contrato de manutenção Bertolini vence em 30 dias.</span>
