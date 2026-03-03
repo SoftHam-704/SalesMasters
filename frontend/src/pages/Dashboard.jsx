@@ -7,7 +7,7 @@ import { ActivityItem } from '../components/dashboard/ActivityItem';
 import { YearMonthFilter } from '../components/dashboard/YearMonthFilter';
 import { TopClientsCard } from '../components/dashboard/TopClientsCard';
 import { IndustryRevenueCard } from '../components/dashboard/IndustryRevenueCard';
-import { IndustryParetoCard } from '../components/dashboard/IndustryParetoCard';
+import { IndustryProductPerformanceCard } from '../components/dashboard/IndustryProductPerformanceCard';
 import { SalesPerformanceTable } from '../components/dashboard/SalesPerformanceTable';
 import { BirthdayCard } from '../components/dashboard/BirthdayCard';
 import DashboardAlertPanel from '../components/dashboard/DashboardAlertPanel';
@@ -41,6 +41,8 @@ const Dashboard = () => {
     const currentYear = new Date().getFullYear();
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(null); // null = ano todo
+    const [selectedIndustry, setSelectedIndustry] = useState('');
+    const [industries, setIndustries] = useState([]);
     const [salesComparison, setSalesComparison] = useState([]);
     const [quantitiesComparison, setQuantitiesComparison] = useState([]);
     const [topClients, setTopClients] = useState([]);
@@ -79,7 +81,9 @@ const Dashboard = () => {
     const fetchBirthdays = async () => {
         try {
             setLoadingBirthdays(true);
-            const response = await fetch(`${NODE_API_URL}/api/crm/stats/birthdays`);
+            const mesBusca = selectedMonth || new Date().getMonth() + 1;
+            const url = getApiUrl(NODE_API_URL, `/api/cli-aniv/birthdays?mes=${mesBusca}`);
+            const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
                 setBirthdayCount(data.data?.length || 0);
@@ -111,7 +115,21 @@ const Dashboard = () => {
         }
         fetchBirthdays();
         fetchSellOutSummary();
+        fetchIndustries();
     }, []);
+
+    const fetchIndustries = async () => {
+        try {
+            const url = getApiUrl(NODE_API_URL, '/api/aux/industrias');
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.success) {
+                setIndustries(data.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching industries:', error);
+        }
+    };
 
     useEffect(() => {
         fetchSalesComparison();
@@ -119,23 +137,29 @@ const Dashboard = () => {
         fetchTopClients();
         fetchIndustryRevenue();
         fetchDashboardMetrics();
-    }, [selectedYear, selectedMonth]);
+    }, [selectedYear, selectedMonth, selectedIndustry]);
 
     const fetchSalesComparison = async () => {
         try {
             const previousYear = selectedYear - 1;
+            const params = new URLSearchParams({
+                anoAtual: selectedYear,
+                anoAnterior: previousYear
+            });
+            if (selectedIndustry) params.append('for_codigo', selectedIndustry);
+
             console.log(`📡 [DASHBOARD] Buscando vendas: ${selectedYear} vs ${previousYear}`);
-            const url = getApiUrl(NODE_API_URL, `/api/dashboard/sales-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/sales-comparison?${params}`);
             const response = await fetch(url);
             const data = await response.json();
 
             if (data.success && Array.isArray(data.data)) {
-                console.log(`✅ [DASHBOARD] Vendas recebidas:`, data.data.length, 'meses');
+                console.log(`✅ [DASHBOARD] Vendas Jan: ${data.data[0]?.vendas_ano_atual} | Fev: ${data.data[1]?.vendas_ano_atual}`);
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
                     mes: item.mes_nome ? item.mes_nome.substring(0, 3) : '???',
-                    [selectedYear]: parseFloat(item.vendas_ano_atual || 0) / 1000,
-                    [previousYear]: parseFloat(item.vendas_ano_anterior || 0) / 1000
+                    atual: Number(item.vendas_ano_atual || 0) / 1000,
+                    anterior: Number(item.vendas_ano_anterior || 0) / 1000
                 }));
                 setSalesComparison(chartData);
             } else {
@@ -151,15 +175,21 @@ const Dashboard = () => {
     const fetchQuantitiesComparison = async () => {
         try {
             const previousYear = selectedYear - 1;
-            const url = getApiUrl(NODE_API_URL, `/api/dashboard/quantities-comparison?anoAtual=${selectedYear}&anoAnterior=${previousYear}`);
+            const params = new URLSearchParams({
+                anoAtual: selectedYear,
+                anoAnterior: previousYear
+            });
+            if (selectedIndustry) params.append('for_codigo', selectedIndustry);
+
+            const url = getApiUrl(NODE_API_URL, `/api/dashboard/quantities-comparison?${params}`);
             const response = await fetch(url);
             const data = await response.json();
             if (data.success && Array.isArray(data.data)) {
                 // Transform data for chart
                 const chartData = data.data.map(item => ({
                     mes: item.mes_nome ? item.mes_nome.substring(0, 3) : '???',
-                    [selectedYear]: parseFloat(item.quantidade_ano_atual || 0),
-                    [previousYear]: parseFloat(item.quantidade_ano_anterior || 0)
+                    atual: parseFloat(item.quantidade_ano_atual || 0),
+                    anterior: parseFloat(item.quantidade_ano_anterior || 0)
                 }));
                 setQuantitiesComparison(chartData);
             } else {
@@ -182,6 +212,9 @@ const Dashboard = () => {
 
             if (selectedMonth) {
                 params.append('mes', selectedMonth);
+            }
+            if (selectedIndustry) {
+                params.append('for_codigo', selectedIndustry);
             }
 
             const url = getApiUrl(NODE_API_URL, `/api/dashboard/top-clients?${params}`);
@@ -208,6 +241,9 @@ const Dashboard = () => {
             if (selectedMonth) {
                 params.append('mes', selectedMonth);
             }
+            if (selectedIndustry) {
+                params.append('for_codigo', selectedIndustry);
+            }
 
             const url = getApiUrl(NODE_API_URL, `/api/dashboard/industry-revenue?${params}`);
             const response = await fetch(url);
@@ -233,6 +269,9 @@ const Dashboard = () => {
 
             if (selectedMonth) {
                 params.append('mes', selectedMonth);
+            }
+            if (selectedIndustry) {
+                params.append('for_codigo', selectedIndustry);
             }
 
             const url = getApiUrl(NODE_API_URL, `/api/dashboard/metrics?${params}`);
@@ -303,8 +342,11 @@ const Dashboard = () => {
             <YearMonthFilter
                 selectedYear={selectedYear}
                 selectedMonth={selectedMonth}
+                selectedIndustry={selectedIndustry}
+                industries={industries}
                 onYearChange={setSelectedYear}
                 onMonthChange={setSelectedMonth}
+                onIndustryChange={setSelectedIndustry}
             />
 
 
@@ -455,7 +497,7 @@ const Dashboard = () => {
                                         />
                                         <Area
                                             type="monotone"
-                                            dataKey={selectedYear}
+                                            dataKey="atual"
                                             stroke="hsl(280, 70%, 55%)"
                                             strokeWidth={2}
                                             fillOpacity={1}
@@ -464,7 +506,7 @@ const Dashboard = () => {
                                         />
                                         <Area
                                             type="monotone"
-                                            dataKey={selectedYear - 1}
+                                            dataKey="anterior"
                                             stroke="hsl(30, 90%, 55%)"
                                             strokeWidth={2}
                                             strokeDasharray="5 5"
@@ -542,7 +584,7 @@ const Dashboard = () => {
                                         />
                                         <Area
                                             type="monotone"
-                                            dataKey={selectedYear}
+                                            dataKey="atual"
                                             stroke="hsl(160, 84%, 39%)"
                                             strokeWidth={2}
                                             fill="url(#color2025)"
@@ -551,7 +593,7 @@ const Dashboard = () => {
                                         />
                                         <Area
                                             type="monotone"
-                                            dataKey={selectedYear - 1}
+                                            dataKey="anterior"
                                             stroke="hsl(220, 70%, 50%)"
                                             strokeWidth={2}
                                             strokeDasharray="5 5"
@@ -569,6 +611,7 @@ const Dashboard = () => {
                     <SalesPerformanceTable
                         selectedYear={selectedYear}
                         selectedMonth={selectedMonth}
+                        selectedIndustry={selectedIndustry}
                     />
 
                     {/* Birthday Card - below Sales Performance */}
@@ -580,30 +623,31 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Column 2: Retention Alert + Top 15 Clients */}
+                {/* Column 2: Retention Alert + Industry Revenue */}
                 <div className="dashboard-column">
                     <RetentionAlertCard />
+                    <IndustryRevenueCard
+                        data={industryRevenue}
+                        loading={loadingIndustry}
+                    />
+                </div>
+
+                {/* Column 3: Top 15 Clients */}
+                <div className="dashboard-column">
                     <TopClientsCard
                         clients={topClients}
                         loading={loadingClients}
                     />
                 </div>
+            </div>
 
-                {/* Column 3: Industry Revenue + Pareto */}
-                <div className="dashboard-column">
-                    <div style={{ flex: 1 }}>
-                        <IndustryRevenueCard
-                            data={industryRevenue}
-                            loading={loadingIndustry}
-                        />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <IndustryParetoCard
-                            data={industryRevenue}
-                            loading={loadingIndustry}
-                        />
-                    </div>
-                </div>
+            {/* Full Width Section */}
+            <div className="full-width-section mt-4">
+                <IndustryProductPerformanceCard
+                    selectedYear={selectedYear}
+                    selectedMonth={selectedMonth}
+                    selectedIndustry={selectedIndustry}
+                />
             </div>
         </div>
     );

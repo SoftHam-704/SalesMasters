@@ -98,6 +98,15 @@ CREATE TABLE pedidos (
     ped_tipocomissao VARCHAR(1),
     ped_grupofreio   DOUBLE PRECISION,
     ped_grupooutro   DOUBLE PRECISION,
+    ped_ramoatv      VARCHAR(50),
+    ped_obra_nome    VARCHAR(150),
+    ped_obra_endereco VARCHAR(200),
+    ped_obra_contato  VARCHAR(100),
+    ped_fase_projeto  VARCHAR(30),
+    ped_area_m2       NUMERIC(15,2),
+    ped_pe_direito    NUMERIC(6,2),
+    ped_tipo_piso     VARCHAR(50),
+    ped_obs_tecnicas  TEXT,
     gid              VARCHAR(38)
 );
 
@@ -155,6 +164,10 @@ CREATE TABLE itens_ped (
     ite_cfop               VARCHAR(4),
     ite_unidade            VARCHAR(6),
     ite_origem             CHAR(1),
+    ite_dimensoes          VARCHAR(100),
+    ite_acabamento         VARCHAR(100),
+    ite_carga_kg           NUMERIC(15,2),
+    ite_ambiente           VARCHAR(50),
     gid                    VARCHAR(38)
 );
 

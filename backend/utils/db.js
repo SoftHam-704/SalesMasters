@@ -4,7 +4,7 @@ require('dotenv').config();
 // Pool dedicado ao banco MASTER (Central de Controle - NUVEM)
 const masterPool = new Pool({
     host: process.env.MASTER_DB_HOST || 'node254557-salesmaster.sp1.br.saveincloud.net.br',
-    port: parseInt(process.env.MASTER_DB_PORT || '13062'),
+    port: parseInt(process.env.MASTER_DB_PORT || '5432'), // Alterado de 13062 para 5432 (padrão interno)
     database: process.env.MASTER_DB_DATABASE || 'salesmasters_master',
     user: process.env.MASTER_DB_USER || 'webadmin',
     password: process.env.MASTER_DB_PASSWORD || 'ytAyO0u043',
@@ -47,7 +47,7 @@ function getTenantPool(tenantKey, config = null) {
         };
 
         if (config.schema && config.schema !== 'public') {
-            poolOptions.options = `-c search_path=${config.schema.replace(/[^a-zA-Z0-9_]/g, '')}`;
+            poolOptions.options = `-c search_path=${config.schema.replace(/[^a-zA-Z0-9_]/g, '')},public`;
         }
 
         tenantPools[tenantKey] = new Pool(poolOptions);

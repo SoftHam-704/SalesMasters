@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Target } from 'lucide-react';
 import './SalesPerformanceTable.css';
+import { MetasIndustriasTable } from './MetasIndustriasTable';
 
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
-export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
+export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedIndustry }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: 'total_value_current', direction: 'desc' });
+    const [activeTab, setActiveTab] = useState('performance'); // 'performance' | 'metas'
 
     useEffect(() => {
         fetchData();
-    }, [selectedYear, selectedMonth]);
+    }, [selectedYear, selectedMonth, selectedIndustry]);
 
     const fetchData = async () => {
         try {
@@ -23,6 +25,9 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
             const params = new URLSearchParams({ ano: selectedYear });
             if (selectedMonth) {
                 params.append('mes', selectedMonth);
+            }
+            if (selectedIndustry) {
+                params.append('for_codigo', selectedIndustry);
             }
 
             const url = getApiUrl(NODE_API_URL, `/api/dashboard/sales-performance?${params}`);
@@ -104,46 +109,21 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
         return <span className="trend-indicator neutral">{formatPercent(value)}</span>;
     };
 
-    if (loading) {
-        return (
-            <div className="sales-performance-card">
-                <div className="card-header">
-                    <h3>Performance de Vendedores</h3>
-                </div>
-                <div className="loading-state">
-                    <div className="spinner"></div>
-                    <p>Carregando dados...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="sales-performance-card">
-                <div className="card-header">
-                    <h3>Performance de Vendedores</h3>
-                </div>
-                <div className="error-state">
-                    <p>{error}</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!data || !data.length) {
-        return (
-            <div className="sales-performance-card">
-                <div className="card-header">
-                    <h3>Performance de Vendedores</h3>
-                </div>
-                <div className="empty-state">
-                    <Users size={48} />
-                    <p>Nenhum dado disponível para o período selecionado</p>
-                </div>
-            </div>
-        );
-    }
+    // Tab styles helper
+    const tabStyle = (id) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+        padding: '5px 14px',
+        fontSize: '12px',
+        fontWeight: '700',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        background: activeTab === id ? 'var(--accent-primary, #6366f1)' : 'transparent',
+        color: activeTab === id ? '#fff' : 'var(--text-secondary)',
+    });
 
     return (
         <motion.div
@@ -152,70 +132,113 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
         >
-            <div className="card-header">
-                <h3>Performance de Vendedores</h3>
-                <span className="data-count">{data.length} vendedores</span>
+            {/* Card Header com Abas */}
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-hover, #f1f5f9)', padding: '3px', borderRadius: '8px' }}>
+                    <button style={tabStyle('performance')} onClick={() => setActiveTab('performance')}>
+                        <Users size={13} />
+                        Performance
+                    </button>
+                    <button style={tabStyle('metas')} onClick={() => setActiveTab('metas')}>
+                        <Target size={13} />
+                        Metas
+                    </button>
+                </div>
+                {activeTab === 'performance' && (
+                    <span className="data-count">{data.length} vendedores</span>
+                )}
             </div>
 
-            <div className="table-container">
-                <table className="performance-table">
-                    <thead>
-                        <tr>
-                            <th onClick={() => handleSort('ven_nome')} className="sortable">
-                                Colaborador
-                            </th>
-                            <th onClick={() => handleSort('total_value_current')} className="sortable text-right">
-                                Valores
-                            </th>
-                            <th onClick={() => handleSort('mom_value_percent')} className="sortable text-center">
-                                MoM (R$)
-                            </th>
-                            <th onClick={() => handleSort('total_qty_current')} className="sortable text-right">
-                                Qtd
-                            </th>
-                            <th onClick={() => handleSort('mom_qty_percent')} className="sortable text-center">
-                                MoM (qtd)
-                            </th>
-                            <th onClick={() => handleSort('clients_previous')} className="sortable text-center">
-                                Clientes (M-1)
-                            </th>
-                            <th onClick={() => handleSort('clients_current')} className="sortable text-center">
-                                Clientes (M)
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedData.map((seller, index) => (
-                            <motion.tr
-                                key={seller.ven_codigo}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: index * 0.02 }}
-                            >
-                                <td className="seller-name">{seller.ven_nome}</td>
-                                <td className="text-right value-cell">
-                                    {formatCurrency(seller.total_value_current)}
-                                </td>
-                                <td className="text-center">
-                                    {renderTrendIndicator(seller.mom_value_percent)}
-                                </td>
-                                <td className="text-right">
-                                    {formatQuantity(seller.total_qty_current)}
-                                </td>
-                                <td className="text-center">
-                                    {renderTrendIndicator(seller.mom_qty_percent)}
-                                </td>
-                                <td className="text-center client-count">
-                                    {seller.clients_previous}
-                                </td>
-                                <td className="text-center client-count">
-                                    {seller.clients_current}
-                                </td>
-                            </motion.tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            {/* ABA: Performance de Vendedores */}
+            {activeTab === 'performance' && (
+                <>
+                    {loading && (
+                        <div className="loading-state">
+                            <div className="spinner"></div>
+                            <p>Carregando dados...</p>
+                        </div>
+                    )}
+                    {!loading && error && (
+                        <div className="error-state"><p>{error}</p></div>
+                    )}
+                    {!loading && !error && (!data || !data.length) && (
+                        <div className="empty-state">
+                            <Users size={48} />
+                            <p>Nenhum dado disponível para o período selecionado</p>
+                        </div>
+                    )}
+                    {!loading && !error && data && data.length > 0 && (
+                        <div className="table-container">
+                            <table className="performance-table">
+                                <thead>
+                                    <tr>
+                                        <th onClick={() => handleSort('ven_nome')} className="sortable">
+                                            Colaborador
+                                        </th>
+                                        <th onClick={() => handleSort('total_value_current')} className="sortable text-right">
+                                            Valores
+                                        </th>
+                                        <th onClick={() => handleSort('mom_value_percent')} className="sortable text-center">
+                                            MoM (R$)
+                                        </th>
+                                        <th onClick={() => handleSort('total_qty_current')} className="sortable text-right">
+                                            Qtd
+                                        </th>
+                                        <th onClick={() => handleSort('mom_qty_percent')} className="sortable text-center">
+                                            MoM (qtd)
+                                        </th>
+                                        <th onClick={() => handleSort('clients_previous')} className="sortable text-center">
+                                            Clientes (M-1)
+                                        </th>
+                                        <th onClick={() => handleSort('clients_current')} className="sortable text-center">
+                                            Clientes (M)
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedData.map((seller, index) => (
+                                        <motion.tr
+                                            key={seller.ven_codigo}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: index * 0.02 }}
+                                        >
+                                            <td className="seller-name">{seller.ven_nome}</td>
+                                            <td className="text-right value-cell">
+                                                {formatCurrency(seller.total_value_current)}
+                                            </td>
+                                            <td className="text-center">
+                                                {renderTrendIndicator(seller.mom_value_percent)}
+                                            </td>
+                                            <td className="text-right">
+                                                {formatQuantity(seller.total_qty_current)}
+                                            </td>
+                                            <td className="text-center">
+                                                {renderTrendIndicator(seller.mom_qty_percent)}
+                                            </td>
+                                            <td className="text-center client-count">
+                                                {seller.clients_previous}
+                                            </td>
+                                            <td className="text-center client-count">
+                                                {seller.clients_current}
+                                            </td>
+                                        </motion.tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ABA: Metas por Indústria */}
+            {activeTab === 'metas' && (
+                <MetasIndustriasTable
+                    selectedYear={selectedYear}
+                    selectedMonth={selectedMonth}
+                    selectedIndustry={selectedIndustry}
+                />
+            )}
         </motion.div>
     );
 };

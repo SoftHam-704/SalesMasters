@@ -548,9 +548,9 @@ module.exports = (pool) => {
                 paramCounter++;
             }
 
-            // Filtro Vendedor
+            // Filtro Vendedor (Baseado no Cadastro do Cliente conforme solicitado)
             if (vendedor && vendedor !== 'ALL') {
-                conditions.push(`p.ped_vendedor = $${paramCounter}`);
+                conditions.push(`c.cli_vendedor = $${paramCounter}`);
                 params.push(vendedor);
                 paramCounter++;
             }

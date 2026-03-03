@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const { createProxyMiddleware } = require('http-proxy-middleware');
@@ -7,7 +8,6 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const csv = require('csv-parser');
 const XLSX = require('xlsx');
-const path = require('path');
 const multer = require('multer');
 
 // Multi-tenant Utils
@@ -58,10 +58,10 @@ const PORT = (() => {
 
 // Middleware
 app.use(cors());
-/* app.use((req, res, next) => {
-    console.log(`🚀 [VIP REQUEST] ${req.method} ${req.url}`);
+app.use((req, res, next) => {
+    console.log(`🔍 [RADAR] ${req.method} ${req.url}`);
     next();
-}); */
+});
 app.use(express.json({ limit: '100mb' })); // Aumentado para suportar importações muito grandes (20k+ produtos)
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -196,9 +196,12 @@ app.use('/api', require('./cli_discounts_endpoints')(pool));
 app.use('/api/intelligence', require('./client_intelligence_endpoints')(pool));
 app.use('/api/metas', require('./metas_endpoints')(pool));
 app.use('/api/agenda', require('./agenda_endpoints')(pool));
-app.use('/api/chat', require('./chat_endpoints')(pool));
+app.use('/api/chat', require('./chat_endpoints')(masterPool));
 app.use('/api/financeiro', require('./financial_endpoints')(pool));
+app.use('/api/tutorials', require('./tutorials_endpoints')(pool));
 app.use('/api/marketing', require('./marketing_email_endpoints')(pool));
+app.use('/api/wpp-service', require('./whatsapp_ia_endpoints')(pool));
+app.use('/api/smart-importer', require('./smart_importer_endpoints')(pool));
 
 // Mobile-specific endpoints (isolado para evitar conflitos com web)
 app.use('/api/mobile', require('./mobile_endpoints')(pool));
@@ -347,142 +350,9 @@ app.get('/api/image', (req, res) => {
     res.sendFile(imagePath);
 });
 
-// --- DASHBOARD API BYPASS (Prioridade Alta) ---
-// Estas rotas precisam ser definidas antes do static files/fallback do React
-app.get('/api/dashboard/metrics', async (req, res) => {
-    try {
-        const { ano, mes, industria } = req.query;
-        if (!ano) return res.status(400).json({ success: false, message: 'Ano obrigatório' });
+// --- DASHBOARD API BYPASS REMOVIDO (DUPLICIDADE) ---
+// As rotas foram movidas e unificadas no final do arquivo para suporte a multi-tenant.
 
-        const result = await pool.query(
-            'SELECT * FROM get_dashboard_metrics($1, $2, $3)',
-            [
-                parseInt(ano),
-                mes ? parseInt(mes) : 0,
-                industria ? parseInt(industria) : 0
-            ]
-        );
-
-        res.json({
-            success: true,
-            data: result.rows[0] || {
-                total_vendido_current: 0,
-                vendas_percent_change: 0,
-                quantidade_vendida_current: 0,
-                quantidade_percent_change: 0,
-                clientes_atendidos_current: 0,
-                clientes_percent_change: 0,
-                total_pedidos_current: 0,
-                pedidos_percent_change: 0
-            }
-        });
-    } catch (error) {
-        console.error('❌ [DASHBOARD] Error:', error);
-        res.json({ success: true, data: { total_vendido_current: 0 } });
-    }
-});
-
-app.get('/api/dashboard/industry-revenue', async (req, res) => {
-    try {
-        const { ano, mes } = req.query;
-        let query = `
-            SELECT i.for_nomered as industria_nome, SUM(p.ped_totliq) as total_faturamento
-            FROM pedidos p
-            JOIN fornecedores i ON i.for_codigo = p.ped_industria
-            WHERE EXTRACT(YEAR FROM p.ped_data) = $1
-              AND p.ped_situacao <> 'C'
-        `;
-        const params = [parseInt(ano)];
-        if (mes) {
-            query += ' AND EXTRACT(MONTH FROM p.ped_data) = $2 ';
-            params.push(parseInt(mes));
-        }
-        query += ' GROUP BY i.for_nomered ORDER BY total_faturamento DESC LIMIT 20';
-        const result = await pool.query(query, params);
-        res.json({ success: true, data: result.rows || [] });
-    } catch (error) {
-        console.error('❌ [INDUSTRY] Error:', error);
-        res.json({ success: true, data: [] });
-    }
-});
-
-app.get('/api/dashboard/top-clients', async (req, res) => {
-    try {
-        const { ano, mes, limit = 15 } = req.query;
-        let query = `
-            SELECT 
-                c.cli_codigo as cliente_codigo,
-                COALESCE(NULLIF(c.cli_nomred, ''), c.cli_nome) as cliente_nome,
-                SUM(p.ped_totliq) as total_vendido,
-                COUNT(DISTINCT p.ped_pedido) as quantidade_pedidos
-            FROM pedidos p
-            JOIN clientes c ON c.cli_codigo = p.ped_cliente
-            WHERE EXTRACT(YEAR FROM p.ped_data) = $1
-              AND p.ped_situacao <> 'C'
-        `;
-        const params = [parseInt(ano)];
-        let pIndex = 2;
-        if (mes) {
-            query += ` AND EXTRACT(MONTH FROM p.ped_data) = $${pIndex} `;
-            params.push(parseInt(mes));
-            pIndex++;
-        }
-        query += ` GROUP BY c.cli_codigo, c.cli_nomred, c.cli_nome ORDER BY total_vendido DESC LIMIT $${pIndex}`;
-        params.push(parseInt(limit));
-
-        const result = await pool.query(query, params);
-        res.json({ success: true, data: result.rows || [] });
-    } catch (error) {
-        console.error('❌ [TOP-CLIENTS] Error:', error);
-        res.json({ success: true, data: [] });
-    }
-});
-
-
-// 4. Comparativo de Vendas (Gráfico)
-app.get('/api/dashboard/sales-comparison', async (req, res) => {
-    try {
-        const { anoAtual, anoAnterior } = req.query;
-        const result = await pool.query(
-            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2)',
-            [anoAtual || 2025, anoAnterior || 2024]
-        );
-        res.json({ success: true, data: result.rows || [] });
-    } catch (error) {
-        console.error('❌ [SALES-COMP] Error:', error);
-        res.json({ success: true, data: [] });
-    }
-});
-
-// 5. Comparativo de Quantidades (Gráfico)
-app.get('/api/dashboard/quantities-comparison', async (req, res) => {
-    try {
-        const { anoAtual, anoAnterior } = req.query;
-        const result = await pool.query(
-            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2)',
-            [anoAtual || 2025, anoAnterior || 2024]
-        );
-        res.json({ success: true, data: result.rows || [] });
-    } catch (error) {
-        console.error('❌ [QTY-COMP] Error:', error);
-        res.json({ success: true, data: [] });
-    }
-});
-
-// 6. Performance de Vendedores (Tabela)
-app.get('/api/dashboard/sales-performance', async (req, res) => {
-    try {
-        const { ano, mes } = req.query;
-        const result = await pool.query(
-            'SELECT * FROM get_sales_performance($1, $2)',
-            [parseInt(ano), mes ? parseInt(mes) : null]
-        );
-        res.json({ success: true, data: result.rows || [] });
-    } catch (error) {
-        console.error('❌ [PERFORMANCE] Error:', error);
-        res.json({ success: true, data: [] });
-    }
-});
 
 
 
@@ -543,9 +413,9 @@ if (isProduction || frontendExists) {
     app.use(express.static(frontendPath));
 
     // Fallback Universal para SPA (React) - Regex compatível com Express 5+ / path-to-regexp moderno
-    app.get(/^\/(?!api|app|images|bi-api).*$/, (req, res, next) => {
-        // Ignorar rotas de API e App Mobile
-        if (req.path.startsWith('/api') || req.path.startsWith('/app') || req.path.startsWith('/images') || req.path.startsWith('/bi-api')) {
+    app.get(/^\/(?!api|app|images|bi-api|instance).*$/, (req, res, next) => {
+        // Ignorar rotas de API, App Mobile e Evolution API
+        if (req.path.startsWith('/api') || req.path.startsWith('/app') || req.path.startsWith('/images') || req.path.startsWith('/bi-api') || req.path.startsWith('/instance')) {
             return next();
         }
 
@@ -694,7 +564,7 @@ app.get('/api/v2/discount-groups', async (req, res) => {
                 gde_desc8,
                 gde_desc9
             FROM grupo_desc
-            ORDER BY NULLIF(gid, '')::integer
+            ORDER BY gde_id
         `;
 
         const result = await pool.query(query);
@@ -2506,180 +2376,275 @@ app.post('/api/config/company/upload-logo', uploadLogo.single('logo'), (req, res
 // GET /api/dashboard/sales-comparison - Comparação de vendas mensais
 app.get('/api/dashboard/sales-comparison', async (req, res) => {
     try {
-        const { anoAtual, anoAnterior } = req.query;
+        const { anoAtual, anoAnterior, for_codigo } = req.query;
+        const dbPool = req.db || pool;
 
-        console.log(`📊 [DASHBOARD] Buscando comparação de vendas: ${anoAtual || 2025} vs ${anoAnterior || 2024}`);
+        console.log(`📊 [DASHBOARD] Buscando comparação de vendas: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
 
-        const result = await pool.query(
-            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2)',
-            [anoAtual || 2025, anoAnterior || 2024]
+        const result = await dbPool.query(
+            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2, $3)',
+            [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null]
         );
-
-        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} meses`);
 
         res.json({
             success: true,
-            data: result.rows
+            data: result.rows.map(row => ({
+                mes: row.mes,
+                mes_nome: row.mes_nome,
+                vendas_ano_atual: Number(row.vendas_ano_atual || 0),
+                vendas_ano_anterior: Number(row.vendas_ano_anterior || 0)
+            }))
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Erro ao buscar comparação:', error);
-        if (error.code === '42883') { // Undefined function
-            console.warn('⚠️ Função fn_comparacao_vendas_mensais não existe. Retornando dados vazios.');
-            return res.json({ success: true, data: [] });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar comparação de vendas: ${error.message}`
-        });
+        res.json({ success: true, data: [] });
     }
 });
 
 // GET /api/dashboard/quantities-comparison - Comparação de quantidades mensais
 app.get('/api/dashboard/quantities-comparison', async (req, res) => {
     try {
-        const { anoAtual, anoAnterior } = req.query;
+        const { anoAtual, anoAnterior, for_codigo } = req.query;
+        const dbPool = req.db || pool;
 
-        console.log(`📊 [DASHBOARD] Buscando comparação de quantidades: ${anoAtual || 2025} vs ${anoAnterior || 2024}`);
+        console.log(`📊 [DASHBOARD] Buscando comparação de quantidades: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
 
-        const result = await pool.query(
-            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2)',
-            [anoAtual || 2025, anoAnterior || 2024]
+        const result = await dbPool.query(
+            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2, $3)',
+            [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null]
         );
 
-        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} meses`);
+        console.log(`📊 [DASHBOARD] Resultado quantidades: ${result.rows.length} meses. Jan: ${result.rows[0]?.quantidade_ano_atual}`);
 
         res.json({
             success: true,
-            data: result.rows
+            data: result.rows.map(row => ({
+                mes: row.mes,
+                mes_nome: row.mes_nome,
+                quantidade_ano_atual: Number(row.quantidade_ano_atual || 0),
+                quantidade_ano_anterior: Number(row.quantidade_ano_anterior || 0)
+            }))
         });
     } catch (error) {
         console.error('❌ [DASHBOARD] Erro ao buscar comparação de quantidades:', error);
-        if (error.code === '42883') {
-            console.warn('⚠️ Função fn_comparacao_quantidades_mensais não existe. Retornando dados vazios.');
-            return res.json({ success: true, data: [] });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar comparação de quantidades: ${error.message}`
-        });
+        res.json({ success: true, data: [] });
     }
 });
 
-// GET /api/dashboard/top-clients - Top 10 clientes por vendas
+// GET /api/dashboard/top-clients - Top N clientes por vendas
 app.get('/api/dashboard/top-clients', async (req, res) => {
     try {
-        const { ano, mes, limit = 10 } = req.query;
+        const { ano, mes, limit = 10, for_codigo } = req.query;
+        const dbPool = req.db || pool;
 
-        if (!ano) {
-            return res.status(400).json({
-                success: false,
-                message: 'Parâmetro "ano" é obrigatório'
-            });
-        }
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Buscando top ${limit} clientes: ano=${ano}, mes=${mes || 'todos'}`);
+        console.log(`📊 [DASHBOARD] Top ${limit} clientes: ano=${ano}, mes=${mes || 0} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
 
-        const result = await pool.query(
-            'SELECT * FROM get_top_clients($1, $2, $3)',
-            [parseInt(ano), mes ? parseInt(mes) : null, parseInt(limit)]
+        const result = await dbPool.query(
+            'SELECT * FROM get_top_clients($1, $2, $3, $4)',
+            [parseInt(ano), mes ? parseInt(mes) : 0, parseInt(limit), for_codigo ? parseInt(for_codigo) : null]
         );
-
-        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} clientes`);
 
         res.json({
             success: true,
-            data: result.rows
+            data: result.rows.map(row => ({
+                cliente_codigo: row.cliente_codigo,
+                cliente_nome: row.cliente_nome,
+                total_vendido: Number(row.total_vendido || 0),
+                quantidade_pedidos: Number(row.quantidade_pedidos || 0)
+            }))
         });
     } catch (error) {
-        console.error('❌ [DASHBOARD] Error fetching top clients:', error);
-        if (error.code === '42883') {
-            return res.json({ success: true, data: [] });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar top clientes: ${error.message}`
-        });
+        console.error('❌ [DASHBOARD] Top clients error:', error);
+        res.json({ success: true, data: [] });
     }
 });
 
 // GET /api/dashboard/industry-revenue - Faturamento por indústria
 app.get('/api/dashboard/industry-revenue', async (req, res) => {
     try {
-        const { ano, mes } = req.query;
+        const { ano, mes, for_codigo } = req.query;
+        const dbPool = req.db || pool;
 
-        if (!ano) {
-            return res.status(400).json({
-                success: false,
-                message: 'Parâmetro "ano" é obrigatório'
-            });
-        }
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Buscando faturamento por indústria: ano=${ano}, mes=${mes || 'todos'}`);
+        console.log(`📊 [DASHBOARD] Buscando faturamento por indústria: ano=${ano} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
 
-        const result = await pool.query(
-            'SELECT * FROM get_industry_revenue($1, $2)',
-            [parseInt(ano), mes ? parseInt(mes) : null]
+        const result = await dbPool.query(
+            'SELECT * FROM get_industry_revenue($1, $2, $3)',
+            [parseInt(ano), mes ? parseInt(mes) : null, for_codigo ? parseInt(for_codigo) : null]
         );
 
-        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} indústrias`);
+        res.json({
+            success: true,
+            data: result.rows.sort((a, b) => parseFloat(b.total_faturamento) - parseFloat(a.total_faturamento))
+        });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching industry revenue:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+// GET /api/dashboard/industries-list - Lista de fornecedores/indústrias via tabela fornecedores
+app.get('/api/dashboard/industries-list', async (req, res) => {
+    try {
+        const dbPool = req.db || pool;
+        const query = `
+            SELECT DISTINCT f.for_codigo, f.for_nomered 
+            FROM fornecedores f
+            INNER JOIN cad_prod p ON p.pro_industria = f.for_codigo
+            WHERE f.for_nomered IS NOT NULL 
+              AND f.for_tipo2 = 'A'
+            ORDER BY f.for_nomered
+        `;
+        const result = await dbPool.query(query);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Error fetching industries list:', error);
+        res.json({ success: false, data: [] });
+    }
+});
+
+// GET /api/dashboard/industry-product-performance - Desempenho de produtos por fornecedor
+app.get('/api/dashboard/industry-product-performance', async (req, res) => {
+    try {
+        const { ano, mes, for_codigo } = req.query;
+        const dbPool = req.db || pool;
+
+        const industryId = for_codigo && for_codigo !== '' ? parseInt(for_codigo) : null;
+        const targetYear = parseInt(ano);
+        const targetMonth = (mes && parseInt(mes) !== 0) ? parseInt(mes) : null;
+
+        try {
+            const schemaCheck = await dbPool.query('SHOW search_path');
+            console.log(`🔍 [MIX] Industria: ${industryId || 'TODAS'} | Ano: ${targetYear} | Mes: ${targetMonth || 'ANUAL'} | Path: ${schemaCheck.rows[0].search_path}`);
+        } catch (e) {
+            console.log(`🔍 [MIX] Erro ao checar path: ${e.message}`);
+        }
+
+        const query = `
+            WITH industry_stats AS (
+                SELECT COUNT(DISTINCT pro_id) as total_skus_portfolio
+                FROM cad_prod
+                WHERE ($1::integer IS NULL OR pro_industria = $1::integer)
+            ),
+            client_sales AS (
+                SELECT 
+                    c.cli_nomred,
+                    COALESCE(SUM(i.ite_quant), 0) as total_quantidade,
+                    COUNT(DISTINCT i.ite_idproduto) as skus_comprados
+                FROM itens_ped i
+                INNER JOIN pedidos ped ON ped.ped_pedido = i.ite_pedido
+                INNER JOIN cad_prod p ON p.pro_id = i.ite_idproduto
+                INNER JOIN clientes c ON c.cli_codigo = ped.ped_cliente
+                WHERE ($1::integer IS NULL OR p.pro_industria = $1::integer)
+                  AND EXTRACT(YEAR FROM ped.ped_data) = $2
+                  AND ($3::integer IS NULL OR EXTRACT(MONTH FROM ped.ped_data) = $3::integer)
+                GROUP BY c.cli_codigo, c.cli_nomred
+            )
+            SELECT 
+                s.cli_nomred,
+                s.total_quantidade,
+                s.skus_comprados,
+                CASE 
+                    WHEN t.total_skus_portfolio > s.skus_comprados THEN (t.total_skus_portfolio - s.skus_comprados)
+                    ELSE 0 
+                END as gap_portfolio,
+                t.total_skus_portfolio,
+                CASE 
+                    WHEN t.total_skus_portfolio > 0 THEN (CAST(s.skus_comprados AS FLOAT) / t.total_skus_portfolio) * 100 
+                    ELSE 0 
+                END as percentual_mix
+            FROM client_sales s
+            CROSS JOIN industry_stats t
+            ORDER BY s.skus_comprados DESC
+            LIMIT 100
+        `;
+
+        const result = await dbPool.query(query, [industryId, targetYear, targetMonth]);
+
+        console.log(`✅ [MIX] Industria: ${industryId} | Ano: ${targetYear} | Mes: ${targetMonth} | Encontrados: ${result.rows.length} clientes`);
 
         res.json({
             success: true,
             data: result.rows
         });
     } catch (error) {
-        console.error('❌ [DASHBOARD] Error fetching industry revenue:', error);
-        if (error.code === '42883') {
-            return res.json({ success: true, data: [] });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar faturamento por indústria: ${error.message}`
-        });
+        console.error('❌ [DASHBOARD] Error fetching industry product performance:', error);
+        res.json({ success: false, data: [], error: error.message });
     }
 });
 
 // GET - Sales Performance by Seller
 app.get('/api/dashboard/sales-performance', async (req, res) => {
     try {
-        const { ano, mes } = req.query;
+        const { ano, mes, for_codigo } = req.query;
+        const dbPool = req.db || pool;
 
-        if (!ano) {
-            return res.status(400).json({
-                success: false,
-                message: 'Parâmetro "ano" é obrigatório'
-            });
-        }
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Buscando performance de vendedores: ano=${ano}, mes=${mes || 'todos'}`);
+        console.log(`📊 [DASHBOARD] Sales Performance: ano=${ano}, mes=${mes || 0} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
 
-        const result = await pool.query(
-            'SELECT * FROM get_sales_performance($1, $2)',
-            [parseInt(ano), mes ? parseInt(mes) : null]
+        const result = await dbPool.query(
+            'SELECT * FROM get_sales_performance_v2($1, $2, $3)',
+            [parseInt(ano), mes ? parseInt(mes) : 0, for_codigo ? parseInt(for_codigo) : null]
         );
 
-        console.log(`📊 [DASHBOARD] Retornou ${result.rows.length} vendedores`);
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('❌ [DASHBOARD] Sales performance error:', error);
+        res.json({ success: true, data: [] });
+    }
+});
+
+// GET /api/dashboard/metas-industrias - Status e tabela de metas por indústria (Node.js, sem Python)
+app.get('/api/dashboard/metas-industrias', async (req, res) => {
+    try {
+        const { ano, mes, for_codigo } = req.query;
+        const dbPool = req.db || pool;
+
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
+
+        const anoInt = parseInt(ano);
+        const today = new Date();
+        const mesAte = mes ? parseInt(mes) : (anoInt === today.getFullYear() ? today.getMonth() + 1 : 12);
+        const industriaId = for_codigo ? parseInt(for_codigo) : null;
+
+        // Log detalhado para identificar divergências
+        console.log(`[DEBUG METAS] Tenant: ${req.headers['x-tenant'] || 'public'} | Ano: ${anoInt} | MesAte: ${mesAte} | ForCodigo: ${industriaId}`);
+
+        // Status resumido por indústria
+        const statusResult = await dbPool.query(
+            'SELECT * FROM fn_metas_status_industrias($1, $2, $3)',
+            [anoInt, mesAte, industriaId]
+        );
+
+        // Tabela pivotada mês a mês por indústria
+        const porMesResult = await dbPool.query(
+            'SELECT * FROM fn_metas_por_mes($1, $2)',
+            [anoInt, industriaId]
+        );
 
         res.json({
             success: true,
-            data: result.rows
+            data: {
+                status: statusResult.rows,
+                por_mes: porMesResult.rows,
+                mes_ate: mesAte,
+                ano: anoInt
+            }
         });
     } catch (error) {
-        console.error('❌ [DASHBOARD] Error fetching sales performance:', error);
-        if (error.code === '42883') {
-            return res.json({ success: true, data: [] });
-        }
-        res.status(500).json({
-            success: false,
-            message: `Erro ao buscar performance de vendedores: ${error.message}`
-        });
+        console.error('❌ [METAS] Erro ao buscar metas:', error.message);
+        res.status(500).json({ success: false, message: error.message, data: { status: [], por_mes: [] } });
     }
 });
 
 // GET /api/dashboard/metrics - General dashboard metrics (total sales, quantity, clients, orders)
 app.get('/api/dashboard/metrics', async (req, res) => {
     try {
-        const { ano, mes } = req.query;
+        const { ano, mes, for_codigo } = req.query;
 
         if (!ano) {
             return res.status(400).json({
@@ -2688,15 +2653,18 @@ app.get('/api/dashboard/metrics', async (req, res) => {
             });
         }
 
-        console.log(`📊 [DASHBOARD] Buscando métricas gerais: ano=${ano}, mes=${mes || 'todos'}`);
+        const dbPool = req.db || pool;
 
-        const result = await pool.query(
-            'SELECT * FROM get_dashboard_metrics($1, $2)',
-            [parseInt(ano), mes ? parseInt(mes) : 0]
+        const result = await dbPool.query(
+            'SELECT * FROM get_dashboard_metrics_v2($1, $2, $3)',
+            [
+                parseInt(ano),
+                mes ? parseInt(mes) : 0,
+                for_codigo ? parseInt(for_codigo) : null
+            ]
         );
 
         if (!result.rows || result.rows.length === 0) {
-            console.log('⚠️ [DASHBOARD] Nenhum dado retornado pela função SQL');
             return res.json({
                 success: true,
                 data: {
@@ -2712,31 +2680,20 @@ app.get('/api/dashboard/metrics', async (req, res) => {
             });
         }
 
-        console.log(`📊 [DASHBOARD] Métricas retornadas com sucesso`);
-
         res.json({
             success: true,
             data: result.rows[0]
         });
     } catch (error) {
-        console.error('❌ [DASHBOARD] Error fetching dashboard metrics:', error);
-
-        // Retorna objeto zerado padronizado em caso de erro para não quebrar o layout
-        res.json({
-            success: true,
-            data: {
-                total_vendido_current: 0,
-                vendas_percent_change: 0,
-                quantidade_vendida_current: 0,
-                quantidade_percent_change: 0,
-                clientes_atendidos_current: 0,
-                clientes_percent_change: 0,
-                total_pedidos_current: 0,
-                pedidos_percent_change: 0
-            }
+        console.error('❌ [DASHBOARD ERROR]:', error.message);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+            data: { total_vendido_current: 0 }
         });
     }
 });
+
 
 
 // (Redundant products registration removed to avoid route hijacking)
@@ -5181,6 +5138,8 @@ app.get('/api/orders/industries', async (req, res) => {
             SELECT 
                 f.for_codigo, 
                 f.for_nomered,
+                f.for_des1, f.for_des2, f.for_des3, f.for_des4, f.for_des5,
+                f.for_des6, f.for_des7, f.for_des8, f.for_des9, f.for_des10,
                 (SELECT COUNT(*) FROM pedidos p WHERE p.ped_industria = f.for_codigo) as total_pedidos
             FROM fornecedores f
             WHERE f.for_nomered IS NOT NULL
@@ -5196,7 +5155,7 @@ app.get('/api/orders/industries', async (req, res) => {
 
         // Fallback: tenta sem o filtro for_tipo2 caso a coluna não exista
         try {
-            const fallbackResult = await pool.query('SELECT for_codigo, for_nomered, 0 as total_pedidos FROM fornecedores WHERE for_nomered IS NOT NULL ORDER BY for_nomered LIMIT 200');
+            const fallbackResult = await pool.query('SELECT for_codigo, for_nomered, for_des1, for_des2, for_des3, for_des4, for_des5, for_des6, for_des7, for_des8, for_des9, for_des10, 0 as total_pedidos FROM fornecedores WHERE for_nomered IS NOT NULL ORDER BY for_nomered LIMIT 200');
             return res.json({ success: true, data: fallbackResult.rows });
         } catch (fError) {
             res.status(500).json({
@@ -5263,8 +5222,8 @@ app.get('/api/orders', async (req, res) => {
                 t.tra_nome,
                 (SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido) as ped_total_quant
             FROM pedidos p
-            INNER JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            INNER JOIN fornecedores f ON p.ped_industria = f.for_codigo
+            LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
+            LEFT JOIN fornecedores f ON p.ped_industria = f.for_codigo
             LEFT JOIN vendedores v ON p.ped_vendedor = v.ven_codigo
             LEFT JOIN transportadora t ON p.ped_transp = t.tra_codigo
             WHERE 1 = 1
@@ -5357,6 +5316,25 @@ app.get('/api/orders/stats', async (req, res) => {
         if (industria && industria !== 'all' && industria !== 'false' && !isNaN(parseInt(industria))) {
             industryId = parseInt(industria);
         }
+
+        const query = `
+            SELECT 
+                COALESCE(SUM(ped_totliq), 0) as total_vendido,
+                (SELECT COALESCE(SUM(i.ite_quant), 0) 
+                 FROM itens_ped i 
+                 JOIN pedidos p2 ON i.ite_pedido = p2.ped_pedido 
+                 WHERE ($1::timestamp IS NULL OR p2.ped_data >= $1)
+                   AND ($2::timestamp IS NULL OR p2.ped_data <= $2)
+                   AND ($3::integer IS NULL OR p2.ped_industria = $3)
+                   AND p2.ped_situacao IN ('P', 'F', 'A')) as total_quantidade,
+                COUNT(DISTINCT ped_cliente) as total_clientes,
+                CASE WHEN COUNT(ped_pedido) > 0 THEN SUM(ped_totliq) / COUNT(ped_pedido) ELSE 0 END as ticket_medio
+            FROM pedidos
+            WHERE ($1::timestamp IS NULL OR ped_data >= $1)
+              AND ($2::timestamp IS NULL OR ped_data <= $2)
+              AND ($3::integer IS NULL OR ped_industria = $3)
+              AND ped_situacao IN ('P', 'F', 'A')
+        `;
 
         const params = [
             dataInicio || null,
