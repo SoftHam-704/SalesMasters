@@ -321,8 +321,19 @@ require('./portal_integration_endpoints')(app, pool);
 // require('./smart_ia_suggestion_endpoints')(app, pool); // Migrado para client_intelligence_endpoints.js
 
 
+app.get('/api/whoami', (req, res) => {
+    res.json({
+        success: true,
+        message: "SalesMasters Backend - Diagnostic 1.2.3",
+        cwd: process.cwd(),
+        dirname: __dirname,
+        timestamp: new Date().toISOString(),
+        node_version: process.version
+    });
+});
+
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', version: '1.2.0-clean', timestamp: new Date() });
+    res.json({ status: 'OK', version: '1.2.3-VisionFallback', timestamp: new Date() });
 });
 
 app.use('/api', (req, res, next) => {
