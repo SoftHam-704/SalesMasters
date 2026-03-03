@@ -1757,6 +1757,38 @@ app.get('/api/roteirizacao/sugestao', async (req, res) => {
 });
 
 
+// --- ROTAS DE DIAGNÓSTICO E SAÚDE ---
+app.get('/api/health', (req, res) => {
+    res.json({
+        success: true,
+        status: 'online',
+        version: '1.2.5-RobustAI',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/debug/ai', async (req, res) => {
+    const { getWorkingProvider } = require('./utils/ai_providers');
+    try {
+        const provider = await getWorkingProvider();
+        res.json({
+            success: true,
+            provider: provider.name,
+            model_used: provider.lastUsedModel || 'unknown (test passed)'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.get('/api/whoami', (req, res) => {
+    res.json({ success: true, message: 'SalesMasters API v1.2.5' });
+});
+
+
 // --- ACTIVITY AREAS (V2) ---
 
 // GET - List all activity areas

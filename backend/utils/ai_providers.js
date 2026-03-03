@@ -214,13 +214,17 @@ class GeminiProvider extends AIProvider {
      */
     async _getModel(config = {}) {
         const modelNames = [
-            "gemini-3.0-flash",        // Prioritário conforme solicitado
-            "gemini-3.1-pro",          // Fallback potente
-            "gemini-2.0-flash",
-            "gemini-1.5-flash-latest"
+            "gemini-2.0-flash",        // Tentar o estável atual
+            "gemini-2.0-flash-exp",    // Tentar experimental
+            "gemini-1.5-flash-latest", // Tentar o estável dinâmico
+            "gemini-1.5-flash",        // Tentar o estável fixo
+            "gemini-1.5-pro",          // Último recurso estável
+            "gemini-3.0-flash",        // Nomes futuros (conforme print do user)
+            "gemini-3.1-pro"           // Nomes futuros (conforme print do user)
         ];
 
         let lastError = null;
+        console.info(`🔍 [Gemini] Iniciando descoberta de modelos...`);
 
         for (const modelName of modelNames) {
             try {
@@ -229,10 +233,12 @@ class GeminiProvider extends AIProvider {
                     ...config
                 });
 
-                // Fazemos uma chamada leve de teste se necessário, mas aqui apenas retornamos
-                // O erro de 404 geralmente acontece no generateContent
+                // O erro de 404 geralmente acontece no generateContent, 
+                // então retornamos o modelo para tentativa de uso real.
+                this.lastUsedModel = modelName;
                 return { model, name: modelName };
             } catch (e) {
+                console.warn(`⚠️ [Gemini] Tentativa com ${modelName} falhou: ${e.message}`);
                 lastError = e;
                 continue;
             }
@@ -258,11 +264,18 @@ class GeminiProvider extends AIProvider {
         const prompt = `${EXTRACTION_PROMPT}\n\nDados da Planilha:\n${dataString}`;
 
         // Tentativa com retry automático trocando o modelo se der 404 ou 429
-        const modelNames = ["gemini-3.0-flash", "gemini-3.1-pro", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+        const modelNames = [
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-exp",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash",
+            "gemini-3.0-flash",
+            "gemini-3.1-pro"
+        ];
 
         for (const modelName of modelNames) {
             try {
-                console.log(`🤖 [Gemini] Tentando processar com ${modelName}...`);
+                console.info(`🤖 [Gemini] Tentando processar dados com ${modelName}...`);
                 const model = this.genAI.getGenerativeModel({
                     model: modelName,
                     generationConfig: { responseMimeType: "application/json" }
@@ -270,11 +283,12 @@ class GeminiProvider extends AIProvider {
                 const result = await this.withTimeout(model.generateContent(prompt));
                 const response = await result.response;
                 const text = response.text();
+                this.lastUsedModel = modelName;
                 return this.normalizeResponse(this.parseJSONResponse(text));
             } catch (error) {
                 const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
                 if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
-                    console.warn(`⚠️ [Gemini] Modelo ${modelName} falhou (${error.message}). Tentando próximo...`);
+                    console.warn(`⚠️ [Gemini] Modelo ${modelName} falhou: ${error.message}. Tentando próximo...`);
                     continue;
                 }
                 throw error;
@@ -296,11 +310,18 @@ class GeminiProvider extends AIProvider {
             EXTRACTION_PROMPT
         ];
 
-        const modelNames = ["gemini-3.0-flash", "gemini-3.1-pro", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+        const modelNames = [
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-exp",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash",
+            "gemini-3.0-flash",
+            "gemini-3.1-pro"
+        ];
 
         for (const modelName of modelNames) {
             try {
-                console.log(`🤖 [Gemini Vision] Tentando com ${modelName}...`);
+                console.info(`🤖 [Gemini Vision] Tentando com ${modelName}...`);
                 const model = this.genAI.getGenerativeModel({
                     model: modelName,
                     generationConfig: { responseMimeType: "application/json" }
@@ -308,11 +329,12 @@ class GeminiProvider extends AIProvider {
                 const result = await this.withTimeout(model.generateContent(content));
                 const response = await result.response;
                 const text = response.text();
+                this.lastUsedModel = modelName;
                 return this.normalizeResponse(this.parseJSONResponse(text));
             } catch (error) {
                 const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
                 if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
-                    console.warn(`⚠️ [Gemini Vision] Modelo ${modelName} falhou. Tentando próximo...`);
+                    console.warn(`⚠️ [Gemini Vision] Modelo ${modelName} falhou: ${error.message}. Tentando próximo...`);
                     continue;
                 }
                 throw error;
