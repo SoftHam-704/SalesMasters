@@ -16,28 +16,47 @@ let cachedProvider = null;
 
 /**
  * Prompt padrão para extração de dados de pedidos
+ * Evoluído para suportar Modelos de Projeto (Engenharia/Bertollini)
  */
 const EXTRACTION_PROMPT = `
-Analise os dados de uma planilha, imagem ou texto extraído de PDF de um pedido.
-Identifique TODOS os itens listados, extraindo CÓDIGO, DESCRIÇÃO, QUANTIDADE e PREÇO UNITÁRIO.
+Analise os dados de uma planilha, imagem ou texto extraído de PDF de um pedido ou proposta técnica.
+Sua missão é extrair tanto os ITENS quanto os DADOS DO CABEÇALHO (se existirem).
 
-Regras de Extração:
-1. CÓDIGO: 
-   - Se a linha tiver UM código, retorne-o normalmente.
-   - Se a linha tiver MÚLTIPLOS códigos separados por barra (/) ou outro separador (ex: "ABC-7829 / XPR-451 / 34-069 / WXY-7162"), 
-     retorne TODOS eles exatamente como aparecem, mantendo as barras: "ABC-7829 / XPR-451 / 34-069 / WXY-7162".
-     NÃO escolha apenas um código. Retorne a string completa com todos.
-2. DESCRIÇÃO: Nome do produto. Se não houver descrição, deixe em branco.
-3. QUANTIDADE: Valor numérico. Se não especificado, assuma 1.
-4. PREÇO: Valor unitário sem símbolo de moeda.
+1. EXTRAÇÃO DE ITENS (Obrigatório):
+   Identifique TODOS os itens listados, extraindo APENAS código e quantidade. IGNORE descrição e preço.
+   - CÓDIGO: Se houver múltiplos códigos (ex: "A/B"), retorne a string completa "A/B". Baseie-se no código do produto ou referência.
+   - QUANTIDADE: Valor numérico da quantidade solicitada.
 
-Regras de Limpeza:
-- Ignore linhas de cabeçalho, rodapé, totais ou dados da empresa.
-- Ignore linhas vazias.
+2. EXTRAÇÃO DE CABEÇALHO/PROJETO (Se disponível):
+   Procure por informações de briefing técnico:
+   - CLIENTE: Nome ou CNPJ da empresa.
+   - NOME DA OBRA: Título do projeto ou local.
+   - ÁREA: Metragem quadrada (m2).
+   - PÉ DIREITO: Altura (m).
+   - PISO: Tipo de piso ou carga suportada.
+   - OBSERVAÇÕES: Notas técnicas gerais.
 
-Retorne APENAS um JSON array válido, sem markdown:
-[{ "codigo": "string", "descricao": "string", "quantidade": number, "preco": number }]
+REGRAS DE RETORNO:
+Retorne APENAS um JSON válido no seguinte formato:
+{
+  "cabecalho": {
+    "cliente": "string",
+    "cnpj": "string",
+    "obra_nome": "string",
+    "area_m2": number,
+    "pe_direito": number,
+    "tipo_piso": "string",
+    "obs_tecnicas": "string"
+  },
+  "itens": [
+    { "codigo": "string", "quantidade": number }
+  ]
+}
+
+Se não encontrar dados de cabeçalho, retorne o objeto "cabecalho" vazio.
+JAMAS retorne texto fora do JSON.
 `;
+
 
 /**
  * Base class para AI Providers
@@ -132,8 +151,42 @@ class AIProvider {
     }
 
     /**
-     * Executa com timeout
+     * Normaliza a resposta para o formato { cabecalho, itens }
      */
+    normalizeResponse(parsed) {
+        if (!parsed) return { cabecalho: {}, itens: [] };
+
+        // Caso 1: Já está no formato ideal
+        if (parsed.itens && Array.isArray(parsed.itens)) {
+            return {
+                cabecalho: parsed.cabecalho || {},
+                itens: parsed.itens
+            };
+        }
+
+        // Caso 2: Retornou direto um array
+        if (Array.isArray(parsed)) {
+            return { cabecalho: {}, itens: parsed };
+        }
+
+        // Caso 3: Objeto com alguma chave de array (ex: { "data": [...] })
+        if (typeof parsed === 'object') {
+            const arrayKey = Object.keys(parsed).find(key =>
+                Array.isArray(parsed[key]) && parsed[key].length > 0
+            );
+
+            if (arrayKey) {
+                return { cabecalho: {}, itens: parsed[arrayKey] };
+            }
+
+            // Se for um objeto que parece um item, envolve em array
+            if ((parsed.codigo || parsed.descricao) && !parsed.itens) {
+                return { cabecalho: {}, itens: [parsed] };
+            }
+        }
+
+        return { cabecalho: parsed.cabecalho || {}, itens: parsed.itens || [] };
+    }
     async withTimeout(promise, timeoutMs = 120000) {
         const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error(`Timeout na resposta da IA (${timeoutMs / 1000}s)`)), timeoutMs)
@@ -175,8 +228,8 @@ class GeminiProvider extends AIProvider {
         const result = await this.withTimeout(model.generateContent(prompt));
         const response = await result.response;
         const text = response.text();
-
-        return this.parseJSONResponse(text);
+        const parsed = this.parseJSONResponse(text);
+        return this.normalizeResponse(parsed);
     }
 
     async processImage(imagePath, mimeType) {
@@ -189,11 +242,12 @@ class GeminiProvider extends AIProvider {
         const imageData = fs.readFileSync(imagePath);
         const base64Image = imageData.toString('base64');
 
+        // Gemini 2.0 Flash suporta natively application/pdf no multimodal
         const result = await this.withTimeout(model.generateContent([
             {
                 inlineData: {
                     data: base64Image,
-                    mimeType: mimeType
+                    mimeType: mimeType === 'application/pdf' ? 'application/pdf' : mimeType
                 }
             },
             EXTRACTION_PROMPT
@@ -201,7 +255,8 @@ class GeminiProvider extends AIProvider {
 
         const response = await result.response;
         const text = response.text();
-        return this.parseJSONResponse(text);
+        const parsed = this.parseJSONResponse(text);
+        return this.normalizeResponse(parsed);
     }
 }
 
@@ -241,43 +296,14 @@ class OpenAIProvider extends AIProvider {
 
         const text = completion.choices[0].message.content;
         console.log('🔍 [OpenAI] Raw response:', text.substring(0, 200) + '...');
-
         const parsed = this.parseJSONResponse(text);
-
-        // OpenAI with json_object returns an object, not array directly
-        // Extração robusta do array de itens
-        if (Array.isArray(parsed)) {
-            return parsed;
-        }
-
-        if (parsed && typeof parsed === 'object') {
-            // 1. Procura por FIELD que seja um array (ordem de probabilidade)
-            const arrayKey = Object.keys(parsed).find(key =>
-                Array.isArray(parsed[key]) && parsed[key].length > 0
-            ) || Object.keys(parsed).find(key => Array.isArray(parsed[key]));
-
-            if (arrayKey) {
-                console.log(`🔍 [OpenAI] Array extraído da chave: ${arrayKey}`);
-                return parsed[arrayKey];
-            }
-
-            // 2. Se o objeto em si parece ser UM item (tem código e descrição), retorna como array de 1
-            if ((parsed.codigo || parsed.id) && (parsed.descricao || parsed.nome)) {
-                console.log('🔍 [OpenAI] Objeto único detectado como item.');
-                return [parsed];
-            }
-
-            // 3. Verifica se há mensagem de erro explicativa da IA
-            if (parsed.erro || parsed.mensagem || parsed.reason) {
-                throw new Error(parsed.erro || parsed.mensagem || parsed.reason);
-            }
-        }
-
-        console.error('❌ [OpenAI] Estrutura inválida retornada:', JSON.stringify(parsed));
-        throw new Error('A IA retornou um formato inesperado. Tente novamente ou verifique se a imagem está legível.');
+        return this.normalizeResponse(parsed);
     }
 
     async processImage(imagePath, mimeType) {
+        if (mimeType === 'application/pdf') {
+            throw new Error('OpenAI Vision não suporta PDF diretamente via API de Chat. Por favor, use Gemini ou converta para imagem.');
+        }
         const fs = require('fs');
         const imageData = fs.readFileSync(imagePath);
         const base64Image = imageData.toString('base64');
@@ -303,36 +329,8 @@ class OpenAIProvider extends AIProvider {
 
         const text = completion.choices[0].message.content;
         console.log('🔍 [OpenAI Image] Raw response:', text.substring(0, 200) + '...');
-
         const parsed = this.parseJSONResponse(text);
-
-        // Extração robusta do array de itens do objeto retornado
-        if (Array.isArray(parsed)) {
-            return parsed;
-        }
-
-        if (parsed && typeof parsed === 'object') {
-            const arrayKey = Object.keys(parsed).find(key =>
-                Array.isArray(parsed[key]) && parsed[key].length > 0
-            ) || Object.keys(parsed).find(key => Array.isArray(parsed[key]));
-
-            if (arrayKey) {
-                console.log(`🔍 [OpenAI Image] Array extraído da chave: ${arrayKey}`);
-                return parsed[arrayKey];
-            }
-
-            if ((parsed.codigo || parsed.id) && (parsed.descricao || parsed.nome)) {
-                console.log('🔍 [OpenAI Image] Objeto único detectado como item.');
-                return [parsed];
-            }
-
-            if (parsed.erro || parsed.mensagem || parsed.reason) {
-                throw new Error(parsed.erro || parsed.mensagem || parsed.reason);
-            }
-        }
-
-        console.error('❌ [OpenAI Image] Estrutura inválida retornada:', JSON.stringify(parsed));
-        throw new Error('A IA não conseguiu identificar itens nesta imagem. Tente uma foto mais nítida.');
+        return this.normalizeResponse(parsed);
     }
 }
 
@@ -371,7 +369,8 @@ class ClaudeProvider extends AIProvider {
         });
 
         const text = message.content[0].text;
-        return this.parseJSONResponse(text);
+        const parsed = this.parseJSONResponse(text);
+        return this.normalizeResponse(parsed);
     }
 
     async processImage(imagePath, mimeType) {
@@ -409,7 +408,8 @@ class ClaudeProvider extends AIProvider {
         });
 
         const text = message.content[0].text;
-        return this.parseJSONResponse(text);
+        const parsed = this.parseJSONResponse(text);
+        return this.normalizeResponse(parsed);
     }
 }
 

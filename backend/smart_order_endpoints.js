@@ -49,7 +49,7 @@ module.exports = function (app, pool) {
                 throw new Error(`Nenhum provider de IA disponível. Verifique configuração de API keys: ${error.message}`);
             }
 
-            let extractedItems = [];
+            let extractedData = { cabecalho: {}, itens: [] };
 
             console.log(`🤖 [IA ORDER] ${aiProvider.name} extraction START...`);
             if (fileExt === '.xlsx' || fileExt === '.xls') {
@@ -68,7 +68,16 @@ module.exports = function (app, pool) {
 
                 // Process with AI provider
                 console.log(`🤖 [IA ORDER] Sending Excel data to ${aiProvider.name}...`);
-                extractedItems = await aiProvider.processExcel(dataString);
+                extractedData = await aiProvider.processExcel(dataString);
+
+            } else if (fileExt === '.csv') {
+                // CSV: Read as UTF-8 string directly
+                const dataString = fs.readFileSync(filePath, 'utf8');
+                console.log(`📊 [IA DEBUG] CSV extracted. Preview:\n${dataString.substring(0, 200)}...`);
+
+                // Process with AI provider using the text endpoint
+                console.log(`🤖 [IA ORDER] Sending CSV data to ${aiProvider.name}...`);
+                extractedData = await aiProvider.processExcel(dataString);
 
             } else if (['.png', '.jpg', '.jpeg', '.webp', '.pdf'].includes(fileExt)) {
                 if (fileExt === '.pdf') {
@@ -80,25 +89,37 @@ module.exports = function (app, pool) {
 
                         if (pdfData.text && pdfData.text.trim().length > 10) {
                             console.log(`🤖 [IA ORDER] PDF text extracted (${pdfData.text.length} chars). Sending to ${aiProvider.name}...`);
-                            extractedItems = await aiProvider.processExcel(pdfData.text); // processExcel accepts generic text
+                            extractedData = await aiProvider.processExcel(pdfData.text); // processExcel accepts generic text
                         } else {
                             throw new Error("PDF sem texto extraível (pode ser uma imagem).");
                         }
                     } catch (pdfError) {
                         console.warn(`⚠️ [IA ORDER] PDF text extraction failed: ${pdfError.message}. Falling back to Vision.`);
-                        // Fallback: Send to processImage (Gemini supports PDF natively)
-                        extractedItems = await aiProvider.processImage(filePath, mimeType);
+
+                        // FALLBACK: Se falhar o parse do texto, tenta processar como IMAGEM (Vision)
+                        // Gemini 2.0 suporta PDF no multimodal.
+                        try {
+                            console.log(`🤖 [IA ORDER] Attempting Vision fallback for PDF...`);
+                            extractedData = await aiProvider.processImage(filePath, 'application/pdf');
+                        } catch (visionError) {
+                            console.error(`❌ [IA ORDER] Vision fallback also failed:`, visionError.message);
+                            throw new Error("O PDF parece ser escaneado (imagem) ou está bloqueado e a Visão IA falhou. Por favor, converta para uma imagem (JPG/PNG) ou digite o código.");
+                        }
                     }
                 } else {
                     // IMAGE: Process with AI vision
                     console.log(`🤖 [IA ORDER] Sending ${fileExt} to ${aiProvider.name} Vision...`);
-                    extractedItems = await aiProvider.processImage(filePath, mimeType);
+                    extractedData = await aiProvider.processImage(filePath, mimeType);
                 }
             } else {
-                throw new Error("Formato de arquivo não suportado. Use Excel (.xlsx, .xls), Imagem (.png, .jpg, .jpeg, .webp) ou PDF (.pdf)");
+                throw new Error("Formato de arquivo não suportado. Use Excel/CSV (.xlsx, .xls, .csv), Imagem (.png, .jpg, .jpeg, .webp) ou PDF (.pdf)");
             }
 
-            console.log(`🤖 [IA ORDER] ${aiProvider.name} extraction DONE. Items found: ${extractedItems?.length || 0}`);
+            // Normalize extractedData items to array (sanity check)
+            const itemsToProcess = Array.isArray(extractedData.itens) ? extractedData.itens : (Array.isArray(extractedData) ? extractedData : []);
+            const cabecalho = extractedData.cabecalho || {};
+
+            console.log(`🤖 [IA ORDER] ${aiProvider.name} extraction DONE. Items found: ${itemsToProcess.length}`);
 
             // Clean up file
             try {
@@ -106,7 +127,7 @@ module.exports = function (app, pool) {
             } catch (err) { console.error('Error deleting temp file:', err); }
 
             // Post-process items: Keep separators (/, |) for frontend to split and test each code
-            const processedItems = extractedItems.map(item => {
+            const processedItems = itemsToProcess.map(item => {
                 // Preserve slashes, pipes, spaces for splitting - only uppercase
                 const preserveForSplit = (str) => String(str || '').toUpperCase();
 
@@ -115,13 +136,15 @@ module.exports = function (app, pool) {
                     originalCode: item.codigo,
                     quantidade: parseFloat(item.quantidade) || 1,
                     descricao: item.descricao || 'Item importado via IA',
+                    preco: parseFloat(item.preco) || 0
                 };
             });
 
             res.json({
                 success: true,
                 message: `Arquivo processado! ${processedItems.length} itens sugeridos.`,
-                data: processedItems
+                data: processedItems,
+                cabecalho: cabecalho
             });
 
         } catch (error) {
