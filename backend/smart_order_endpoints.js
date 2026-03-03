@@ -28,7 +28,7 @@ module.exports = function (app, pool) {
 
     app.post('/api/smart-order/upload', upload.single('file'), async (req, res) => {
         console.log('🔥 [SMART ORDER] ROUTE HIT! Request received.');
-        res.setHeader('X-SM-Version', '1.2.2-VisionFallback');
+        res.setHeader('X-SM-Version', '1.2.4-AutoGeminiFallback');
         try {
             if (!req.file) {
                 console.error('❌ [IA ORDER] No file in request');
@@ -86,7 +86,15 @@ module.exports = function (app, pool) {
                     try {
                         const pdfParse = require('pdf-parse');
                         const dataBuffer = fs.readFileSync(filePath);
-                        const pdfData = await pdfParse(dataBuffer);
+
+                        // Sanity check: pdf-parse sometimes exports differently based on environment
+                        const parseFn = typeof pdfParse === 'function' ? pdfParse : (pdfParse.default || pdfParse);
+
+                        if (typeof parseFn !== 'function') {
+                            throw new Error("Biblioteca pdf-parse não carregada corretamente.");
+                        }
+
+                        const pdfData = await parseFn(dataBuffer);
 
                         if (pdfData.text && pdfData.text.trim().length > 10) {
                             console.log(`🤖 [IA ORDER] PDF text extracted (${pdfData.text.length} chars). Sending to ${aiProvider.name}...`);
@@ -98,13 +106,27 @@ module.exports = function (app, pool) {
                         console.warn(`⚠️ [IA ORDER] PDF text extraction failed: ${pdfError.message}. Falling back to Vision.`);
 
                         // FALLBACK: Se falhar o parse do texto, tenta processar como IMAGEM (Vision)
-                        // Gemini 2.0 suporta PDF no multimodal.
+                        // Gemini 2.0 suporta PDF no multimodal nativamente.
                         try {
                             console.log(`🤖 [IA ORDER] Attempting Vision fallback for PDF...`);
-                            extractedData = await aiProvider.processImage(filePath, 'application/pdf');
+
+                            // Se o provider atual não for Gemini, tentamos carregar Gemini apenas para este processamento
+                            // pois OpenAI/Claude não suportam PDF Vision via API de chat diretamente.
+                            let visionProvider = aiProvider;
+                            if (aiProvider.name !== 'Gemini') {
+                                try {
+                                    const { GeminiProvider } = require('./utils/ai_providers');
+                                    visionProvider = new GeminiProvider();
+                                    console.log(`✨ [IA ORDER] Switching to Gemini for PDF Vision (Multimodal).`);
+                                } catch (e) {
+                                    console.warn(`⚠️ [IA ORDER] Falha ao instanciar Gemini para Vision: ${e.message}`);
+                                }
+                            }
+
+                            extractedData = await visionProvider.processImage(filePath, 'application/pdf');
                         } catch (visionError) {
                             console.error(`❌ [IA ORDER] Vision fallback also failed:`, visionError.message);
-                            throw new Error("O PDF parece ser escaneado (imagem) ou está bloqueado e a Visão IA falhou. Por favor, converta para uma imagem (JPG/PNG) ou digite o código.");
+                            throw new Error(`O PDF parece ser escaneado ou está bloqueado e a Visão IA falhou (${visionError.message}). Por favor, use uma imagem JPG/PNG.`);
                         }
                     }
                 } else {
