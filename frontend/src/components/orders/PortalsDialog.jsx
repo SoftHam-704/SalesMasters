@@ -1,5 +1,5 @@
-import React from 'react';
-import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { X, Building2, ExternalLink, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -7,8 +7,30 @@ import { toast } from 'sonner';
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
 const PortalsDialog = ({ open, onOpenChange, orderId }) => {
+    const [activeIndustries, setActiveIndustries] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const portals = [
+    useEffect(() => {
+        const fetchIndustries = async () => {
+            if (!open) return;
+            setIsLoading(true);
+            try {
+                const response = await fetch(getApiUrl(NODE_API_URL, '/api/aux/industrias'));
+                const json = await response.json();
+                if (json.success) {
+                    const names = json.data.map(i => `${i.for_nomered || ''} ${i.for_nome || ''}`.toUpperCase());
+                    setActiveIndustries(names);
+                }
+            } catch (error) {
+                console.error('Erro ao buscar indústrias:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchIndustries();
+    }, [open]);
+
+    const allPortals = [
         "TSA", "VIEMAR",
         "BORG", "PATRAL",
         "SINALSUL", "ARCA",
@@ -17,6 +39,14 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
         "POLO", "DRIVEWAY",
         "3RHO", "IGUAÇU"
     ];
+
+    // Filtra os portais verificando se o nome do portal está contido na razão social ou nome fantasia das indústrias vinculadas ao cliente/tenant
+    const portals = allPortals.filter(portal =>
+        activeIndustries.some(ind => {
+            const normalize = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            return normalize(ind).includes(normalize(portal));
+        })
+    );
 
     const handlePortalClick = async (portal) => {
         if (portal === 'STAHL') {
@@ -171,39 +201,52 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                     </div>
 
                     {/* Grid com Design de Cards Interativos */}
-                    <div className="p-8 bg-slate-50/30">
-                        <div className="grid grid-cols-4 gap-4">
-                            {portals.map((portal, index) => (
-                                <motion.button
-                                    key={portal}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: index * 0.03 }}
-                                    whileHover={{ scale: 1.02, y: -2 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => handlePortalClick(portal)}
-                                    className="group relative flex flex-col items-center justify-center p-5 bg-white border border-slate-200 rounded-2xl hover:border-blue-400 hover:shadow-lg shadow-sm transition-all duration-300 min-h-[100px]"
-                                >
-                                    {/* Icon Container */}
-                                    <div className="mb-3 p-2.5 rounded-full bg-slate-50 group-hover:bg-blue-50 transition-colors duration-300">
-                                        <Building2 className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors duration-300" />
-                                    </div>
+                    <div className="p-8 bg-slate-50/30 min-h-[250px] flex flex-col justify-center">
+                        {isLoading ? (
+                            <div className="flex flex-col items-center justify-center p-8 text-slate-400">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                                <p className="font-bold uppercase tracking-wider text-xs">Carregando portais disponíveis...</p>
+                            </div>
+                        ) : portals.length === 0 ? (
+                            <div className="text-center p-8">
+                                <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                                <h4 className="text-lg font-bold text-slate-700">Nenhum portal compatível</h4>
+                                <p className="text-sm text-slate-500 mt-1">Nenhuma das indústrias ativas possui integração mapeada neste sistema.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-4 gap-4">
+                                {portals.map((portal, index) => (
+                                    <motion.button
+                                        key={portal}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: index * 0.03 }}
+                                        whileHover={{ scale: 1.02, y: -2 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => handlePortalClick(portal)}
+                                        className="group relative flex flex-col items-center justify-center p-5 bg-white border border-slate-200 rounded-2xl hover:border-blue-400 hover:shadow-lg shadow-sm transition-all duration-300 min-h-[100px]"
+                                    >
+                                        {/* Icon Container */}
+                                        <div className="mb-3 p-2.5 rounded-full bg-slate-50 group-hover:bg-blue-50 transition-colors duration-300">
+                                            <Building2 className="h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-colors duration-300" />
+                                        </div>
 
-                                    {/* Text */}
-                                    <span className="text-sm font-black text-slate-700 group-hover:text-blue-700 uppercase tracking-wider transition-colors duration-300">
-                                        {portal}
-                                    </span>
+                                        {/* Text */}
+                                        <span className="text-sm font-black text-slate-700 group-hover:text-blue-700 uppercase tracking-wider transition-colors duration-300">
+                                            {portal}
+                                        </span>
 
-                                    {/* Hover Indicator */}
-                                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-1 group-hover:translate-x-0">
-                                        <ExternalLink className="h-3 w-3 text-blue-400" />
-                                    </div>
+                                        {/* Hover Indicator */}
+                                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-1 group-hover:translate-x-0">
+                                            <ExternalLink className="h-3 w-3 text-blue-400" />
+                                        </div>
 
-                                    {/* Bottom Border Glow */}
-                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500 opacity-0 group-hover:opacity-100 rounded-b-2xl" />
-                                </motion.button>
-                            ))}
-                        </div>
+                                        {/* Bottom Border Glow */}
+                                        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-500 opacity-0 group-hover:opacity-100 rounded-b-2xl" />
+                                    </motion.button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer Clean */}
