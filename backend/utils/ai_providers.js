@@ -208,42 +208,85 @@ class GeminiProvider extends AIProvider {
         this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
+    /**
+     * Helper robusto para obter o modelo disponível no projeto do Google Cloud.
+     * Como vimos nos logs, alguns projetos têm acesso a nomes diferentes (2.0 vs 1.5 vs nomes experimentais).
+     */
+    async _getModel(config = {}) {
+        const modelNames = [
+            "gemini-2.0-flash",        // Tentar o mais novo
+            "gemini-1.5-flash-latest", // Tentar o estável dinâmico
+            "gemini-1.5-flash",        // Tentar o estável fixo
+            "gemini-1.5-pro"           // Último recurso
+        ];
+
+        let lastError = null;
+
+        for (const modelName of modelNames) {
+            try {
+                const model = this.genAI.getGenerativeModel({
+                    model: modelName,
+                    ...config
+                });
+
+                // Fazemos uma chamada leve de teste se necessário, mas aqui apenas retornamos
+                // O erro de 404 geralmente acontece no generateContent
+                return { model, name: modelName };
+            } catch (e) {
+                lastError = e;
+                continue;
+            }
+        }
+        throw lastError || new Error("Nenhum modelo Gemini disponível no seu projeto.");
+    }
+
     async test() {
-        const model = this.genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            generationConfig: { responseMimeType: "application/json" }
-        });
-        const result = await model.generateContent('Return JSON: {"status":"ok"}');
-        const response = await result.response;
-        return response.text().includes('ok');
+        try {
+            const { model } = await this._getModel({
+                generationConfig: { responseMimeType: "application/json" }
+            });
+            const result = await model.generateContent('Return JSON: {"status":"ok"}');
+            const response = await result.response;
+            return response.text().includes('ok');
+        } catch (e) {
+            console.error(`❌ [Gemini Test] Falha final: ${e.message}`);
+            return false;
+        }
     }
 
     async processExcel(dataString) {
-        const model = this.genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            generationConfig: { responseMimeType: "application/json" }
-        });
-
         const prompt = `${EXTRACTION_PROMPT}\n\nDados da Planilha:\n${dataString}`;
-        const result = await this.withTimeout(model.generateContent(prompt));
-        const response = await result.response;
-        const text = response.text();
-        const parsed = this.parseJSONResponse(text);
-        return this.normalizeResponse(parsed);
+
+        // Tentativa com retry automático trocando o modelo se der 404 ou 429
+        const modelNames = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+
+        for (const modelName of modelNames) {
+            try {
+                console.log(`🤖 [Gemini] Tentando processar com ${modelName}...`);
+                const model = this.genAI.getGenerativeModel({
+                    model: modelName,
+                    generationConfig: { responseMimeType: "application/json" }
+                });
+                const result = await this.withTimeout(model.generateContent(prompt));
+                const response = await result.response;
+                const text = response.text();
+                return this.normalizeResponse(this.parseJSONResponse(text));
+            } catch (error) {
+                const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
+                if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
+                    console.warn(`⚠️ [Gemini] Modelo ${modelName} falhou (${error.message}). Tentando próximo...`);
+                    continue;
+                }
+                throw error;
+            }
+        }
     }
 
     async processImage(imagePath, mimeType) {
         const fs = require('fs');
-        const model = this.genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            generationConfig: { responseMimeType: "application/json" }
-        });
-
         const imageData = fs.readFileSync(imagePath);
         const base64Image = imageData.toString('base64');
-
-        // Gemini 2.0 Flash suporta natively application/pdf no multimodal
-        const result = await this.withTimeout(model.generateContent([
+        const content = [
             {
                 inlineData: {
                     data: base64Image,
@@ -251,12 +294,30 @@ class GeminiProvider extends AIProvider {
                 }
             },
             EXTRACTION_PROMPT
-        ]));
+        ];
 
-        const response = await result.response;
-        const text = response.text();
-        const parsed = this.parseJSONResponse(text);
-        return this.normalizeResponse(parsed);
+        const modelNames = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"];
+
+        for (const modelName of modelNames) {
+            try {
+                console.log(`🤖 [Gemini Vision] Tentando com ${modelName}...`);
+                const model = this.genAI.getGenerativeModel({
+                    model: modelName,
+                    generationConfig: { responseMimeType: "application/json" }
+                });
+                const result = await this.withTimeout(model.generateContent(content));
+                const response = await result.response;
+                const text = response.text();
+                return this.normalizeResponse(this.parseJSONResponse(text));
+            } catch (error) {
+                const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
+                if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
+                    console.warn(`⚠️ [Gemini Vision] Modelo ${modelName} falhou. Tentando próximo...`);
+                    continue;
+                }
+                throw error;
+            }
+        }
     }
 }
 

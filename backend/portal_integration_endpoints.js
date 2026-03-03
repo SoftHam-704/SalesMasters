@@ -54,34 +54,37 @@ module.exports = function (app, pool) {
             const itemsQuery = `SELECT * FROM itens_ped WHERE TRIM(ite_pedido) = TRIM($1) ORDER BY ite_seq`;
             const items = (await currentPool.query(itemsQuery, [pedPedido])).rows;
 
-            let content = `Catálogo STAHL  -  Carrinho\n`;
-            content += `${formatDate(new Date())}\n\n\n`;
-            content += `### Cliente:\n------------\n`;
-            content += `Cod.Cliente: 67563 (59833934000157 )\n`;
-            content += `Empresa:   SOMA REPRESENTAÇOES\n`;
-            content += `Nome:      CARLOS\n`;
-            content += `Telefone:  65 992598800\n`;
-            content += `E-Mail:    somarepresentacoes021@gmail.com\n\n\n\n`;
-            content += `### Dados para Faturamento:\n---------------------------\n\n`;
-            content += `Transportadora: ${order.tra_nome || ''}\n`;
-            content += `Prazo:          ${order.ped_condpag || ''}\n`;
-            content += `Razão Social:   ${order.cli_nome || ''}\n`;
-            content += `CNPJ:           ${order.cli_cnpj || ''}\n`;
-            content += `Endereço:       ${order.cli_endereco || ''}\n`;
-            content += `Bairro:         ${order.cli_bairro || ''}\n`;
-            content += `CEP:            ${order.cli_cep || ''}\n`;
-            content += `Cidade:         ${order.cli_cidade || ''}\n`;
-            content += `Estado:         ${order.cli_estado || ''}\n\n\n\n`;
-            content += `### Mensagem:\n-------------\n\n\n\n`;
-            content += `### Produtos:\n-------------\n`;
+            let content = `Catálogo STAHL  -  Carrinho\r\n`;
+            content += `${formatDate(new Date())}\r\n\r\n\r\n`;
+            content += `### Cliente:\r\n------------\r\n`;
+            content += `Cod.Cliente: 67563 (59833934000157 )\r\n`;
+            content += `Empresa:   SOMA REPRESENTAÇOES\r\n`;
+            content += `Nome:      CARLOS\r\n`;
+            content += `Telefone:  65 992598800\r\n`;
+            content += `E-Mail:    somarepresentacoes021@gmail.com\r\n\r\n\r\n\r\n`;
+            content += `### Dados para Faturamento:\r\n---------------------------\r\n\r\n`;
+            content += `Transportadora: ${order.tra_nome || ''}\r\n`;
+            content += `Prazo:          ${order.ped_condpag || ''}\r\n`;
+            content += `Razão Social:   ${order.cli_nome || ''}\r\n`;
+            content += `CNPJ:           ${order.cli_cnpj || ''}\r\n`;
+            content += `Endereço:       ${order.cli_endereco || ''}\r\n`;
+            content += `Bairro:         ${order.cli_bairro || ''}\r\n`;
+            content += `CEP:            ${order.cli_cep || ''}\r\n`;
+            content += `Cidade:         ${order.cli_cidade || ''}\r\n`;
+            content += `Estado:         ${order.cli_estado || ''}\r\n\r\n\r\n\r\n`;
+            content += `### Mensagem:\r\n-------------\r\n\r\n\r\n\r\n`;
+            content += `### Produtos:\r\n-------------\r\n`;
 
             items.forEach(item => {
-                content += `CÓDIGO:     ${item.ite_produto || ''}\n`;
-                content += `DESCRICÃO:  ${item.ite_nomeprod || ''}\n`;
-                content += `QUANTIDADE: ${item.ite_quant}     PREÇO UNITÁRIO: ${formatCurrency(item.ite_puni)}        TOTAL: ${formatCurrency(item.ite_totbruto)}\n`;
-                content += `----------------------------------------------------------------------------\n`;
+                content += `CÓDIGO:     ${item.ite_produto || ''}\r\n`;
+                content += `DESCRICÃO:  ${item.ite_nomeprod || ''}\r\n`;
+                content += `QUANTIDADE: ${item.ite_quant}     PREÇO UNITÁRIO: ${formatCurrency(item.ite_puni)}        TOTAL: ${formatCurrency(item.ite_totbruto)}\r\n`;
+                content += `----------------------------------------------------------------------------\r\n`;
             });
-            content += `### TOTAL DO CARRINHO: ${formatCurrency(order.ped_totliq || order.ped_totbruto)}\n`;
+            content += `### TOTAL DO CARRINHO: ${formatCurrency(order.ped_totliq || order.ped_totbruto)}\r\n`;
+
+            // Força o padrão Windows (CRLF) convertendo qualquer \n solitário em \r\n
+            content = content.replace(/\r?\n/g, '\r\n');
 
             handleFileDownload(res, content, `${pedPedido}.txt`);
         } catch (error) {
@@ -106,19 +109,20 @@ module.exports = function (app, pool) {
 
         try {
             const orderQuery = `
-                SELECT p.*, c.cli_cnpj, c.ped_repres
+                SELECT 
+                    p.ped_pedido, 
+                    p.ped_cliind, 
+                    p.ped_condpag, 
+                    p.ped_obs,
+                    c.cli_cnpj,
+                    t.tra_cnpj
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                LEFT JOIN transportadora t ON p.ped_transp = t.tra_codigo
                 WHERE TRIM(p.ped_pedido) = TRIM($1)
             `;
-            // Nota: Se 'ped_repres' não existir na tabela clientes, ajustaremos depois. Assumindo que o pedido tem o ID
 
-            const orderResult = await currentPool.query(`
-                SELECT p.*, c.cli_cnpj 
-                FROM pedidos p
-                LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
-                WHERE TRIM(p.ped_pedido) = TRIM($1)
-            `, [pedPedido]);
+            const orderResult = await currentPool.query(orderQuery, [pedPedido]);
 
             if (orderResult.rows.length === 0) return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
             const order = orderResult.rows[0];
@@ -126,36 +130,42 @@ module.exports = function (app, pool) {
             const itemsQuery = `SELECT * FROM itens_ped WHERE TRIM(ite_pedido) = TRIM($1) ORDER BY ite_seq`;
             const items = (await currentPool.query(itemsQuery, [pedPedido])).rows;
 
-            // Construção do XML
+            // Helper para formatar CNPJ/CPF (apenas números)
+            const onlyNumbers = (str) => String(str || '').replace(/\D/g, '');
+            // Helper para limitar tamanho de string
+            const limit = (str, max) => String(str || '').substring(0, max);
+
+            // Construção do XML conforme Manual Técnico Iguaçu
             let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
             xml += `<PED_ONLINE>\n`;
             xml += `  <PEDIDO>\n`;
-            xml += `    <CNPJ_CLI>${(order.cli_cnpj || '').replace(/\D/g, '')}</CNPJ_CLI>\n`; // Remove pontuação
-            xml += `    <CNPJ_TRANSP></CNPJ_TRANSP>\n`;
-            xml += `    <PED_CLI></PED_CLI>\n`;
-            xml += `    <PED_REPRS>${pedPedido}</PED_REPRS>\n`;
-            xml += `    <PRAZOS></PRAZOS>\n`;
-            xml += `    <T_ENTREGA>1</T_ENTREGA>\n`;
-            xml += `    <OBS></OBS>\n`;
+            xml += `    <CNPJ_CLI>${onlyNumbers(order.cli_cnpj)}</CNPJ_CLI>\n`;
+            xml += `    <CNPJ_TRANSP>${onlyNumbers(order.tra_cnpj)}</CNPJ_TRANSP>\n`;
+            xml += `    <PED_CLI>${limit(order.ped_cliind, 20)}</PED_CLI>\n`;
+            xml += `    <PED_REPRS>${limit(order.ped_pedido, 10)}</PED_REPRS>\n`;
+            xml += `    <PRAZOS>${limit(order.ped_condpag, 40)}</PRAZOS>\n`;
+            xml += `    <T_ENTREGA>1</T_ENTREGA>\n`; // 1 = Imediata (padrão)
+            xml += `    <OBS>${limit(order.ped_obs, 500)}</OBS>\n`;
             xml += `  </PEDIDO>\n`;
 
+            xml += `  <PRODUTOS>\n`;
+            xml += `    <ITENS_PEDIDO>\n`;
+
             items.forEach((item, index) => {
-                xml += `  <PRODUTOS>\n`;
-                xml += `    <ITENS_PEDIDO>\n`;
                 xml += `      <ITENS nItem="${index + 1}">\n`;
-                xml += `        <COD_PRODUTO>${item.ite_produto || ''}</COD_PRODUTO>\n`;
-                xml += `        <QDE>${item.ite_quant}</QDE>\n`;
+                xml += `        <COD_PRODUTO>${limit(item.ite_produto, 20)}</COD_PRODUTO>\n`;
+                xml += `        <QDE>${Math.trunc(item.ite_quant || 0)}</QDE>\n`;
                 xml += `      </ITENS>\n`;
-                xml += `    </ITENS_PEDIDO>\n`;
-                xml += `  </PRODUTOS>\n`;
             });
 
+            xml += `    </ITENS_PEDIDO>\n`;
+            xml += `  </PRODUTOS>\n`;
             xml += `</PED_ONLINE>`;
 
             handleFileDownload(res, xml, `${pedPedido}.xml`, 'application/xml', 'utf8');
 
         } catch (error) {
-            console.error('❌ [PORTAL] Erro:', error);
+            console.error('❌ [PORTAL] Erro Iguaçu XML:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     };
