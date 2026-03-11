@@ -126,6 +126,10 @@ backend/_dev_scripts/*.js
 **/migrate_*.js
 **/register_*.js
 **/import_*.js
+**/migrate_*.js
+**/diagnose_*.js
+**/debug_*.js
+**/drop_*.js
 **/find_*.js
 **/get_*.js
 **/test_*.js
@@ -138,7 +142,6 @@ backend/_dev_scripts/*.js
 **/verify_*.js
 **/upgrade_*.js
 **/setup_*.js
-**/migrate_*.js
 **/repair_*.py
 **/sync_*.py
 
