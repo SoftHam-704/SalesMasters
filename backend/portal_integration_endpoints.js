@@ -115,7 +115,7 @@ module.exports = function (app, pool) {
                     p.ped_condpag, 
                     p.ped_obs,
                     c.cli_cnpj,
-                    t.tra_cnpj
+                    t.tra_cgc
                 FROM pedidos p
                 LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
                 LEFT JOIN transportadora t ON p.ped_transp = t.tra_codigo
@@ -140,7 +140,7 @@ module.exports = function (app, pool) {
             xml += `<PED_ONLINE>\n`;
             xml += `  <PEDIDO>\n`;
             xml += `    <CNPJ_CLI>${onlyNumbers(order.cli_cnpj)}</CNPJ_CLI>\n`;
-            xml += `    <CNPJ_TRANSP>${onlyNumbers(order.tra_cnpj)}</CNPJ_TRANSP>\n`;
+            xml += `    <CNPJ_TRANSP>${onlyNumbers(order.tra_cgc)}</CNPJ_TRANSP>\n`;
             xml += `    <PED_CLI>${limit(order.ped_cliind, 20)}</PED_CLI>\n`;
             xml += `    <PED_REPRS>${limit(order.ped_pedido, 10)}</PED_REPRS>\n`;
             xml += `    <PRAZOS>${limit(order.ped_condpag, 40)}</PRAZOS>\n`;
@@ -161,6 +161,23 @@ module.exports = function (app, pool) {
             xml += `    </ITENS_PEDIDO>\n`;
             xml += `  </PRODUTOS>\n`;
             xml += `</PED_ONLINE>`;
+
+            // --- NOVO: Salvamento Automático no Servidor (Sync) ---
+            const exportPath = process.env.IGUACU_EXPORT_PATH;
+            if (exportPath) {
+                try {
+                    // Garante que o diretório existe
+                    if (!fs.existsSync(exportPath)) {
+                        fs.mkdirSync(exportPath, { recursive: true });
+                    }
+                    const fullPath = path.join(exportPath, `${pedPedido}.xml`);
+                    fs.writeFileSync(fullPath, xml, 'utf8');
+                    console.log(`💾 [PORTAL] Iguaçu XML salvo automaticamente em: ${fullPath}`);
+                } catch (fsErr) {
+                    console.error(`❌ [PORTAL] Erro ao salvar XML localmente: ${fsErr.message}`);
+                    // Não bloqueamos o download se o salvamento no disco falhar
+                }
+            }
 
             handleFileDownload(res, xml, `${pedPedido}.xml`, 'application/xml', 'utf8');
 
@@ -294,6 +311,53 @@ module.exports = function (app, pool) {
 
         } catch (error) {
             console.error('❌ [PORTAL] Erro SAMPEL:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    };
+
+    // --------------------------------------------------------------------------------
+    // 5. POLO (CSV)
+    // --------------------------------------------------------------------------------
+    app.post('/api/orders/:pedPedido/export/polo', async (req, res) => {
+        exportPolo(req, res);
+    });
+
+    const exportPolo = async (req, res) => {
+        const { pedPedido } = req.params;
+        const currentPool = getCurrentPool();
+
+        if (!currentPool) return res.status(403).json({ success: false, message: 'Falta contexto do tenant.' });
+
+        try {
+            // Fetch items following Delphi logic:
+            // select ite_produto, ite_quant, ite_puniliq from itens_ped where ite_pedido = :P1 order by ite_lancto
+            const itemsQuery = `
+                SELECT ite_produto, ite_quant, ite_puniliq 
+                FROM itens_ped 
+                WHERE TRIM(ite_pedido) = TRIM($1) 
+                ORDER BY ite_lancto
+            `;
+            const items = (await currentPool.query(itemsQuery, [pedPedido])).rows;
+
+            if (items.length === 0) return res.status(404).json({ success: false, message: 'Pedido sem itens.' });
+
+            // Delphi format:
+            // vLinha2 := 'codigo;qtde;valor';
+            // vLinha2 := dm1.qryAux3.FieldByName('ite_produto').AsString+';'+InttoStr(trunc(dm1.qryAux3.FieldByName('ite_quant').AsFloat))+';'+
+            //            FloattoStr(dm1.qryAux3.FieldByName('ite_puniliq').AsFloat);
+
+            let content = 'codigo;qtde;valor\r\n';
+            items.forEach(item => {
+                const codigo = item.ite_produto || '';
+                const qtde = Math.trunc(item.ite_quant || 0);
+                const valor = parseFloat(item.ite_puniliq || 0);
+                content += `${codigo};${qtde};${valor}\r\n`;
+            });
+
+            handleFileDownload(res, content, `${pedPedido}.csv`, 'text/csv', 'utf8');
+
+        } catch (error) {
+            console.error('❌ [PORTAL] Erro Polo:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     };

@@ -113,4 +113,20 @@ data/
 backend/_dev_scripts/*.sql
 backend/_dev_scripts/*.js
 
+# One-off scripts (Repair, Sync, Inspect, Import)
+**/repair_*.js
+**/sync_*.js
+**/inspect_*.js
+**/tmp_*.js
+**/list_*.js
+**/check_*.js
+**/verify_*.js
+**/upgrade_*.js
+**/setup_*.js
+**/migrate_*.js
+**/register_*.js
+**/import_*.js
+**/repair_*.py
+**/sync_*.py
+
 *.log

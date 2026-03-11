@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  evolution_api:
+    image: atendai/evolution-api:latest
+    container_name: evolution_api
+    restart: always
+    ports:
+      - "8081:8080" # Usando 8081 para não conflitar com o app principal
+    environment:
+      - SERVER_URL=http://localhost:8081
+      - DOCKER_ENV=true
+      - AUTH_TOKEN=soft-ham-secret-key-2026
+      - DELAY_MESSAGES=1000
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:8080/api/whatsapp/webhook
+      - WEBHOOK_GLOBAL_WEBHOOK_URL_MESSAGE_UPSERT=true
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis_whatsapp
+      - REDIS_PORT=6379
+    networks:
+      - whatsapp_net
+
+  redis_whatsapp:
+    image: redis:7-alpine
+    container_name: redis_whatsapp
+    restart: always
+    ports:
+      - "6380:6379" # Porta alternativa para Redis
+    networks:
+      - whatsapp_net
+
+networks:
+  whatsapp_net:
+    driver: bridge
