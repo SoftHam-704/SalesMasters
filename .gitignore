@@ -129,6 +129,16 @@ backend/_dev_scripts/*.js
 **/find_*.js
 **/get_*.js
 **/test_*.js
+**/final_*.js
+**/execute_*.js
+**/export_*.js
+**/run_*.js
+**/tmp_*.js
+**/check_*.js
+**/verify_*.js
+**/upgrade_*.js
+**/setup_*.js
+**/migrate_*.js
 **/repair_*.py
 **/sync_*.py
 
