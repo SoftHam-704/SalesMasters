@@ -350,8 +350,12 @@ module.exports = function (app, pool) {
             items.forEach(item => {
                 const codigo = item.ite_produto || '';
                 const qtde = Math.trunc(item.ite_quant || 0);
-                const valor = parseFloat(item.ite_puniliq || 0);
-                content += `${codigo};${qtde};${valor}\r\n`;
+                
+                // Formatação POLO: 2 casas decimais com vírgula como separador (PT-BR)
+                const valorRaw = parseFloat(item.ite_puniliq || 0);
+                const valorFormatado = valorRaw.toFixed(2).replace('.', ',');
+                
+                content += `${codigo};${qtde};${valorFormatado}\r\n`;
             });
 
             handleFileDownload(res, content, `${pedPedido}.csv`, 'text/csv', 'utf8');

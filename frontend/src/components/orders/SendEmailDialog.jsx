@@ -40,7 +40,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
     const [logs, setLogs] = useState([]);
     const [smtpInfo, setSmtpInfo] = useState({ host: '...', user: '...' });
 
-    const isQuotation = orderData?.order?.ped_situacao === 'C';
+    const isEligibleForIndustryEmail = orderData?.order?.ped_situacao === 'P';
 
     // Fetch user parameters and company data on mount
     useEffect(() => {
@@ -85,14 +85,14 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
         if (orderData && isOpen) {
             setLogs([]);
             const order = orderData.order;
-            const isQuo = order?.ped_situacao === 'C';
+            const isEligible = order?.ped_situacao === 'P';
 
             setRecipients(prev => ({
                 ...prev,
                 cliente: { ...prev.cliente, email: order?.cli_email || order?.cli_emailnfe || '' },
                 industria: {
-                    enabled: !isQuo,
-                    email: isQuo ? '' : (order?.for_email || '')
+                    enabled: isEligible,
+                    email: isEligible ? (order?.for_email || '') : ''
                 }
             }));
 
@@ -108,7 +108,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
 
             setEmailData({
                 assunto: `Ref. pedido nº ${order?.ped_pedido}${clientOrderNum ? ` (Cli: ${clientOrderNum})` : ''} do cliente: ${order?.cli_nomred || order?.cli_nome}`,
-                anexos: `${order?.ped_pedido}-${order?.cli_nomred || 'CLIENTE'}.pdf`,
+                anexos: `${order?.ped_pedido}-${(order?.cli_nomred || order?.cli_nome || 'CLIENTE').replace(/[/\\?%*:|"<>]/g, '-').trim()}.pdf`,
                 texto: `Pedido nº...............: ${order?.ped_pedido}\n` +
                     (clientOrderNum ? `Ped. Cliente nº.........: ${clientOrderNum}\n` : '') +
                     `Data do lançamento......: ${dateStr}\n` +
@@ -271,7 +271,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
                                 <div className="flex flex-col gap-2.5">
                                     {[
                                         { key: 'cliente', label: 'Cliente', icon: Users, color: 'blue' },
-                                        { key: 'industria', label: 'Indústria', icon: Building2, color: 'indigo', disabled: isQuotation },
+                                        { key: 'industria', label: 'Indústria', icon: Building2, color: 'indigo', disabled: !isEligibleForIndustryEmail },
                                         { key: 'escritorio', label: 'Escritório', icon: Building2, color: 'emerald' }
                                     ].map((dest) => (
                                         <div key={dest.key} className={cn(

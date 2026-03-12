@@ -8,12 +8,45 @@ import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 // Limite seguro para base64 dentro do react-pdf (150KB string ≈ 110KB imagem)
 const MAX_SAFE_BASE64 = 150000;
 
+// Auxiliar para redimensionar imagem Base64 no cliente
+const resizeBase64Image = (base64Str, maxWidth = 300, maxHeight = 150) => {
+    return new Promise((resolve) => {
+        if (!base64Str) return resolve(null);
+        
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > maxWidth) {
+                    height *= maxWidth / width;
+                    width = maxWidth;
+                }
+            } else {
+                if (height > maxHeight) {
+                    width *= maxHeight / height;
+                    height = maxHeight;
+                }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = () => resolve(null);
+    });
+};
+
 // Sanitiza qualquer campo de imagem base64 para evitar freeze no react-pdf
 const sanitizeImageField = (value, isCompany = false) => {
     if (!value) return value;
     if (typeof value !== 'string') return value;
-    // Limite maior para logotipo da empresa (1MB), menor para indústria (150KB)
-    const limit = isCompany ? 1000000 : 150000;
+    // Limite maior para logotipo da empresa (1MB), menor para indústria (180KB)
+    const limit = isCompany ? 1000000 : 180000;
 
     // Remove prefixo para medir tamanho real
     const raw = value.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -27,10 +60,11 @@ const sanitizeImageField = (value, isCompany = false) => {
 // Limpa logos grandes do order e companyData antes de passar ao react-pdf
 const sanitizeDataForPdf = (order, companyData) => {
     const cleanOrder = { ...order };
-    // Logotipos de indústria desabilitados por solicitação do usuário
-    cleanOrder.industry_logotipo = null;
-    cleanOrder.for_logotipo = null;
-    cleanOrder.for_locimagem = null;
+    
+    // Agora mantemos os logotipos, mas garantimos que foram sanitizados
+    cleanOrder.industry_logotipo = sanitizeImageField(cleanOrder.industry_logotipo || cleanOrder.for_logotipo || cleanOrder.industry_logotipo_resized);
+    cleanOrder.for_logotipo = cleanOrder.industry_logotipo;
+    cleanOrder.for_locimagem = null; // Mantido nulo conforme comportamento anterior, se não for usado
 
     const cleanCompany = companyData ? { ...companyData } : companyData;
     if (cleanCompany) {
@@ -76,10 +110,22 @@ const OrderReportEngine = () => {
                 console.log('📦 [OrderReportEngine] Fetch result:', orderResult);
 
                 if (orderResult.success && orderResult.data) {
+                    const orderData = orderResult.data.order;
+                    
+                    // Processamento de Logo: Se vier muito grande, redimensionamos no client
+                    if (orderData.industry_logotipo || orderData.for_logotipo) {
+                        const logoToProcess = orderData.industry_logotipo || orderData.for_logotipo;
+                        const resized = await resizeBase64Image(logoToProcess);
+                        if (resized) {
+                            orderData.industry_logotipo = resized;
+                            orderData.for_logotipo = resized;
+                        }
+                    }
+
                     setData(orderResult.data);
 
-                    const orderNum = orderResult.data.order.ped_pedido;
-                    const cliName = orderResult.data.order.cli_nomred || orderResult.data.order.cli_nome;
+                    const orderNum = orderData.ped_pedido;
+                    const cliName = orderData.cli_nomred || orderData.cli_nome || 'CLIENTE';
                     const sanitizedCliName = cliName.replace(/[/\\?%*:|"<>]/g, '-').trim();
                     document.title = `${orderNum}-${sanitizedCliName}`;
                 } else {
@@ -191,7 +237,8 @@ const OrderReportEngine = () => {
                         if (timeoutRef.current) clearTimeout(timeoutRef.current);
                     }
 
-                    const fileName = `${order.ped_pedido}-${(order.cli_nomred || order.cli_nome).replace(/[/\\?%*:|"<>]/g, '-').trim()}.pdf`;
+                    const sanitizedCliName = (order.cli_nomred || order.cli_nome || 'CLIENTE').replace(/[/\\?%*:|"<>]/g, '-').trim();
+                    const fileName = `${order.ped_pedido}-${sanitizedCliName}.pdf`;
 
                     return (
                         <>
@@ -206,7 +253,7 @@ const OrderReportEngine = () => {
                             <a
                                 href={url}
                                 download={fileName}
-                                className="absolute top-4 right-4 z-50 bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-105 opacity-0 group-hover:opacity-100 flex items-center gap-2 font-bold text-sm"
+                                className="absolute bottom-8 right-8 z-50 bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-full shadow-lg transition-all transform hover:scale-105 opacity-0 group-hover:opacity-100 flex items-center gap-2 font-bold text-sm"
                                 title="Baixar PDF"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>

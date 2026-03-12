@@ -357,10 +357,34 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     loadSummaryItems(existingOrder.ped_pedido);
                 }
             } else {
-                if (importedItemsRef.current.length === 0) {
+                let initialPortalData = null;
+                const portalDataStr = sessionStorage.getItem('PORTAL_IMPORT_DATA');
+                if (portalDataStr) {
+                    try {
+                        initialPortalData = JSON.parse(portalDataStr);
+                        console.log('📦 [OrderForm] Portal Data recognized:', initialPortalData);
+                        // NÃO remover ainda! Remover apenas após aplicar ao state no bloco abaixo
+                    } catch (e) {
+                        console.error('📦 [OrderForm] Error parsing portal data:', e);
+                        sessionStorage.removeItem('PORTAL_IMPORT_DATA'); // Remove se estiver corrompido
+                    }
+                }
+
+                if (importedItemsRef.current.length === 0 && !initialPortalData) {
                     const newOrderState = {
                         ...initialFormState,
                         ped_industria: selectedIndustry?.for_codigo || '',
+                        // Mapeamento dos descontos padrão da indústria para o novo pedido
+                        ped_pri: selectedIndustry?.for_des1 || 0,
+                        ped_seg: selectedIndustry?.for_des2 || 0,
+                        ped_ter: selectedIndustry?.for_des3 || 0,
+                        ped_qua: selectedIndustry?.for_des4 || 0,
+                        ped_qui: selectedIndustry?.for_des5 || 0,
+                        ped_sex: selectedIndustry?.for_des6 || 0,
+                        ped_set: selectedIndustry?.for_des7 || 0,
+                        ped_oit: selectedIndustry?.for_des8 || 0,
+                        ped_nov: selectedIndustry?.for_des9 || 0,
+                        ped_dez: selectedIndustry?.for_des10 || 0,
                     };
 
                     if (userParams) {
@@ -381,6 +405,68 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     setDisplayNumber('(Novo)');
                     setIsPersisted(false); // Pedido novo
                     loadNextNumber();
+                } else if (initialPortalData) {
+                    console.log('🚀 [OrderForm] Starting initialization with PORTAL data:', initialPortalData);
+                    
+                    // Start new order with imported portal items
+                    const newOrderState = {
+                        ...initialFormState,
+                        ped_industria: initialPortalData.industriaId || '',
+                        ped_tabela: initialPortalData.tabela || '',
+                        ped_cliente: initialPortalData.cliente || '',
+                        ped_obs: `Importação ${initialPortalData.portal || 'Portal'}`
+                    };
+
+                    if (userParams) {
+                        Object.assign(newOrderState, {
+                            ped_tipofrete: userParams.par_tipofretepadrao || 'C',
+                            ped_situacao: userParams.par_iniciapedido || 'P',
+                        });
+                        if (userParams.par_itemduplicado === 'S') setAllowDuplicates(true);
+                    }
+
+                    console.log('📝 [OrderForm] Setting initial formData from portal:', newOrderState);
+                    setFormData(newOrderState);
+                    setSummaryItems([]);
+                    setDisplayNumber('(Novo)');
+                    setIsPersisted(false);
+                    loadNextNumber();
+
+                    // Se a IA já nos deu o nome do cliente, usamos direto (evita reload e piscada)
+                    console.log('👤 [OrderForm] Setting client name:', initialPortalData.clienteNome || 'Searching...');
+                    if (initialPortalData.clienteNome) {
+                        setSelectedClientName(initialPortalData.clienteNome);
+                    } else if (initialPortalData.cliente) {
+                        // Fallback: Busca o nome se não veio no payload
+                        auxDataService.getClients('A', initialPortalData.cliente.toString()).then(res => {
+                            const c = res.data?.find(x => x.cli_codigo == initialPortalData.cliente);
+                            if (c) {
+                                setSelectedClientName(`${c.cli_nomred || c.cli_nome} - ${maskCnpjCpf(c.cli_cnpj)}`);
+                            }
+                        }).catch(e => console.error(e));
+                    }
+
+                    // Feed Items to the grid
+                    if (initialPortalData.items && initialPortalData.items.length > 0) {
+                        console.log(`📦 [OrderForm] Preparing to load ${initialPortalData.items.length} items...`);
+                        setTimeout(() => {
+                            const itemsWithSeq = initialPortalData.items.map((item, idx) => ({
+                                ...item,
+                                ite_pedido: formData.ped_pedido || '(Novo)',
+                                ite_seq: item.ite_seq || (idx + 1)
+                            }));
+                            setImportedItems(itemsWithSeq);
+                            setJustImported(true);
+                            setActiveTab('F5'); 
+                            toast.success(`${initialPortalData.items.length} itens prontos para conferência!`);
+                            
+                            // LIMPAR STORAGE APENAS AQUI!
+                            sessionStorage.removeItem('PORTAL_IMPORT_DATA');
+                            console.log('🧹 [OrderForm] Portal Data cleared after successful application');
+                        }, 1000); 
+                    } else {
+                        sessionStorage.removeItem('PORTAL_IMPORT_DATA');
+                    }
                 }
             }
         };
@@ -411,6 +497,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
             }
 
             const data = await orderService.getNextNumber(initials);
+            console.log('🔢 [OrderForm] Next order number received:', data);
             if (data.success) {
                 setDisplayNumber(data.data.formatted_number);
                 setFormData(prev => ({
@@ -543,7 +630,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
     useEffect(() => {
         const handleKeyDown = (e) => {
             const keys = {
-                'F3': 'F3', 'F4': 'F4', 'F5': 'F5',
+                'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5',
                 'F6': 'F6', 'F7': 'F7', 'F8': 'F8', 'F9': 'F9'
             };
 
@@ -1463,45 +1550,19 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     const product = priceTable.memtable?.find(p => p.pro_codprod === newItem.ite_produto);
 
                     if (product) {
-                        // preenche descrição se vazia
-                        if (!newItem.ite_nomeprod || newItem.ite_nomeprod.trim() === '') {
-                            newItem.ite_nomeprod = product.pro_nome || '';
+                        // Sempre garante a descrição correta do catálogo, preenchendo vazios ou corrigindo imports da IA
+                        newItem.ite_nomeprod = product.pro_nome || newItem.ite_nomeprod || '';
+
+                        // Mantém os impostos originais da tabela apenas se não houver preenchimento manual
+                        if (newItem.ite_ipi === undefined || newItem.ite_ipi === null) {
+                            newItem.ite_ipi = parseFloat(product.itab_ipi || 0);
                         }
-
-                        // ATUALIZA VALORES DA MEMTABLE (Força Recarga)
-                        // Lógica de Prioridade: Promoção > Bruto
-
-                        const promoPrice = parseFloat(product.itab_precopromo || 0);
-                        const grossPrice = parseFloat(product.itab_precobruto || 0);
-
-                        // 1. Verifica se tem PREÇO PROMO (Prioridade Máxima)
-                        if (promoPrice > 0) {
-                            // Aplica preço promocional
-                            newItem.ite_puni = promoPrice;
-
-                            // Regra: "itens com preço promo já são LÍQUIDOS... descontos devem ser zerados"
-                            newItem.ite_promocao = 'S'; // Marca flag de promoção
-                            for (let i = 1; i <= 9; i++) newItem[`ite_des${i}`] = 0;
-                            newItem.ite_des10 = 0;
-                            newItem.ite_esp = 0; // Zera especial também
-                        } else {
-                            // 2. Se não tem promo, usa PREÇO BRUTO
-                            if (grossPrice > 0) newItem.ite_puni = grossPrice;
-
-                            // Se estava marcado como promoção, desmarca (pois voltou ao bruto)
-                            if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
+                        if (newItem.ite_st === undefined || newItem.ite_st === null) {
+                            newItem.ite_st = parseFloat(product.itab_st || 0);
                         }
-
-                        // Impostos (IPI/ST)
-                        // Usa itab_ipi se disponível, senão mantém ou zero
-                        newItem.ite_ipi = parseFloat(product.itab_ipi || 0);
-                        newItem.ite_st = parseFloat(product.itab_st || 0);
-
-                        // Se tiver promoção definida na tabela, podemos aplicar (Opcional - mas seguro atualizar)
-                        // if (product.itab_precopromo > 0) ... (Mantendo simples por enquanto conforme solicitado "chegarem geral")
                     }
 
-                    // Regra Promoção: Se "S", zera todos os descontos
+                    // Regra Promoção: Se foi marcado manualmente como "S", limpa descontos conforme a regra de interface
                     if (newItem.ite_promocao === 'S') {
                         for (let i = 1; i <= 9; i++) newItem[`ite_des${i}`] = 0;
                         newItem.ite_des10 = 0;
