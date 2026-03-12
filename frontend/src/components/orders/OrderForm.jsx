@@ -240,6 +240,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
     const [loading, setLoading] = useState(false);
     const [summaryItems, setSummaryItems] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false); // Travamento para F5 (Atz valores)
     const [isImporting, setIsImporting] = useState(false);
     const [justImported, setJustImported] = useState(false); // Flag para bloquear refresh do banco após importação
     const [showBuyerDialog, setShowBuyerDialog] = useState(false);
@@ -1541,6 +1542,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
     // Handler para os botões de ação da aba F5
     const handleF5Action = async (key) => {
         if (key === '1') { // Atz valores + SALVAR NO BANCO
+            if (isSyncing || isSaving) return; // Proteção contra duplo clique
+
+            setIsSyncing(true);
+            setIsSaving(true); // Evita efeitos colaterais de recarga
             try {
                 // 1. RECALCULA valores e aplica regras de negócio
                 const updatedItems = summaryItems.map(item => {
@@ -1669,6 +1674,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
             } catch (error) {
                 console.error('❌ [F5-BTN1] Erro ao salvar itens:', error);
                 toast.error('Erro ao salvar itens no banco de dados');
+            } finally {
+                setIsSyncing(false);
+                setIsSaving(false);
             }
         } else if (key === '2') { // Desc padrão
             const updatedItems = summaryItems.map(item => {

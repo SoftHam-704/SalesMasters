@@ -50,8 +50,9 @@ module.exports = function (app, pool) {
                     ite_quant, ite_puni, ite_totbruto, ite_puniliq, ite_totliquido, ite_ipi,
                     ite_des1, ite_des2, ite_des3, ite_des4, ite_des5,
                     ite_des6, ite_des7, ite_des8, ite_des9, ite_des10, ite_des11, ite_valcomipi,
-                    ite_st, ite_valcomst, ite_promocao
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+                    ite_st, ite_valcomst, ite_promocao, ite_descontos,
+                    ite_dimensoes, ite_acabamento, ite_carga_kg, ite_ambiente
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
                 ON CONFLICT (ite_pedido, ite_seq) DO UPDATE SET
                     ite_industria = EXCLUDED.ite_industria,
                     ite_idproduto = EXCLUDED.ite_idproduto,
@@ -78,7 +79,12 @@ module.exports = function (app, pool) {
                     ite_valcomipi = EXCLUDED.ite_valcomipi,
                     ite_st = EXCLUDED.ite_st,
                     ite_valcomst = EXCLUDED.ite_valcomst,
-                    ite_promocao = EXCLUDED.ite_promocao
+                    ite_promocao = EXCLUDED.ite_promocao,
+                    ite_descontos = EXCLUDED.ite_descontos,
+                    ite_dimensoes = EXCLUDED.ite_dimensoes,
+                    ite_acabamento = EXCLUDED.ite_acabamento,
+                    ite_carga_kg = EXCLUDED.ite_carga_kg,
+                    ite_ambiente = EXCLUDED.ite_ambiente
                 RETURNING *
             `;
 
@@ -110,7 +116,12 @@ module.exports = function (app, pool) {
                 item.ite_valcomipi || 0,
                 item.ite_st || 0,
                 item.ite_valcomst || 0,
-                item.ite_promocao || 'N'
+                item.ite_promocao || 'N',
+                item.ite_descontos || '',
+                item.ite_dimensoes || '',
+                item.ite_acabamento || '',
+                item.ite_carga_kg || 0,
+                item.ite_ambiente || ''
             ];
 
             const result = await client.query(query, values);
@@ -153,6 +164,10 @@ module.exports = function (app, pool) {
             console.log(`🔄 [ORDER_ITEMS] Syncing ${items.length} items for order ${pedPedido}`);
 
             await client.query('BEGIN');
+            
+            // 🛑 [LOCK] Bloquear o pedido para garantir que sincronizações paralelas 
+            // sejam processadas sequencialmente, evitando duplicação por race condition.
+            await client.query('SELECT ped_pedido FROM pedidos WHERE ped_pedido = $1 FOR UPDATE', [pedPedido]);
 
             // 1. Remover itens atuais
             await client.query('DELETE FROM itens_ped WHERE ite_pedido = $1', [pedPedido]);
@@ -211,8 +226,9 @@ module.exports = function (app, pool) {
                             ite_quant, ite_puni, ite_totbruto, ite_puniliq, ite_totliquido, ite_ipi,
                             ite_des1, ite_des2, ite_des3, ite_des4, ite_des5,
                             ite_des6, ite_des7, ite_des8, ite_des9, ite_des10, ite_des11, ite_valcomipi,
-                            ite_st, ite_valcomst, ite_promocao
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+                            ite_st, ite_valcomst, ite_promocao, ite_descontos,
+                            ite_dimensoes, ite_acabamento, ite_carga_kg, ite_ambiente
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
                     `;
                     const values = [
                         pedPedido,
@@ -242,7 +258,12 @@ module.exports = function (app, pool) {
                         item.ite_valcomipi || 0,
                         item.ite_st || 0,
                         item.ite_valcomst || 0,
-                        item.ite_promocao || 'N'
+                        item.ite_promocao || 'N',
+                        item.ite_descontos || '',
+                        item.ite_dimensoes || '',
+                        item.ite_acabamento || '',
+                        item.ite_carga_kg || 0,
+                        item.ite_ambiente || ''
                     ];
                     await client.query(query, values);
                 }
@@ -367,14 +388,14 @@ module.exports = function (app, pool) {
             clientDescResult.rows.forEach(d => clientDescMap[d.cli_grupo] = d);
 
             // 3. Buscar descontos da TABELA DE PREÇO (Prioridade 2)
-            // Tabela: grupo_desc (gid)
+            // Tabela: grupo_desc (gde_id)
             const groupDescQuery = `
-                SELECT gid, gde_desc1, gde_desc2, gde_desc3, gde_desc4, gde_desc5, gde_desc6, gde_desc7, gde_desc8, gde_desc9
+                SELECT gde_id, gde_desc1, gde_desc2, gde_desc3, gde_desc4, gde_desc5, gde_desc6, gde_desc7, gde_desc8, gde_desc9
                 FROM grupo_desc
             `;
             const groupDescResult = await pool.query(groupDescQuery);
-            const groupDescMap = {}; // Key: gid
-            groupDescResult.rows.forEach(d => groupDescMap[d.gid] = d);
+            const groupDescMap = {}; // Key: gde_id
+            groupDescResult.rows.forEach(d => groupDescMap[d.gde_id] = d);
 
             // 4. Calcular descontos
             const results = {}; // Key: ite_produto -> { des1, des2... }
