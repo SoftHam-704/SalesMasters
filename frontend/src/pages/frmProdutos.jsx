@@ -59,7 +59,7 @@ const FrmProdutos = () => {
 
     const fetchIndustries = async () => {
         try {
-            const url = getApiUrl(NODE_API_URL, '/api/suppliers');
+            const url = getApiUrl(NODE_API_URL, '/api/suppliers?status=A');
             const response = await fetch(url);
             const data = await response.json();
             if (data.success) {
@@ -85,26 +85,26 @@ const FrmProdutos = () => {
 
     const fetchTables = async (industria) => {
         try {
-            console.log(`📋 [FETCH_TABLES] Buscando tabelas para indústria ${industria}`);
+            // console.log(`📋 [FETCH_TABLES] Buscando tabelas para indústria ${industria}`);
             const url = getApiUrl(NODE_API_URL, `/api/products/tables/${industria}`);
             const response = await fetch(url);
             const data = await response.json();
-            console.log(`📋 [FETCH_TABLES] Resposta:`, data);
+            // console.log(`📋 [FETCH_TABLES] Resposta:`, data);
 
             if (data.success) {
                 setTables(data.data);
-                console.log(`📋 [FETCH_TABLES] ${data.data.length} tabela(s) encontrada(s)`);
+                // console.log(`📋 [FETCH_TABLES] ${data.data.length} tabela(s) encontrada(s)`);
 
                 // Se houver apenas 1 tabela, seleciona automaticamente
                 if (data.data.length === 1) {
                     const tabelaNome = data.data[0].itab_tabela;
-                    console.log(`📋 [FETCH_TABLES] Auto-selecionando tabela: "${tabelaNome}"`);
+                    // console.log(`📋 [FETCH_TABLES] Auto-selecionando tabela: "${tabelaNome}"`);
                     setSelectedTable(tabelaNome);
                     toast.success(`Tabela "${tabelaNome}" selecionada automaticamente`);
                 } else if (data.data.length === 0) {
                     toast.info('Nenhuma tabela de preço encontrada para esta indústria');
                 } else {
-                    console.log(`📋 [FETCH_TABLES] Múltiplas tabelas, aguardando seleção manual`);
+                    // console.log(`📋 [FETCH_TABLES] Múltiplas tabelas, aguardando seleção manual`);
                     // Limpa seleção se houver múltiplas tabelas
                     setSelectedTable('');
                 }
@@ -476,6 +476,7 @@ const FrmProdutos = () => {
             const exportData = filteredProducts.map(product => ({
                 'Código': product.pro_codprod || '',
                 'Produto': product.pro_nome || '',
+                'Embalagem': product.pro_embalagem || '',
                 'Grupo Desc.': product.itab_grupodesconto || '',
                 'Desc. ADD': product.itab_descontoadd || 0,
                 'IPI %': product.itab_ipi || 0,
@@ -498,6 +499,7 @@ const FrmProdutos = () => {
             const colWidths = [
                 { wch: 15 }, // Código
                 { wch: 40 }, // Produto
+                { wch: 12 }, // Embalagem
                 { wch: 12 }, // Grupo Desc
                 { wch: 10 }, // Desc ADD
                 { wch: 8 },  // IPI
@@ -596,9 +598,10 @@ const FrmProdutos = () => {
                     <div>
                         <Label className="text-sm font-medium mb-2 block">Indústria</Label>
                         <Select value={selectedIndustry} onValueChange={(val) => {
-                            setSelectedIndustry(val);
+                            const cleanVal = val && val.includes(':') ? val.split(':')[0] : val;
+                            setSelectedIndustry(cleanVal);
                             setSelectedTable('');
-                            fetchTables(val);
+                            fetchTables(cleanVal);
                         }}>
                             <SelectTrigger className="h-9">
                                 <SelectValue placeholder="Selecione a indústria..." />
@@ -750,6 +753,18 @@ const FrmProdutos = () => {
                 {/* Spacer */}
                 <div className="flex-1"></div>
 
+                {/* Botão Novo Produto */}
+                <Button
+                    onClick={handleNovoProduto}
+                    size="sm"
+                    variant="outline"
+                    className="h-9 text-sm text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                    disabled={!selectedTable}
+                >
+                    <Plus size={16} className="mr-2" />
+                    Novo Produto
+                </Button>
+
                 {/* Botão Magic Import (Premium) */}
                 <AIImportButton
                     onClick={() => setAiImportDialogOpen(true)}
@@ -806,6 +821,9 @@ const FrmProdutos = () => {
                                         <th className={`text-right p-3 text-sm font-semibold w-32 transition-colors ${isSimulating ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-inset' : 'bg-purple-50 text-gray-700'}`}>
                                             {isSimulating ? 'LÍQUIDO (SIMULADO)' : 'PREÇO LÍQUIDO'}
                                         </th>
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-28">
+                                            EMBALAGEM
+                                        </th>
                                         <th className="text-center p-3 text-sm font-semibold text-gray-700 w-20">
                                             IPI %
                                         </th>
@@ -814,6 +832,9 @@ const FrmProdutos = () => {
                                         </th>
                                         <th className="text-left p-3 text-sm font-semibold text-gray-700 w-32">
                                             Cód. Normaliz.
+                                        </th>
+                                        <th className="text-center p-3 text-sm font-semibold text-gray-700 w-28">
+                                            Data
                                         </th>
                                         <th className="text-center p-3 text-sm font-semibold text-gray-700 w-24">
                                             Status
@@ -850,6 +871,9 @@ const FrmProdutos = () => {
                                                         {formatCurrency(calculateNetPrice(product))}
                                                     </td>
                                                     <td className="p-3 text-sm text-gray-600 text-center">
+                                                        {product.pro_embalagem || '-'}
+                                                    </td>
+                                                    <td className="p-3 text-sm text-gray-600 text-center">
                                                         {formatPercent(product.itab_ipi)}
                                                     </td>
                                                     <td className="p-3 text-sm text-gray-600 text-center">
@@ -857,6 +881,9 @@ const FrmProdutos = () => {
                                                     </td>
                                                     <td className="p-3 text-sm text-gray-500 font-mono">
                                                         {product.pro_codigonormalizado || '-'}
+                                                    </td>
+                                                    <td className="p-3 text-sm text-gray-600 text-center">
+                                                        {product.itab_datatabela ? new Date(product.itab_datatabela).toLocaleDateString('pt-BR') : '-'}
                                                     </td>
                                                     <td className="p-3 text-center">
                                                         <span className={`inline-block px-2 py-1 text-sm rounded-full ${product.itab_status

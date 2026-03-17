@@ -4,13 +4,14 @@ require('dotenv').config();
 // Pool dedicado ao banco MASTER (Central de Controle - NUVEM)
 const masterPool = new Pool({
     host: process.env.MASTER_DB_HOST || 'node254557-salesmaster.sp1.br.saveincloud.net.br',
-    port: parseInt(process.env.MASTER_DB_PORT || '5432'), // Alterado de 13062 para 5432 (padrão interno)
+    port: parseInt(process.env.MASTER_DB_PORT || '13062'), // Usando porta mapeada se disponível
     database: process.env.MASTER_DB_DATABASE || 'salesmasters_master',
     user: process.env.MASTER_DB_USER || 'webadmin',
     password: process.env.MASTER_DB_PASSWORD || 'ytAyO0u043',
-    max: parseInt(process.env.MASTER_DB_MAX_CONNS || '10'),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    max: parseInt(process.env.MASTER_DB_MAX_CONNS || '15'), // Aumentado para 15
+    idleTimeoutMillis: 60000,       // Aumentado para 60s
+    connectionTimeoutMillis: 20000,  // Aumentado para 20s para tolerar latência cloud
+    ssl: process.env.MASTER_DB_SSL === 'true' ? { rejectUnauthorized: false } : false
 });
 
 // Verificação inicial de conexão do Master
@@ -42,12 +43,13 @@ function getTenantPool(tenantKey, config = null) {
             user: config.user,
             password: config.password,
             max: 15, // Aumentado para 15
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000
+            idleTimeoutMillis: 60000,
+            connectionTimeoutMillis: 20000
         };
 
-        if (config.schema && config.schema !== 'public') {
-            poolOptions.options = `-c search_path=${config.schema.replace(/[^a-zA-Z0-9_]/g, '')},public`;
+        if (config.schema) {
+            const safeSchema = config.schema.replace(/[^a-zA-Z0-9_]/g, '');
+            poolOptions.options = `-c search_path=${safeSchema},public`;
         }
 
         tenantPools[tenantKey] = new Pool(poolOptions);

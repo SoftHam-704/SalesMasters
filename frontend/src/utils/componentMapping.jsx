@@ -20,8 +20,9 @@ import FrmTabPreco from '../pages/frmTabPreco';
 import FrmCadastroProdutos from '../pages/frmCadastroProdutos';
 import DatabaseConfig from '../pages/DatabaseConfig';
 import OrdersPage from '../components/orders/OrdersPage';
-import DiceGame from '../components/utilities/DiceGame';
+import FrmGridPedidos from '../components/frmGridPedidos/frmGridPedidos';
 import TetrisGame from '../components/utilities/TetrisGame';
+import DiceGame from '../components/utilities/DiceGame';
 import ParametrosPage from '../components/parametros/ParametrosPage';
 import ProjectConsole from '../pages/projects/ProjectConsole';
 
@@ -42,6 +43,7 @@ import FinancialSuppliersPage from '../pages/financial/FinancialSuppliersPage';
 import UserManagementPage from '../pages/utilitarios/UserManagementPage';
 import AgendaPage from '../pages/AgendaPage';
 import IntelligencePage from '../pages/IntelligencePage';
+import BiGreenfield from '../pages/BiGreenfield';
 import FinancialDashboardPage from '../pages/financial/FinancialDashboardPage';
 import ProjectModeToggle from '../components/utilities/ProjectModeToggle';
 import EmailCenterPage from '../pages/utilitarios/EmailCenterPage';
@@ -49,6 +51,17 @@ import RepCrmDashboard from '../pages/repcrm/RepCrmDashboard';
 import RepCrmPlaceholder from '../pages/repcrm/RepCrmPlaceholder';
 import RepCrmClient360 from '../pages/repcrm/RepCrmClient360';
 import RepCrmMetasConfig from '../pages/repcrm/RepCrmMetasConfig';
+import RepCrmFollowups from '../pages/repcrm/RepCrmFollowups';
+import RepCrmAtendimentos from '../pages/repcrm/RepCrmAtendimentos';
+import RepCrmPipeline from '../pages/repcrm/RepCrmPipeline';
+import TutorialsPage from '../pages/utilitarios/TutorialsPage';
+import WhatsAppAdminPage from '../pages/utilitarios/WhatsAppAdminPage';
+import CustomerSelectablePage from '../pages/repcrm/CustomerSelectablePage';
+import SmartImporter from '../pages/SmartImporter';
+import AuraDashboard from '../pages/AuraDashboard';
+import AuraClientInsight from '../pages/repcrm/AuraClientInsight';
+
+import FrmEstatisticos from '../pages/estatisticos/FrmEstatisticos';
 
 // Mapeamento Centralizado de Rotas para Componentes com Props
 // Estatísticos
@@ -71,8 +84,9 @@ import CustomerReducedEngine from '../components/reports/CustomerReducedEngine';
 
 // Mapeamento Centralizado de Rotas para Componentes com Props
 export const componentMapping = {
-    '/': { component: Dashboard },
-    '/dashboard': { component: Dashboard },
+    '/': { component: AuraDashboard },
+    '/dashboard': { component: AuraDashboard },
+    '/utilitarios/dashboard-legado': { component: Dashboard },
 
     // Vendas
     '/vendas/pedidos': { component: OrdersPage },
@@ -86,7 +100,7 @@ export const componentMapping = {
 
     // Cadastros
     '/cadastros/grupos-produtos': { component: FrmGrupoPro },
-    '/cadastros/categorias': { component: FrmCategorias },
+
     '/cadastros/grupos-descontos': { component: FrmGrupoDesc },
     '/cadastros/transportadoras': { component: FrmTransportadoras },
     '/cadastros/regioes': { component: FrmRegioes },
@@ -95,7 +109,10 @@ export const componentMapping = {
     '/cadastros/area-atuacao': { component: FrmAreaAtuacao },
     '/cadastros/tabelas-precos': { component: FrmTabPreco },
 
-    // Estatísticos
+    // Estatísticos (HUB CENTRALIZADO)
+    '/estatisticos': { component: FrmEstatisticos },
+
+    // Estatísticos (Legado / Direto)
     '/estatisticos/mapa-vendas': { component: PivotReportPage, props: { reportType: 'vendas' } },
     '/estatisticos/mapa-cliente-industria': { component: ClientIndustryMapPage },
     '/estatisticos/clientes-atual-ant': { component: ClientesMoMPage },
@@ -114,8 +131,46 @@ export const componentMapping = {
     '/relatorios/vendas-produto': { component: SalesByProductPage },
     '/print/customers-reduced': { component: CustomerReducedEngine },
 
+    // Relatórios de Cadastros
+    '/relatorios/clientes-selecionavel': { component: CustomerSelectablePage },
+    '/relatorios/clientes-ficha': { component: RepCrmPlaceholder, props: { title: 'Clientes (ficha)' } },
+    '/relatorios/industrias': { component: RepCrmPlaceholder, props: { title: 'Indústrias' } },
+    '/relatorios/vendedores': { component: RepCrmPlaceholder, props: { title: 'Vendedores' } },
+    '/relatorios/transportadoras': { component: RepCrmPlaceholder, props: { title: 'Transportadoras' } },
+    '/relatorios/tabelas-precos-descontos': { component: RepCrmPlaceholder, props: { title: 'Tabela de preços com descontos' } },
+    '/relatorios/tabelas-precos-completa': { component: RepCrmPlaceholder, props: { title: 'Tabela de preços completa' } },
+    '/relatorios/tabelas-precos-reduzida': { component: RepCrmPlaceholder, props: { title: 'Tabela de preço reduzida' } },
+    '/relatorios/tabelas-precos-aplicacao': { component: RepCrmPlaceholder, props: { title: 'Tab. preço com aplicação' } },
+    '/relatorios/tabelas-precos-impostos': { component: RepCrmPlaceholder, props: { title: 'Tabela de preço com impostos' } },
+    '/relatorios/clientes-por-industria': { component: RepCrmPlaceholder, props: { title: 'Relação de clientes por indústria' } },
+    '/relatorios/promocao-produtos': { component: RepCrmPlaceholder, props: { title: 'Promoção de produtos' } },
+    '/relatorios/clientes-area-atuacao': { component: RepCrmPlaceholder, props: { title: 'Clientes por área de atuação' } },
+    '/relatorios/clientes-sem-compras': { component: RepCrmPlaceholder, props: { title: 'Clientes sem compras' } },
+    '/relatorios/clientes-por-cidade': { component: RepCrmPlaceholder, props: { title: 'Possíveis clientes por cidade' } },
+
+    // Relatórios de Movimentação (Placeholders)
+    '/relatorios/vendas-vendedor-industria': { component: RepCrmPlaceholder, props: { title: 'Vendas por vendedor/indústria' } },
+    '/relatorios/vendas-cliente-industria': { component: RepCrmPlaceholder, props: { title: 'Vendas por cliente/indústria' } },
+    '/relatorios/vendas-periodo-totais': { component: RepCrmPlaceholder, props: { title: 'Vendas no período (somente totais)' } },
+    '/relatorios/vendas-cidade-estado': { component: RepCrmPlaceholder, props: { title: 'Vendas por cidade/estado' } },
+    '/relatorios/cotacoes-pendentes': { component: RepCrmPlaceholder, props: { title: 'Cotações pendentes' } },
+    '/relatorios/informativo-vendas': { component: RepCrmPlaceholder, props: { title: 'Informativo de vendas' } },
+    '/relatorios/clientes-inativos': { component: RepCrmPlaceholder, props: { title: 'Clientes inativos' } },
+    '/relatorios/produtos-grupo-clientes': { component: RepCrmPlaceholder, props: { title: 'Produtos por grupo/clientes' } },
+    '/relatorios/vendas-regiao': { component: RepCrmPlaceholder, props: { title: 'Vendas por região' } },
+
+    // Relatórios de Faturamento (Placeholders)
+    '/relatorios/comissao-vendedores': { component: RepCrmPlaceholder, props: { title: 'Comissão vendedores' } },
+    '/relatorios/faturamento-periodo': { component: RepCrmPlaceholder, props: { title: 'Faturamento no período' } },
+    '/relatorios/pedidos-faturados-periodo': { component: RepCrmPlaceholder, props: { title: 'Pedidos faturados no período' } },
+    '/relatorios/faturamento-pendente': { component: RepCrmPlaceholder, props: { title: 'Faturamento pendente' } },
+    '/relatorios/produtos-nao-faturados': { component: RepCrmPlaceholder, props: { title: 'Produtos não faturados' } },
+
+    // Relatórios Financeiro (Placeholders)
+    '/relatorios/financeiro/contas-vencimento': { component: RepCrmPlaceholder, props: { title: 'Contas pagar/receber por vencimento' } },
+
     // Utilitários
-    '/utilitarios/importacao-precos': { component: FrmImportacaoPrecos },
+    '/utilitarios/frmGridPedidos': { component: FrmGridPedidos },
     '/utilitarios/catalogo-produtos': { component: FrmCadastroProdutos },
     '/utilitarios/configuracoes': { component: DatabaseConfig },
     '/utilitarios/parametros': { component: ParametrosPage },
@@ -124,23 +179,29 @@ export const componentMapping = {
     '/utilitarios/usuarios': { component: UserManagementPage },
     '/utilitarios/modo-projetos': { component: ProjectModeToggle },
     '/utilitarios/envio-emails': { component: EmailCenterPage },
+    '/utilitarios/tutoriais': { component: TutorialsPage },
+    '/utilitarios/whatsapp-ia': { component: WhatsAppAdminPage },
+    '/utilitarios/aura-dashboard': { component: AuraDashboard },
+    '/utilitarios/importacao-precos': { component: FrmImportacaoPrecos },
 
     // Outros
     '/agenda': { component: AgendaPage },
 
     '/bi-intelligence': { component: IntelligencePage },
-    '/crm': { component: CRMPage },
-    // Correção: No App.jsx original: path="/crm" element={<CRMPage />}
-    // Então aqui deve ser CRMPage.
+    '/bi-greenfield': { component: BiGreenfield },
+    '/crm': { component: RepCrmDashboard },
+    // Redirect legacy /crm to unified CRM dashboard
 
     '/movimentacoes/sell-out': { component: SellOutPage },
+    '/movimentacoes/importador': { component: SmartImporter },
     '/configuracoes/crm': { component: CRMSettings },
 
     // RepCRM Specialist
     '/repcrm/dashboard': { component: RepCrmDashboard },
     '/repcrm/cliente/:id': { component: RepCrmClient360 },
-    '/repcrm/comissoes': { component: RepCrmPlaceholder, props: { title: 'Gestão de Comissões' } },
-    '/repcrm/visitas': { component: RepCrmPlaceholder, props: { title: 'Relatórios de Visita' } },
+    '/repcrm/atendimentos': { component: RepCrmAtendimentos },
+    '/repcrm/followups': { component: RepCrmFollowups },
+    '/repcrm/pipeline': { component: RepCrmPipeline },
     '/repcrm/config': { component: RepCrmMetasConfig },
     '/repcrm/metas': { component: RepCrmMetasConfig },
 
@@ -173,9 +234,9 @@ export const getComponentForPath = (path) => {
         return componentMapping[path];
     }
 
-    // 2. Tratamento para /crm (correção do meu comentário acima)
+    // 2. Tratamento para /crm (redirect to unified CRM)
     if (path === '/crm') {
-        return { component: CRMPage };
+        return { component: RepCrmDashboard };
     }
 
     // 3. Fallback removed

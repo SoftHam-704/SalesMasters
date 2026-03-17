@@ -38,6 +38,19 @@ module.exports = function (app, pool) {
 
             const transporter = createTransporter(config);
 
+            // 2.2 Fetch Company Name for Branding
+            let companyName = 'SalesMasters';
+            try {
+                const companyResult = await pool.query('SELECT emp_nome FROM empresa_status WHERE emp_id = 1');
+                if (companyResult.rows.length > 0 && companyResult.rows[0].emp_nome) {
+                    companyName = companyResult.rows[0].emp_nome.trim();
+                }
+            } catch (companyError) {
+                console.warn('⚠️ [EMAIL] Erro ao buscar nome da empresa:', companyError.message);
+            }
+
+            const senderName = config.par_sisuser || companyName;
+
             // 2.5 Verify SMTP Connection before sending
             try {
                 await transporter.verify();
@@ -52,7 +65,7 @@ module.exports = function (app, pool) {
 
             // 3. Prepare Email Options
             const mailOptions = {
-                from: `"${config.par_sisuser || 'SalesMasters'}" <${config.par_email}>`,
+                from: `"${senderName}" <${config.par_email}>`,
                 to: recipients.join(', '),
                 subject: subject,
                 text: text,
@@ -96,23 +109,52 @@ module.exports = function (app, pool) {
         try {
             const config = req.body;
 
-            if (!config.par_emailserver || !config.par_email) {
-                return res.status(400).json({ success: false, message: 'Servidor e e-mail são obrigatórios para o teste' });
+            if (!config || !config.par_emailserver || !config.par_email) {
+                console.warn('⚠️ [EMAIL] Test Connection: Missing required fields');
+                return res.status(400).json({
+                    success: false,
+                    message: 'Servidor e e-mail são obrigatórios para o teste'
+                });
             }
 
-            const transporter = createTransporter(config);
-            await transporter.verify();
+            console.log(`📡 [EMAIL] Testing connection to ${config.par_emailserver}:${config.par_emailporta || 587}`);
 
-            res.json({
+            const transporter = createTransporter(config);
+
+            // Timeout safety
+            const verifyPromise = transporter.verify();
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout na conexão SMTP (15s)')), 15000)
+            );
+
+            await Promise.race([verifyPromise, timeoutPromise]);
+
+            console.log('✅ [EMAIL] SMTP Test successful');
+            return res.json({
                 success: true,
                 message: 'Conexão SMTP estabelecida com sucesso! Credenciais aceitas.'
             });
 
         } catch (error) {
-            console.error('❌ [EMAIL] SMTP Test failed:', error.message);
-            res.status(500).json({
+            console.error('❌ [EMAIL] SMTP Test failed:', error);
+
+            let userMessage = `Falha na conexão: ${error.message}`;
+
+            if (error.code === 'EAUTH') {
+                userMessage = 'Erro de Autenticação: Usuário ou senha do e-mail estão incorretos.';
+            } else if (error.code === 'ESOCKET' || error.code === 'ETIMEDOUT' || error.message.includes('Timeout')) {
+                userMessage = 'Erro de Conexão: Não foi possível alcançar o servidor SMTP ou o tempo expirou. Verifique o endereço, a porta e as opções de SSL/TLS.';
+            } else if (error.code === 'EENVELOPE') {
+                userMessage = 'Erro de Configuração: O e-mail informado parece inválido.';
+            } else if (error.message.includes('ECONNREFUSED')) {
+                userMessage = 'Erro de Conexão: O servidor recusou a conexão. Verifique se a porta está correta.';
+            }
+
+            return res.status(500).json({
                 success: false,
-                message: `Falha na autenticação: ${error.message}`
+                message: userMessage,
+                details: error.message,
+                code: error.code || 'UNKNOWN'
             });
         }
     });

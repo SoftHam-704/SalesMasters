@@ -66,17 +66,52 @@ async function processarMensagemIA(context, messageData) {
     const { phone, content, pushName } = messageData;
 
     try {
-        // 1. Buscar contato ou criar
+        // 1. Buscar contato existente
         let contatoRes = await pool.query(`SELECT id, cliente_id, is_cliente FROM wpp_contato WHERE telefone = $1`, [phone]);
         let contato = contatoRes.rows[0];
 
-        if (!contato) {
-            const insertRes = await pool.query(`
-                INSERT INTO wpp_contato (telefone, nome_push, origem)
-                VALUES ($1, $2, 'whatsapp_inbound')
-                RETURNING id
-            `, [phone, pushName]);
-            contato = { id: insertRes.rows[0].id, is_cliente: false };
+        // 1.5 Se não existe ou não é cliente vinculado, tentar buscar na tabela de clientes (cli_fone3)
+        if (!contato || !contato.cliente_id) {
+            const cleanPhone = phone.replace(/\D/g, '').slice(-8); // Pega últimos 8 dígitos para evitar problemas de DDI/DDD
+            const clientLookup = await pool.query(`
+                SELECT cli_codigo, cli_nome, cli_vendedor, ven.ven_nome
+                FROM clientes
+                LEFT JOIN vendedores ven ON ven.ven_codigo = cli_vendedor
+                WHERE regexp_replace(cli_fone3, '[^0-9]', '', 'g') LIKE $1
+                LIMIT 1
+            `, [`%${cleanPhone}`]);
+
+            if (clientLookup.rows.length > 0) {
+                const client = clientLookup.rows[0];
+                logger.log(`🔍 [WPP-IA] Cliente identificado: ${client.cli_nome} (ID: ${client.cli_codigo})`);
+
+                if (contato) {
+                    // Atualiza contato existente
+                    await pool.query(`UPDATE wpp_contato SET cliente_id = $1, is_cliente = true WHERE id = $2`, [client.cli_codigo, contato.id]);
+                    contato.cliente_id = client.cli_codigo;
+                    contato.is_cliente = true;
+                } else {
+                    // Cria novo contato já vinculado
+                    const insertRes = await pool.query(`
+                        INSERT INTO wpp_contato (telefone, nome_push, origem, cliente_id, is_cliente)
+                        VALUES ($1, $2, 'whatsapp_inbound', $3, true)
+                        RETURNING id
+                    `, [phone, pushName, client.cli_codigo]);
+                    contato = { id: insertRes.rows[0].id, cliente_id: client.cli_codigo, is_cliente: true };
+                }
+                
+                // Adiciona metadados do cliente para o contexto da IA
+                contato.nome_cliente = client.cli_nome;
+                contato.vendedor_responsavel = client.ven_nome;
+            } else if (!contato) {
+                // Visitante novo realmente desconhecido
+                const insertRes = await pool.query(`
+                    INSERT INTO wpp_contato (telefone, nome_push, origem)
+                    VALUES ($1, $2, 'whatsapp_inbound')
+                    RETURNING id
+                `, [phone, pushName]);
+                contato = { id: insertRes.rows[0].id, is_cliente: false };
+            }
         }
 
         // 2. Buscar conversa ativa
@@ -130,7 +165,7 @@ async function processarMensagemIA(context, messageData) {
             const respostaAuto = "Olá! Recebemos sua mensagem. Nosso atendimento humano funciona de Seg a Sex das 8h às 18h.";
             await pool.query(`
                 INSERT INTO wpp_mensagem (conversa_id, contato_id, direcao, remetente, conteudo, status)
-                VALUES ($1, $2, 'outbound', 'system', $3, 'enviada')
+                VALUES ($1, $2, 'outbound', 'ia', $3, 'enviada')
             `, [conversa.id, contato.id, respostaAuto]);
             return respostaAuto;
         }
@@ -207,14 +242,15 @@ async function processarMensagemIA(context, messageData) {
             CONTEXTO DE ATUAÇÃO:
             Você é ${contextoAtual.persona} da ${contextoAtual.nome}.
             Sobre a empresa: ${contextoAtual.info}
-
-            CLIENTE: "${content}"
-            DADOS JÁ COLETADOS: ${JSON.stringify(conversa.dados_qualificacao || {})}
+ 
+            DADOS DO CLIENTE IDENTIFICADO: ${contato.nome_cliente ? `NOME: ${contato.nome_cliente}, VENDEDOR: ${contato.vendedor_responsavel || 'Não definido'}` : 'Visitante não identificado'}
+            DADOS JÁ COLETADOS NA CONVERSA: ${JSON.stringify(conversa.dados_qualificacao || {})}
 
             OBJETIVO:
-            1. Se for "Recepcionista Geral", descubra qual marca interessa ao cliente.
-            2. Se for "Especialista", qualifique o lead (tipo de produto, volume, urgência).
-            3. Seja breve, profissional e use emojis moderados.
+            1. Se o cliente for identificado, use o nome dele de forma natural.
+            2. Se for "Recepcionista Geral", descubra qual marca interessa ao cliente.
+            3. Se for "Especialista", qualifique o lead (tipo de produto, volume, urgência).
+            4. Seja breve, profissional e use emojis moderados.
 
             Responda APENAS em JSON:
             {

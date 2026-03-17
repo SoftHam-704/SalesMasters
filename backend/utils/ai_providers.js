@@ -13,6 +13,7 @@ const OpenAI = require('openai');
 
 // Cache do provider funcional para evitar testes repetidos
 let cachedProvider = null;
+let workingGeminiModel = null; // Cache global do nome do modelo Gemini que funciona
 
 /**
  * Prompt padrão para extração de dados de pedidos
@@ -24,7 +25,14 @@ Sua missão é extrair tanto os ITENS quanto os DADOS DO CABEÇALHO (se existire
 
 1. EXTRAÇÃO DE ITENS (Obrigatório):
    Identifique TODOS os itens listados, extraindo APENAS código e quantidade. IGNORE descrição e preço.
-   - CÓDIGO: Se houver múltiplos códigos (ex: "A/B"), retorne a string completa "A/B". Baseie-se no código do produto ou referência.
+   - HIERARQUIA DE CÓDIGO: Se o documento possuir múltiplas colunas de códigos, siga esta prioridade rigorosamente:
+     1º Prioridade: Colunas chamadas "Cód. Forn.", "Código Fornecedor", "Ref. Forn." ou "Part Number".
+     2º Prioridade (Fallback): Se as colunas acima não existirem, utilize a coluna "Código".
+     3º Prioridade (Último recurso): Se houver apenas uma coluna de código sem nome claro, utilize o que encontrar.
+   - REGRA CRÍTICA PARA CÓDIGOS MÚLTIPLOS: 
+     Se uma ÚNICA célula contiver VÁRIOS códigos separados por "/", "|" ou ";", 
+     RETORNE TODOS OS CÓDIGOS NA ÍNTEGRA como uma string única (ex: "XYZ-4827 / 30-179 / PKL-9384").
+     NÃO escolha apenas um deles. O sistema fará o matching correto depois.
    - QUANTIDADE: Valor numérico da quantidade solicitada.
 
 2. EXTRAÇÃO DE CABEÇALHO/PROJETO (Se disponível):
@@ -213,18 +221,30 @@ class GeminiProvider extends AIProvider {
      * Como vimos nos logs, alguns projetos têm acesso a nomes diferentes (2.0 vs 1.5 vs nomes experimentais).
      */
     async _getModel(config = {}) {
+        if (workingGeminiModel) {
+            return {
+                model: this.genAI.getGenerativeModel({
+                    model: workingGeminiModel,
+                    ...config
+                }),
+                name: workingGeminiModel
+            };
+        }
+
         const modelNames = [
-            "gemini-2.0-flash",        // Tentar o estável atual
-            "gemini-2.0-flash-exp",    // Tentar experimental
-            "gemini-1.5-flash-latest", // Tentar o estável dinâmico
-            "gemini-1.5-flash",        // Tentar o estável fixo
-            "gemini-1.5-pro",          // Último recurso estável
-            "gemini-3.0-flash",        // Nomes futuros (conforme print do user)
-            "gemini-3.1-pro"           // Nomes futuros (conforme print do user)
+            "gemini-2.5-flash",        // Estável (Jun/2025) - Confirmado SUCCESS
+            "gemini-2.5-pro",          // Estável - Confirmado SUCCESS
+            "gemini-3.1-pro-preview",   // Preview - Confirmado SUCCESS
+            "gemini-3-flash-preview",   // Preview - Confirmado SUCCESS
+            "gemini-flash-latest",      // Alias estável
+            "gemini-2.0-flash-001"      // Estável do 2.0
         ];
 
+        // Também vamos atualizar a lista de teste rápido para ser consistente
+        this.listAvailableModels = async () => modelNames;
+
         let lastError = null;
-        console.info(`🔍 [Gemini] Iniciando descoberta de modelos...`);
+        console.info(`🔍 [Gemini] Iniciando descoberta de modelos no seu projeto...`);
 
         for (const modelName of modelNames) {
             try {
@@ -233,66 +253,78 @@ class GeminiProvider extends AIProvider {
                     ...config
                 });
 
-                // O erro de 404 geralmente acontece no generateContent, 
-                // então retornamos o modelo para tentativa de uso real.
+                // Validação Real: Alguns modelos dão 404 apenas no generateContent
+                // Fazemos um mini-ping de 3 segundos
+                console.log(`🧪 [Gemini] Testando conectividade com ${modelName}...`);
+                await this.withTimeout(model.generateContent('ping'), 8000);
+
+                workingGeminiModel = modelName;
                 this.lastUsedModel = modelName;
+                console.log(`✅ [Gemini] Modelo ${modelName} VALIDADO e selecionado.`);
                 return { model, name: modelName };
             } catch (e) {
-                console.warn(`⚠️ [Gemini] Tentativa com ${modelName} falhou: ${e.message}`);
+                console.warn(`⚠️ [Gemini] Modelo ${modelName} indisponível: ${e.message}`);
                 lastError = e;
                 continue;
             }
         }
-        throw lastError || new Error("Nenhum modelo Gemini disponível no seu projeto.");
+        throw lastError || new Error("Nenhum modelo Gemini disponível ou respondendo no seu projeto.");
     }
 
     async test() {
         try {
-            const { model } = await this._getModel({
+            const { name } = await this._getModel({
                 generationConfig: { responseMimeType: "application/json" }
             });
-            const result = await model.generateContent('Return JSON: {"status":"ok"}');
-            const response = await result.response;
-            return response.text().includes('ok');
+            return !!name;
         } catch (e) {
             console.error(`❌ [Gemini Test] Falha final: ${e.message}`);
             return false;
         }
     }
 
+    /**
+     * Lista os modelos reais disponíveis para esta API Key usando a API REST
+     */
+    async listAvailableModels() {
+        const apiKey = process.env.GEMINI_API_KEY;
+        try {
+            const axios = require('axios');
+            const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+            const response = await axios.get(url);
+            const data = response.data;
+
+            if (data.models) {
+                return data.models.map(m => ({
+                    name: m.name.replace('models/', ''),
+                    description: m.description,
+                    supportedMethods: m.supportedGenerationMethods
+                }));
+            }
+            return { error: 'Nenhum modelo retornado', raw: data };
+        } catch (e) {
+            console.error('❌ [Gemini List] Falha ao listar via REST:', e.response?.data || e.message);
+            return { error: e.message, detail: e.response?.data };
+        }
+    }
+
     async processExcel(dataString) {
         const prompt = `${EXTRACTION_PROMPT}\n\nDados da Planilha:\n${dataString}`;
 
-        // Tentativa com retry automático trocando o modelo se der 404 ou 429
-        const modelNames = [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-flash",
-            "gemini-3.0-flash",
-            "gemini-3.1-pro"
-        ];
+        try {
+            const { model, name } = await this._getModel({
+                generationConfig: { responseMimeType: "application/json" }
+            });
 
-        for (const modelName of modelNames) {
-            try {
-                console.info(`🤖 [Gemini] Tentando processar dados com ${modelName}...`);
-                const model = this.genAI.getGenerativeModel({
-                    model: modelName,
-                    generationConfig: { responseMimeType: "application/json" }
-                });
-                const result = await this.withTimeout(model.generateContent(prompt));
-                const response = await result.response;
-                const text = response.text();
-                this.lastUsedModel = modelName;
-                return this.normalizeResponse(this.parseJSONResponse(text));
-            } catch (error) {
-                const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
-                if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
-                    console.warn(`⚠️ [Gemini] Modelo ${modelName} falhou: ${error.message}. Tentando próximo...`);
-                    continue;
-                }
-                throw error;
-            }
+            console.info(`🤖 [Gemini] Processando dados com ${name}...`);
+            const result = await this.withTimeout(model.generateContent(prompt));
+            const response = await result.response;
+            const text = response.text();
+
+            return this.normalizeResponse(this.parseJSONResponse(text));
+        } catch (error) {
+            console.error(`❌ [Gemini Excel] Erro: ${error.message}`);
+            throw error;
         }
     }
 
@@ -310,35 +342,20 @@ class GeminiProvider extends AIProvider {
             EXTRACTION_PROMPT
         ];
 
-        const modelNames = [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-flash",
-            "gemini-3.0-flash",
-            "gemini-3.1-pro"
-        ];
+        try {
+            const { model, name } = await this._getModel({
+                generationConfig: { responseMimeType: "application/json" }
+            });
 
-        for (const modelName of modelNames) {
-            try {
-                console.info(`🤖 [Gemini Vision] Tentando com ${modelName}...`);
-                const model = this.genAI.getGenerativeModel({
-                    model: modelName,
-                    generationConfig: { responseMimeType: "application/json" }
-                });
-                const result = await this.withTimeout(model.generateContent(content));
-                const response = await result.response;
-                const text = response.text();
-                this.lastUsedModel = modelName;
-                return this.normalizeResponse(this.parseJSONResponse(text));
-            } catch (error) {
-                const isRetryable = error.message.includes('404') || error.message.includes('429') || error.message.includes('quota');
-                if (isRetryable && modelName !== modelNames[modelNames.length - 1]) {
-                    console.warn(`⚠️ [Gemini Vision] Modelo ${modelName} falhou: ${error.message}. Tentando próximo...`);
-                    continue;
-                }
-                throw error;
-            }
+            console.info(`🤖 [Gemini Vision] Processando ${mimeType} com ${name}...`);
+            const result = await this.withTimeout(model.generateContent(content));
+            const response = await result.response;
+            const text = response.text();
+
+            return this.normalizeResponse(this.parseJSONResponse(text));
+        } catch (error) {
+            console.error(`❌ [Gemini Vision] Erro: ${error.message}`);
+            throw error;
         }
     }
 }
@@ -536,10 +553,10 @@ async function getWorkingProvider() {
             console.log(`🧪 [AI] Testando ${providerName}...`);
             const provider = createProvider(providerName);
 
-            // Timeout de 10s para o teste de conectividade
+            // Timeout de 20s para o teste de conectividade (evitar falhas em cold start)
             const testPromise = provider.test();
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout de conectividade (10s)')), 10000)
+                setTimeout(() => reject(new Error('Timeout de conectividade (20s)')), 20000)
             );
 
             await Promise.race([testPromise, timeoutPromise]);

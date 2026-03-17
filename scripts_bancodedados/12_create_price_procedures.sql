@@ -28,7 +28,7 @@ BEGIN
     SELECT
         ct.itab_industria,
         ct.itab_tabela,
-        MAX(ct.itab_datatbela) AS itab_datatabela,
+        MAX(ct.itab_datatabela) AS itab_datatabela,
         MAX(ct.itab_datavencimento) AS itab_datavencimento,
         BOOL_AND(ct.itab_status) AS itab_status
     FROM cad_tabelaspre ct
@@ -86,7 +86,7 @@ BEGIN
         ct.itab_precobruto,
         ct.itab_precopromo,
         ct.itab_precoespecial,
-        ct.itab_datatbela AS itab_datatabela,
+        ct.itab_datatabela,
         ct.itab_datavencimento,
         ct.itab_status
     FROM cad_tabelaspre ct

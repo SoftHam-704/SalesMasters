@@ -86,7 +86,7 @@ const EquipeTab = ({ filters, refreshTrigger }) => {
             setLoading(true);
             try {
                 // Performance Ranking should show ALL vendors, so we don't pass 'vendedor' param here
-                const url = getApiUrl(API_URL, `/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica}`);
+                const url = getApiUrl(API_URL, `/api/equipe/performance?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica || 'valor'}`);
                 const response = await fetch(url);
                 const data = await response.json();
                 if (data.success) {
@@ -204,7 +204,7 @@ const EquipeTab = ({ filters, refreshTrigger }) => {
     const fetchEvolucaoData = async () => {
         try {
             const vendedorParam = selectedVendedor ? `&vendedor=${selectedVendedor}` : '';
-            const url = getApiUrl(API_URL, `/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica}${vendedorParam}`);
+            const url = getApiUrl(API_URL, `/api/equipe/evolucao?ano=${filters.ano}&mes=${metricMonth}&metrica=${filters.metrica || 'valor'}${vendedorParam}`);
             const response = await fetch(url);
             const data = await response.json();
             if (data.success && data.data) {

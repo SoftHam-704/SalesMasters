@@ -1,11 +1,12 @@
-// Order Print Endpoints Module
+const sharp = require('sharp');
 
+// Order Print Endpoints Module
 module.exports = function (app, pool) {
 
     // GET - Fetch full order data for printing
     app.get('/api/orders/:pedPedido/print-data', async (req, res) => {
         const startTime = Date.now();
-        const currentPool = req.pool || pool; // Suporte Multi-tenant
+        const currentPool = req.db || pool; // Suporte Multi-tenant consistent with middleware
 
         console.log(`🖨️ [PRINT_DATA] Request received for order: ${req.params.pedPedido}`);
 
@@ -18,7 +19,6 @@ module.exports = function (app, pool) {
             }
 
             // 1. Fetch Order Master Data
-            // Usamos TRIM para garantir comparação exata e evitar problemas com espaços no banco
             const masterQuery = `
                 SELECT 
                     p.*,
@@ -26,8 +26,9 @@ module.exports = function (app, pool) {
                     c.cli_nome, c.cli_nomred, c.cli_endereco, c.cli_bairro, 
                     c.cli_cidade, c.cli_uf, c.cli_cep, c.cli_cnpj as client_cnpj, c.cli_inscricao, 
                     c.cli_fone1, c.cli_email, c.cli_emailnfe, c.cli_cxpostal, c.cli_suframa,
-                    f.for_nome, f.for_nomered, f.for_fone, f.for_cidade, f.for_uf,
+                    f.for_nome, f.for_nomered, f.for_fone, f.for_cidade, f.for_uf, f.for_email,
                     f.for_logotipo, f.for_locimagem,
+                    i.cli_emailcomprador,
                     v.ven_nome, v.ven_fone1,
                     t.tra_nome, t.tra_endereco, t.tra_bairro, t.tra_cidade, t.tra_uf, t.tra_cep, 
                     t.tra_cgc, t.tra_inscricao, t.tra_email,
@@ -48,57 +49,65 @@ module.exports = function (app, pool) {
             }
 
             const orderData = masterResult.rows[0];
+            console.log(`🔍 [DEBUG-EMAIL] Order: ${pedPedido}, Industry: ${industria}, for_email: ${orderData.for_email}`);
 
-            // 2. Tratamento de Logotipo das Indústrias
-            // IMPORTANTE: for_logotipo = imagem base64 no banco; for_locimagem = path antigo do Delphi (IGNORAR)
+            // 2. Tratamento de Logotipo das Indústrias (COM REDIMENSIONAMENTO VIA SHARP)
+            // IMPORTANTE: for_logotipo = imagem base64 ou bytea no banco
             let industry_logotipo = null;
             const logoFonte = orderData.for_logotipo;
 
             if (logoFonte) {
                 try {
-                    // Limite alinhado com o frontend (150KB base64 ≈ 110KB de imagem)
-                    const MAX_LOGO_SIZE = 150000;
-
-                    // PROTEÇÃO: Detectar caminhos de arquivo (for_locimagem guarda path, não base64)
+                    let imageBuffer = null;
+                    
                     if (typeof logoFonte === 'string') {
                         const trimmed = logoFonte.trim();
+                        // Verifica se é um caminho local/rede -> ignora, pois não temos acesso fácil
                         const isPath = /^[A-Za-z]:[\\\/]/.test(trimmed) ||
                             trimmed.startsWith('\\\\') ||
                             (/^\/[a-z]/i.test(trimmed) && trimmed.includes('/')) ||
                             /\.(png|jpg|jpeg|gif|bmp|svg|webp)$/i.test(trimmed);
+                            
                         if (isPath) {
-                            console.warn(`⚠️ [PRINT-DATA] Logo é um caminho de arquivo, não base64: "${trimmed.substring(0, 60)}" — ignorado.`);
-                            // Não processa, mantém industry_logotipo = null
+                            console.warn(`⚠️ [PRINT-DATA] Logo é um caminho de arquivo, não uma string base64: "${trimmed.substring(0, 60)}" — ignorado.`);
                         } else {
+                            // Limpa cabeçalho base64 caso exista
                             const cleanBase64 = trimmed.replace(/[\n\r\s]/g, '').replace(/^data:image\/[a-z+]+;base64,/, '');
-                            if (cleanBase64.length <= MAX_LOGO_SIZE) {
-                                // Validar que é realmente base64
-                                if (/^[A-Za-z0-9+/=]+$/.test(cleanBase64) && cleanBase64.length >= 20) {
-                                    let mime = 'image/png';
-                                    const start = cleanBase64.substring(0, 10);
-                                    if (start.match(/^\/9j\//)) mime = 'image/jpeg';
-                                    else if (start.startsWith('iVBORw')) mime = 'image/png';
-                                    industry_logotipo = `data:${mime};base64,${cleanBase64}`;
-                                } else {
-                                    console.warn(`⚠️ [PRINT-DATA] Logo não é base64 válido — ignorado.`);
-                                }
-                            } else {
-                                console.warn(`⚠️ [PRINT-DATA] Logo da indústria ignorado: String Base64 muito longa (${(cleanBase64.length / 1024).toFixed(1)}KB)`);
+                            if (/^[A-Za-z0-9+/=]+$/.test(cleanBase64) && cleanBase64.length >= 20) {
+                                imageBuffer = Buffer.from(cleanBase64, 'base64');
                             }
                         }
                     } else if (Buffer.isBuffer(logoFonte)) {
-                        const base64Str = logoFonte.toString('base64');
-                        if (base64Str.length <= MAX_LOGO_SIZE) {
-                            industry_logotipo = `data:image/png;base64,${base64Str}`;
-                        } else {
-                            console.warn(`⚠️ [PRINT-DATA] Logo da indústria ignorado: Buffer muito grande (${(base64Str.length / 1024).toFixed(1)}KB base64)`);
+                        imageBuffer = logoFonte;
+                    }
+
+                    // Se temos um buffer processável, vamos redimensioná-lo para otimizar velocidade
+                    if (imageBuffer) {
+                        try {
+                            const resizedBuffer = await sharp(imageBuffer)
+                                .resize({ width: 300, height: 150, fit: 'inside', withoutEnlargement: true })
+                                .toFormat('jpeg', { quality: 80 })
+                                .toBuffer();
+                            
+                            const resizedBase64 = resizedBuffer.toString('base64');
+                            industry_logotipo = `data:image/jpeg;base64,${resizedBase64}`;
+                            console.log(`✅ [PRINT-DATA] Logo redimensionado com Sharp: original ${(imageBuffer.length / 1024).toFixed(1)}KB -> base64 reduzido ${(resizedBase64.length / 1024).toFixed(1)}KB`);
+                        } catch(sharpErr) {
+                            console.warn(`⚠️ [PRINT-DATA] Erro no redimensionamento pelo Sharp. Usando fallback original:`, sharpErr.message);
+                            // Fallback caso o sharp falhe
+                            const fallbackBase64 = imageBuffer.toString('base64');
+                            // Limite estrito de 150KB
+                            if (fallbackBase64.length <= 150000) {
+                                industry_logotipo = `data:image/png;base64,${fallbackBase64}`;
+                            }
                         }
                     }
-                    // Injeta de volta no objeto para o frontend achar fácil
+
                     orderData.for_logotipo = industry_logotipo;
-                    orderData.industry_logotipo = industry_logotipo;
+                    orderData.industry_logotipo = industry_logotipo; // Exportado tanto como for_logotipo quanto industry_logotipo para compatibilidade c/ frontend
+
                 } catch (e) {
-                    console.error('⚠️ [PRINT-DATA] Erro logo indústria:', e.message);
+                    console.error('⚠️ [PRINT-DATA] Erro completo logo indústria:', e.message);
                 }
             }
 
@@ -117,7 +126,7 @@ module.exports = function (app, pool) {
                     p.pro_codigooriginal 
                 FROM itens_ped ip
                 LEFT JOIN LATERAL (
-                    SELECT cp.pro_aplicacao, cp.pro_aplicacao2, cp.pro_codigooriginal, cp.pro_conversao
+                    SELECT cp.pro_aplicacao, cp.pro_aplicacao2, cp.pro_codigooriginal, cp.pro_conversao, cp.pro_embalagem
                     FROM cad_prod cp
                     WHERE cp.pro_codprod = ip.ite_produto AND cp.pro_industria = ip.ite_industria
                     LIMIT 1

@@ -1,103 +1,39 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardContent } from '../ui/card';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 
 export const IndustryRevenueCard = ({ data, loading }) => {
-    const formatCurrency = (value) => {
-        return new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(value);
-    };
-
-    const formatCompact = (value) => {
-        if (value >= 1000000) {
-            return `R$ ${(value / 1000000).toFixed(1)}M`;
-        } else if (value >= 1000) {
-            return `R$ ${(value / 1000).toFixed(0)}k`;
-        }
-        return formatCurrency(value);
-    };
-
-    // Single color for all bars (blue - BCR color)
-    const barColor = 'hsl(200, 70%, 45%)';
-
+    // Card mantido para não quebrar o layout do grid no Dashboard, mas sem o gráfico
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             className="activity-card"
+            style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                maxHeight: '650px',
+                borderRadius: '16px',
+                boxShadow: 'var(--shadow-sm)',
+                overflow: 'hidden'
+            }}
         >
-            <div className="card-header">
-                <h3 className="card-title">
-                    <TrendingUp className="title-icon" />
-                    Faturamento por Indústria
-                </h3>
+            <div className="card-header" style={{ padding: '20px', borderBottom: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '10px' }}>
+                        <TrendingUp size={20} color="#3b82f6" />
+                    </div>
+                    <h3 className="card-title" style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        Faturamento por Indústria
+                    </h3>
+                </div>
             </div>
-            <div className="chart-container" style={{ padding: '10px 0', height: '100%', minHeight: '320px' }}>
-                {loading ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                        <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
-                    </div>
-                ) : data && data.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <BarChart
-                            data={data.slice(0, 6)}
-                            layout="vertical"
-                            margin={{ top: 5, right: 80, left: 10, bottom: 5 }}
-                        >
-                            <XAxis
-                                type="number"
-                                stroke="var(--text-secondary)"
-                                fontSize={11}
-                                tickLine={false}
-                                axisLine={false}
-                                hide
-                                domain={[0, 'auto']}
-                            />
-                            <YAxis
-                                type="category"
-                                dataKey="industria_nome"
-                                stroke="var(--text-secondary)"
-                                fontSize={11}
-                                tickLine={false}
-                                axisLine={false}
-                                width={120}
-                            />
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: "var(--bg-card)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "12px",
-                                    boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-                                }}
-                                labelStyle={{ color: "var(--text-primary)", fontWeight: 600 }}
-                                formatter={(value) => [formatCurrency(value), 'Faturamento']}
-                            />
-                            <Bar
-                                dataKey="total_faturamento"
-                                radius={[0, 8, 8, 0]}
-                                fill={barColor}
-                            >
-                                <LabelList
-                                    dataKey="total_faturamento"
-                                    position="right"
-                                    formatter={formatCompact}
-                                    style={{ fill: 'var(--text-primary)', fontSize: '11px', fontWeight: 600 }}
-                                />
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                        <p style={{ color: 'var(--text-secondary)' }}>Nenhum dado disponível</p>
-                    </div>
-                )}
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+                {/* Espaço vazio conforme solicitado */}
             </div>
         </motion.div>
     );

@@ -112,43 +112,43 @@ export default function GrupoLojasPage() {
     )
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-20">
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-blue-50 p-2 rounded-lg">
-                                <Building2 className="text-blue-600 w-6 h-6" />
-                            </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-xl font-bold text-gray-800">Faturamento Grupo de Lojas</h1>
-                                <span className="text-xs text-slate-400 font-mono">Visão por Rede / Indústria</span>
-                            </div>
+                            <h1 className="text-xl font-bold tracking-tight text-stone-900">Faturamento Grupo de Lojas</h1>
                             <div className="ml-4 flex items-center gap-2">
                                 <ClosePageButton />
                             </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600">
-                            <DownloadIcon className="w-4 h-4" /> Exportar Excel
-                        </Button>
+                        <div className="flex gap-2">
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <DownloadIcon className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
+                            <button onClick={handleProcess} disabled={loading} className="h-[38px] px-6 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                {loading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : null}
+                                <span className="!text-white">{loading ? 'Processando...' : 'Processar'}</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Período</Label>
-                            <div className="flex items-center gap-2">
-                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs bg-white" />
-                                <span className="text-slate-400">-</span>
-                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs bg-white" />
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[250px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Período</label>
+                            <div className="flex items-center gap-2 bg-stone-50 p-1 rounded-lg border border-stone-200 shadow-sm">
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
+                                <span className="text-stone-300 font-bold">-</span>
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
                             </div>
                         </div>
 
-                        <div className="col-span-12 md:col-span-5 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Indústria <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Indústria <span className="text-red-500">*</span></label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {industrias.map(i => (
                                         <SelectItem key={i.for_codigo} value={String(i.for_codigo)}>
@@ -158,20 +158,14 @@ export default function GrupoLojasPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-
-                        <div className="col-span-12 md:col-span-3">
-                            <Button onClick={handleProcess} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                                {loading ? 'Carregando...' : 'Processar'}
-                            </Button>
-                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-auto p-4 space-y-4 bg-slate-50/50">
+            <div className="flex-1 overflow-auto p-4 space-y-4 bg-stone-50">
                 {!data.length && !loading ? (
-                    <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                    <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                         <Building2 className="w-12 h-12 opacity-20" />
                         <span className="text-sm italic">Selecione a indústria e o período para gerar a análise</span>
                     </div>
@@ -183,54 +177,54 @@ export default function GrupoLojasPage() {
                                 const groupTotalQuant = items.reduce((sum, item) => sum + Number(item.quant), 0)
 
                                 return (
-                                    <AccordionItem key={groupName} value={groupName} className="border border-slate-200 bg-white rounded-xl shadow-sm overflow-hidden">
-                                        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 border-none transition-colors group">
+                                    <AccordionItem key={groupName} value={groupName} className="border border-stone-200 bg-white rounded-xl shadow-sm overflow-hidden">
+                                        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-stone-50 border-none transition-colors group">
                                             <div className="flex items-center justify-between w-full pr-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="bg-slate-100 p-1.5 rounded-md text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                                                    <div className="bg-stone-100 p-1.5 rounded-md text-stone-500 group-hover:bg-stone-200 transition-colors">
                                                         <Building2 className="w-4 h-4" />
                                                     </div>
-                                                    <span className="text-sm font-bold text-slate-700 uppercase tracking-tight">GRUPO : {groupName}</span>
+                                                    <span className="text-sm font-bold text-stone-700 uppercase tracking-tight">Grupo: {groupName}</span>
                                                 </div>
                                                 <div className="flex items-center gap-6">
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-slate-400 font-medium uppercase">Quant. Total</span>
-                                                        <span className="text-sm font-bold text-blue-600 font-mono">{formatNumber(groupTotalQuant)}</span>
+                                                        <span className="text-[10px] text-stone-400 font-medium uppercase">Quant. Total</span>
+                                                        <span className="text-sm font-bold text-stone-700 tabular-nums">{formatNumber(groupTotalQuant)}</span>
                                                     </div>
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-slate-400 font-medium uppercase">Valor Total</span>
-                                                        <span className="text-sm font-bold text-green-600 font-mono">{formatCurrency(groupTotalValue)}</span>
+                                                        <span className="text-[10px] text-stone-400 font-medium uppercase">Valor Total</span>
+                                                        <span className="text-sm font-bold text-emerald-600 tabular-nums">{formatCurrency(groupTotalValue)}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         </AccordionTrigger>
-                                        <AccordionContent className="pb-0 border-t border-slate-100">
+                                        <AccordionContent className="pb-0 border-t border-stone-100">
                                             <div className="overflow-x-auto">
                                                 <Table>
-                                                    <TableHeader className="bg-slate-50">
+                                                    <TableHeader className="bg-stone-50">
                                                         <TableRow>
-                                                            <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase">Cliente</TableHead>
-                                                            <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase">Pedido</TableHead>
-                                                            <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase">Data</TableHead>
-                                                            <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase text-right">Quant.</TableHead>
-                                                            <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase text-right">Valor</TableHead>
+                                                            <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider">Cliente</TableHead>
+                                                            <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider">Pedido</TableHead>
+                                                            <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider">Data</TableHead>
+                                                            <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider text-right">Quant.</TableHead>
+                                                            <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider text-right">Valor</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
                                                         {items.map((item, idx) => (
-                                                            <TableRow key={idx} className="hover:bg-slate-50 transition-colors">
-                                                                <TableCell className="text-xs text-slate-700 py-1.5 px-4 h-7 whitespace-nowrap">{item.cliente}</TableCell>
-                                                                <TableCell className="text-xs font-mono font-semibold text-blue-700 py-1.5 px-4 h-7">{item.pedido}</TableCell>
-                                                                <TableCell className="text-xs text-slate-500 py-1.5 px-4 h-7">{new Date(item.data).toLocaleDateString()}</TableCell>
-                                                                <TableCell className="text-xs font-mono text-right py-1.5 px-4 h-7">{formatNumber(item.quant)}</TableCell>
-                                                                <TableCell className="text-xs font-mono font-medium text-right py-1.5 px-4 h-7">{formatCurrency(item.total)}</TableCell>
+                                                            <TableRow key={idx} className="hover:bg-stone-50 transition-colors border-b border-stone-100">
+                                                                <TableCell className="text-xs text-stone-700 py-1.5 px-4 h-7 whitespace-nowrap">{item.cliente}</TableCell>
+                                                                <TableCell className="text-xs font-mono font-semibold text-stone-700 py-1.5 px-4 h-7">{item.pedido}</TableCell>
+                                                                <TableCell className="text-xs text-stone-500 py-1.5 px-4 h-7">{new Date(item.data).toLocaleDateString()}</TableCell>
+                                                                <TableCell className="text-xs tabular-nums text-right py-1.5 px-4 h-7 text-stone-700">{formatNumber(item.quant)}</TableCell>
+                                                                <TableCell className="text-xs tabular-nums font-medium text-right py-1.5 px-4 h-7 text-emerald-700">{formatCurrency(item.total)}</TableCell>
                                                             </TableRow>
                                                         ))}
                                                         {/* Subtotal row */}
-                                                        <TableRow className="bg-slate-50/50">
+                                                        <TableRow className="bg-stone-50">
                                                             <TableCell colSpan={3}></TableCell>
-                                                            <TableCell className="text-[13px] font-bold text-blue-600 text-right py-2 px-4 border-t-2 border-slate-200">{formatNumber(groupTotalQuant)}</TableCell>
-                                                            <TableCell className="text-[13px] font-bold text-green-600 text-right py-2 px-4 border-t-2 border-slate-200">{formatCurrency(groupTotalValue)}</TableCell>
+                                                            <TableCell className="text-sm font-bold text-stone-700 text-right py-2 px-4 border-t-2 border-stone-200 tabular-nums">{formatNumber(groupTotalQuant)}</TableCell>
+                                                            <TableCell className="text-sm font-bold text-emerald-700 text-right py-2 px-4 border-t-2 border-stone-200 tabular-nums">{formatCurrency(groupTotalValue)}</TableCell>
                                                         </TableRow>
                                                     </TableBody>
                                                 </Table>
@@ -242,22 +236,22 @@ export default function GrupoLojasPage() {
                         </Accordion>
 
                         {/* Grand Total Footer */}
-                        <Card className="bg-slate-800 text-white rounded-xl shadow-lg border-none">
+                        <Card className="bg-stone-900 text-white rounded-xl shadow-lg border-none">
                             <CardContent className="p-4 flex justify-between items-center mr-4">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-white/10 p-2 rounded-lg">
-                                        <BarChart3 className="w-5 h-5 text-blue-300" />
+                                        <BarChart3 className="w-5 h-5 text-stone-300" />
                                     </div>
                                     <span className="text-sm font-bold uppercase tracking-wider text-white">Total Geral Consolidado</span>
                                 </div>
                                 <div className="flex gap-12">
                                     <div className="flex flex-col items-end">
                                         <span className="text-[10px] text-white/60 font-semibold uppercase tracking-widest">Total Quantidade</span>
-                                        <span className="text-2xl font-black font-mono text-blue-300">{formatNumber(grandTotalQuant)}</span>
+                                        <span className="text-2xl font-black tabular-nums text-stone-300">{formatNumber(grandTotalQuant)}</span>
                                     </div>
                                     <div className="flex flex-col items-end">
                                         <span className="text-[10px] text-white/60 font-semibold uppercase tracking-widest">Total Faturamento</span>
-                                        <span className="text-2xl font-black font-mono text-green-400">{formatCurrency(grandTotalValue)}</span>
+                                        <span className="text-2xl font-black tabular-nums text-emerald-400">{formatCurrency(grandTotalValue)}</span>
                                     </div>
                                 </div>
                             </CardContent>

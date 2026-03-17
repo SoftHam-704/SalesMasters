@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Users, Target } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Target, UserPlus, RefreshCcw, Briefcase, ChevronDown, ChevronUp, Award } from 'lucide-react';
 import './SalesPerformanceTable.css';
-import { MetasIndustriasTable } from './MetasIndustriasTable';
 
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
-export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedIndustry }) => {
+export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedIndustry, limit = null }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: 'total_value_current', direction: 'desc' });
-    const [activeTab, setActiveTab] = useState('performance'); // 'performance' | 'metas'
+    const [expandedSeller, setExpandedSeller] = useState(null);
 
     useEffect(() => {
         fetchData();
@@ -41,7 +40,7 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedInd
                 setError(result.message);
             }
         } catch (err) {
-            setError('Erro ao carregar dados de performance');
+            setError('Erro ao carregar ranking de performance');
             console.error('Error fetching sales performance:', err);
         } finally {
             setLoading(false);
@@ -69,13 +68,15 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedInd
             return bVal - aVal;
         });
 
-        return sorted;
-    }, [data, sortConfig]);
+        return limit ? sorted.slice(0, limit) : sorted;
+    }, [data, sortConfig, limit]);
 
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         }).format(value || 0);
     };
 
@@ -109,136 +110,148 @@ export const SalesPerformanceTable = ({ selectedYear, selectedMonth, selectedInd
         return <span className="trend-indicator neutral">{formatPercent(value)}</span>;
     };
 
-    // Tab styles helper
-    const tabStyle = (id) => ({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        padding: '5px 14px',
-        fontSize: '12px',
-        fontWeight: '700',
-        border: 'none',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        background: activeTab === id ? 'var(--accent-primary, #6366f1)' : 'transparent',
-        color: activeTab === id ? '#fff' : 'var(--text-secondary)',
-    });
-
     return (
         <motion.div
             className="sales-performance-card"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
         >
-            {/* Card Header com Abas */}
-            <div className="card-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-hover, #f1f5f9)', padding: '3px', borderRadius: '8px' }}>
-                    <button style={tabStyle('performance')} onClick={() => setActiveTab('performance')}>
-                        <Users size={13} />
-                        Performance
-                    </button>
-                    <button style={tabStyle('metas')} onClick={() => setActiveTab('metas')}>
-                        <Target size={13} />
-                        Metas
-                    </button>
-                </div>
-                {activeTab === 'performance' && (
-                    <span className="data-count">{data.length} vendedores</span>
+            <div className="card-body">
+                {loading && (
+                    <div className="loading-state">
+                        <div className="spinner"></div>
+                        <p>Carregando ranking...</p>
+                    </div>
                 )}
-            </div>
+                {!loading && error && (
+                    <div className="error-state"><p>{error}</p></div>
+                )}
+                {!loading && !error && (!data || !data.length) && (
+                    <div className="empty-state">
+                        <Users size={48} />
+                        <p>Nenhum dado disponível para o ranking</p>
+                    </div>
+                )}
+                {!loading && !error && data && data.length > 0 && (
+                    <div className="ranking-header-bar">
+                        <div className="flex items-center gap-2">
+                            <Award className="text-amber-500" size={20} />
+                            <h3 className="text-sm font-bold text-stone-900 uppercase tracking-tight">Ranking de Performance</h3>
+                        </div>
+                        <div className="count-badge-header">
+                            {data.length} vendedores
+                        </div>
+                    </div>
+                )}
+                {!loading && !error && data && data.length > 0 && (
+                    <div className="table-responsive">
+                        <table className="performance-ranking-table">
+                            <thead>
+                                <tr>
+                                    <th className="sticky-col">COLABORADOR</th>
+                                    <th className="text-right">VALORES</th>
+                                    <th className="text-center">MoM (R$)</th>
+                                    <th className="text-center">MoM (%)</th>
+                                    <th className="text-center">CLIENTES (M-1)</th>
+                                    <th className="text-center">NOVOS CLIENTES</th>
+                                    <th className="text-center">REATIVADOS</th>
+                                    <th className="text-center">NOVOS SKU</th>
+                                    <th className="text-right">DETALHE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedData.map((seller, index) => {
+                                    const momValue = seller.total_value_current - seller.total_value_previous;
+                                    const momPercent = seller.mom_value_percent;
 
-            {/* ABA: Performance de Vendedores */}
-            {activeTab === 'performance' && (
-                <>
-                    {loading && (
-                        <div className="loading-state">
-                            <div className="spinner"></div>
-                            <p>Carregando dados...</p>
-                        </div>
-                    )}
-                    {!loading && error && (
-                        <div className="error-state"><p>{error}</p></div>
-                    )}
-                    {!loading && !error && (!data || !data.length) && (
-                        <div className="empty-state">
-                            <Users size={48} />
-                            <p>Nenhum dado disponível para o período selecionado</p>
-                        </div>
-                    )}
-                    {!loading && !error && data && data.length > 0 && (
-                        <div className="table-container">
-                            <table className="performance-table">
-                                <thead>
-                                    <tr>
-                                        <th onClick={() => handleSort('ven_nome')} className="sortable">
-                                            Colaborador
-                                        </th>
-                                        <th onClick={() => handleSort('total_value_current')} className="sortable text-right">
-                                            Valores
-                                        </th>
-                                        <th onClick={() => handleSort('mom_value_percent')} className="sortable text-center">
-                                            MoM (R$)
-                                        </th>
-                                        <th onClick={() => handleSort('total_qty_current')} className="sortable text-right">
-                                            Qtd
-                                        </th>
-                                        <th onClick={() => handleSort('mom_qty_percent')} className="sortable text-center">
-                                            MoM (qtd)
-                                        </th>
-                                        <th onClick={() => handleSort('clients_previous')} className="sortable text-center">
-                                            Clientes (M-1)
-                                        </th>
-                                        <th onClick={() => handleSort('clients_current')} className="sortable text-center">
-                                            Clientes (M)
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {sortedData.map((seller, index) => (
-                                        <motion.tr
-                                            key={seller.ven_codigo}
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            transition={{ delay: index * 0.02 }}
-                                        >
-                                            <td className="seller-name">{seller.ven_nome}</td>
-                                            <td className="text-right value-cell">
+                                    return (
+                                        <tr key={seller.ven_codigo}>
+                                            <td className="seller-name-cell sticky-col">
+                                                <div className="flex flex-col">
+                                                    <span className="name">{seller.ven_nome}</span>
+                                                    <span className="rank">#{index + 1} Rank</span>
+                                                </div>
+                                            </td>
+                                            <td className="text-right font-bold text-stone-900">
                                                 {formatCurrency(seller.total_value_current)}
                                             </td>
                                             <td className="text-center">
-                                                {renderTrendIndicator(seller.mom_value_percent)}
+                                                <div className={`mom-badge ${momValue >= 0 ? 'up' : 'down'}`}>
+                                                    {momValue >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                                    {formatCurrency(Math.abs(momValue))}
+                                                </div>
                                             </td>
-                                            <td className="text-right">
-                                                {formatQuantity(seller.total_qty_current)}
+                                            <td className={`text-center font-bold ${momPercent >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                {momPercent >= 0 ? '+' : ''}{parseFloat(momPercent || 0).toFixed(2)}%
+                                            </td>
+                                            <td className="text-center font-medium text-stone-600">
+                                                {seller.clients_previous || 0}
                                             </td>
                                             <td className="text-center">
-                                                {renderTrendIndicator(seller.mom_qty_percent)}
+                                                <span className={`count-badge new ${seller.new_clients > 0 ? 'active' : ''}`}>
+                                                    {seller.new_clients || 0}
+                                                </span>
                                             </td>
-                                            <td className="text-center client-count">
-                                                {seller.clients_previous}
+                                            <td className="text-center">
+                                                <span className={`count-badge reactivated ${seller.reactivated_clients > 0 ? 'active' : ''}`}>
+                                                    {seller.reactivated_clients || 0}
+                                                </span>
                                             </td>
-                                            <td className="text-center client-count">
-                                                {seller.clients_current}
+                                            <td className="text-center">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="sku-count">{seller.new_skus_count || 0} SKUs</span>
+                                                    <span className="sku-value">{formatCurrency(seller.new_skus_value)}</span>
+                                                </div>
                                             </td>
-                                        </motion.tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </>
-            )}
-
-            {/* ABA: Metas por Indústria */}
-            {activeTab === 'metas' && (
-                <MetasIndustriasTable
-                    selectedYear={selectedYear}
-                    selectedMonth={selectedMonth}
-                    selectedIndustry={selectedIndustry}
-                />
-            )}
+                                            <td className="text-right">
+                                                <button className="btn-detail">
+                                                    Ver detalhes
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot>
+                                <tr className="totals-row">
+                                    <td className="sticky-col">Totals</td>
+                                    <td className="text-right font-bold">
+                                        {formatCurrency(data.reduce((acc, s) => acc + (parseFloat(s.total_value_current) || 0), 0))}
+                                    </td>
+                                    <td className="text-center">
+                                        <div className={`mom-badge ${data.reduce((acc, s) => acc + (parseFloat(s.total_value_current) - parseFloat(s.total_value_previous)), 0) >= 0 ? 'up' : 'down'}`}>
+                                            {formatCurrency(data.reduce((acc, s) => acc + (parseFloat(s.total_value_current) - parseFloat(s.total_value_previous)), 0))}
+                                        </div>
+                                    </td>
+                                    <td className="text-center font-bold">
+                                        {(() => {
+                                            const totalCurrent = data.reduce((acc, s) => acc + (parseFloat(s.total_value_current) || 0), 0);
+                                            const totalPrevious = data.reduce((acc, s) => acc + (parseFloat(s.total_value_previous) || 0), 0);
+                                            if (totalPrevious === 0) return totalCurrent > 0 ? '+100.00%' : '0.00%';
+                                            const pct = ((totalCurrent - totalPrevious) / totalPrevious) * 100;
+                                            return `${pct >= 0 ? '+' : ''}${parseFloat(pct || 0).toFixed(2)}%`;
+                                        })()}
+                                    </td>
+                                    <td className="text-center">
+                                        {data.reduce((acc, s) => acc + (parseInt(s.clients_previous) || 0), 0)}
+                                    </td>
+                                    <td className="text-center">
+                                        {data.reduce((acc, s) => acc + (parseInt(s.new_clients) || 0), 0)}
+                                    </td>
+                                    <td className="text-center">
+                                        {data.reduce((acc, s) => acc + (parseInt(s.reactivated_clients) || 0), 0)}
+                                    </td>
+                                    <td className="text-center">
+                                        {data.reduce((acc, s) => acc + (parseInt(s.new_skus_count) || 0), 0)}
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                )}
+            </div>
         </motion.div>
     );
 };

@@ -176,7 +176,17 @@ async function buildWorkbook(order, items) {
     // Group items logic
     const groups = {};
     (items || []).forEach(item => {
-        const key = item.ite_descontos || 'ITENS SEM DESCONTO ESPECÍFICO';
+        let key = 'ITENS SEM DESCONTO ESPECÍFICO';
+        // Use the exact discount string if available to differentiate '5%' from '5%+2%'
+        if (item.ite_descontos && item.ite_descontos.trim() !== '') {
+            // Clean up potential formatting issues or use as is
+            const descStr = item.ite_descontos.trim();
+            // Check if it looks like a discount string (contains numbers)
+            if (/[0-9]/.test(descStr)) {
+                key = `DESCONTO DE ${descStr}`;
+            }
+        }
+
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
     });
@@ -185,16 +195,28 @@ async function buildWorkbook(order, items) {
         // Group Header Line
         const groupRowCell = worksheet.getCell(`A${currentRowIdx}`);
         groupRowCell.value = `Desconto aplicado itens abaixo: ${groupKey}`;
-        groupRowCell.font = FONT_NORMAL; // Standard font, not bold per image (or maybe slightly bold?) Let's stick to simple text as mostly seen
-        // Actually image shows regular text.
+        groupRowCell.font = FONT_NORMAL;
         worksheet.mergeCells(`A${currentRowIdx}:M${currentRowIdx}`);
         currentRowIdx++;
 
         groups[groupKey].forEach(item => {
             const liq = parseFloat(item.ite_totliquido) || 0;
-            const ipiVal = parseFloat(item.ite_valipi) || 0;
-            const stVal = parseFloat(item.ite_valst) || 0;
             const quant = parseFloat(item.ite_quant) || 1;
+            const ipiPercent = parseFloat(item.ite_ipi) || 0;
+            const stPercent = parseFloat(item.ite_st) || 0;
+
+            // Calculate Values if missing but percent exists
+            let ipiVal = parseFloat(item.ite_valipi) || 0;
+            if (ipiVal === 0 && ipiPercent > 0) {
+                ipiVal = liq * (ipiPercent / 100);
+            }
+
+            let stVal = parseFloat(item.ite_valst) || 0;
+            if (stVal === 0 && stPercent > 0) {
+                // Cálculo estimado de ST para exibição quando valor zerado
+                // Baseado em (Total + IPI) * ST% (Simplificado, pois ST real é complexo)
+                stVal = (liq + ipiVal) * (stPercent / 100);
+            }
 
             const totalComIpi = liq + ipiVal;
             const unitComIpi = totalComIpi / quant;
@@ -204,19 +226,19 @@ async function buildWorkbook(order, items) {
             // Mapping to columns
             setCell(currentRowIdx, 'A', item.ite_produto || '', FONT_NORMAL, 'left');
             setCell(currentRowIdx, 'B', item.ite_nomeprod || '', FONT_NORMAL, 'left');
-            setCell(currentRowIdx, 'C', item.ite_embuch || item.ite_complemento || '', FONT_NORMAL, 'left'); // Complemento
+            setCell(currentRowIdx, 'C', item.ite_embuch || item.ite_complemento || '', FONT_NORMAL, 'left');
             // D skipped
             setCell(currentRowIdx, 'E', quant, FONT_NORMAL, 'right').numFmt = '0';
             setCell(currentRowIdx, 'F', parseFloat(item.ite_puni) || 0, FONT_NORMAL, 'right').numFmt = '#,##0.00';
             setCell(currentRowIdx, 'G', parseFloat(item.ite_puniliq) || 0, FONT_NORMAL, 'right').numFmt = '#,##0.00';
             setCell(currentRowIdx, 'H', liq, FONT_NORMAL, 'right').numFmt = '#,##0.00';
-            setCell(currentRowIdx, 'I', parseFloat(item.ite_ipi) || 0, FONT_NORMAL, 'right').numFmt = '0.00';
+            setCell(currentRowIdx, 'I', ipiPercent, FONT_NORMAL, 'right').numFmt = '0.00';
             setCell(currentRowIdx, 'J', unitComIpi, FONT_NORMAL, 'right').numFmt = '#,##0.00';
             setCell(currentRowIdx, 'K', totalComIpi, FONT_NORMAL, 'right').numFmt = '#,##0.00';
-            setCell(currentRowIdx, 'L', parseFloat(item.ite_st) || 0, FONT_NORMAL, 'right').numFmt = '0.00';
+            setCell(currentRowIdx, 'L', stPercent, FONT_NORMAL, 'right').numFmt = '0.00';
             setCell(currentRowIdx, 'M', unitComImp, FONT_NORMAL, 'right').numFmt = '#,##0.00';
 
-            // Add faint borders to matches grid look
+            // Add faint borders
             ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'].forEach(col => {
                 // worksheet.getCell(`${col}${currentRowIdx}`).border = BORDER_THIN;
             });

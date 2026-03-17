@@ -120,7 +120,13 @@ module.exports = (pool) => {
                     c.cli_tipopes,
                     c.cli_redeloja,
                     c.cli_dtabertura,
-                    c.cli_datacad
+                    c.cli_datacad,
+                    c.cli_cepcob,
+                    c.cli_endcob,
+                    c.cli_baicob,
+                    c.cli_cidcob,
+                    c.cli_ufcob,
+                    c.cli_fone3
                 FROM clientes c
                 WHERE c.cli_codigo = $1
             `;
@@ -153,7 +159,9 @@ module.exports = (pool) => {
                     cli_vendedor, cli_regiao2, cli_atuacaoprincipal,
                     cli_obspedido, cli_suframa,
                     cli_latitude, cli_longitude,
-                    cli_tipopes, cli_redeloja, cli_dtabertura, cli_datacad
+                    cli_tipopes, cli_redeloja, cli_dtabertura, cli_datacad,
+                    cli_cepcob, cli_endcob, cli_baicob, cli_cidcob, cli_ufcob,
+                    cli_fone3
                 ) VALUES (
                     $1, $2, $3, $4, $5,
                     $6, $7, $8, $9,
@@ -162,7 +170,9 @@ module.exports = (pool) => {
                     $18, $19, $20,
                     $21, $22,
                     $23, $24,
-                    $25, $26, $27, $28
+                    $25, $26, $27, $28,
+                    $29, $30, $31, $32, $33,
+                    $34
                 ) RETURNING cli_codigo
             `;
 
@@ -194,7 +204,13 @@ module.exports = (pool) => {
                 data.cli_tipopes || 'A',
                 data.cli_redeloja,
                 data.cli_dtabertura || null,
-                data.cli_datacad || new Date()
+                data.cli_datacad || new Date(),
+                data.cli_cepcob,
+                data.cli_endcob,
+                data.cli_baicob,
+                data.cli_cidcob,
+                data.cli_ufcob,
+                data.cli_fone3
             ];
 
             const result = await pool.query(query, params);
@@ -255,8 +271,14 @@ module.exports = (pool) => {
                     cli_longitude = $24,
                     cli_tipopes = $25,
                     cli_redeloja = $26,
-                    cli_dtabertura = $27
-                WHERE cli_codigo = $28
+                    cli_dtabertura = $27,
+                    cli_cepcob = $28,
+                    cli_endcob = $29,
+                    cli_baicob = $30,
+                    cli_cidcob = $31,
+                    cli_ufcob = $32,
+                    cli_fone3 = $33
+                WHERE cli_codigo = $34
             `;
 
             const params = [
@@ -287,6 +309,12 @@ module.exports = (pool) => {
                 data.cli_tipopes,
                 data.cli_redeloja,
                 data.cli_dtabertura || null,
+                data.cli_cepcob,
+                data.cli_endcob,
+                data.cli_baicob,
+                data.cli_cidcob,
+                data.cli_ufcob,
+                data.cli_fone3,
                 id
             ];
 

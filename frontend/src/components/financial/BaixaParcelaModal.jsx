@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { Loader2, DollarSign, Calendar, CheckCircle2 as CheckIcon } from 'lucide-react';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
+
 
 const BaixaParcelaModal = ({ open, onOpenChange, parcela, type, contaId, onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -130,34 +132,31 @@ const BaixaParcelaModal = ({ open, onOpenChange, parcela, type, contaId, onSucce
                             <DollarSign className="w-3 h-3" />
                             Valor {isPagar ? 'Pago' : 'Recebido'}
                         </Label>
-                        <Input
-                            type="number"
-                            step="0.01"
+                        <CurrencyInput
                             value={formData.valor_pago}
-                            onChange={e => setFormData({ ...formData, valor_pago: e.target.value })}
+                            onChange={val => setFormData({ ...formData, valor_pago: val })}
                             className="text-lg font-bold"
                             required
                         />
+
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Juros/Multa</Label>
-                            <Input
-                                type="number"
-                                step="0.01"
+                            <CurrencyInput
                                 value={formData.juros}
-                                onChange={e => setFormData({ ...formData, juros: e.target.value })}
+                                onChange={val => setFormData({ ...formData, juros: val })}
                             />
+
                         </div>
                         <div className="space-y-2">
                             <Label>Desconto</Label>
-                            <Input
-                                type="number"
-                                step="0.01"
+                            <CurrencyInput
                                 value={formData.desconto}
-                                onChange={e => setFormData({ ...formData, desconto: e.target.value })}
+                                onChange={val => setFormData({ ...formData, desconto: val })}
                             />
+
                         </div>
                     </div>
 

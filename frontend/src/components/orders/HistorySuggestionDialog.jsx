@@ -136,7 +136,7 @@ export const HistorySuggestionDialog = ({
         const ws = XLSX.utils.json_to_sheet(itemsToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Sugestões");
-        XLSX.writeFile(wb, `Sugestoes_Compra_${clienteId}.xlsx`);
+        XLSX.writeFile(wb, `Oportunidade_Recompra_${clienteId}.xlsx`);
         toast.success("Excel gerado com sucesso!");
     };
 
@@ -149,7 +149,7 @@ export const HistorySuggestionDialog = ({
             return;
         }
 
-        let message = `*Sugestão de Compra - Histórico*\n\n`;
+        let message = `*Oportunidades de Recompra (+90 dias)*\n\n`;
         itemsToShare.forEach(s => {
             message += `🔹 *${s.ite_produto}* - ${s.pro_desc || s.nome_produto}\n`;
             message += `   Qtd Sugerida: ${selectedItems[s.ite_produto]}\n`;
@@ -174,9 +174,9 @@ export const HistorySuggestionDialog = ({
                             <TrendingUp className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                            <DialogTitle className="text-xl font-black tracking-tight text-white">Histórico de Compras do Cliente</DialogTitle>
+                            <DialogTitle className="text-xl font-black tracking-tight text-white">Produtos sem compras pelo cliente há mais de 90 dias (trimestre)</DialogTitle>
                             <DialogDescription className="text-emerald-100 font-medium">
-                                Itens já comprados pelo cliente nesta indústria anteriormente.
+                                Sugestões de itens que o cliente parou de comprar nesta indústria.
                             </DialogDescription>
                         </div>
                     </div>
@@ -199,7 +199,7 @@ export const HistorySuggestionDialog = ({
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-400">
                                 <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                                <p className="font-bold animate-pulse">Analisando histórico de compras...</p>
+                                <p className="font-bold animate-pulse">Analisando hiato de compras (90 dias)...</p>
                             </div>
                         ) : filteredSuggestions.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-400 text-center">
@@ -208,7 +208,7 @@ export const HistorySuggestionDialog = ({
                                 </div>
                                 <div>
                                     <p className="font-bold text-slate-600 text-lg">Nenhuma sugestão encontrada</p>
-                                    <p className="text-sm">Este cliente ainda não comprou itens desta indústria ou o histórico não está disponível.</p>
+                                    <p className="text-sm">Nenhum produto encontrado com mais de 90 dias sem compra para este cliente nesta indústria.</p>
                                 </div>
                             </div>
                         ) : (

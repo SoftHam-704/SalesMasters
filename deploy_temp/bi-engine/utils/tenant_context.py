@@ -39,7 +39,7 @@ async def db_context_middleware(request: Request, call_next):
                     pool_size=20,
                     max_overflow=10,
                     connect_args={
-                        "options": f"-c search_path={db_config.get('schema', 'public')},public",
+                        "options": f"-c search_path={db_config.get('schema', 'public')}",
                         "client_encoding": "utf8"
                     }
                 )

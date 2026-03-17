@@ -24,7 +24,10 @@ async function migrateEmpresas() {
             `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS email_contato VARCHAR(150)`,
             `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS telefone VARCHAR(50)`,
             `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS data_vencimento DATE`,
-            `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS valor_mensalidade DECIMAL(10,2) DEFAULT 0`
+            `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS valor_mensalidade DECIMAL(10,2) DEFAULT 0`,
+            `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS modulo_bi_ativo BOOLEAN DEFAULT false`,
+            `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS modulo_whatsapp_ativo BOOLEAN DEFAULT false`,
+            `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS modulo_crmrep_ativo BOOLEAN DEFAULT false`
         ];
 
         for (const q of alterQueries) {

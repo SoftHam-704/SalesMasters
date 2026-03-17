@@ -18,16 +18,39 @@ const IndustryDialog = ({ open, onClose, industry, suppliers, onSave }) => {
         vin_percom: 0
     });
 
+    const [displayComissao, setDisplayComissao] = useState('0,00');
+
     useEffect(() => {
         if (industry) {
+            const value = industry.vin_percom || 0;
             setFormData({
                 vin_industria: industry.vin_industria,
-                vin_percom: industry.vin_percom || 0
+                vin_percom: value
             });
+            setDisplayComissao(value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         } else {
             setFormData({ vin_industria: '', vin_percom: 0 });
+            setDisplayComissao('0,00');
         }
     }, [industry]);
+
+    const handleComissaoChange = (e) => {
+        let value = e.target.value;
+        
+        // Remove tudo que não é dígito
+        const numeric = value.replace(/\D/g, '');
+        
+        // Converte para decimal (divindo por 100 para tratar como centavos)
+        const numValue = parseFloat(numeric) / 100;
+        
+        if (!isNaN(numValue)) {
+            setFormData(prev => ({ ...prev, vin_percom: numValue }));
+            setDisplayComissao(numValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        } else {
+            setFormData(prev => ({ ...prev, vin_percom: 0 }));
+            setDisplayComissao('0,00');
+        }
+    };
 
     const handleSave = () => {
         if (!formData.vin_industria) {
@@ -41,20 +64,21 @@ const IndustryDialog = ({ open, onClose, industry, suppliers, onSave }) => {
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-            <div className="bg-white rounded-lg p-4 w-96 shadow-xl">
-                <h3 className="text-sm font-semibold mb-3 border-b pb-2">
+            <div className="bg-white rounded-lg p-4 w-96 shadow-xl border border-gray-200">
+                <h3 className="text-sm font-black mb-3 border-b pb-2 uppercase tracking-widest text-blue-900 italic flex items-center gap-2">
+                    <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
                     {industry ? 'Editar Indústria' : 'Adicionar Indústria'}
                 </h3>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                     <div>
-                        <Label className="text-xs font-semibold">Indústria</Label>
+                        <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Indústria</Label>
                         <Select
                             value={formData.vin_industria?.toString()}
                             onValueChange={(val) => setFormData(prev => ({ ...prev, vin_industria: parseInt(val) }))}
                             disabled={!!industry}
                         >
-                            <SelectTrigger className="h-8 text-sm border-red-300">
+                            <SelectTrigger className="h-9 text-sm border-slate-200 bg-slate-50 font-bold text-slate-700">
                                 <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                             <SelectContent className="z-[99999]">
@@ -68,36 +92,28 @@ const IndustryDialog = ({ open, onClose, industry, suppliers, onSave }) => {
                     </div>
 
                     <div>
-                        <Label className="text-xs">(%) Comissão</Label>
-                        <Input
-                            type="text"
-                            value={formData.vin_percom.toFixed(2)}
-                            onChange={(e) => {
-                                const value = e.target.value.replace(',', '.');
-                                const num = parseFloat(value);
-                                if (!isNaN(num)) {
-                                    setFormData(prev => ({ ...prev, vin_percom: num }));
-                                } else if (value === '' || value === '.') {
-                                    setFormData(prev => ({ ...prev, vin_percom: 0 }));
-                                }
-                            }}
-                            onBlur={(e) => {
-                                // Format to 2 decimal places on blur
-                                const num = parseFloat(e.target.value.replace(',', '.')) || 0;
-                                setFormData(prev => ({ ...prev, vin_percom: parseFloat(num.toFixed(2)) }));
-                            }}
-                            className="h-8 text-sm text-right"
-                            placeholder="0,00"
-                        />
+                        <Label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">(%) Comissão</Label>
+                        <div className="relative group">
+                            <Input
+                                type="text"
+                                value={displayComissao}
+                                onChange={handleComissaoChange}
+                                className="h-10 text-lg text-right font-black border-slate-200 bg-slate-50 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 transition-all rounded-xl"
+                                placeholder="0,00"
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm group-focus-within:text-blue-500">
+                                %
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div className="flex gap-2 mt-4 justify-end border-t pt-3">
-                    <Button size="sm" variant="outline" onClick={onClose} className="h-8 text-xs">
+                    <Button size="sm" variant="outline" onClick={onClose} className="h-8 text-xs font-bold border-slate-200 hover:bg-slate-100">
                         <X size={14} className="mr-1" />
                         Cancelar
                     </Button>
-                    <Button size="sm" onClick={handleSave} className="h-8 text-xs">
+                    <Button size="sm" onClick={handleSave} className="h-8 text-xs font-black bg-blue-600 hover:bg-blue-700 shadow-md">
                         <Check size={14} className="mr-1" />
                         Salvar
                     </Button>

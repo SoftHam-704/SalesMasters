@@ -35,6 +35,8 @@ async function criarTabelaEmpresas() {
                 db_usuario VARCHAR(100),
                 db_senha VARCHAR(200),
                 db_porta INTEGER DEFAULT 5432,
+                modulo_whatsapp_ativo BOOLEAN DEFAULT false,
+                modulo_crmrep_ativo BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

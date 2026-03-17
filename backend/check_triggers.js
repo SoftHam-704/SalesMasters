@@ -1,31 +1,38 @@
-
 const { Pool } = require('pg');
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: './backend/.env' });
 
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD
+    host: 'node254557-salesmaster.sp1.br.saveincloud.net.br',
+    port: 13062,
+    database: 'basesales',
+    user: 'webadmin',
+    password: 'ytAyO0u043',
+    connectionTimeoutMillis: 10000
 });
 
-async function check() {
+async function checkTriggers() {
+    const table = 'itens_ped';
+    const schema = 'repwill';
     try {
+        console.log(`Checking triggers for ${schema}.${table}...`);
+
         const res = await pool.query(`
-            SELECT tgname, pg_get_triggerdef(t.oid) 
-            FROM pg_trigger t 
-            JOIN pg_class c ON c.oid = t.tgrelid 
-            JOIN pg_namespace n ON n.oid = c.relnamespace 
-            WHERE n.nspname = 'markpress' AND c.relname = 'cad_prod'
-        `);
-        console.log('Triggers em cad_prod:');
-        res.rows.forEach(row => console.log(` - ${row.tgname}: ${row.pg_get_triggerdef}`));
-    } catch (err) {
-        console.error('Erro:', err.message);
+            SELECT trigger_name, event_manipulation, action_statement
+            FROM information_schema.triggers
+            WHERE event_object_schema = $1 AND event_object_table = $2
+        `, [schema, table]);
+
+        if (res.rows.length === 0) {
+            console.log('❌ No triggers found.');
+        } else {
+            console.table(res.rows);
+        }
+
+    } catch (e) {
+        console.error(e);
     } finally {
-        await pool.end();
+        pool.end();
     }
 }
 
-check();
+checkTriggers();

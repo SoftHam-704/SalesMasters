@@ -48,6 +48,10 @@ AS $$
 DECLARE
     v_mes_anterior INTEGER;
     v_ano_anterior INTEGER;
+    v_inicio_mes DATE;
+    v_fim_mes DATE;
+    v_inicio_mes_ant DATE;
+    v_fim_mes_ant DATE;
 BEGIN
     -- Calcula mês e ano anterior
     IF p_mes = 1 THEN
@@ -58,77 +62,81 @@ BEGIN
         v_ano_anterior := p_ano;
     END IF;
 
+    -- Define as datas de início e fim dos meses
+    v_inicio_mes := make_date(p_ano, p_mes, 1);
+    v_fim_mes := (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+    v_inicio_mes_ant := make_date(v_ano_anterior, v_mes_anterior, 1);
+    v_fim_mes_ant := (make_date(v_ano_anterior, v_mes_anterior, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+
     RETURN QUERY
     WITH vendas_mes_atual AS (
-        SELECT 
+        SELECT
             ped_vendedor,
             COUNT(DISTINCT ped_pedido) AS qtd_ped,
             SUM(ped_totliq) AS total,
             COUNT(DISTINCT ped_cliente) AS clientes_unicos,
             MAX(ped_data) AS ultima_venda
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data + INTERVAL '1 day') = p_ano
-          AND EXTRACT(MONTH FROM ped_data + INTERVAL '1 day') = p_mes
+        WHERE ped_data >= v_inicio_mes AND ped_data <= v_fim_mes
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
         GROUP BY ped_vendedor
     ),
     vendas_mes_anterior AS (
-        SELECT 
+        SELECT
             ped_vendedor,
             SUM(ped_totliq) AS total
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data + INTERVAL '1 day') = v_ano_anterior
-          AND EXTRACT(MONTH FROM ped_data + INTERVAL '1 day') = v_mes_anterior
+        WHERE ped_data >= v_inicio_mes_ant AND ped_data <= v_fim_mes_ant
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
         GROUP BY ped_vendedor
     ),
     clientes_ativos AS (
-        SELECT 
+        SELECT
             ped_vendedor,
             COUNT(DISTINCT ped_cliente) AS qtd
         FROM pedidos
-        WHERE ped_data >= CURRENT_DATE - INTERVAL '90 days'
+        WHERE ped_data >= (CURRENT_DATE - INTERVAL '90 days')
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
         GROUP BY ped_vendedor
     ),
     clientes_novos AS (
-        SELECT 
+        SELECT
             p.ped_vendedor,
             COUNT(DISTINCT p.ped_cliente) AS qtd
         FROM pedidos p
-        WHERE EXTRACT(YEAR FROM p.ped_data + INTERVAL '1 day') = p_ano
-          AND EXTRACT(MONTH FROM p.ped_data + INTERVAL '1 day') = p_mes
+        WHERE p.ped_data >= v_inicio_mes AND p.ped_data <= v_fim_mes
           AND p.ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR p.ped_vendedor = p_vendedor)
           AND NOT EXISTS (
               SELECT 1 FROM pedidos p2
               WHERE p2.ped_cliente = p.ped_cliente
-                AND p2.ped_data < DATE_TRUNC('month', MAKE_DATE(p_ano, p_mes, 1))
+                AND p2.ped_data < v_inicio_mes
                 AND p2.ped_situacao IN ('P', 'F')
           )
         GROUP BY p.ped_vendedor
     ),
     clientes_perdidos AS (
-        SELECT 
+        SELECT
             ped_vendedor,
             COUNT(DISTINCT ped_cliente) AS qtd
         FROM pedidos
-        WHERE ped_data < CURRENT_DATE - INTERVAL '90 days'
+        WHERE ped_data < (CURRENT_DATE - INTERVAL '90 days')
+          AND ped_data >= (CURRENT_DATE - INTERVAL '365 days') -- Limite de segurança de 1 ano
           AND ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR ped_vendedor = p_vendedor)
           AND ped_cliente NOT IN (
-              SELECT DISTINCT ped_cliente 
-              FROM pedidos 
-              WHERE ped_data >= CURRENT_DATE - INTERVAL '90 days'
+              SELECT DISTINCT ped_cliente
+              FROM pedidos
+              WHERE ped_data >= (CURRENT_DATE - INTERVAL '90 days')
                 AND ped_situacao IN ('P', 'F')
           )
         GROUP BY ped_vendedor
     ),
     metas AS (
-        SELECT 
+        SELECT
             met_vendedor,
             CASE p_mes
                 WHEN 1 THEN met_jan
@@ -153,8 +161,8 @@ BEGIN
             ven_codigo,
             COUNT(*) AS total_interacoes
         FROM crm_interacao
-        WHERE EXTRACT(YEAR FROM data_hora) = p_ano
-          AND EXTRACT(MONTH FROM data_hora) = p_mes
+        WHERE data_interacao >= make_date(p_ano, p_mes, 1) 
+          AND data_interacao <= (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE
           AND (p_vendedor IS NULL OR ven_codigo = p_vendedor)
         GROUP BY ven_codigo
     ),
@@ -434,6 +442,9 @@ RETURNS TABLE (
 ) 
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_inicio_crm DATE := make_date(p_ano, p_mes, 1);
+    v_fim_crm DATE := (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
 BEGIN
     RETURN QUERY
     WITH interacoes AS (
@@ -444,13 +455,11 @@ BEGIN
             SUM(CASE WHEN crm.tipo_interacao_id = 2 THEN 1 ELSE 0 END) AS email,
             SUM(CASE WHEN crm.tipo_interacao_id = 3 THEN 1 ELSE 0 END) AS visita,
             SUM(CASE WHEN crm.tipo_interacao_id = 4 THEN 1 ELSE 0 END) AS whatsapp,
-            AVG(COALESCE(crm.duracao_minutos, 0)) AS duracao_media,
-            MAX(crm.data_hora) AS ultima_interacao,
-            COUNT(CASE WHEN crm.proxima_acao_em IS NOT NULL 
-                         AND crm.proxima_acao_em >= CURRENT_DATE THEN 1 END) AS acoes_pendentes
+            0 AS duracao_media,
+            MAX(crm.data_interacao) AS ultima_interacao,
+            0 AS acoes_pendentes
         FROM crm_interacao crm
-        WHERE EXTRACT(YEAR FROM crm.data_hora) = p_ano
-          AND EXTRACT(MONTH FROM crm.data_hora) = p_mes
+        WHERE crm.data_interacao >= v_inicio_crm AND crm.data_interacao <= v_fim_crm
           AND (p_vendedor IS NULL OR crm.ven_codigo = p_vendedor)
         GROUP BY crm.ven_codigo
     ),
@@ -459,15 +468,14 @@ BEGIN
             p.ped_vendedor,
             COUNT(DISTINCT p.ped_cliente) AS clientes_vendidos
         FROM pedidos p
-        WHERE EXTRACT(YEAR FROM p.ped_data + INTERVAL '1 day') = p_ano
-          AND EXTRACT(MONTH FROM p.ped_data + INTERVAL '1 day') = p_mes
+        WHERE p.ped_data >= v_inicio_crm AND p.ped_data <= v_fim_crm
           AND p.ped_situacao IN ('P', 'F')
           AND (p_vendedor IS NULL OR p.ped_vendedor = p_vendedor)
           AND EXISTS (
               SELECT 1 FROM crm_interacao crm
               WHERE crm.cli_codigo = p.ped_cliente
-                AND crm.data_hora <= p.ped_data
-                AND crm.data_hora >= p.ped_data - INTERVAL '30 days'
+                AND crm.data_interacao <= p.ped_data
+                AND crm.data_interacao >= p.ped_data - INTERVAL '30 days'
           )
         GROUP BY p.ped_vendedor
     )
@@ -548,22 +556,17 @@ CREATE INDEX idx_vend_metas_ano ON vend_metas (met_ano);
 -- ÍNDICE 8: CRM PRINCIPAL
 DROP INDEX IF EXISTS idx_crm_vendedor_data;
 CREATE INDEX idx_crm_vendedor_data 
-ON crm_interacao (ven_codigo, data_hora DESC)
-INCLUDE (tipo_interacao_id, duracao_minutos, cli_codigo);
+ON crm_interacao (ven_codigo, data_interacao DESC);
 
 -- ÍNDICE 9: CRM TEMPORAL
 DROP INDEX IF EXISTS idx_crm_year_month_vendedor;
 CREATE INDEX idx_crm_year_month_vendedor 
-ON crm_interacao (
-    (EXTRACT(YEAR FROM data_hora)),
-    (EXTRACT(MONTH FROM data_hora)),
-    ven_codigo
-);
+ON crm_interacao ((EXTRACT(YEAR FROM data_interacao)), (EXTRACT(MONTH FROM data_interacao)), ven_codigo);
 
 -- ÍNDICE 10: CRM CLIENTE + DATA
 DROP INDEX IF EXISTS idx_crm_cliente_data;
 CREATE INDEX idx_crm_cliente_data 
-ON crm_interacao (cli_codigo, data_hora DESC)
+ON crm_interacao (cli_codigo, data_interacao DESC)
 WHERE cli_codigo IS NOT NULL;
 
 -- ÍNDICE 11: CRM PRÓXIMAS AÇÕES (removido - CURRENT_DATE não é IMMUTABLE)

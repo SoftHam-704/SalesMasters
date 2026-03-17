@@ -107,43 +107,43 @@ export default function ProdutosUnicaCompraPage() {
     )
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-20">
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-red-50 p-2 rounded-lg">
-                                <Package className="text-red-600 w-6 h-6" />
-                            </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-xl font-bold text-gray-800">Produtos de Única Compra</h1>
-                                <span className="text-xs text-slate-400 font-mono">Itens que o cliente comprou apenas uma vez</span>
-                            </div>
+                            <h1 className="text-xl font-bold tracking-tight text-stone-900">Produtos de Única Compra</h1>
                             <div className="ml-4 flex items-center gap-2">
                                 <ClosePageButton />
                             </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600">
-                            <DownloadIcon className="w-4 h-4" /> Exportar Excel
-                        </Button>
+                        <div className="flex gap-2">
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <DownloadIcon className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
+                            <button onClick={handleProcess} disabled={loading} className="h-[38px] px-6 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                {loading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : null}
+                                <span className="!text-white">{loading ? 'Processando...' : 'Processar'}</span>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Período</Label>
-                            <div className="flex items-center gap-2">
-                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs bg-white" />
-                                <span className="text-slate-400">-</span>
-                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs bg-white" />
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[250px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Período</label>
+                            <div className="flex items-center gap-2 bg-stone-50 p-1 rounded-lg border border-stone-200 shadow-sm">
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
+                                <span className="text-stone-300 font-bold">-</span>
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
                             </div>
                         </div>
 
-                        <div className="col-span-12 md:col-span-5 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Indústria <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Indústria <span className="text-red-500">*</span></label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {industrias.map(i => (
                                         <SelectItem key={i.for_codigo} value={String(i.for_codigo)}>
@@ -153,20 +153,14 @@ export default function ProdutosUnicaCompraPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-
-                        <div className="col-span-12 md:col-span-3">
-                            <Button onClick={handleProcess} disabled={loading} className="w-full bg-red-600 hover:bg-red-700 text-white">
-                                {loading ? 'Carregando...' : 'Processar'}
-                            </Button>
-                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-auto p-4 space-y-4 bg-slate-50/50">
+            <div className="flex-1 overflow-auto p-4 space-y-4 bg-stone-50">
                 {!data.length && !loading ? (
-                    <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                    <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                         <Package className="w-12 h-12 opacity-20" />
                         <span className="text-sm italic">Selecione os filtros para identificar oportunidades</span>
                     </div>
@@ -174,33 +168,33 @@ export default function ProdutosUnicaCompraPage() {
                     <div className="max-w-5xl mx-auto space-y-4 pb-8">
                         <Accordion type="multiple" defaultValue={Object.keys(groupedData).slice(0, 5)} className="space-y-3">
                             {Object.entries(groupedData).map(([clientName, items]) => (
-                                <AccordionItem key={clientName} value={clientName} className="border border-slate-200 bg-white rounded-lg shadow-sm overflow-hidden">
-                                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-slate-50 border-none transition-colors group">
+                                <AccordionItem key={clientName} value={clientName} className="border border-stone-200 bg-white rounded-xl shadow-sm overflow-hidden">
+                                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-stone-50 border-none transition-colors group">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-slate-100 p-1.5 rounded-md text-slate-500 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                                            <div className="bg-stone-100 p-1.5 rounded-md text-stone-500 group-hover:bg-stone-200 transition-colors">
                                                 <User className="w-4 h-4" />
                                             </div>
                                             <div className="flex flex-col items-start gap-0.5">
-                                                <span className="text-sm font-bold text-slate-700 uppercase">Cliente : {clientName}</span>
-                                                <span className="text-[10px] text-slate-400 font-medium uppercase">{items.length} item(ns) encontrado(s)</span>
+                                                <span className="text-sm font-bold text-stone-700 uppercase">Cliente: {clientName}</span>
+                                                <span className="text-[10px] text-stone-400 font-medium uppercase">{items.length} item(ns) encontrado(s)</span>
                                             </div>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="pb-0 border-t border-slate-100">
+                                    <AccordionContent className="pb-0 border-t border-stone-100">
                                         <Table>
-                                            <TableHeader className="bg-slate-50">
+                                            <TableHeader className="bg-stone-50">
                                                 <TableRow>
-                                                    <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase w-[120px]">Código</TableHead>
-                                                    <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase">Produto</TableHead>
-                                                    <TableHead className="text-[11px] font-bold text-slate-500 py-1 px-4 h-8 uppercase text-right w-[100px]">Quant.</TableHead>
+                                                    <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider w-[120px]">Código</TableHead>
+                                                    <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider">Produto</TableHead>
+                                                    <TableHead className="text-[11px] font-bold text-stone-500 py-1.5 px-4 h-8 uppercase tracking-wider text-right w-[100px]">Quant.</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {items.map((item, idx) => (
-                                                    <TableRow key={idx} className="hover:bg-red-50/30 transition-colors">
-                                                        <TableCell className="text-xs font-mono font-bold text-slate-800 py-1.5 px-4 h-7 bg-slate-100/50">{item.produto_codigo}</TableCell>
-                                                        <TableCell className="text-xs text-slate-700 py-1.5 px-4 h-7">{item.produto_desc}</TableCell>
-                                                        <TableCell className="text-xs font-mono font-bold text-right py-1.5 px-4 h-7 text-blue-600">{formatNumber(item.quantidade)}</TableCell>
+                                                    <TableRow key={idx} className="hover:bg-stone-50 transition-colors border-b border-stone-100">
+                                                        <TableCell className="text-xs font-mono font-semibold text-stone-700 py-1.5 px-4 h-7">{item.produto_codigo}</TableCell>
+                                                        <TableCell className="text-xs text-stone-700 py-1.5 px-4 h-7">{item.produto_desc}</TableCell>
+                                                        <TableCell className="text-xs tabular-nums font-bold text-right py-1.5 px-4 h-7 text-emerald-700">{formatNumber(item.quantidade)}</TableCell>
                                                     </TableRow>
                                                 ))}
                                             </TableBody>

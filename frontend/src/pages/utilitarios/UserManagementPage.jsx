@@ -23,7 +23,9 @@ import {
     Monitor,
     LayoutGrid,
     Settings,
-    ShieldAlert
+    ShieldAlert,
+    Camera,
+    Upload
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { toast } from 'sonner';
@@ -159,90 +161,102 @@ const UserManagementPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8 relative overflow-hidden">
-            {/* Background Decorative Elements */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-3xl -mr-64 -mt-64" />
-            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-3xl -ml-48 -mb-48" />
+        <div className="min-h-screen bg-[#EAEAE5] relative overflow-hidden font-sans selection:bg-stone-800 selection:text-white">
+            {/* NOISE GRAIN OVERLAY */}
+            <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-[9999]"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
+            />
 
-            <div className="max-w-[1600px] mx-auto relative z-10">
-                {/* MODERN HEADER */}
-                <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                    <div className="flex items-center gap-5">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-blue-600 blur-xl opacity-20 animate-pulse" />
-                            <div className="relative w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-blue-600/40 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
-                                <ShieldCheck size={32} strokeWidth={2.5} />
+            {/* VERTICAL GRID LINES */}
+            <div className="absolute inset-0 pointer-events-none grid grid-cols-12 gap-0 z-0 h-full w-full opacity-20">
+                {[...Array(11)].map((_, i) => (
+                    <div key={i} className="border-r border-stone-400 h-full" />
+                ))}
+            </div>
+
+            <div className="max-w-[1600px] mx-auto p-4 lg:p-12 relative z-10">
+                {/* MODERN HEADER AURA 2.0 */}
+                <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+                    <div className="flex items-center gap-6">
+                        <div className="relative group">
+                            <div className="absolute inset-0 bg-blue-600/20 blur-2xl group-hover:blur-3xl transition-all duration-700" />
+                            <div className="relative w-20 h-20 bg-stone-900 text-[#FACC15] flex items-center justify-center rounded-2xl shadow-2xl shadow-stone-900/40 transform -rotate-2 group-hover:rotate-0 transition-all duration-500">
+                                <ShieldCheck size={36} strokeWidth={1.5} />
                             </div>
                         </div>
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-md">System Core</span>
-                                <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">v2.5.0-Enterprise</span>
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-stone-500 bg-stone-200/50 px-2 py-0.5 rounded">System Core</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-stone-300" />
+                                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-stone-400">v2.5.0-Enterprise</span>
                             </div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                            <h1 className="text-4xl font-display font-medium tracking-tighter text-stone-900 flex items-center gap-3">
                                 Gestão de Identidade
-                                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                             </h1>
-                            <p className="text-slate-500 text-sm font-semibold mt-0.5">Controle mestre de acessos, privilégios e auditoria</p>
+                            <p className="text-stone-500 text-sm font-light tracking-wide mt-1">Controle mestre de acessos, privilégios e auditoria</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="hidden lg:flex flex-col items-end mr-4">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status da Nuvem</span>
-                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5">
-                                <Activity size={10} />
+                    <div className="flex items-center gap-6">
+                        <div className="hidden lg:flex flex-col items-end border-r border-stone-300 pr-6">
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-stone-400">Status da Nuvem</span>
+                            <span className="text-xs font-medium text-stone-600 flex items-center gap-2 mt-1">
+                                <Activity size={12} className="text-emerald-500" />
                                 Todos os sistemas online
                             </span>
                         </div>
+
                         <button
                             onClick={() => { setEditingUser(null); setShowUserModal(true); }}
-                            className="bg-white hover:bg-slate-50 text-slate-700 font-black text-xs uppercase tracking-wider px-6 py-3.5 rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md flex items-center gap-2 group"
+                            className="group relative px-8 py-4 bg-stone-900 text-[#FACC15] overflow-hidden rounded-full transition-all hover:shadow-2xl hover:-translate-y-1"
                         >
-                            <UserPlus size={16} className="text-blue-600 group-hover:scale-110 transition-transform" />
-                            Novo Operador
+                            <div className="absolute inset-0 w-full h-full bg-stone-800 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
+                            <span className="relative z-10 font-mono text-xs uppercase tracking-[0.2em] flex items-center gap-3 font-black">
+                                <UserPlus size={16} />
+                                Novo Operador
+                            </span>
                         </button>
                     </div>
                 </header>
 
-                {/* TAB NAVIGATION - GLASSMORPHISM STYLE */}
-                <div className="flex gap-1 mb-8 p-1.5 bg-slate-200/40 backdrop-blur-md rounded-[20px] w-fit border border-white/40">
+                {/* TAB NAVIGATION - PILL STYLE AURA 2.0 */}
+                <div className="flex gap-2 mb-12 p-1.5 bg-stone-200/50 backdrop-blur-xl rounded-full w-fit border border-stone-300/50 shadow-inner">
                     <button
                         onClick={() => setActiveTab('grupos')}
                         className={cn(
-                            "relative px-8 py-3 rounded-[14px] text-xs font-black uppercase tracking-widest transition-all duration-500 overflow-hidden group",
-                            activeTab === 'grupos' ? "text-white" : "text-slate-500 hover:text-slate-900"
+                            "relative px-10 py-3 rounded-full text-[11px] font-mono font-bold uppercase tracking-[0.2em] transition-all duration-500 overflow-hidden group",
+                            activeTab === 'grupos' ? "text-[#FACC15]" : "text-stone-500 hover:text-stone-900"
                         )}
                     >
                         {activeTab === 'grupos' && (
                             <motion.div
                                 layoutId="activeTabBg"
-                                className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/20"
-                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                className="absolute inset-0 bg-stone-900 shadow-xl shadow-stone-900/20"
+                                transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
                             />
                         )}
-                        <span className="relative z-10 flex items-center gap-2">
-                            <Shield size={14} />
+                        <span className="relative z-10 flex items-center gap-3">
+                            <Shield size={14} strokeWidth={2} />
                             Políticas de Grupo
                         </span>
                     </button>
                     <button
                         onClick={() => setActiveTab('usuarios')}
                         className={cn(
-                            "relative px-8 py-3 rounded-[14px] text-xs font-black uppercase tracking-widest transition-all duration-500 overflow-hidden group",
-                            activeTab === 'usuarios' ? "text-white" : "text-slate-500 hover:text-slate-900"
+                            "relative px-10 py-3 rounded-full text-xs font-mono font-black uppercase tracking-[0.2em] transition-all duration-500 overflow-hidden group",
+                            activeTab === 'usuarios' ? "text-[#FACC15]" : "text-stone-500 hover:text-stone-900"
                         )}
                     >
                         {activeTab === 'usuarios' && (
                             <motion.div
                                 layoutId="activeTabBg"
-                                className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/20"
-                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                className="absolute inset-0 bg-stone-900 shadow-xl shadow-stone-900/20"
+                                transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
                             />
                         )}
-                        <span className="relative z-10 flex items-center gap-2">
-                            <Users size={14} />
+                        <span className="relative z-10 flex items-center gap-3">
+                            <Users size={14} strokeWidth={2.5} />
                             Base de Usuários
                         </span>
                     </button>
@@ -252,32 +266,32 @@ const UserManagementPage = () => {
                     {activeTab === 'grupos' ? (
                         <motion.div
                             key="grupos-view"
-                            initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
-                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                            exit={{ opacity: 0, y: -30, filter: 'blur(10px)' }}
-                            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                            className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-8"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                            className="grid grid-cols-1 lg:grid-cols-12 gap-10"
                         >
-                            {/* LEFT PANEL: GROUPS LIST */}
-                            <div className="md:col-span-1 lg:col-span-1">
-                                <div className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-slate-200/40 p-6 flex flex-col h-full sticky top-8">
-                                    <div className="flex items-center justify-between mb-6 px-2">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Diretórios</span>
-                                            <h3 className="font-black text-slate-800 text-lg tracking-tight">Grupos</h3>
+                            {/* LEFT PANEL: GROUPS SIDEBAR (AURA STYLE) */}
+                            <div className="lg:col-span-3">
+                                <div className="bg-white/40 backdrop-blur-3xl rounded-[40px] border border-white/60 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] p-8 flex flex-col h-fit sticky top-12">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div>
+                                            <span className="text-[10px] font-mono font-black text-stone-400 uppercase tracking-[0.3em]">Diretórios</span>
+                                            <h3 className="font-display font-medium text-stone-900 text-2xl tracking-tighter mt-1">Grupos</h3>
                                         </div>
                                         <button
                                             onClick={() => {
                                                 setEditingGroup({ grupo: '', descricao: '' });
                                                 setShowGroupModal(true);
                                             }}
-                                            className="w-10 h-10 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm"
+                                            className="w-12 h-12 bg-white text-stone-900 hover:bg-stone-900 hover:text-white rounded-2xl flex items-center justify-center transition-all duration-500 border border-stone-200 shadow-sm group"
                                         >
-                                            <Plus size={20} strokeWidth={2.5} />
+                                            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-500" />
                                         </button>
                                     </div>
 
-                                    <div className="space-y-2 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+                                    <div className="space-y-3 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
                                         {grupos.map(g => (
                                             <button
                                                 key={g.grupo}
@@ -286,156 +300,123 @@ const UserManagementPage = () => {
                                                     fetchPermissions(g.grupo);
                                                 }}
                                                 className={cn(
-                                                    "w-full px-5 py-4 rounded-3xl transition-all duration-300 flex items-center justify-between group relative overflow-hidden",
+                                                    "w-full px-6 py-5 rounded-[24px] transition-all duration-500 flex items-center justify-between group relative overflow-hidden",
                                                     selectedGrupo?.grupo === g.grupo
-                                                        ? "bg-blue-600 text-white shadow-xl shadow-blue-600/30 -translate-y-1"
-                                                        : "bg-[#f8fafc] hover:bg-white border border-transparent hover:border-slate-200 text-slate-600"
+                                                        ? "bg-stone-900 text-[#FACC15] shadow-2xl shadow-stone-900/30 -translate-y-1"
+                                                        : "bg-white/50 hover:bg-white border border-transparent hover:border-stone-200 text-stone-600"
                                                 )}
                                             >
-                                                {selectedGrupo?.grupo === g.grupo && (
-                                                    <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full -mr-8 -mt-8" />
-                                                )}
                                                 <div className="flex flex-col text-left relative z-10">
-                                                    <span className={cn("text-xs font-black uppercase tracking-tight", selectedGrupo?.grupo === g.grupo ? "text-blue-100" : "text-slate-400")}>{g.grupo}</span>
-                                                    <span className="text-sm font-black tracking-tight">{g.descricao}</span>
+                                                    <span className={cn("text-[10px] font-mono font-bold uppercase tracking-widest mb-1", selectedGrupo?.grupo === g.grupo ? "text-stone-400" : "text-stone-400")}>{g.grupo}</span>
+                                                    <span className="text-sm font-medium tracking-tight">{g.descricao}</span>
                                                 </div>
-                                                <div className={cn(
-                                                    "w-8 h-8 rounded-xl flex items-center justify-center transition-all relative z-10",
-                                                    selectedGrupo?.grupo === g.grupo ? "bg-white/20" : "bg-white shadow-sm"
-                                                )}>
-                                                    <ChevronRight size={14} className={cn("transition-transform", selectedGrupo?.grupo === g.grupo && "rotate-90")} />
-                                                </div>
+                                                <ChevronRight size={16} className={cn("transition-all duration-500", selectedGrupo?.grupo === g.grupo ? "rotate-90 translate-x-1" : "opacity-0 group-hover:opacity-100 group-hover:translate-x-1")} />
                                             </button>
                                         ))}
                                     </div>
 
-                                    <div className="mt-8 pt-6 border-t border-slate-100 px-2">
-                                        <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                                            <Lock size={16} className="text-amber-600" />
-                                            <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
-                                                Atenção: Mudanças de permissão afetam usuários logados imediatamente.
+                                    <div className="mt-12 pt-8 border-t border-stone-200/50">
+                                        <div className="flex items-start gap-4 p-5 bg-stone-900/5 rounded-3xl border border-stone-900/10">
+                                            <Lock size={16} className="text-stone-600 mt-1" />
+                                            <p className="text-[11px] font-medium text-stone-700 leading-relaxed tracking-tight">
+                                                Mudanças de permissão afetam usuários logados em tempo real. Use com cautela.
                                             </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* RIGHT PANEL: PERMISSIONS MATRIX */}
-                            <div className="md:col-span-3 lg:col-span-4">
-                                <div className="bg-white rounded-[40px] border border-slate-200 shadow-2xl shadow-slate-200/50 flex flex-col min-h-[700px] overflow-hidden">
-                                    <div className="p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50/50 via-white to-white flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div className="flex items-center gap-5">
-                                            <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
-                                                <ShieldCheck size={28} />
+                            {/* RIGHT PANEL: PERMISSIONS MATRIX (GLASSMORPHISM) */}
+                            <div className="lg:col-span-9">
+                                <div className="bg-white/60 backdrop-blur-3xl rounded-[48px] border border-white/80 shadow-[0_48px_96px_-24px_rgba(0,0,0,0.12)] flex flex-col min-h-[800px] overflow-hidden">
+                                    <div className="p-10 border-b border-stone-200/50 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                        <div className="flex items-center gap-6">
+                                            <div className="w-16 h-16 bg-stone-900 text-[#FACC15] rounded-3xl flex items-center justify-center shadow-xl rotate-3">
+                                                <ShieldCheck size={32} strokeWidth={1.5} />
                                             </div>
                                             <div>
-                                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">Namespace / ACL</span>
-                                                <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                                                    Políticas para <span className="bg-blue-600 text-white px-3 py-1 rounded-xl shadow-lg shadow-blue-600/20 ml-1">{selectedGrupo?.descricao || 'Selecione um grupo'}</span>
+                                                <span className="text-[10px] font-mono font-black text-stone-400 uppercase tracking-[0.4em]">Namespace / ACL</span>
+                                                <h3 className="text-2xl font-display font-medium text-stone-900 tracking-tighter mt-1 flex items-center gap-3">
+                                                    Políticas para
+                                                    <span className="bg-emerald-500/10 text-emerald-700 px-4 py-1.5 rounded-full text-sm font-bold border border-emerald-500/20">
+                                                        {selectedGrupo?.descricao || 'Selection Required'}
+                                                    </span>
                                                 </h3>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-4">
-                                            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-200">
-                                                <LayoutGrid size={14} className="text-slate-400" />
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{permissions.length} Rotinas</span>
-                                            </div>
                                             <button
                                                 onClick={handleSavePermissions}
                                                 disabled={saving || !selectedGrupo}
-                                                className="group relative h-14 bg-slate-900 hover:bg-black text-white px-8 rounded-2xl font-black text-sm transition-all overflow-hidden flex items-center gap-3 disabled:opacity-50"
+                                                className="group relative h-16 bg-stone-900 hover:bg-black text-[#FACC15] px-10 rounded-2xl font-mono text-[11px] uppercase tracking-[0.2em] transition-all overflow-hidden flex items-center gap-4 disabled:opacity-50"
                                             >
                                                 {saving ? (
                                                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white" />
                                                 ) : (
                                                     <>
-                                                        <Save size={18} className="group-hover:scale-110 transition-transform" />
-                                                        Deploy Permissões
+                                                        <Save size={20} />
+                                                        Deploy Policies
                                                     </>
                                                 )}
-                                                <motion.div
-                                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full transition-transform duration-1000 group-hover:translate-x-full"
-                                                />
                                             </button>
                                         </div>
                                     </div>
 
                                     {/* GRID HEADERS */}
-                                    <div className="bg-slate-50/50 border-b border-slate-100 grid grid-cols-12 px-8 py-5">
-                                        <div className="col-span-1 text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] text-center">Índice</div>
-                                        <div className="col-span-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] pl-4">Entidade / Módulo</div>
-                                        <div className="col-span-6 grid grid-cols-4 gap-4">
-                                            <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] text-center flex items-center justify-center gap-2">
-                                                <Eye size={12} /> Visível
-                                            </div>
-                                            <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] text-center flex items-center justify-center gap-2">
-                                                <Plus size={12} /> Inserir
-                                            </div>
-                                            <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] text-center flex items-center justify-center gap-2">
-                                                <Edit2 size={12} /> Editar
-                                            </div>
-                                            <div className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] text-center flex items-center justify-center gap-2">
-                                                <Trash2 size={12} /> Apagar
-                                            </div>
+                                    <div className="bg-stone-100/30 border-b border-stone-200/50 grid grid-cols-12 px-10 py-6">
+                                        <div className="col-span-6 text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.3em]">Módulo / Entidade</div>
+                                        <div className="col-span-6 grid grid-cols-4 gap-6">
+                                            {['Visible', 'Create', 'Edit', 'Delete'].map((label, i) => (
+                                                <div key={i} className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] text-center">{label}</div>
+                                            ))}
                                         </div>
                                     </div>
 
                                     {/* GRID CONTENT */}
-                                    <div className="flex-1 overflow-y-auto overflow-x-hidden max-h-[700px] custom-scrollbar p-4 space-y-1 bg-slate-50/30">
+                                    <div className="flex-1 overflow-y-auto max-h-[800px] custom-scrollbar p-6 space-y-2">
                                         {loading ? (
                                             <div className="h-full flex items-center justify-center py-40">
-                                                <div className="flex flex-col items-center gap-4">
-                                                    <div className="relative">
-                                                        <div className="absolute inset-0 bg-blue-600 blur-2xl opacity-20 animate-pulse" />
-                                                        <div className="w-16 h-16 border-4 border-blue-600/10 border-t-blue-600 rounded-full animate-spin relative z-10" />
-                                                    </div>
-                                                    <span className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Resolvendo matriz de acesso...</span>
-                                                </div>
+                                                <Activity className="text-stone-300 animate-spin" size={48} />
                                             </div>
                                         ) : !selectedGrupo ? (
-                                            <div className="h-full flex flex-col items-center justify-center py-32 text-slate-300">
-                                                <ShieldAlert size={64} strokeWidth={1} className="mb-4 opacity-20" />
-                                                <span className="text-sm font-black uppercase tracking-widest text-slate-400">Selecione um grupo para mapear</span>
+                                            <div className="h-full flex flex-col items-center justify-center py-40 text-stone-400 opacity-50">
+                                                <ShieldAlert size={80} strokeWidth={1} className="mb-6" />
+                                                <p className="font-display text-xl tracking-tight">Select a group to map policies</p>
                                             </div>
                                         ) : permissions.map((perm) => {
                                             const isParent = [10, 20, 30, 50, 60].includes(perm.indice);
 
                                             return (
                                                 <motion.div
-                                                    initial={{ opacity: 0, x: 20 }}
+                                                    initial={{ opacity: 0, x: -10 }}
                                                     animate={{ opacity: 1, x: 0 }}
                                                     key={perm.indice}
                                                     className={cn(
-                                                        "grid grid-cols-12 items-center px-4 py-3.5 rounded-[20px] transition-all group",
+                                                        "grid grid-cols-12 items-center px-6 py-5 rounded-[28px] transition-all group border border-transparent",
                                                         isParent
-                                                            ? "bg-white border border-slate-200/60 shadow-md mb-3 mt-4"
-                                                            : "hover:bg-white/80 hover:shadow-sm"
+                                                            ? "bg-white/80 shadow-sm border-stone-200/50 my-2"
+                                                            : "hover:bg-white hover:shadow-xl hover:shadow-stone-900/5 hover:border-stone-100"
                                                     )}
                                                 >
-                                                    <div className="col-span-1 flex justify-center">
-                                                        <span className={cn(
-                                                            "text-[11px] font-black tracking-tighter px-3 py-1 rounded-lg",
-                                                            isParent ? "bg-slate-900 text-white" : "text-slate-400"
+                                                    <div className="col-span-6 flex items-center gap-6">
+                                                        <div className={cn(
+                                                            "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-all",
+                                                            isParent ? "bg-stone-900 text-[#FACC15] shadow-lg" : "bg-stone-100 text-stone-400 group-hover:bg-blue-50 group-hover:text-blue-500"
                                                         )}>
-                                                            {perm.indice}
-                                                        </span>
+                                                            <span className="text-[10px] font-mono font-black">{perm.indice}</span>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className={cn(
+                                                                "text-sm tracking-tight transition-colors",
+                                                                isParent ? "font-display font-medium text-stone-900" : "font-medium text-stone-600 group-hover:text-stone-900"
+                                                            )}>
+                                                                {perm.descricao}
+                                                            </span>
+                                                            {isParent && <span className="text-[9px] font-mono text-stone-400 uppercase tracking-widest mt-0.5">Módulo Principal</span>}
+                                                        </div>
                                                     </div>
-                                                    <div className={cn(
-                                                        "col-span-5 flex flex-col transition-all",
-                                                        !isParent && "pl-8 border-l-2 border-slate-100 ml-4"
-                                                    )}>
-                                                        <span className={cn(
-                                                            "text-sm tracking-tight",
-                                                            isParent ? "font-black text-slate-900 uppercase" : "font-bold text-slate-600"
-                                                        )}>
-                                                            {perm.descricao}
-                                                        </span>
-                                                        {isParent && (
-                                                            <div className="h-0.5 w-8 bg-blue-600 rounded-full mt-1" />
-                                                        )}
-                                                    </div>
-                                                    <div className="col-span-6 grid grid-cols-4 gap-4">
+                                                    <div className="col-span-6 grid grid-cols-4 gap-6">
                                                         <PermissionToggle
                                                             active={!perm.invisivel}
                                                             onClick={() => handleTogglePermission(perm.indice, 'invisivel')}
@@ -467,123 +448,114 @@ const UserManagementPage = () => {
                     ) : (
                         <motion.div
                             key="usuarios-view"
-                            initial={{ opacity: 0, scale: 0.95 }}
+                            initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-white rounded-[40px] border border-slate-200 shadow-2xl shadow-slate-200/50 overflow-hidden"
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            className="bg-white/60 backdrop-blur-3xl rounded-[48px] border border-white/80 shadow-[0_48px_96px_-24px_rgba(0,0,0,0.12)] overflow-hidden"
                         >
-                            {/* USER SEARCH & TOOLBAR */}
-                            <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between gap-6">
-                                <div className="relative group flex-1 max-w-xl">
-                                    <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                                        <Search className="text-slate-400 group-focus-within:text-blue-600 transition-colors" size={20} />
-                                    </div>
+                            <div className="p-10 border-b border-stone-200/50 flex flex-col md:flex-row justify-between gap-8 bg-stone-50/30">
+                                <div className="relative group flex-1 max-w-4xl flex items-center bg-white border border-stone-200/60 rounded-[32px] px-6 py-2 shadow-sm focus-within:shadow-2xl focus-within:shadow-stone-900/5 transition-all">
+                                    <Search className="text-stone-400 group-focus-within:text-stone-900 transition-colors mr-4" size={20} />
                                     <input
                                         type="text"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        placeholder="Filtrar operadores por nome, usuário ou grupo..."
-                                        className="w-full pl-14 pr-6 py-4 bg-slate-100 border-2 border-transparent rounded-[24px] text-sm font-bold focus:bg-white focus:border-blue-600/20 transition-all outline-none"
+                                        placeholder="Pesquisar por nome, ID ou grupo..."
+                                        className="flex-1 py-4 bg-transparent text-sm font-medium outline-none placeholder:text-stone-400"
                                     />
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex -space-x-3 overflow-hidden px-4">
-                                        {users.slice(0, 5).map((u, i) => (
-                                            <div key={i} className="inline-block h-10 w-10 rounded-full ring-4 ring-white bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-600">
-                                                {u.nome?.charAt(0) || '?'}
-                                            </div>
-                                        ))}
-                                        {users.length > 5 && (
-                                            <div className="inline-block h-10 w-10 rounded-full ring-4 ring-white bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">
-                                                +{users.length - 5}
-                                            </div>
-                                        )}
+                                    <div className="flex items-center gap-2 pl-4 border-l border-stone-100 py-1">
+                                        <div className="flex -space-x-3 px-2">
+                                            {users.slice(0, 3).map((u, i) => (
+                                                <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-stone-100 flex items-center justify-center text-[10px] font-mono font-black text-stone-600 shadow-sm overflow-hidden">
+                                                    {u.nome?.charAt(0) || '?'}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="w-10 h-10 bg-stone-50 text-stone-400 rounded-full flex items-center justify-center border border-stone-100">
+                                            <MoreVertical size={16} />
+                                        </div>
                                     </div>
-                                    <button className="p-4 bg-slate-100 hover:bg-slate-200 rounded-2xl transition-all">
-                                        <MoreVertical size={20} />
-                                    </button>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    {/* Additional tools could go here */}
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto p-4 flex-1 max-h-[700px] custom-scrollbar">
-                                <table className="w-full text-left border-separate border-spacing-y-2">
+                            <div className="overflow-x-auto p-10 flex-1 max-h-[750px] custom-scrollbar">
+                                <table className="w-full text-left border-separate border-spacing-y-4">
                                     <thead>
-                                        <tr className="text-slate-400">
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] w-24">Identidade</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em]">Informações do Usuário</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em]">Perfil Funcional</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-center">Nível Master</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-right">Ações de Gestão</th>
+                                        <tr className="text-stone-400">
+                                            <th className="px-8 pb-6 text-[10px] font-mono font-black uppercase tracking-[0.3em]">Identity</th>
+                                            <th className="px-8 pb-6 text-[10px] font-mono font-black uppercase tracking-[0.3em]">Access Info</th>
+                                            <th className="px-8 pb-6 text-[10px] font-mono font-black uppercase tracking-[0.3em]">Profile</th>
+                                            <th className="px-8 pb-6 text-[10px] font-mono font-black uppercase tracking-[0.3em] text-center">Status</th>
+                                            <th className="px-8 pb-6 text-[10px] font-mono font-black uppercase tracking-[0.3em] text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="space-y-4">
+                                    <tbody>
                                         {users.filter(u =>
                                         (u.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                             u.usuario?.toLowerCase().includes(searchTerm.toLowerCase()))
                                         ).map(u => (
-                                            <tr key={u.codigo} className="bg-slate-50/50 hover:bg-white hover:shadow-xl hover:shadow-slate-200/60 transition-all duration-300 group">
-                                                <td className="px-8 py-6 rounded-l-[28px] relative overflow-hidden">
-                                                    <div className={cn(
-                                                        "absolute left-0 top-0 bottom-0 w-1.5 transition-all group-hover:w-2",
-                                                        u.ativo ? "bg-emerald-500" : "bg-slate-300"
-                                                    )} />
-                                                    <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100">
-                                                        <span className="text-lg font-black text-slate-900">{u.nome?.charAt(0)}</span>
+                                            <tr key={u.codigo} className="bg-white/40 hover:bg-white border border-stone-200/50 hover:shadow-2xl hover:shadow-stone-900/5 transition-all duration-500 group">
+                                                <td className="px-8 py-6 rounded-l-[32px] border-y border-l border-stone-200/50 group-hover:border-stone-200">
+                                                    <div className="flex items-center gap-5">
+                                                        <div className="w-14 h-14 bg-stone-100 rounded-2xl flex items-center justify-center border border-stone-200 group-hover:bg-stone-900 group-hover:text-[#FACC15] transition-all duration-500 overflow-hidden">
+                                                            {u.imagem ? (
+                                                                <img src={u.imagem} alt={u.nome} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-lg font-mono font-black">{u.nome?.charAt(0)}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-stone-900 font-display font-medium text-base tracking-tight">{u.nome} {u.sobrenome}</span>
+                                                            <span className="text-stone-400 font-mono text-[10px] uppercase tracking-widest mt-0.5">ID: {u.codigo}</span>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-slate-900 font-black text-base tracking-tight uppercase group-hover:text-blue-600 transition-colors uppercase">{u.nome} {u.sobrenome}</span>
-                                                        <span className="text-slate-400 font-bold text-xs flex items-center gap-1.5">
-                                                            <Activity size={10} />
-                                                            ID: {u.codigo} • @{u.usuario}
+                                                <td className="px-8 py-6 border-y border-stone-200/50 group-hover:border-stone-200">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-stone-800 font-bold text-sm flex items-center gap-3">
+                                                            <div className="flex items-center gap-1 opacity-60">
+                                                                <Smartphone size={14} className="text-stone-400" />
+                                                                <span className="text-[10px]">@</span>
+                                                            </div>
+                                                            {u.usuario}
+                                                        </span>
+                                                        <span className="text-xs font-mono font-black text-stone-400 uppercase tracking-widest pl-6">Login Credential</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-6 border-y border-stone-200/50 group-hover:border-stone-200">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="bg-stone-900/5 text-stone-900 px-4 py-1.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest border border-stone-900/10">
+                                                            {grupos.find(g => g.grupo === u.grupo)?.descricao || u.grupo || 'NO PROFILE'}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex flex-col gap-1.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] shadow-md shadow-blue-600/10">
-                                                                {grupos.find(g => g.grupo === u.grupo)?.descricao || u.grupo || 'Sem Perfil'}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold px-1">
-                                                            <div className="flex items-center gap-1">
-                                                                <Monitor size={10} /> WEB
-                                                            </div>
-                                                            <div className="flex items-center gap-1">
-                                                                <Smartphone size={10} /> MOBILE
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <div className="flex justify-center">
+                                                <td className="px-8 py-6 border-y border-stone-200/50 group-hover:border-stone-200">
+                                                    <div className="flex flex-col items-center">
                                                         {u.master ? (
-                                                            <div className="relative group/master">
-                                                                <div className="absolute inset-0 bg-amber-400 blur-md opacity-20 scale-150 rotate-45" />
-                                                                <div className="relative w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-400/30 group-hover:scale-110 transition-transform">
-                                                                    <Key size={20} />
-                                                                </div>
-                                                            </div>
+                                                            <div className="bg-emerald-500/10 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-mono font-black border border-emerald-500/20">MASTER</div>
                                                         ) : (
-                                                            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-300">
-                                                                <Lock size={16} />
-                                                            </div>
+                                                            <div className="bg-stone-100 text-stone-500 px-4 py-1.5 rounded-full text-[10px] font-mono font-black border border-stone-200">USER</div>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-6 rounded-r-[28px] text-right">
-                                                    <div className="flex justify-end gap-3 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
-                                                        <button className="w-12 h-12 bg-white hover:bg-amber-500 text-slate-400 hover:text-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 transition-all active:scale-95" title="Editar Credenciais"
+                                                <td className="px-8 py-6 rounded-r-[32px] border-y border-r border-stone-200/50 group-hover:border-stone-200 text-right">
+                                                    <div className="flex justify-end gap-3 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500">
+                                                        <button
                                                             onClick={() => { setEditingUser(u); setShowUserModal(true); }}
+                                                            className="w-12 h-12 bg-white hover:bg-stone-900 text-stone-400 hover:text-[#FACC15] rounded-2xl flex items-center justify-center shadow-sm border border-stone-200 transition-all active:scale-95"
+                                                            title="Edit Details"
                                                         >
-                                                            <Edit2 size={18} />
+                                                            <Edit2 size={18} strokeWidth={1.5} />
                                                         </button>
-                                                        <button className="w-12 h-12 bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white rounded-2xl flex items-center justify-center shadow-sm border border-rose-100 transition-all active:scale-95" title="Excluir Operador"
+                                                        <button
                                                             onClick={() => handleDeleteUser(u.codigo)}
+                                                            className="w-12 h-12 bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white rounded-2xl flex items-center justify-center shadow-sm border border-rose-100 transition-all active:scale-95"
+                                                            title="Delete Identity"
                                                         >
-                                                            <Trash2 size={18} />
+                                                            <Trash2 size={18} strokeWidth={1.5} />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -637,53 +609,56 @@ const UserManagementPage = () => {
 const GroupModal = ({ isOpen, onClose, group, setGroup, onSave }) => {
     if (!isOpen) return null;
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-xl">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl"
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="bg-white/90 backdrop-blur-2xl rounded-[48px] w-full max-w-lg overflow-hidden shadow-[0_64px_128px_-32px_rgba(0,0,0,0.3)] border border-white"
             >
-                <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center">
-                            <Plus size={20} />
+                <div className="p-10 border-b border-stone-200/50 flex items-center justify-between bg-stone-50/50">
+                    <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 bg-stone-900 text-[#FACC15] rounded-2xl flex items-center justify-center shadow-2xl">
+                            <Plus size={24} strokeWidth={1.5} />
                         </div>
-                        <h3 className="text-xl font-black text-slate-800 tracking-tight">Novo Grupo</h3>
+                        <div>
+                            <h3 className="text-2xl font-display font-medium text-stone-900 tracking-tighter">Gestão de Grupos</h3>
+                            <p className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-widest mt-0.5">Definição de Perfil</p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all">
-                        <X size={20} />
+                    <button onClick={onClose} className="w-12 h-12 hover:bg-stone-200 rounded-full flex items-center justify-center transition-all">
+                        <X size={20} className="text-stone-400" />
                     </button>
                 </div>
-                <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Código do Grupo</label>
+                <div className="p-10 space-y-8">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Identificador Único (TAG)</label>
                         <input
                             type="text"
                             maxLength={4}
                             value={group.grupo}
                             onChange={(e) => setGroup({ ...group, grupo: e.target.value.toUpperCase() })}
                             placeholder="EX: VEND"
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-blue-600/20 transition-all outline-none"
+                            className="w-full px-8 py-5 bg-white border border-stone-200 rounded-[24px] text-sm font-medium focus:border-stone-900 focus:shadow-2xl focus:shadow-stone-900/5 transition-all outline-none"
                         />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Descrição</label>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Nome de Exibição / Descrição</label>
                         <input
                             type="text"
                             value={group.descricao}
                             onChange={(e) => setGroup({ ...group, descricao: e.target.value })}
-                            placeholder="Nome do perfil de acesso..."
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-blue-600/20 transition-all outline-none"
+                            placeholder="Ex: Equipe de Vendas Internas"
+                            className="w-full px-8 py-5 bg-white border border-stone-200 rounded-[24px] text-sm font-medium focus:border-stone-900 focus:shadow-2xl focus:shadow-stone-900/5 transition-all outline-none"
                         />
                     </div>
                 </div>
-                <div className="p-8 bg-slate-50 flex gap-4">
-                    <button onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-all">Cancelar</button>
+                <div className="p-10 bg-stone-50/50 flex gap-6">
+                    <button onClick={onClose} className="flex-1 py-5 text-[11px] font-mono font-bold text-stone-400 uppercase tracking-widest hover:text-stone-900 transition-all">Cancelar</button>
                     <button
                         onClick={onSave}
-                        className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 transition-all"
+                        className="flex-1 py-5 bg-stone-900 hover:bg-black text-[#FACC15] rounded-[24px] text-[11px] font-mono font-bold uppercase tracking-widest shadow-2xl shadow-stone-900/20 transition-all hover:-translate-y-1"
                     >
-                        Criar Grupo
+                        Confirmar Grupo
                     </button>
                 </div>
             </motion.div>
@@ -693,7 +668,7 @@ const GroupModal = ({ isOpen, onClose, group, setGroup, onSave }) => {
 
 const UserModal = ({ isOpen, onClose, user, grupos, onSave }) => {
     const [formData, setFormData] = useState({
-        nome: '', sobrenome: '', usuario: '', senha: '', grupo: '', master: false, gerencia: false, ativo: true
+        nome: '', sobrenome: '', usuario: '', senha: '', grupo: '', master: false, gerencia: false, ativo: true, imagem: ''
     });
     const [isSaving, setIsSaving] = useState(false);
 
@@ -703,52 +678,107 @@ const UserModal = ({ isOpen, onClose, user, grupos, onSave }) => {
                 nome: user.nome || '',
                 sobrenome: user.sobrenome || '',
                 usuario: user.usuario || '',
-                senha: '', // Senha sempre vazia no início
+                senha: '',
                 grupo: user.grupo || '',
                 master: user.master || false,
                 gerencia: user.gerencia || false,
-                ativo: user.ativo !== undefined ? user.ativo : true
+                ativo: user.ativo !== undefined ? user.ativo : true,
+                imagem: user.imagem || ''
             });
         } else if (isOpen) {
             setFormData({
-                nome: '', sobrenome: '', usuario: '', senha: '', grupo: '', master: false, gerencia: false, ativo: true
+                nome: '', sobrenome: '', usuario: '', senha: '', grupo: '', master: false, gerencia: false, ativo: true, imagem: ''
             });
         }
     }, [user, isOpen]);
 
     if (!isOpen) return null;
 
+    // IMAGE COMPRESSION UTILITY
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 128;
+                    const MAX_HEIGHT = 128;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Compress to JPEG with 0.7 quality
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    resolve(dataUrl);
+                };
+            };
+        });
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            toast.error('Por favor, selecione uma imagem');
+            return;
+        }
+
+        try {
+            const compressedBase64 = await compressImage(file);
+            setFormData(prev => ({ ...prev, imagem: compressedBase64 }));
+            toast.success('Imagem otimizada com sucesso!', {
+                icon: '⚡',
+                style: { borderRadius: '15px', background: '#1e293b', color: '#fff', fontSize: '12px' }
+            });
+        } catch (error) {
+            console.error('Erro ao processar imagem:', error);
+            toast.error('Falha ao processar imagem');
+        }
+    };
+
     const handleLocalSave = async (e) => {
         if (e) e.preventDefault();
-
         if (!formData.nome || !formData.usuario || (!user && !formData.senha)) {
-            toast.error('Preencha os campos obrigatórios (Nome, Usuário e Senha)');
+            toast.error('Preencha os campos obrigatórios');
             return;
         }
 
         setIsSaving(true);
         try {
             const payload = user ? { ...formData, codigo: user.codigo } : formData;
-
             const response = await fetch(getApiUrl(NODE_API_URL, '/api/v2/system/users'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
             const data = await response.json();
-
             if (data.success) {
-                toast.success(user ? 'Operador atualizado!' : 'Novo operador criado!', {
-                    icon: '👤',
-                    style: { borderRadius: '15px', background: '#1e293b', color: '#fff' }
-                });
+                toast.success(user ? 'Operador atualizado!' : 'Novo operador criado!');
                 onSave();
             } else {
                 toast.error(data.message || 'Erro ao salvar operador');
             }
         } catch (error) {
-            console.error('Save user error:', error);
             toast.error('Falha na comunicação com o servidor');
         } finally {
             setIsSaving(false);
@@ -756,93 +786,121 @@ const UserModal = ({ isOpen, onClose, user, grupos, onSave }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-stone-900/40 backdrop-blur-xl">
             <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="bg-white rounded-[40px] w-full max-w-2xl overflow-hidden shadow-2xl"
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                className="bg-white/90 backdrop-blur-2xl rounded-[48px] w-full max-w-3xl overflow-hidden shadow-[0_64px_128px_-32px_rgba(0,0,0,0.3)] border border-white"
             >
-                <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-                            {user ? <Edit2 size={24} /> : <UserPlus size={24} />}
+                <div className="p-10 border-b border-stone-200/50 flex items-center justify-between bg-stone-50/50">
+                    <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-stone-900 text-[#FACC15] rounded-3xl flex items-center justify-center shadow-2xl">
+                            {user ? <Edit2 size={28} /> : <UserPlus size={28} />}
                         </div>
                         <div>
-                            <h3 className="text-xl font-black text-slate-800 tracking-tight">
-                                {user ? 'Editar Operador' : 'Novo Operador'}
+                            <h3 className="text-2xl font-display font-medium text-stone-900 tracking-tighter">
+                                {user ? 'Editar Identidade' : 'Nova Identidade'}
                             </h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Provisionamento de Acesso</p>
+                            <p className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-widest mt-0.5">Provisionamento de Acesso</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-3 hover:bg-slate-200 rounded-2xl transition-all">
-                        <X size={20} />
+                    <button onClick={onClose} className="w-12 h-12 hover:bg-stone-200 rounded-full flex items-center justify-center transition-all">
+                        <X size={20} className="text-stone-400" />
                     </button>
                 </div>
 
-                <div className="p-8 grid grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Nome</label>
+                <div className="p-10 grid grid-cols-2 gap-8 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                    {/* AVATAR UPLOAD SECTION */}
+                    <div className="col-span-2 flex justify-center mb-4">
+                        <div className="relative group">
+                            <div className="w-32 h-32 rounded-[40px] bg-stone-100 border-2 border-stone-200 overflow-hidden flex items-center justify-center shadow-2xl transition-all group-hover:border-stone-900 relative">
+                                {formData.imagem ? (
+                                    <img src={formData.imagem} alt="Avatar Preview" className="w-full h-full object-cover" />
+                                ) : (
+                                    <Users size={48} className="text-stone-300" />
+                                )}
+                                
+                                <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center cursor-pointer backdrop-blur-sm">
+                                    <Camera size={24} className="text-white mb-1" />
+                                    <span className="text-[10px] font-mono font-black text-white uppercase tracking-widest">Alterar</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                </label>
+                            </div>
+                            {formData.imagem && (
+                                <button 
+                                    onClick={() => setFormData(prev => ({ ...prev, imagem: '' }))}
+                                    className="absolute -top-2 -right-2 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-rose-600 transition-all scale-0 group-hover:scale-100"
+                                >
+                                    <X size={14} strokeWidth={3} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Nome</label>
                         <input type="text" value={formData.nome} onChange={e => setFormData({ ...formData, nome: e.target.value.toUpperCase() })}
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-indigo-600/20 transition-all outline-none"
+                            className="w-full px-6 py-4 bg-white border border-stone-200 rounded-[20px] text-sm font-medium focus:border-stone-900 focus:shadow-xl transition-all outline-none"
                             placeholder="EX: HAMILTON" />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Sobrenome</label>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Sobrenome</label>
                         <input type="text" value={formData.sobrenome} onChange={e => setFormData({ ...formData, sobrenome: e.target.value.toUpperCase() })}
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-indigo-600/20 transition-all outline-none"
+                            className="w-full px-6 py-4 bg-white border border-stone-200 rounded-[20px] text-sm font-medium focus:border-stone-900 focus:shadow-xl transition-all outline-none"
                             placeholder="EX: SILVA" />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Usuário de Login</label>
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Usuário de Login</label>
                         <input type="text" value={formData.usuario} onChange={e => setFormData({ ...formData, usuario: e.target.value.toLowerCase() })}
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-indigo-600/20 transition-all outline-none"
+                            className="w-full px-6 py-4 bg-white border border-stone-200 rounded-[20px] text-sm font-medium focus:border-stone-900 focus:shadow-xl transition-all outline-none"
                             placeholder="usuario.acesso" />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">
-                            {user ? 'Nova Senha (vazio para manter)' : 'Senha Temporária'}
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">
+                            {user ? 'Alterar Senha' : 'Senha Provisória'}
                         </label>
                         <input type="password" value={formData.senha} onChange={e => setFormData({ ...formData, senha: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-indigo-600/20 transition-all outline-none"
+                            className="w-full px-6 py-4 bg-white border border-stone-200 rounded-[20px] text-sm font-medium focus:border-stone-900 focus:shadow-xl transition-all outline-none"
                             placeholder="••••••••" />
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Grupo / Perfil</label>
+                    <div className="col-span-2 space-y-3">
+                        <label className="text-[10px] font-mono font-black uppercase text-stone-400 tracking-[0.2em] pl-1">Grupo / Perfil de Acesso</label>
                         <select value={formData.grupo} onChange={e => setFormData({ ...formData, grupo: e.target.value })}
-                            className="w-full px-5 py-4 bg-slate-100 border-2 border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-indigo-600/20 transition-all outline-none">
+                            className="w-full px-6 py-4 bg-white border border-stone-200 rounded-[20px] text-sm font-medium focus:border-stone-900 focus:shadow-xl transition-all outline-none appearance-none">
                             <option value="">Selecione um Perfil...</option>
                             {grupos.map(g => <option key={g.grupo} value={g.grupo}>{g.descricao}</option>)}
                         </select>
                     </div>
-                    <div className="flex items-center gap-6 pt-8">
-                        <div className="flex items-center gap-2">
+
+                    <div className="col-span-2 bg-stone-100/50 p-6 rounded-[32px] border border-stone-200 grid grid-cols-3 gap-6">
+                        <div className="flex flex-col items-center gap-3">
                             <PermissionToggle active={formData.master} onClick={() => setFormData({ ...formData, master: !formData.master })} color="amber" />
-                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Master</span>
+                            <span className="text-[10px] font-mono font-black text-stone-400 uppercase tracking-widest">Nível Master</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center gap-3 border-x border-stone-200">
                             <PermissionToggle active={formData.gerencia} onClick={() => setFormData({ ...formData, gerencia: !formData.gerencia })} color="emerald" />
-                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Gerência</span>
+                            <span className="text-[10px] font-mono font-black text-stone-400 uppercase tracking-widest">Gerência</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-center gap-3">
                             <PermissionToggle active={formData.ativo} onClick={() => setFormData({ ...formData, ativo: !formData.ativo })} color="blue" />
-                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Ativo</span>
+                            <span className="text-[10px] font-mono font-black text-stone-400 uppercase tracking-widest">Status Ativo</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="p-8 bg-slate-50 flex gap-4">
-                    <button onClick={onClose} className="flex-1 py-4 text-sm font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 transition-all">Cancelar</button>
+                <div className="p-10 bg-stone-50/50 flex gap-6">
+                    <button onClick={onClose} className="flex-1 py-5 text-[11px] font-mono font-bold text-stone-400 uppercase tracking-widest hover:text-stone-900 transition-all">Descartar</button>
                     <button
                         onClick={handleLocalSave}
                         disabled={isSaving}
-                        className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="flex-1 py-5 bg-stone-900 hover:bg-black text-[#FACC15] rounded-[24px] text-[11px] font-mono font-bold uppercase tracking-widest shadow-2xl shadow-stone-900/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                     >
                         {isSaving ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white" />
+                            <Activity className="animate-spin text-white" size={18} />
                         ) : (
                             <>
-                                <Save size={18} />
-                                {user ? 'Salvar Alterações' : 'Salvar Operador'}
+                                <Save size={18} strokeWidth={1.5} />
+                                Confirmar Operador
                             </>
                         )}
                     </button>
@@ -852,38 +910,37 @@ const UserModal = ({ isOpen, onClose, user, grupos, onSave }) => {
     );
 };
 
-// HELPER COMPONENT: CUSTOM PERMISSION TOGGLE
+// HELPER COMPONENT: AURA PREMIUM SWITCH
 const PermissionToggle = ({ active, onClick, color = 'blue' }) => {
-    const colors = {
-        blue: { bgActive: 'bg-blue-600', bgInactive: 'bg-slate-200', textActive: 'text-white' },
-        emerald: { bgActive: 'bg-emerald-500', bgInactive: 'bg-slate-200', textActive: 'text-white' },
-        amber: { bgActive: 'bg-amber-500', bgInactive: 'bg-slate-200', textActive: 'text-white' },
-        rose: { bgActive: 'bg-rose-500', bgInactive: 'bg-slate-200', textActive: 'text-white' }
+    const themes = {
+        blue: { active: 'bg-blue-500', glow: 'shadow-blue-500/50' },
+        emerald: { active: 'bg-emerald-500', glow: 'shadow-emerald-500/50' },
+        amber: { active: 'bg-amber-500', glow: 'shadow-amber-500/50' },
+        rose: { active: 'bg-rose-500', glow: 'shadow-rose-500/50' }
     };
 
-    const c = colors[color];
+    const theme = themes[color];
 
     return (
-        <label className="flex items-center justify-center cursor-pointer">
-            <div className="relative" onClick={onClick}>
+        <div className="flex justify-center">
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onClick();
+                }}
+                className={cn(
+                    "relative w-12 h-6 rounded-full transition-all duration-500 ease-in-out border",
+                    active
+                        ? `${theme.active} border-transparent shadow-lg ${theme.glow}`
+                        : "bg-stone-200 border-stone-300 shadow-inner"
+                )}
+            >
                 <div className={cn(
-                    "w-12 h-6 rounded-full transition-all duration-500",
-                    active ? c.bgActive : c.bgInactive
-                )} />
-                <div className={cn(
-                    "absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all duration-500 shadow-md",
+                    "absolute top-1 left-1 w-3.5 h-3.5 bg-white rounded-full transition-all duration-500 ease-in-out shadow-sm",
                     active ? "translate-x-6 scale-110" : "translate-x-0"
                 )} />
-            </div>
-            <div className="ml-3 hidden md:block">
-                <span className={cn(
-                    "text-[10px] font-black uppercase tracking-widest",
-                    active ? "text-slate-900" : "text-slate-300"
-                )}>
-                    {active ? 'ON' : 'OFF'}
-                </span>
-            </div>
-        </label>
+            </button>
+        </div>
     );
 };
 

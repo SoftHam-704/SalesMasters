@@ -31,7 +31,10 @@ import {
     Search,
     Filter,
     Eye,
-    ShoppingCart
+    ShoppingCart,
+    ListChecks,
+    AlertTriangle,
+    ClipboardCheck
 } from 'lucide-react';
 import axios from '@/lib/axios';
 import { toast } from 'sonner';
@@ -64,6 +67,8 @@ const RepCrmDashboard = () => {
 
     const [agenda, setAgenda] = useState({ proximo: null, hoje: 0 });
     const [wallet, setWallet] = useState({ active: 0, prospects: 0 });
+    const [followupCounts, setFollowupCounts] = useState({ atrasados: 0, hoje: 0, semana: 0, total_pendentes: 0 });
+    const [crmStats, setCrmStats] = useState({ totalHoje: 0, totalMes: 0, total30d: 0, pendentes: 0 });
 
     // Modals state
     const [isInteracaoOpen, setIsInteracaoOpen] = useState(false);
@@ -85,6 +90,8 @@ const RepCrmDashboard = () => {
         fetchPipeline();
         fetchAgenda();
         fetchWalletHealth();
+        fetchFollowupCounts();
+        fetchCrmStats();
 
         return () => {
             clearInterval(timer);
@@ -171,9 +178,28 @@ const RepCrmDashboard = () => {
 
     // Dados transformados para o layout premium
     const fat = stats.total_vendido_current || stats.totalMes || 0;
-    const com = fat * 0.05; // 5% estimado
     const meta = stats.meta_total || stats.metaMes || 80000;
     const metaPct = meta > 0 ? Math.min(((fat / meta) * 100), 100).toFixed(1) : 0;
+
+    const fetchFollowupCounts = async () => {
+        try {
+            const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
+            const res = await axios.get('/crm/followups/count', { params: { ven_codigo: userData.ven_codigo } });
+            if (res.data.success) setFollowupCounts(res.data.data);
+        } catch (error) {
+            console.error('Erro follow-ups:', error);
+        }
+    };
+
+    const fetchCrmStats = async () => {
+        try {
+            const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
+            const res = await axios.get('/crm/stats/summary', { params: { ven_codigo: userData.ven_codigo } });
+            if (res.data.success) setCrmStats(res.data.data);
+        } catch (error) {
+            console.error('Erro CRM stats:', error);
+        }
+    };
 
     const phases = [
         { id: 1, label: "Prospecção", color: "#60A5FA", icon: Search },      // Azul Suave
@@ -216,7 +242,7 @@ const RepCrmDashboard = () => {
     }
 
     return (
-        <div className="p-8 h-full overflow-y-auto custom-scrollbar bg-slate-50">
+        <div className="px-4 py-6 h-full overflow-y-auto custom-scrollbar bg-slate-50">
             <div className="max-w-[1600px] mx-auto space-y-8">
 
                 {/* Header Welcome */}
@@ -247,12 +273,6 @@ const RepCrmDashboard = () => {
                     </div>
                 </header>
 
-                {/* AI Insight Box */}
-                <AiInsightBox
-                    typing={aiTyping}
-                    insight={stats.insights?.gap || "Analisando sua carteira para identificar oportunidades estratégicas... Clique no botão para gerar um insight."}
-                />
-
                 {/* KPIs Grid */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <KpiCard delay={0.1} glowColor="rgba(16, 185, 129, 0.15)">
@@ -275,16 +295,27 @@ const RepCrmDashboard = () => {
                     </KpiCard>
 
                     <KpiCard delay={0.2} glowColor="rgba(96, 165, 250, 0.15)">
-                        <div className="flex flex-col h-full justify-between">
+                        <div className="flex flex-col h-full justify-between cursor-pointer" onClick={() => navigate('/repcrm/followups')}>
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><Wallet size={18} /></div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Comissões (Est.)</span>
+                                <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><ListChecks size={18} /></div>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Follow-ups</span>
                             </div>
                             <div>
-                                <span className="text-2xl font-black text-slate-800 tracking-tight">{formatBRL(com)}</span>
+                                <span className="text-2xl font-black text-slate-800 tracking-tight">{parseInt(followupCounts.total_pendentes) || 0}</span>
                                 <div className="mt-1 flex items-center gap-2">
-                                    <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-500 border-blue-100 px-1.5 h-5 rounded-md">ℹ 5%</Badge>
-                                    <span className="text-[10px] text-slate-400 font-medium">sobre linha pesada</span>
+                                    {parseInt(followupCounts.atrasados) > 0 && (
+                                        <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-100 px-1.5 h-5 rounded-md">
+                                            <AlertTriangle size={10} className="mr-0.5" /> {followupCounts.atrasados} atrasados
+                                        </Badge>
+                                    )}
+                                    {parseInt(followupCounts.hoje) > 0 && (
+                                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-600 border-amber-100 px-1.5 h-5 rounded-md">
+                                            {followupCounts.hoje} hoje
+                                        </Badge>
+                                    )}
+                                    {parseInt(followupCounts.total_pendentes) === 0 && (
+                                        <span className="text-[10px] text-emerald-500 font-medium">✅ Em dia!</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -298,13 +329,13 @@ const RepCrmDashboard = () => {
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Atendimentos</span>
                                 </div>
                                 <div>
-                                    <span className="text-2xl font-black text-slate-800 tracking-tight">{stats.totalInteracoes || 0}</span>
+                                    <span className="text-2xl font-black text-slate-800 tracking-tight">{crmStats.totalMes || 0}</span>
                                     <div className="mt-1">
                                         <span className="text-[10px] text-slate-400 font-medium">Interações este mês</span>
                                     </div>
                                 </div>
                             </div>
-                            <CircleProgress value={stats.totalInteracoes > 0 ? 100 : 0} color="#FB923C" size={48} />
+                            <CircleProgress value={crmStats.totalMes > 0 ? Math.min((crmStats.totalMes / 50) * 100, 100) : 0} color="#FB923C" size={48} />
                         </div>
                     </KpiCard>
 
@@ -345,7 +376,7 @@ const RepCrmDashboard = () => {
                         >
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-sm font-bold text-slate-800">Pipeline Comercial</h2>
-                                <Button variant="ghost" size="sm" className="h-7 text-[10px] text-emerald-600 font-bold px-2 hover:bg-emerald-50" onClick={() => navigate('/vendas/campanhas')}>Ver Funil</Button>
+                                <Button variant="ghost" size="sm" className="h-7 text-[10px] text-emerald-600 font-bold px-2 hover:bg-emerald-50" onClick={() => navigate('/repcrm/pipeline')}>Abrir Pipeline</Button>
                             </div>
 
                             <div className="space-y-4">
@@ -424,10 +455,10 @@ const RepCrmDashboard = () => {
                         </div>
                         <div className="space-y-4">
                             {agenda.proximo ? (
-                                <div className="flex p-3 rounded-xl border border-emerald-100 bg-emerald-50/50 items-center gap-4 hover:border-emerald-200 transition-colors cursor-pointer" onClick={() => navigate('/agenda')}>
+                                <div className="flex p-3 rounded-xl border border-emerald-100 bg-emerald-50/50 items-center gap-4 hover:border-emerald-200 transition-colors cursor-pointer" onClick={() => agenda.proximo?.module === 'crm' ? navigate('/repcrm/followups') : navigate('/agenda')}>
                                     <div className="text-center min-w-[50px] flex flex-col items-center justify-center">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase">Horário</span>
-                                        <span className="text-sm font-black text-emerald-600">{agenda.proximo.hora_inicio?.substring(0, 5) || 'HOJE'}</span>
+                                        <span className="text-sm font-black text-emerald-600">{agenda.proximo.module === 'crm' ? 'HOJE' : (agenda.proximo.hora_inicio?.substring(0, 5) || 'HOJE')}</span>
                                     </div>
                                     <div className="h-8 w-[1px] bg-emerald-200" />
                                     <div className="flex-1">
@@ -481,15 +512,15 @@ const RepCrmDashboard = () => {
             <AnimatePresence>
                 {isInteracaoOpen && (
                     <NovaInteracaoModal
-                        isOpen={isInteracaoOpen}
+                        open={isInteracaoOpen}
                         onClose={() => setIsInteracaoOpen(false)}
-                        onSuccess={() => { toast.success('Interação registrada!'); fetchStats(); fetchPipeline(); }}
+                        onSuccess={() => { toast.success('Interação registrada!'); fetchStats(); fetchPipeline(); fetchCrmStats(); }}
                         preData={interacaoPreData}
                     />
                 )}
                 {isOportunidadeOpen && (
                     <NovaOportunidadeModal
-                        isOpen={isOportunidadeOpen}
+                        open={isOportunidadeOpen}
                         onClose={() => setIsOportunidadeOpen(false)}
                         onSuccess={() => { toast.success('Oportunidade criada!'); fetchPipeline(); }}
                     />
@@ -537,7 +568,7 @@ const RepCrmDashboard = () => {
                                 </div>
                             )}
                             {!isProjetos && (
-                                <div className="fab-menu-item" onClick={() => { navigate('/vendas/novo-pedido'); setIsFabOpen(false); }}>
+                                <div className="fab-menu-item" onClick={() => { navigate('/utilitarios/frmGridPedidos'); setIsFabOpen(false); }}>
                                     <span>Novo Pedido</span>
                                     <div className="fab-icon bg-orange-500 text-white"><ShoppingCart size={18} /></div>
                                 </div>

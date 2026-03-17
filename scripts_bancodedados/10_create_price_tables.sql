@@ -24,7 +24,7 @@ CREATE TABLE cad_tabelaspre (
     itab_precobruto     DOUBLE PRECISION DEFAULT 0,
     itab_precopromo     DOUBLE PRECISION DEFAULT 0,
     itab_precoespecial  DOUBLE PRECISION DEFAULT 0,
-    itab_datatbela      DATE,
+    itab_datatabela      DATE,
     itab_datavencimento DATE,
     itab_status         BOOLEAN DEFAULT true,
     
@@ -45,7 +45,7 @@ COMMENT ON COLUMN cad_tabelaspre.itab_prepeso IS 'Preço por peso (kg)';
 COMMENT ON COLUMN cad_tabelaspre.itab_precobruto IS 'Preço bruto base';
 COMMENT ON COLUMN cad_tabelaspre.itab_precopromo IS 'Preço promocional';
 COMMENT ON COLUMN cad_tabelaspre.itab_precoespecial IS 'Preço especial';
-COMMENT ON COLUMN cad_tabelaspre.itab_datatbela IS 'Data de criação/vigência da tabela';
+COMMENT ON COLUMN cad_tabelaspre.itab_datatabela IS 'Data de criação/vigência da tabela';
 COMMENT ON COLUMN cad_tabelaspre.itab_datavencimento IS 'Data de vencimento da tabela';
 COMMENT ON COLUMN cad_tabelaspre.itab_status IS 'Status da tabela (ativo/inativo)';
 
@@ -56,7 +56,7 @@ CREATE INDEX idx_tabelaspre_industria ON cad_tabelaspre(itab_industria);
 CREATE INDEX idx_tabelaspre_tabela ON cad_tabelaspre(itab_tabela);
 CREATE INDEX idx_tabelaspre_produto ON cad_tabelaspre(itab_idprod);
 CREATE INDEX idx_tabelaspre_status ON cad_tabelaspre(itab_status);
-CREATE INDEX idx_tabelaspre_vigencia ON cad_tabelaspre(itab_datatbela, itab_datavencimento);
+CREATE INDEX idx_tabelaspre_vigencia ON cad_tabelaspre(itab_datatabela, itab_datavencimento);
 
 -- Índice composto para busca de preço ativo
 CREATE INDEX idx_tabelaspre_busca_preco 
@@ -193,8 +193,9 @@ CREATE OR REPLACE FUNCTION fn_upsert_preco(
     p_st DOUBLE PRECISION DEFAULT 0,
     p_grupodesconto INTEGER DEFAULT NULL,
     p_descontoadd DOUBLE PRECISION DEFAULT 0,
-    p_datatbela DATE DEFAULT CURRENT_DATE,
-    p_datavencimento DATE DEFAULT NULL
+    p_datatabela DATE DEFAULT CURRENT_DATE,
+    p_datavencimento DATE DEFAULT NULL,
+    p_prepeso DOUBLE PRECISION DEFAULT 0
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -212,8 +213,9 @@ BEGIN
         itab_st,
         itab_grupodesconto,
         itab_descontoadd,
-        itab_datatbela,
+        itab_datatabela,
         itab_datavencimento,
+        itab_prepeso,
         itab_status
     ) VALUES (
         p_pro_id,
@@ -226,8 +228,9 @@ BEGIN
         p_st,
         p_grupodesconto,
         p_descontoadd,
-        p_datatbela,
+        p_datatabela,
         p_datavencimento,
+        p_prepeso,
         true
     )
     ON CONFLICT (itab_idprod, itab_tabela) 
@@ -239,8 +242,9 @@ BEGIN
         itab_st = EXCLUDED.itab_st,
         itab_grupodesconto = EXCLUDED.itab_grupodesconto,
         itab_descontoadd = EXCLUDED.itab_descontoadd,
-        itab_datatbela = EXCLUDED.itab_datatbela,
+        itab_datatabela = EXCLUDED.itab_datatabela,
         itab_datavencimento = EXCLUDED.itab_datavencimento,
+        itab_prepeso = EXCLUDED.itab_prepeso,
         itab_status = EXCLUDED.itab_status;
 END;
 $$;

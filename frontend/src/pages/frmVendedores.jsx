@@ -53,8 +53,19 @@ const FrmVendedores = () => {
         setIsFormOpen(true);
     };
 
-    const handleEdit = (seller) => {
-        setSelectedSeller(seller);
+    const handleEdit = async (seller) => {
+        try {
+            const res = await fetch(getApiUrl(NODE_API_URL, `/api/sellers/${seller.ven_codigo}`));
+            if (res.ok) {
+                const json = await res.json();
+                setSelectedSeller(json.data || seller);
+            } else {
+                setSelectedSeller(seller);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar dados completos:', error);
+            setSelectedSeller(seller);
+        }
         setIsFormOpen(true);
     };
 

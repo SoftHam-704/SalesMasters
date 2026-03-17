@@ -13,7 +13,8 @@ module.exports = function (pool) {
                     usuario,
                     grupo,
                     master,
-                    gerencia
+                    gerencia,
+                    imagem
                 FROM user_nomes
                 ORDER BY nome, sobrenome
             `;

@@ -1,6 +1,6 @@
 # 📋 Status do Projeto SalesMasters
 
-**Última atualização**: 13/02/2026 14:55
+**Última atualização**: 26/02/2026 11:30
 
 > [!CAUTION]
 > **ESTRATÉGIA SEVENREP (BERTOLINI)**:
@@ -14,6 +14,8 @@
 > - ❌ Sem mock data
 > - ✅ Apenas dados do PostgreSQL
 > - ✅ Todas as operações devem ser reais (CREATE, UPDATE, DELETE)
+> - 🌿 **INICIATIVA GREENFIELD**: Reconstrução do BI e CRM com foco em IA (Gemini 2.0).
+
 
 ---
 
@@ -50,15 +52,33 @@
 - [x] CSV de fornecedores exportado do Firebird
 - [x] Estrutura do CSV mapeada
 
+### WhatsApp IA (Multitenant)
+- [x] Infraestrutura de Banco de Dados instalada em TODOS os schemas (11 schemas)
+- [x] Tabelas `wpp_contato`, `wpp_conversa`, `wpp_mensagem`, `wpp_template`, `wpp_campanha`
+- [x] Integração de campos de Projeto na tabela `pedidos`
+- [x] Script de deploy global automatizado
+- [x] **BI Greenfield Foundation**: Sidebar remodelada e página inicial de BI ultra-premium criada.
+
+
 ---
 
 ## 🔄 Em Andamento
+
+### WhatsApp IA (Multitenant)
+- [ ] Implementação do Orquestrador de Mensagens (Cérebro IA)
+- [ ] Configuração da Evolution API (Docker)
+- [ ] Bridge de qualificação IA -> Projeto CRM
+- [ ] Interface de chat em tempo real no dashboard
+- [🔄] **BI Intelligence Greenfield**: Desenvolvimento dos views SQL padronizados.
+- [🔄] **CRM Master Evolution**: Pipeline inteligente e Lead Hunter com Gemini.
+
 
 ### Migração de Dados
 - [ ] API de importação CSV → PostgreSQL
 - [ ] Processar fornecedores.csv
 - [ ] Mapear campos Firebird → PostgreSQL
 - [ ] Inserir dados na tabela suppliers
+
 
 ---
 

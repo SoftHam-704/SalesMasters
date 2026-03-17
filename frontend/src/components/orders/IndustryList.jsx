@@ -4,13 +4,13 @@ import { Factory, ChevronRight, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import SidebarCalendar from './SidebarCalendar';
+import SidebarBriefing from './SidebarBriefing';
 
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
 
-export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
+export default function IndustryList({ selectedIndustry, onSelectIndustry, narrative, loading }) {
     const [industries, setIndustries] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingIndustries, setLoadingIndustries] = useState(true);
 
     useEffect(() => {
         loadIndustries();
@@ -31,7 +31,7 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
         } catch (error) {
             console.error('Erro ao carregar indústrias:', error);
         } finally {
-            setLoading(false);
+            setLoadingIndustries(false);
         }
     };
 
@@ -56,7 +56,7 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
 
             {/* Lista de Indústrias */}
             <ScrollArea className="flex-1">
-                {loading ? (
+                {loadingIndustries ? (
                     <div className="p-4 text-center text-muted-foreground text-sm">
                         Carregando...
                     </div>
@@ -153,8 +153,11 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry }) {
                 )}
             </ScrollArea>
 
-            {/* Sidebar Calendar */}
-            <SidebarCalendar />
+            {/* Sidebar Briefing IA */}
+            <SidebarBriefing 
+                narrative={narrative}
+                loading={loading}
+            />
         </motion.div>
     );
 }

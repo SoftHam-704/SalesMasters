@@ -1,0 +1,352 @@
+[
+  {
+    "tablename": "clientes",
+    "indexname": "clientes_pkey",
+    "indexdef": "CREATE UNIQUE INDEX clientes_pkey ON public.clientes USING btree (cli_codigo)"
+  },
+  {
+    "tablename": "clientes",
+    "indexname": "idx_clientes_cli_atuacaoprincipal",
+    "indexdef": "CREATE INDEX idx_clientes_cli_atuacaoprincipal ON public.clientes USING btree (cli_atuacaoprincipal)"
+  },
+  {
+    "tablename": "clientes",
+    "indexname": "idx_clientes_cli_idcidade",
+    "indexdef": "CREATE INDEX idx_clientes_cli_idcidade ON public.clientes USING btree (cli_idcidade)"
+  },
+  {
+    "tablename": "clientes",
+    "indexname": "idx_clientes_cli_regiao2",
+    "indexdef": "CREATE INDEX idx_clientes_cli_regiao2 ON public.clientes USING btree (cli_regiao2)"
+  },
+  {
+    "tablename": "clientes",
+    "indexname": "idx_clientes_cnpj",
+    "indexdef": "CREATE INDEX idx_clientes_cnpj ON public.clientes USING btree (cli_cnpj)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "fornecedores_pkey",
+    "indexdef": "CREATE UNIQUE INDEX fornecedores_pkey ON public.fornecedores USING btree (for_codigo)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_cgc",
+    "indexdef": "CREATE INDEX idx_fornecedores_cgc ON public.fornecedores USING btree (for_cgc)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_cidade",
+    "indexdef": "CREATE INDEX idx_fornecedores_cidade ON public.fornecedores USING btree (for_cidade)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_codigo",
+    "indexdef": "CREATE INDEX idx_fornecedores_codigo ON public.fornecedores USING btree (for_codigo)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_nome",
+    "indexdef": "CREATE INDEX idx_fornecedores_nome ON public.fornecedores USING btree (for_nome)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_nomered",
+    "indexdef": "CREATE INDEX idx_fornecedores_nomered ON public.fornecedores USING btree (for_nomered)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_nomered_public",
+    "indexdef": "CREATE INDEX idx_fornecedores_nomered_public ON public.fornecedores USING btree (for_nomered)"
+  },
+  {
+    "tablename": "fornecedores",
+    "indexname": "idx_fornecedores_tipo2",
+    "indexdef": "CREATE INDEX idx_fornecedores_tipo2 ON public.fornecedores USING btree (for_tipo2)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_idproduto",
+    "indexdef": "CREATE INDEX idx_itens_idproduto ON public.itens_ped USING btree (ite_idproduto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_industria",
+    "indexdef": "CREATE INDEX idx_itens_industria ON public.itens_ped USING btree (ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_idproduto_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_idproduto_public ON public.itens_ped USING btree (ite_idproduto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_industria",
+    "indexdef": "CREATE INDEX idx_itens_ped_industria ON public.itens_ped USING btree (ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_industria_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_industria_public ON public.itens_ped USING btree (ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_ite_pedido_trim_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_ite_pedido_trim_public ON public.itens_ped USING btree (TRIM(BOTH FROM ite_pedido))"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_ite_produto_trim_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_ite_produto_trim_public ON public.itens_ped USING btree (TRIM(BOTH FROM ite_produto))"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_pedido",
+    "indexdef": "CREATE INDEX idx_itens_ped_pedido ON public.itens_ped USING btree (ite_pedido)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_pedido_industria_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_pedido_industria_public ON public.itens_ped USING btree (ite_pedido, ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_pedido_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_pedido_public ON public.itens_ped USING btree (ite_pedido)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_produto",
+    "indexdef": "CREATE INDEX idx_itens_ped_produto ON public.itens_ped USING btree (ite_produto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_produto_industria_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_produto_industria_public ON public.itens_ped USING btree (ite_produto, ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_ped_produto_public",
+    "indexdef": "CREATE INDEX idx_itens_ped_produto_public ON public.itens_ped USING btree (ite_idproduto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_pedido",
+    "indexdef": "CREATE INDEX idx_itens_pedido ON public.itens_ped USING btree (ite_pedido)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "idx_itens_produto",
+    "indexdef": "CREATE INDEX idx_itens_produto ON public.itens_ped USING btree (ite_idproduto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "itens_ped_idx2",
+    "indexdef": "CREATE INDEX itens_ped_idx2 ON public.itens_ped USING btree (ite_industria)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "itens_ped_idx3",
+    "indexdef": "CREATE INDEX itens_ped_idx3 ON public.itens_ped USING btree (ite_idproduto)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "itens_ped_idx4",
+    "indexdef": "CREATE INDEX itens_ped_idx4 ON public.itens_ped USING btree (ite_pedido)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "itens_ped_idx5",
+    "indexdef": "CREATE INDEX itens_ped_idx5 ON public.itens_ped USING btree (gid)"
+  },
+  {
+    "tablename": "itens_ped",
+    "indexname": "pk_itens_ped",
+    "indexdef": "CREATE UNIQUE INDEX pk_itens_ped ON public.itens_ped USING btree (ite_lancto, ite_pedido, ite_idproduto, ite_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_analytics",
+    "indexdef": "CREATE INDEX idx_pedidos_analytics ON public.pedidos USING btree (ped_industria, ped_situacao, ped_data) INCLUDE (ped_totliq, ped_pedido)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_cliente",
+    "indexdef": "CREATE INDEX idx_pedidos_cliente ON public.pedidos USING btree (ped_cliente)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_cliente_data",
+    "indexdef": "CREATE INDEX idx_pedidos_cliente_data ON public.pedidos USING btree (ped_cliente, ped_data DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_cliente_data_public",
+    "indexdef": "CREATE INDEX idx_pedidos_cliente_data_public ON public.pedidos USING btree (ped_cliente, ped_data DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_cliente_public",
+    "indexdef": "CREATE INDEX idx_pedidos_cliente_public ON public.pedidos USING btree (ped_cliente)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_cliente_vendedor_data",
+    "indexdef": "CREATE INDEX idx_pedidos_cliente_vendedor_data ON public.pedidos USING btree (ped_cliente, ped_vendedor, ped_data DESC) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_composto",
+    "indexdef": "CREATE INDEX idx_pedidos_composto ON public.pedidos USING btree (ped_industria, ped_data, ped_situacao)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_crm_full_public",
+    "indexdef": "CREATE INDEX idx_pedidos_crm_full_public ON public.pedidos USING btree (ped_cliente, ped_industria, ped_situacao, ped_data DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data",
+    "indexdef": "CREATE INDEX idx_pedidos_data ON public.pedidos USING btree (ped_data)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_cliente",
+    "indexdef": "CREATE INDEX idx_pedidos_data_cliente ON public.pedidos USING btree (ped_data, ped_cliente)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_month_public",
+    "indexdef": "CREATE INDEX idx_pedidos_data_month_public ON public.pedidos USING btree (EXTRACT(month FROM ped_data))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_situacao",
+    "indexdef": "CREATE INDEX idx_pedidos_data_situacao ON public.pedidos USING btree (ped_data, ped_situacao)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_situacao_public",
+    "indexdef": "CREATE INDEX idx_pedidos_data_situacao_public ON public.pedidos USING btree (ped_data, ped_situacao)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_vendedor",
+    "indexdef": "CREATE INDEX idx_pedidos_data_vendedor ON public.pedidos USING btree (ped_data DESC, ped_vendedor) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_year_month",
+    "indexdef": "CREATE INDEX idx_pedidos_data_year_month ON public.pedidos USING btree (EXTRACT(year FROM ped_data), EXTRACT(month FROM ped_data), ped_data)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_data_year_public",
+    "indexdef": "CREATE INDEX idx_pedidos_data_year_public ON public.pedidos USING btree (EXTRACT(year FROM ped_data))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_industria",
+    "indexdef": "CREATE INDEX idx_pedidos_industria ON public.pedidos USING btree (ped_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_industria_public",
+    "indexdef": "CREATE INDEX idx_pedidos_industria_public ON public.pedidos USING btree (ped_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_industria_situacao_data",
+    "indexdef": "CREATE INDEX idx_pedidos_industria_situacao_data ON public.pedidos USING btree (ped_industria, ped_situacao, ped_data DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_ped_pedido_trim_public",
+    "indexdef": "CREATE INDEX idx_pedidos_ped_pedido_trim_public ON public.pedidos USING btree (TRIM(BOTH FROM ped_pedido))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_pedido_industria_public",
+    "indexdef": "CREATE INDEX idx_pedidos_pedido_industria_public ON public.pedidos USING btree (ped_pedido, ped_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_situacao",
+    "indexdef": "CREATE INDEX idx_pedidos_situacao ON public.pedidos USING btree (ped_situacao)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_situacao_public",
+    "indexdef": "CREATE INDEX idx_pedidos_situacao_public ON public.pedidos USING btree (ped_situacao)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_vendedor_situacao_data",
+    "indexdef": "CREATE INDEX idx_pedidos_vendedor_situacao_data ON public.pedidos USING btree (ped_vendedor, ped_situacao, ped_data) INCLUDE (ped_totliq, ped_pedido, ped_cliente) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_vendedor_situacao_data_covering",
+    "indexdef": "CREATE INDEX idx_pedidos_vendedor_situacao_data_covering ON public.pedidos USING btree (ped_vendedor, ped_situacao, ped_data) INCLUDE (ped_totliq, ped_pedido, ped_cliente, ped_industria) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_week",
+    "indexdef": "CREATE INDEX idx_pedidos_week ON public.pedidos USING btree (EXTRACT(week FROM ped_data), ped_data)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_year_month",
+    "indexdef": "CREATE INDEX idx_pedidos_year_month ON public.pedidos USING btree (EXTRACT(year FROM ped_data), EXTRACT(month FROM ped_data), ped_vendedor) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "idx_pedidos_year_month_vendedor",
+    "indexdef": "CREATE INDEX idx_pedidos_year_month_vendedor ON public.pedidos USING btree (EXTRACT(year FROM ped_data), EXTRACT(month FROM ped_data), ped_vendedor) WHERE ((ped_situacao)::text = ANY (ARRAY[('P'::character varying)::text, ('F'::character varying)::text]))"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx1",
+    "indexdef": "CREATE INDEX pedidos_idx1 ON public.pedidos USING btree (ped_pedido)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx2",
+    "indexdef": "CREATE INDEX pedidos_idx2 ON public.pedidos USING btree (ped_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx3",
+    "indexdef": "CREATE INDEX pedidos_idx3 ON public.pedidos USING btree (ped_cliente)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx4",
+    "indexdef": "CREATE INDEX pedidos_idx4 ON public.pedidos USING btree (ped_data)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx5",
+    "indexdef": "CREATE INDEX pedidos_idx5 ON public.pedidos USING btree (gid)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx6",
+    "indexdef": "CREATE INDEX pedidos_idx6 ON public.pedidos USING btree (ped_data DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pedidos_idx7",
+    "indexdef": "CREATE INDEX pedidos_idx7 ON public.pedidos USING btree (ped_numero DESC)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "pk_pedidos",
+    "indexdef": "CREATE UNIQUE INDEX pk_pedidos ON public.pedidos USING btree (ped_pedido, ped_industria)"
+  },
+  {
+    "tablename": "pedidos",
+    "indexname": "uk_pedidos_composta_public",
+    "indexdef": "CREATE UNIQUE INDEX uk_pedidos_composta_public ON public.pedidos USING btree (ped_pedido, ped_industria)"
+  }
+]

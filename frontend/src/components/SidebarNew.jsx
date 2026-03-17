@@ -12,6 +12,7 @@ import {
     Trophy,
     Building2,
     ShoppingCart,
+    ShoppingBag,
     BarChart2,
     BarChart3,
     ChevronRight,
@@ -40,7 +41,20 @@ import {
     Construction,
     HardHat,
     Layers,
-    Boxes
+    Boxes,
+    Calculator,
+    ClipboardList,
+    Info,
+    Globe,
+    Printer,
+    Tag,
+    CheckCircle2,
+    Clock,
+    PackageX,
+    CalendarRange,
+    ClipboardCheck,
+    Kanban,
+    ListChecks
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -79,12 +93,12 @@ const NavItem = ({ icon: Icon, label, active, badge, badgeClassName, onClick }) 
             <Icon className={cn("w-full h-full", badgeClassName && "animate-pulse")} strokeWidth={active ? 2.5 : 2} />
         </div>
 
-        {/* Label - Darker and Bolder */}
+        {/* Label - More compact and lighter */}
         <span className={cn(
-            "flex-1 text-[15px] transition-colors tracking-wide",
+            "flex-1 text-[13px] transition-colors tracking-tight leading-tight",
             active
-                ? "text-blue-900 font-black"
-                : "text-slate-800 font-extrabold group-hover:text-slate-950"
+                ? "text-blue-900 font-bold"
+                : "text-slate-600 font-medium group-hover:text-slate-900"
         )}>
             {label}
         </span>
@@ -165,6 +179,8 @@ export const Sidebar = () => {
     const tenantConfigStr = sessionStorage.getItem('tenantConfig');
     const tenantConfig = tenantConfigStr ? JSON.parse(tenantConfigStr) : {};
     const isProjetos = tenantConfig.ramoatv === 'Projetos' || tenantConfig.ramoatv === 'Logística';
+    const isAutopecas = tenantConfig.ramoatv === 'Autopeças';
+    const companyCnpj = (tenantConfig?.cnpj || '').replace(/\D/g, '');
 
     // Determine active page
     const isActive = (path) => {
@@ -174,6 +190,7 @@ export const Sidebar = () => {
     };
 
     const [dbType, setDbType] = useState(null);
+    const [userName, setUserName] = useState('');
     const [companyName, setCompanyName] = useState('');
     const [lastSync, setLastSync] = useState(null);
     const [openSectionId, setOpenSectionId] = useState(null);
@@ -181,6 +198,8 @@ export const Sidebar = () => {
     const [isMaster, setIsMaster] = useState(false);
     const [isGerencia, setIsGerencia] = useState(false);
     const [isBiEnabled, setIsBiEnabled] = useState(false);
+    const [isWhatsAppEnabled, setIsWhatsAppEnabled] = useState(false);
+    const [isCrmRepEnabled, setIsCrmRepEnabled] = useState(false);
     const [chatNaoLidas, setChatNaoLidas] = useState(0);
     const [openSubSectionId, setOpenSubSectionId] = useState(null);
 
@@ -201,6 +220,14 @@ export const Sidebar = () => {
 
     const canAccess = (indice) => {
         if (isMaster) return true; // Master vê tudo
+
+        // --- REGRA ESPECIAL: Bloqueios Globais para Não-Masters ---
+        // 30=Financeiro, 40/50=Estatísticos/BI, 70=CRM Greenfield
+        const masterOnlySections = [30, 70];
+        if (masterOnlySections.some(m => indice === m || (indice >= m && indice < m + 10))) {
+            return false;
+        }
+
         if (!userPermissions) return true; // Se ainda não carregou ou não tem tabela, mostra (fallback de segurança)
 
         const permission = userPermissions.find(p => p.indice === indice);
@@ -263,9 +290,12 @@ export const Sidebar = () => {
                 const userJson = sessionStorage.getItem('user');
                 if (!userJson) return;
                 const user = JSON.parse(userJson);
+                setUserName(user.nome || '');
 
-                // Pegar se o BI está habilitado para a empresa (definido no login pelo banco Master)
+                // Pegar se os módulos estão habilitados para a empresa (definido no login pelo banco Master)
                 setIsBiEnabled(user.biEnabled === true);
+                setIsWhatsAppEnabled(user.whatsappEnabled === true);
+                setIsCrmRepEnabled(user.crmRepEnabled === true);
 
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/v2/system/my-permissions?userId=${user.id}`));
                 const data = await response.json();
@@ -325,7 +355,7 @@ export const Sidebar = () => {
                         onClick={() => navigate("/")}
                     />
 
-                    {isBiEnabled && (isMaster || isGerencia) && (
+                    {isBiEnabled && isMaster && (
                         <NavItem
                             icon={BarChart2}
                             label="Business Intelligence"
@@ -335,6 +365,21 @@ export const Sidebar = () => {
                             badgeClassName="bg-amber-100 text-amber-700 border-amber-200"
                         />
                     )}
+
+                    {/* ESTATISTICOS */}
+                    {canAccess(50) && (
+                        <NavItem
+                            icon={PieChart}
+                            label="Central de Estatísticas"
+                            active={isActive("/estatisticos")}
+                            onClick={() => navigate("/estatisticos")}
+                            badge="BI"
+                            badgeClassName="bg-pink-100 text-pink-700 font-bold"
+                        />
+                    )}
+
+
+
 
                     <NavItem
                         icon={Calendar}
@@ -368,8 +413,8 @@ export const Sidebar = () => {
                         {canAccess(100) && <NavItem icon={Building2} label="Indústrias" active={isActive("/industrias")} onClick={() => navigate("/industrias")} />}
                         {canAccess(101) && <NavItem icon={Users} label="Clientes" active={isActive("/clientes")} onClick={() => navigate("/clientes")} />}
                         {canAccess(103) && <NavItem icon={Briefcase} label="Vendedores" active={isActive("/vendedores")} onClick={() => navigate("/vendedores")} />}
-                        {canAccess(105) && <NavItem icon={Package} label="Produtos" active={isActive("/produtos")} onClick={() => navigate("/produtos")} />}
-                        {canAccess(117) && <NavItem icon={Tags} label="Categorias" active={isActive("/cadastros/categorias")} onClick={() => navigate("/cadastros/categorias")} />}
+                        {canAccess(105) && <NavItem icon={Package} label="Tabela de Preços" active={isActive("/produtos")} onClick={() => navigate("/produtos")} />}
+
                         {canAccess(104) && <NavItem icon={Tags} label="Grupos de Produtos" active={isActive("/cadastros/grupos-produtos")} onClick={() => navigate("/cadastros/grupos-produtos")} />}
                         {canAccess(118) && <NavItem icon={DollarSign} label="Grupos Descontos" active={isActive("/cadastros/grupos-descontos")} onClick={() => navigate("/cadastros/grupos-descontos")} />}
                         {canAccess(113) && <NavItem icon={Map} label="Regiões" active={isActive("/cadastros/regioes")} onClick={() => navigate("/cadastros/regioes")} />}
@@ -399,10 +444,20 @@ export const Sidebar = () => {
                             />
                         )}
 
+                        {canAccess(207) && !isProjetos && (
+                            <NavItem
+                                icon={ShoppingBag}
+                                label="Importador Simplificado"
+                                active={isActive("/movimentacoes/importador")}
+                                onClick={() => navigate("/movimentacoes/importador")}
+                                badge="MÁGICO"
+                                badgeClassName="bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 shadow-sm"
+                            />
+                        )}
+
                         {canAccess(207) && <NavItem icon={Target} label="Campanhas" active={isActive("/vendas/campanhas")} onClick={() => navigate("/vendas/campanhas")} badge="BETA" badgeClassName="bg-purple-100 text-purple-700 font-bold" />}
                         {canAccess(205) && <NavItem icon={FileText} label="Baixa via XML" active={isActive("/movimentacoes/baixa-xml")} onClick={() => navigate("/movimentacoes/baixa-xml")} />}
                         {canAccess(208) && <NavItem icon={TrendingUp} label="SELL-OUT" active={isActive("/movimentacoes/sell-out")} onClick={() => navigate("/movimentacoes/sell-out")} />}
-                        {canAccess(206) && <NavItem icon={Users} label="CRM / Atendimentos" active={isActive("/crm")} onClick={() => navigate("/crm")} />}
                     </CollapsibleSection>
                 )}
 
@@ -429,44 +484,32 @@ export const Sidebar = () => {
                 )}
 
 
-                {/* ESTATISTICOS */}
-                {canAccess(40) && (
-                    <CollapsibleSection
-                        icon={PieChart}
-                        title="Estatísticos"
-                        isOpen={openSectionId === 'estatisticos'}
-                        onToggle={() => handleToggleSection('estatisticos')}
-                        accentColor="#DB2777"
-                    >
-                        {canAccess(401) && <NavItem icon={BarChart3} label="Mapa de Vendas" active={isActive("/estatisticos/mapa-vendas")} onClick={() => navigate("/estatisticos/mapa-vendas")} />}
-                        {canAccess(402) && <NavItem icon={Users} label="Mapa Cli/Indústria" active={isActive("/estatisticos/mapa-cliente-industria")} onClick={() => navigate("/estatisticos/mapa-cliente-industria")} />}
-                        {canAccess(403) && <NavItem icon={BarChart2} label="Clientes MoM" active={isActive("/estatisticos/clientes-atual-ant")} onClick={() => navigate("/estatisticos/clientes-atual-ant")} />}
-                        {canAccess(404) && <NavItem icon={ArrowLeftRight} label="Comparativo Clientes" active={isActive("/estatisticos/comparativo-clientes")} onClick={() => navigate("/estatisticos/comparativo-clientes")} />}
-                        {canAccess(405) && <NavItem icon={Building2} label="Grupo de Lojas" active={isActive("/estatisticos/grupo-lojas")} onClick={() => navigate("/estatisticos/grupo-lojas")} />}
-                        {canAccess(406) && <NavItem icon={Package} label="Prod Única Compra" active={isActive("/estatisticos/prod-unica-compra")} onClick={() => navigate("/estatisticos/prod-unica-compra")} />}
-                        {canAccess(407) && <NavItem icon={Package} label="Itens Nunca Comprados" active={isActive("/estatisticos/itens-nunca-comprados")} onClick={() => navigate("/estatisticos/itens-nunca-comprados")} />}
-                        {canAccess(408) && <NavItem icon={Calendar} label="Mapa 3 Anos" active={isActive("/estatisticos/mapa-3-anos")} onClick={() => navigate("/estatisticos/mapa-3-anos")} />}
-                        {canAccess(409) && <NavItem icon={BarChart3} label="Mapa Quantidade" active={isActive("/estatisticos/mapa-quantidade")} onClick={() => navigate("/estatisticos/mapa-quantidade")} />}
-                        {canAccess(410) && <NavItem icon={ShoppingCart} label="Últimas Compras" active={isActive("/estatisticos/ultimas-compras")} onClick={() => navigate("/estatisticos/ultimas-compras")} />}
-                        {canAccess(411) && <NavItem icon={UserX} label="Clientes Inativos" active={isActive("/estatisticos/clientes-inativos")} onClick={() => navigate("/estatisticos/clientes-inativos")} />}
-                    </CollapsibleSection>
-                )}
 
-                {/* CRM-Rep MASTER */}
-                {canAccess(70) && (
-                    <CollapsibleSection
-                        icon={Sparkles}
-                        title="CRM-Rep Master"
-                        isOpen={openSectionId === 'repcrm'}
-                        onToggle={() => handleToggleSection('repcrm')}
-                        accentColor="#F59E0B"
-                    >
-                        {canAccess(701) && <NavItem icon={LayoutDashboard} label="Dashboard CRM" active={isActive("/repcrm/dashboard")} onClick={() => navigate("/repcrm/dashboard")} badge="PRO" badgeClassName="bg-blue-100 text-blue-700 font-bold" />}
-                        {canAccess(702) && <NavItem icon={Wallet} label="Gestão de Comissões" active={isActive("/repcrm/comissoes")} onClick={() => navigate("/repcrm/comissoes")} />}
-                        {canAccess(703) && <NavItem icon={MapPin} label="Relatórios de Visita" active={isActive("/repcrm/visitas")} onClick={() => navigate("/repcrm/visitas")} />}
-                        {canAccess(704) && <NavItem icon={Target} label="Gestão de Metas" active={isActive("/repcrm/config")} onClick={() => navigate("/repcrm/config")} />}
+                {/* CRM - Módulo unificado */}
+                <CollapsibleSection
+                    icon={Sparkles}
+                    title="CRM"
+                    isOpen={openSectionId === 'repcrm'}
+                    onToggle={() => handleToggleSection('repcrm')}
+                    accentColor="#10B981"
+                >
+                    {isCrmRepEnabled && <NavItem icon={LayoutDashboard} label="Dashboard CRM" active={isActive("/repcrm/dashboard")} onClick={() => navigate("/repcrm/dashboard")} badge="PRO" badgeClassName="bg-blue-100 text-blue-700 font-bold" />}
+                    <NavItem icon={ClipboardCheck} label="Meus Atendimentos" active={isActive("/repcrm/atendimentos")} onClick={() => navigate("/repcrm/atendimentos")} />
+                    {isCrmRepEnabled && <NavItem icon={ListChecks} label="Follow-ups" active={isActive("/repcrm/followups")} onClick={() => navigate("/repcrm/followups")} badge="NOVO" badgeClassName="bg-emerald-100 text-emerald-700 font-bold" />}
+                    {isCrmRepEnabled && <NavItem icon={Kanban} label="Pipeline" active={isActive("/repcrm/pipeline")} onClick={() => navigate("/repcrm/pipeline")} />}
+                    {isCrmRepEnabled && <NavItem icon={Target} label="Gestão de Metas" active={isActive("/repcrm/config")} onClick={() => navigate("/repcrm/config")} />}
+
+                        {isWhatsAppEnabled && (
+                            <NavItem
+                                icon={MessageCircle}
+                                label="WhatsApp IA"
+                                active={isActive("/utilitarios/whatsapp-ia")}
+                                onClick={() => navigate("/utilitarios/whatsapp-ia")}
+                                badge="IA"
+                                badgeClassName="bg-emerald-100 text-emerald-700 animate-pulse"
+                            />
+                        )}
                     </CollapsibleSection>
-                )}
 
                 {/* RELATÓRIOS */}
                 {canAccess(55) && (
@@ -498,12 +541,102 @@ export const Sidebar = () => {
                                             exit={{ height: 0, opacity: 0 }}
                                             className="overflow-hidden"
                                         >
-                                            <div className="pl-6 border-l border-slate-200 ml-6 mt-1 mb-2 space-y-0.5">
+                                            <div className="pl-3 border-l border-slate-200 ml-4 mt-1 mb-2 space-y-0.5">
                                                 <NavItem
-                                                    icon={Users}
-                                                    label="clientes reduzido"
+                                                    icon={Printer}
+                                                    label="clientes (simplificada)"
                                                     active={isActive("/print/customers-reduced")}
                                                     onClick={() => navigate('/print/customers-reduced')}
+                                                />
+                                                <NavItem
+                                                    icon={Users}
+                                                    label="clientes (selecionável)"
+                                                    active={isActive("/relatorios/clientes-selecionavel")}
+                                                    onClick={() => navigate('/relatorios/clientes-selecionavel')}
+                                                />
+                                                <NavItem
+                                                    icon={FileText}
+                                                    label="clientes (ficha)"
+                                                    active={isActive("/relatorios/clientes-ficha")}
+                                                    onClick={() => navigate('/relatorios/clientes-ficha')}
+                                                />
+                                                <NavItem
+                                                    icon={Building2}
+                                                    label="indústrias"
+                                                    active={isActive("/relatorios/industrias")}
+                                                    onClick={() => navigate('/relatorios/industrias')}
+                                                />
+                                                <NavItem
+                                                    icon={Briefcase}
+                                                    label="vendedores"
+                                                    active={isActive("/relatorios/vendedores")}
+                                                    onClick={() => navigate('/relatorios/vendedores')}
+                                                />
+                                                <NavItem
+                                                    icon={Truck}
+                                                    label="transportadoras"
+                                                    active={isActive("/relatorios/transportadoras")}
+                                                    onClick={() => navigate('/relatorios/transportadoras')}
+                                                />
+                                                <NavItem
+                                                    icon={Tag}
+                                                    label="tab. preços (descontos)"
+                                                    active={isActive("/relatorios/tabelas-precos-descontos")}
+                                                    onClick={() => navigate('/relatorios/tabelas-precos-descontos')}
+                                                />
+                                                <NavItem
+                                                    icon={Tag}
+                                                    label="tab. preços (completa)"
+                                                    active={isActive("/relatorios/tabelas-precos-completa")}
+                                                    onClick={() => navigate('/relatorios/tabelas-precos-completa')}
+                                                />
+                                                <NavItem
+                                                    icon={Tag}
+                                                    label="tab. preço (reduzida)"
+                                                    active={isActive("/relatorios/tabelas-precos-reduzida")}
+                                                    onClick={() => navigate('/relatorios/tabelas-precos-reduzida')}
+                                                />
+                                                <NavItem
+                                                    icon={Tag}
+                                                    label="tab. preço (aplicação)"
+                                                    active={isActive("/relatorios/tabelas-precos-aplicacao")}
+                                                    onClick={() => navigate('/relatorios/tabelas-precos-aplicacao')}
+                                                />
+                                                <NavItem
+                                                    icon={Tag}
+                                                    label="tab. preço (impostos)"
+                                                    active={isActive("/relatorios/tabelas-precos-impostos")}
+                                                    onClick={() => navigate('/relatorios/tabelas-precos-impostos')}
+                                                />
+                                                <NavItem
+                                                    icon={Users}
+                                                    label="clientes por indústria"
+                                                    active={isActive("/relatorios/clientes-por-industria")}
+                                                    onClick={() => navigate('/relatorios/clientes-por-industria')}
+                                                />
+                                                <NavItem
+                                                    icon={Zap}
+                                                    label="promoção de produtos"
+                                                    active={isActive("/relatorios/promocao-produtos")}
+                                                    onClick={() => navigate('/relatorios/promocao-produtos')}
+                                                />
+                                                <NavItem
+                                                    icon={MapPin}
+                                                    label="clientes área atuação"
+                                                    active={isActive("/relatorios/clientes-area-atuacao")}
+                                                    onClick={() => navigate('/relatorios/clientes-area-atuacao')}
+                                                />
+                                                <NavItem
+                                                    icon={UserX}
+                                                    label="clientes sem compras"
+                                                    active={isActive("/relatorios/clientes-sem-compras")}
+                                                    onClick={() => navigate('/relatorios/clientes-sem-compras')}
+                                                />
+                                                <NavItem
+                                                    icon={Map}
+                                                    label="clientes por cidade"
+                                                    active={isActive("/relatorios/clientes-por-cidade")}
+                                                    onClick={() => navigate('/relatorios/clientes-por-cidade')}
                                                 />
                                             </div>
                                         </motion.div>
@@ -532,7 +665,7 @@ export const Sidebar = () => {
                                             exit={{ height: 0, opacity: 0 }}
                                             className="overflow-hidden"
                                         >
-                                            <div className="pl-6 border-l border-slate-200 ml-6 mt-1 mb-2 space-y-0.5">
+                                            <div className="pl-3 border-l border-slate-200 ml-4 mt-1 mb-2 space-y-0.5">
                                                 <NavItem
                                                     icon={Layers}
                                                     label="venda por família"
@@ -545,15 +678,159 @@ export const Sidebar = () => {
                                                     active={isActive("/relatorios/vendas-produto")}
                                                     onClick={() => navigate("/relatorios/vendas-produto")}
                                                 />
+                                                <NavItem
+                                                    icon={Briefcase}
+                                                    label="vendas por vendedor/nd."
+                                                    active={isActive("/relatorios/vendas-vendedor-industria")}
+                                                    onClick={() => navigate("/relatorios/vendas-vendedor-industria")}
+                                                />
+                                                <NavItem
+                                                    icon={Users}
+                                                    label="vendas por cliente/ind."
+                                                    active={isActive("/relatorios/vendas-cliente-industria")}
+                                                    onClick={() => navigate("/relatorios/vendas-cliente-industria")}
+                                                />
+                                                <NavItem
+                                                    icon={Calculator}
+                                                    label="vendas período (totais)"
+                                                    active={isActive("/relatorios/vendas-periodo-totais")}
+                                                    onClick={() => navigate("/relatorios/vendas-periodo-totais")}
+                                                />
+                                                <NavItem
+                                                    icon={MapPin}
+                                                    label="vendas por cidade/estado"
+                                                    active={isActive("/relatorios/vendas-cidade-estado")}
+                                                    onClick={() => navigate("/relatorios/vendas-cidade-estado")}
+                                                />
+                                                <NavItem
+                                                    icon={ClipboardList}
+                                                    label="cotações pendentes"
+                                                    active={isActive("/relatorios/cotacoes-pendentes")}
+                                                    onClick={() => navigate("/relatorios/cotacoes-pendentes")}
+                                                />
+                                                <NavItem
+                                                    icon={Info}
+                                                    label="informativo de vendas"
+                                                    active={isActive("/relatorios/informativo-vendas")}
+                                                    onClick={() => navigate("/relatorios/informativo-vendas")}
+                                                />
+                                                <NavItem
+                                                    icon={UserX}
+                                                    label="clientes inativos"
+                                                    active={isActive("/relatorios/clientes-inativos")}
+                                                    onClick={() => navigate("/relatorios/clientes-inativos")}
+                                                />
+                                                <NavItem
+                                                    icon={Layers}
+                                                    label="produtos por grupo/cli."
+                                                    active={isActive("/relatorios/produtos-grupo-clientes")}
+                                                    onClick={() => navigate("/relatorios/produtos-grupo-clientes")}
+                                                />
+                                                <NavItem
+                                                    icon={Globe}
+                                                    label="vendas por região"
+                                                    active={isActive("/relatorios/vendas-regiao")}
+                                                    onClick={() => navigate("/relatorios/vendas-regiao")}
+                                                />
                                             </div>
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
                             </div>
                         )}
-                        {canAccess(553) && <NavItem icon={DollarSign} label="Financeiro" active={isActive("/relatorios/financeiro")} onClick={() => navigate("/relatorios/financeiro")} />}
+                        {canAccess(553) && (
+                            <div className="mb-1">
+                                <button
+                                    onClick={() => toggleSubSection('rel_financeiro')}
+                                    className="w-full flex items-center gap-2 px-4 py-2 mt-1 hover:bg-slate-200/50 rounded-lg transition-colors group"
+                                >
+                                    <DollarSign size={14} className={cn("transition-colors", openSubSectionId === 'rel_financeiro' ? "text-amber-600" : "text-slate-400")} />
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest italic flex-1 text-left", openSubSectionId === 'rel_financeiro' ? "text-amber-700" : "text-slate-500")}>
+                                        Financeiro
+                                    </span>
+                                    <ChevronRight className={cn("w-3 h-3 text-slate-400 transition-transform duration-200", openSubSectionId === 'rel_financeiro' && "rotate-90 text-amber-500")} />
+                                </button>
 
-                        {canAccess(555) && <NavItem icon={TrendingUp} label="Faturamento" active={isActive("/relatorios/faturamento")} onClick={() => navigate("/relatorios/faturamento")} />}
+                                <AnimatePresence>
+                                    {openSubSectionId === 'rel_financeiro' && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pl-3 border-l border-slate-200 ml-4 mt-1 mb-2 space-y-0.5">
+                                                <NavItem
+                                                    icon={CalendarRange}
+                                                    label="contas pagar/receber venc."
+                                                    active={isActive("/relatorios/financeiro/contas-vencimento")}
+                                                    onClick={() => navigate("/relatorios/financeiro/contas-vencimento")}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
+
+                        {canAccess(555) && (
+                            <div className="mb-1">
+                                <button
+                                    onClick={() => toggleSubSection('rel_faturamento')}
+                                    className="w-full flex items-center gap-2 px-4 py-2 mt-1 hover:bg-slate-200/50 rounded-lg transition-colors group"
+                                >
+                                    <TrendingUp size={14} className={cn("transition-colors", openSubSectionId === 'rel_faturamento' ? "text-blue-600" : "text-slate-400")} />
+                                    <span className={cn("text-[10px] font-black uppercase tracking-widest italic flex-1 text-left", openSubSectionId === 'rel_faturamento' ? "text-blue-700" : "text-slate-500")}>
+                                        Faturamento
+                                    </span>
+                                    <ChevronRight className={cn("w-3 h-3 text-slate-400 transition-transform duration-200", openSubSectionId === 'rel_faturamento' && "rotate-90 text-blue-500")} />
+                                </button>
+
+                                <AnimatePresence>
+                                    {openSubSectionId === 'rel_faturamento' && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="pl-3 border-l border-slate-200 ml-4 mt-1 mb-2 space-y-0.5">
+                                                <NavItem
+                                                    icon={DollarSign}
+                                                    label="comissão vendedores"
+                                                    active={isActive("/relatorios/comissao-vendedores")}
+                                                    onClick={() => navigate("/relatorios/comissao-vendedores")}
+                                                />
+                                                <NavItem
+                                                    icon={Calendar}
+                                                    label="faturamento no período"
+                                                    active={isActive("/relatorios/faturamento-periodo")}
+                                                    onClick={() => navigate("/relatorios/faturamento-periodo")}
+                                                />
+                                                <NavItem
+                                                    icon={CheckCircle2}
+                                                    label="pedidos faturados"
+                                                    active={isActive("/relatorios/pedidos-faturados-periodo")}
+                                                    onClick={() => navigate("/relatorios/pedidos-faturados-periodo")}
+                                                />
+                                                <NavItem
+                                                    icon={Clock}
+                                                    label="faturamento pendente"
+                                                    active={isActive("/relatorios/faturamento-pendente")}
+                                                    onClick={() => navigate("/relatorios/faturamento-pendente")}
+                                                />
+                                                <NavItem
+                                                    icon={PackageX}
+                                                    label="produtos não faturados"
+                                                    active={isActive("/relatorios/produtos-nao-faturados")}
+                                                    onClick={() => navigate("/relatorios/produtos-nao-faturados")}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        )}
                     </CollapsibleSection>
                 )}
 
@@ -569,12 +846,14 @@ export const Sidebar = () => {
                     >
                         {canAccess(610) && <NavItem icon={Package} label="Catálogo Digital" active={isActive("/utilitarios/catalogo-produtos")} onClick={() => navigate("/utilitarios/catalogo-produtos")} />}
                         {canAccess(650) && <NavItem icon={MessageSquare} label="Envio de emails" active={isActive("/utilitarios/envio-emails")} onClick={() => navigate("/utilitarios/envio-emails")} />}
-                        {canAccess(620) && <NavItem icon={Sparkles} label="Assistente IA" active={isActive("/assistente")} onClick={() => navigate("/assistente")} />}
                         {canAccess(630) && <NavItem icon={Gamepad2} label="🎮 Tetris" active={isActive("/utilitarios/tetris")} onClick={() => navigate("/utilitarios/tetris")} />}
                         {canAccess(640) && <NavItem icon={Gamepad2} label="🎲 Jogo de Dados" active={isActive("/utilitarios/jogo-dados")} onClick={() => navigate("/utilitarios/jogo-dados")} />}
                         {canAccess(601) && <NavItem icon={Users} label="Usuários do sistema" active={isActive("/utilitarios/usuarios")} onClick={() => navigate("/utilitarios/usuarios")} />}
                         {canAccess(611) && <NavItem icon={Settings} label="Parâmetros" active={isActive("/utilitarios/parametros")} onClick={() => navigate("/utilitarios/parametros")} />}
                         {canAccess(612) && <NavItem icon={Settings} label="Configurações" active={isActive("/utilitarios/configuracoes")} onClick={() => navigate("/utilitarios/configuracoes")} />}
+                        <NavItem icon={BookOpen} label="Central de Vídeos" active={isActive("/utilitarios/tutoriais")} onClick={() => navigate("/utilitarios/tutoriais")} badge="VIDEO" badgeClassName="bg-blue-100 text-blue-700" />
+                        <NavItem icon={LayoutDashboard} label="Dashboard Legado" active={isActive("/utilitarios/dashboard-legado")} onClick={() => navigate("/utilitarios/dashboard-legado")} />
+                        <NavItem icon={ShoppingCart} label="Pedidos (Novo)" active={isActive("/utilitarios/frmGridPedidos")} onClick={() => navigate("/utilitarios/frmGridPedidos")} badge="NOVO" badgeClassName="bg-indigo-100 text-indigo-700 font-bold" />
                     </CollapsibleSection>
                 )}
 
@@ -589,7 +868,10 @@ export const Sidebar = () => {
                     className="w-full flex items-center gap-3 px-4 py-3 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-300 group mb-2 border border-emerald-100/50 bg-emerald-50/30 relative"
                 >
                     <div className="relative">
-                        <MessageCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        <MessageCircle className={cn(
+                            "w-5 h-5 transition-transform",
+                            chatNaoLidas > 0 ? "text-emerald-400 scale-110 animate-pulse" : "group-hover:scale-110"
+                        )} />
                         {chatNaoLidas > 0 && (
                             <span className="absolute -top-2 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white animate-pulse">
                                 {chatNaoLidas}

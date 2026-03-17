@@ -91,9 +91,11 @@ const ProdutosTab = ({ filters, refreshTrigger }) => {
 
                 // Fetch Ranking
                 const resRanking = await fetch(getApiUrl(API_URL, `/api/produtos/ranking?${queryParams}`));
+                if (!resRanking.ok) throw new Error("Falha ao buscar ranking");
                 const dataRanking = await resRanking.json();
-                setRankingData(dataRanking || []);
-                setFilteredRanking(dataRanking || []);
+                const rankingArray = Array.isArray(dataRanking) ? dataRanking : [];
+                setRankingData(rankingArray);
+                setFilteredRanking(rankingArray);
 
                 // Fetch Familias
                 const resFamilias = await fetch(getApiUrl(API_URL, `/api/produtos/familia-ranking?${queryParams}`));
@@ -337,23 +339,27 @@ const ProdutosTab = ({ filters, refreshTrigger }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredRanking.slice(0, 100).map((prod, index) => (
-                                    <tr
-                                        key={prod.id || index}
-                                        onClick={() => setSelectedProdutoIndex(index)}
-                                        className={selectedProdutoIndex === index ? 'selected' : ''}
-                                    >
-                                        <td className="td-center">{prod.ranking}</td>
-                                        <td>
-                                            <div className="td-vendedor">{prod.nome}</div>
-                                            <div className="text-muted" style={{ fontSize: '11px' }}>{prod.codigo}</div>
-                                        </td>
-                                        <td className="td-valor">{formatNumber(prod.qtd)}</td>
-                                        <td className="td-center">
-                                            <span className={`badge-abc ${prod.abc}`}>{prod.abc}</span>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {Array.isArray(filteredRanking) && filteredRanking.length > 0 ? (
+                                    filteredRanking.slice(0, 100).map((prod, index) => (
+                                        <tr
+                                            key={prod.id || index}
+                                            onClick={() => setSelectedProdutoIndex(index)}
+                                            className={selectedProdutoIndex === index ? 'selected' : ''}
+                                        >
+                                            <td className="td-center">{prod.ranking}</td>
+                                            <td>
+                                                <div className="td-vendedor">{prod.nome}</div>
+                                                <div className="text-muted" style={{ fontSize: '11px' }}>{prod.codigo}</div>
+                                            </td>
+                                            <td className="td-valor">{formatNumber(prod.qtd)}</td>
+                                            <td className="td-center">
+                                                <span className={`badge-abc ${prod.abc}`}>{prod.abc}</span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan="4" className="text-center py-4">Nenhum produto disponível</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

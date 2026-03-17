@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ShoppingBag,
+    ShoppingCart,
     UploadCloud,
     Search,
     FileSpreadsheet,
@@ -26,13 +26,53 @@ const API_BASE_URL = getApiUrl(NODE_API_URL, '/api');
 
 const SmartImporter = () => {
     const [pasteArea, setPasteArea] = useState('');
-    const [selectedClient, setSelectedClient] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const navigate = useNavigate();
 
-    // Buckets state: grouped by industry
-    const [buckets, setBuckets] = useState([]);
-    const [notFound, setNotFound] = useState([]);
+    // Buckets state: grouped by industry (Loaded from localStorage if available)
+    const [buckets, setBuckets] = useState(() => {
+        try {
+            const saved = localStorage.getItem('smart_importer_buckets');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    const [notFound, setNotFound] = useState(() => {
+        try {
+            const saved = localStorage.getItem('smart_importer_not_found');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    const [selectedClient, setSelectedClient] = useState(() => {
+        try {
+            const saved = localStorage.getItem('smart_importer_last_client');
+            return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+            return null;
+        }
+    });
+
+    // Persist data whenever they change
+    useEffect(() => {
+        localStorage.setItem('smart_importer_buckets', JSON.stringify(buckets));
+    }, [buckets]);
+
+    useEffect(() => {
+        localStorage.setItem('smart_importer_not_found', JSON.stringify(notFound));
+    }, [notFound]);
+
+    useEffect(() => {
+        if (selectedClient) {
+            localStorage.setItem('smart_importer_last_client', JSON.stringify(selectedClient));
+        } else {
+            localStorage.removeItem('smart_importer_last_client');
+        }
+    }, [selectedClient]);
 
     // Logic to fetch clients for DbComboBox
     const fetchClients = useCallback(async (search) => {
@@ -48,6 +88,55 @@ const SmartImporter = () => {
             return [];
         }
     }, []);
+
+    // Logic to fetch drafts from DB on mount
+    const fetchDrafts = useCallback(async () => {
+        const userJson = sessionStorage.getItem('user');
+        const user = userJson ? JSON.parse(userJson) : {};
+        const v_id = user.vendedor_id || user.codigo;
+
+        if (!v_id) return;
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/smart-importer/drafts/${v_id}`);
+            const result = await res.json();
+            if (result.success) {
+                setBuckets(result.data || []);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar rascunhos do banco:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchDrafts();
+    }, [fetchDrafts]);
+
+    // Logic to sync a bucket (draft) with the backend
+    const syncDraftWithDB = async (bucket) => {
+        const userJson = sessionStorage.getItem('user');
+        const user = userJson ? JSON.parse(userJson) : {};
+        const v_id = user.vendedor_id || user.codigo;
+
+        if (!v_id || !bucket.client) return;
+
+        try {
+            await fetch(`${API_BASE_URL}/smart-importer/drafts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    vendedor_id: v_id,
+                    cli_codigo: bucket.client.cli_codigo,
+                    industria_id: bucket.industria_id,
+                    industria_nome: bucket.industria_nome,
+                    items: bucket.items,
+                    total: bucket.total
+                })
+            });
+        } catch (err) {
+            console.error('Erro ao sincronizar rascunho:', err);
+        }
+    };
 
     const handleAnalyze = async () => {
         if (!pasteArea.trim()) {
@@ -84,32 +173,42 @@ const SmartImporter = () => {
 
             if (result.success) {
                 // Merging with existing buckets if same industry/client
-                setBuckets(prev => {
-                    const newBuckets = [...prev];
-                    result.grouped.forEach(newGroup => {
-                        const existingIdx = newBuckets.findIndex(b => b.industria_id === newGroup.industria_id);
-                        if (existingIdx >= 0) {
-                            // Merge items
-                            newGroup.items.forEach(newItem => {
-                                const itemIdx = newBuckets[existingIdx].items.findIndex(i => i.codigo === newItem.codigo);
-                                if (itemIdx >= 0) {
-                                    newBuckets[existingIdx].items[itemIdx].quantidade += newItem.quantidade;
-                                    newBuckets[existingIdx].items[itemIdx].total += newItem.total;
-                                } else {
-                                    newBuckets[existingIdx].items.push(newItem);
-                                }
-                                newBuckets[existingIdx].total += newItem.total;
-                            });
-                        } else {
-                            newBuckets.unshift({ ...newGroup, client: selectedClient });
-                        }
-                    });
-                    return newBuckets;
-                });
+                const updatedBuckets = [...buckets];
+                for (const newGroup of result.grouped) {
+                    const existingIdx = updatedBuckets.findIndex(b =>
+                        b.industria_id === newGroup.industria_id &&
+                        b.client?.cli_codigo === selectedClient?.cli_codigo
+                    );
 
+                    let entryToSync;
+                    if (existingIdx >= 0) {
+                        // Merge items
+                        newGroup.items.forEach(newItem => {
+                            const itemIdx = updatedBuckets[existingIdx].items.findIndex(i => i.codigo === newItem.codigo);
+                            if (itemIdx >= 0) {
+                                updatedBuckets[existingIdx].items[itemIdx].quantidade += newItem.quantidade;
+                                updatedBuckets[existingIdx].items[itemIdx].total += newItem.total;
+                            } else {
+                                updatedBuckets[existingIdx].items.push(newItem);
+                            }
+                            updatedBuckets[existingIdx].total += newItem.total;
+                        });
+                        entryToSync = updatedBuckets[existingIdx];
+                    } else {
+                        entryToSync = { ...newGroup, client: selectedClient };
+                        updatedBuckets.unshift(entryToSync);
+                    }
+
+                    // Sync this specific bucket with DB
+                    await syncDraftWithDB(entryToSync);
+                }
+
+                setBuckets(updatedBuckets);
                 setNotFound(result.notFound || []);
                 setPasteArea('');
-                toast.success('Análise concluída! Rascunhos organizados por fábrica.');
+                setSelectedClient(null); // Limpa o cliente selecionado para o próximo
+                localStorage.removeItem('smart_importer_last_client'); // Limpa a persistência do cliente
+                toast.success('Análise concluída! Rascunhos salvos no servidor.');
             } else {
                 toast.error(result.message || 'Erro ao analisar rascunho.');
             }
@@ -121,14 +220,38 @@ const SmartImporter = () => {
         }
     };
 
-    const handleRemoveBucket = (index) => {
+    const handleRemoveBucket = async (index) => {
+        const bucket = buckets[index];
+        if (bucket.id) {
+            try {
+                await fetch(`${API_BASE_URL}/smart-importer/drafts/${bucket.id}`, { method: 'DELETE' });
+            } catch (err) {
+                console.error('Erro ao remover rascunho do banco:', err);
+            }
+        }
         setBuckets(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleClearAll = () => {
+    const handleClearAll = async () => {
+        const userJson = sessionStorage.getItem('user');
+        const user = userJson ? JSON.parse(userJson) : {};
+        const v_id = user.vendedor_id || user.codigo;
+
+        if (v_id) {
+            try {
+                // Endpoint para limpar tudo de um vendedor (o backend já tem DELETE por ID, mas não por vendedor, vou adicionar ou usar loop)
+                // Usando o endpoint de checkout que limpa tudo do vendedor pode ser perigoso, melhor criar um específico
+                await fetch(`${API_BASE_URL}/smart-importer/drafts/all/${v_id}`, { method: 'DELETE' });
+            } catch (e) { }
+        }
+
         setBuckets([]);
         setNotFound([]);
         setPasteArea('');
+        setSelectedClient(null);
+        localStorage.removeItem('smart_importer_buckets');
+        localStorage.removeItem('smart_importer_not_found');
+        localStorage.removeItem('smart_importer_last_client');
     };
 
     const handleCheckout = async () => {
@@ -157,6 +280,9 @@ const SmartImporter = () => {
             if (result.success) {
                 toast.success(result.message);
                 setBuckets([]);
+                localStorage.removeItem('smart_importer_buckets');
+                localStorage.removeItem('smart_importer_not_found');
+                localStorage.removeItem('smart_importer_last_client');
                 // Após faturar, redireciona para a lista de pedidos para o usuário ver o resultado
                 setTimeout(() => navigate('/pedidos'), 1500);
             } else {
@@ -175,12 +301,12 @@ const SmartImporter = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#F8FAFC] font-['IBM_Plex_Sans',sans-serif] text-[#1E293B]">
+        <div className="h-screen flex flex-col bg-[#F8FAFC] font-['IBM_Plex_Sans',sans-serif] text-[#1E293B] overflow-hidden">
             {/* Header */}
             <div className="px-6 py-4 bg-white border-b border-[#E2E8F0] shadow-sm flex items-center justify-between z-10">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-[#F1F5F9] rounded-xl border border-[#E2E8F0]">
-                        <ShoppingBag className="w-5 h-5 text-[#10B981]" />
+                        <ShoppingCart className="w-5 h-5 text-[#10B981]" />
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-[#1E293B] tracking-tight">Importador Inteligente</h1>
@@ -208,7 +334,7 @@ const SmartImporter = () => {
                                 ) : (
                                     <CheckCircle2 className="w-4 h-4" />
                                 )}
-                                Faturar {buckets.length} {buckets.length === 1 ? 'Pedido' : 'Pedidos'}
+                                Faturar {buckets.length} {buckets.length === 1 ? 'Carrinho' : 'Carrinhos'}
                             </button>
                         </>
                     )}
@@ -292,7 +418,7 @@ const SmartImporter = () => {
                             ) : (
                                 <>
                                     <PackageSearch className="w-5 h-5" />
-                                    Distribuir itens nas sacolas
+                                    Distribuir itens no carrinho
                                 </>
                             )}
                         </button>
@@ -304,28 +430,30 @@ const SmartImporter = () => {
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <h2 className="text-base font-bold text-[#1E293B] flex items-center gap-2 uppercase tracking-tight">
-                                <ShoppingBag className="w-6 h-6 text-[#FB923C]" />
-                                Sacolas de Faturamento do Dia
+                                <ShoppingCart className="w-6 h-6 text-[#FB923C]" />
+                                Carrinhos de Faturamento do Dia
                             </h2>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="bg-[#EAB308]/10 text-[#EAB308] px-3 py-1 rounded-full text-[11px] font-bold border border-[#EAB308]/20 flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 bg-[#EAB308] rounded-full"></div>
-                                {buckets.length} AGUARDANDO
+                                {buckets.length} {buckets.length === 1 ? 'CARRINHO AGUARDANDO' : 'CARRINHOS AGUARDANDO'}
                             </div>
                         </div>
                     </div>
 
                     {notFound.length > 0 && (
-                        <div className="bg-[#DC2626]/5 border border-[#DC2626]/20 rounded-xl p-4 animate-in slide-in-from-top-4 mb-5">
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="w-5 h-5 text-[#DC2626] shrink-0 mt-0.5" />
+                        <div className="mb-6 animate-in slide-in-from-top duration-500">
+                            <div className="bg-[#FEF2F2] border border-[#FEE2E2] rounded-2xl p-4 flex gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                                    <AlertCircle className="text-[#DC2626]" size={20} />
+                                </div>
                                 <div>
-                                    <h4 className="text-sm font-bold text-[#DC2626]">Atenção: Itens não identificados ({notFound.length})</h4>
-                                    <p className="text-xs text-[#DC2626]/80 mt-1">Alguns códigos não foram encontrados para o cliente selecionado ou não possuem preço.</p>
+                                    <h4 className="text-sm font-bold text-[#991B1B]">Atenção: Itens não identificados ({notFound.length})</h4>
+                                    <p className="text-xs text-[#991B1B]/80 mt-1">Alguns códigos não foram encontrados para o cliente selecionado ou não possuem preço.</p>
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         {notFound.slice(0, 8).map((nf, idx) => (
-                                            <span key={idx} className="bg-white px-2 py-1 rounded border border-[#DC2626]/20 text-[10px] font-bold text-[#DC2626]">
+                                            <span key={idx} className="bg-white px-2 py-1 rounded border border-[#FEE2E2] text-[10px] font-bold text-[#DC2626]">
                                                 {nf.codigo}
                                             </span>
                                         ))}
@@ -339,102 +467,108 @@ const SmartImporter = () => {
                     {buckets.length === 0 ? (
                         <div className="flex-1 bg-[#F1F5F9] border-2 border-dashed border-[#E2E8F0] rounded-2xl flex flex-col items-center justify-center text-center p-12 transition-all">
                             <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-[#E2E8F0] flex items-center justify-center mb-6">
-                                <ShoppingBag className="w-10 h-10 text-[#94A3B8]" />
+                                <ShoppingCart className="w-10 h-10 text-[#94A3B8]" />
                             </div>
-                            <h3 className="text-lg font-bold text-[#1E293B] mb-2">Suas sacolas estão vazias</h3>
+                            <h3 className="text-lg font-bold text-[#1E293B] mb-2">Seu carrinho está vazio</h3>
                             <p className="text-sm text-[#64748B] max-w-sm mx-auto leading-relaxed">
                                 Use o campo à esquerda para selecionar um cliente e colar uma lista de produtos. Eu vou separar tudo automaticamente por fábrica.
                             </p>
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-8">
+                        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                                {buckets.map((bucket, bIdx) => (
+                                    <div key={bIdx} className="bg-white border text-left border-[#E2E8F0] rounded-[24px] p-5 shadow-sm hover:shadow-xl hover:border-emerald-500/30 transition-all group relative flex flex-col">
 
-
-
-                            {/* Bucket Cards */}
-                            {buckets.map((bucket, bIdx) => (
-                                <div key={bIdx} className="bg-white border text-left border-[#E2E8F0] rounded-2xl p-5 shadow-sm hover:shadow-lg hover:border-[#60A5FA]/30 transition-all group relative overflow-hidden">
-                                    {/* Glass Morph Decoration */}
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#60A5FA]/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-
-                                    <div className="flex justify-between items-start mb-4 relative z-10">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1.5">
-                                                <div className="w-1.5 h-1.5 bg-[#60A5FA] rounded-full"></div>
-                                                <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest">{bucket.client.cli_nomred || bucket.client.cli_nome}</span>
+                                        {/* Header do Card (Estilo Campanha) */}
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="w-10 h-10 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center text-[#64748B] font-bold text-base shadow-inner shrink-0">
+                                                    {(bucket.client?.cli_nomred || bucket.client?.cli_nome || 'C').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h3 className="text-[13px] font-bold text-[#1E293B] leading-tight uppercase tracking-tight truncate">
+                                                        {bucket.industria_nome}
+                                                    </h3>
+                                                    <p className="text-[10px] font-medium text-[#64748B] uppercase tracking-widest mt-0.5 truncate">
+                                                        {bucket.client?.cli_nomred || bucket.client?.cli_nome || 'Cliente'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <h3 className="text-xl font-bold text-[#1E293B] leading-tight flex items-center gap-2">
-                                                <Building2 className="w-5 h-5 text-[#1E293B]" />
-                                                {bucket.industria_nome}
-                                            </h3>
+                                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                <div className="bg-[#FFFBEB] text-[#92400E] text-[8px] font-bold px-1.5 py-0.5 rounded border border-[#FEF3C7] tracking-tighter uppercase">
+                                                    AGUARDANDO
+                                                </div>
+                                                <button
+                                                    onClick={() => handleRemoveBucket(bIdx)}
+                                                    className="p-1 px-1.5 text-[#94A3B8] hover:text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => handleRemoveBucket(bIdx)}
-                                                className="text-[#94A3B8] hover:text-[#DC2626] hover:bg-[#DC2626]/5 transition-all p-2 rounded-lg"
-                                            >
-                                                <Trash2 className="w-4.5 h-4.5" />
+
+                                        {/* Badge de Fornecedor */}
+                                        <div className="flex items-center gap-2 mb-3 px-2.5 py-1 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] w-fit">
+                                            <Building2 size={10} className="text-[#10B981]" />
+                                            <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-widest">Fábrica: {bucket.industria_id}</span>
+                                        </div>
+
+                                        {/* Tabela de Itens (Limitada a 3) */}
+                                        <div className="flex-1 space-y-1.5 mb-3">
+                                            {bucket.items.slice(0, 3).map((item, iIdx) => (
+                                                <div key={iIdx} className="flex items-center justify-between p-2 rounded-[14px] border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-white hover:border-[#10B981] transition-all cursor-default">
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <div className="w-7 h-7 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center text-[10px] font-bold text-[#1E293B] shrink-0">
+                                                            {item.quantidade}
+                                                        </div>
+                                                        <div className="overflow-hidden min-w-0">
+                                                            <div className="text-[11px] font-bold text-[#1E293B] truncate">{item.codigo}</div>
+                                                            <div className="text-[9px] text-[#64748B] truncate">{item.descricao}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0 ml-2">
+                                                        <div className="text-[11px] font-bold text-[#1E293B]">{formatCurrency(item.preco_unitario)}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {bucket.items.length > 3 && (
+                                                <div className="text-center py-0.5">
+                                                    <button className="text-[9px] font-bold text-[#10B981] uppercase tracking-widest hover:underline flex items-center justify-center gap-1 mx-auto">
+                                                        + {bucket.items.length - 3} itens ocultos <ArrowUpRight size={10} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Totais (Estilo Boxes da imagem) */}
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
+                                            <div className="bg-[#F1F5F9] rounded-xl p-2.5 border border-[#E2E8F0] overflow-hidden">
+                                                <span className="text-[8px] font-bold text-[#64748B] uppercase tracking-widest block mb-1 truncate">Tabela</span>
+                                                <span className="text-[10px] font-bold text-[#1E293B] block truncate">{bucket.items[0].tabela}</span>
+                                            </div>
+                                            <div className="bg-[#EEFDF6] rounded-xl p-2.5 border border-[#D1FAE5] text-right overflow-hidden">
+                                                <span className="text-[8px] font-bold text-[#065F46] uppercase tracking-widest block mb-1 truncate">Total</span>
+                                                <span className="text-[12px] font-bold text-[#065F46] block truncate">{formatCurrency(bucket.total)}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Rodapé do Card */}
+                                        <div className="flex items-center justify-between pt-2.5 border-t border-[#E2E8F0]">
+                                            <div className="flex gap-1">
+                                                {bucket.items[0].descontos.desc1 > 0 && <span className="px-1.5 py-0.5 rounded-md bg-[#10B981] text-white text-[8px] font-bold">-{bucket.items[0].descontos.desc1}%</span>}
+                                                {bucket.items[0].descontos.desc2 > 0 && <span className="px-1.5 py-0.5 rounded-md bg-[#60A5FA] text-white text-[8px] font-bold">-{bucket.items[0].descontos.desc2}%</span>}
+                                            </div>
+                                            <button className="text-[10px] font-bold text-[#64748B] hover:text-[#10B981] uppercase tracking-widest transition-colors flex items-center gap-1">
+                                                DETALHES <ArrowUpRight size={10} />
                                             </button>
                                         </div>
-                                    </div>
 
-                                    {/* Sub-tabela preview (Estilo Fresh Corporate Tabular) */}
-                                    <div className="mb-4 border border-[#F1F5F9] rounded-xl overflow-hidden bg-[#F8FAFC]">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-[#F1F5F9]">
-                                                <tr className="border-b border-[#E2E8F0]">
-                                                    <th className="py-2 px-3 text-[10px] font-bold text-[#64748B] uppercase tracking-widest w-16">Qtd</th>
-                                                    <th className="py-2 px-3 text-[10px] font-bold text-[#64748B] uppercase tracking-widest">Produto</th>
-                                                    <th className="py-2 px-3 text-[10px] font-bold text-[#64748B] uppercase tracking-widest text-right">Unitário</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {bucket.items.slice(0, 5).map((item, iIdx) => (
-                                                    <tr key={iIdx} className="border-b border-[#F1F5F9] last:border-0 hover:bg-white transition-colors">
-                                                        <td className="py-2 px-3 text-[13px] text-[#1E293B] font-bold">{item.quantidade}</td>
-                                                        <td className="py-2 px-3">
-                                                            <div className="text-[13px] text-[#1E293B] font-medium leading-tight">{item.codigo}</div>
-                                                            <div className="text-[10px] text-[#64748B] truncate max-w-[280px]">{item.descricao}</div>
-                                                        </td>
-                                                        <td className="py-2 px-3 text-[12px] text-[#64748B] text-right font-medium">
-                                                            {formatCurrency(item.preco_unitario)}
-                                                            {item.is_promo && <span className="ml-1 text-[#DC2626] font-bold">🔥</span>}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                        {bucket.items.length > 5 && (
-                                            <div className="bg-white py-2 px-4 text-[11px] font-bold text-[#60A5FA] text-center border-t border-[#F1F5F9] cursor-pointer hover:bg-[#60A5FA]/5 transition-colors flex items-center justify-center gap-1">
-                                                MAIS {bucket.items.length - 5} ITENS <ArrowUpRight className="w-3 h-3" />
-                                            </div>
-                                        )}
+                                        {/* Decoração Lateral */}
+                                        <div className="absolute top-0 right-0 w-1 h-full bg-[#10B981] border-r-[24px] border-[#10B981] opacity-0 group-hover:opacity-10 rounded-r-[24px] transition-opacity"></div>
                                     </div>
-
-                                    <div className="flex items-center justify-between pt-4 border-t border-[#F1F5F9] relative z-10">
-                                        <div className="space-y-1">
-                                            <div className="text-[10px] text-[#64748B] flex items-center gap-1">
-                                                TABELA: <span className="text-[#1E293B] font-bold">{bucket.items[0].tabela}</span>
-                                            </div>
-                                            <div className="flex gap-1.5">
-                                                {bucket.items[0].descontos.desc1 > 0 && <span className="px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] text-[9px] font-black border border-[#10B981]/20">-{bucket.items[0].descontos.desc1}%</span>}
-                                                {bucket.items[0].descontos.desc2 > 0 && <span className="px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] text-[9px] font-black border border-[#10B981]/20">-{bucket.items[0].descontos.desc2}%</span>}
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[10px] font-bold text-[#64748B] block mb-1">TOTAL DA SACOLA</span>
-                                            <div className="flex items-baseline justify-end gap-1.5">
-                                                <span className="text-lg font-black text-[#10B981]">
-                                                    {formatCurrency(bucket.total)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Hover overlay */}
-                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-[#10B981] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

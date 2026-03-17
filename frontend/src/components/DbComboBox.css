@@ -62,7 +62,7 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.02);
     max-height: 280px;
     overflow-y: auto;
-    z-index: 10001;
+    z-index: 99999;
     padding: 6px;
 }
 

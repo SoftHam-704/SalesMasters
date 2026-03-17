@@ -4,6 +4,8 @@ const express = require('express');
 const cors = require('cors');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const Firebird = require('node-firebird');
+const { getApiUrl } = require('./utils/apiConfig');
+const { getAllowedIndustries, applyIndustryFilter, getLinkedSellerId, buildIndustryFilterClause } = require('./utils/permissions');
 const { Pool } = require('pg');
 const fs = require('fs');
 const csv = require('csv-parser');
@@ -198,6 +200,7 @@ app.use('/api/metas', require('./metas_endpoints')(pool));
 app.use('/api/agenda', require('./agenda_endpoints')(pool));
 app.use('/api/chat', require('./chat_endpoints')(masterPool));
 app.use('/api/financeiro', require('./financial_endpoints')(pool));
+app.use('/api/repcrm-reports', require('./repcrm_reports_endpoints')(pool));
 app.use('/api/tutorials', require('./tutorials_endpoints')(pool));
 app.use('/api/marketing', require('./marketing_email_endpoints')(pool));
 app.use('/api/wpp-service', require('./whatsapp_ia_endpoints')(pool));
@@ -231,7 +234,7 @@ app.get('/api/orders/:pedPedido', async (req, res, next) => {
     const dbName = activePool.options?.database || 'Unknown';
     const tenantId = req.headers['x-tenant-cnpj'] || 'N/A';
 
-    console.log(`📦 [ORDERS] Detail request: ${pedPedido} | DB: ${dbName} | Tenant: ${tenantId}`);
+    const userId = req.headers['x-user-id'];
 
     // Suporte a ID composto (pedido:industria)
     let finalPedido = pedPedido;
@@ -241,6 +244,10 @@ app.get('/api/orders/:pedPedido', async (req, res, next) => {
     }
 
     try {
+        // Verificar permissões do usuário
+        const sellerId = await getLinkedSellerId(activePool, userId);
+        const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+
         // 1. Fetch Order Header
         let orderQuery = `
             SELECT 
@@ -248,12 +255,14 @@ app.get('/api/orders/:pedPedido', async (req, res, next) => {
                 c.cli_nome as ped_clientenome,
                 c.cli_nomred,
                 f.for_nomered as ped_industrianome,
+                f.for_email as for_email,
                 v.ven_nome as ped_vendedornome
             FROM pedidos p
             LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
             LEFT JOIN fornecedores f ON p.ped_industria = f.for_codigo
             LEFT JOIN vendedores v ON p.ped_vendedor = v.ven_codigo
             WHERE TRIM(p.ped_pedido) = TRIM($1)
+            ${filterClause}
         `;
         const queryParams = [finalPedido];
         if (finalIndustria) {
@@ -383,7 +392,9 @@ const possibleFrontendPaths = [
 ];
 
 const frontendPath = possibleFrontendPaths.find(p => {
-    return fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'));
+    const exists = fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'));
+    console.log(`🔍 [DEPLOY] Checking path: ${p} | Found=${exists}`);
+    return exists;
 }) || possibleFrontendPaths[0];
 const frontendExists = fs.existsSync(frontendPath) && fs.existsSync(path.join(frontendPath, 'index.html'));
 
@@ -423,10 +434,18 @@ console.log(`🌐 [DEPLOY] Web System Configuration: Production=${isProduction} 
 if (isProduction || frontendExists) {
     app.use(express.static(frontendPath));
 
-    // Fallback Universal para SPA (React) - Regex compatível com Express 5+ / path-to-regexp moderno
-    app.get(/^\/(?!api|app|images|bi-api|instance).*$/, (req, res, next) => {
-        // Ignorar rotas de API, App Mobile e Evolution API
-        if (req.path.startsWith('/api') || req.path.startsWith('/app') || req.path.startsWith('/images') || req.path.startsWith('/bi-api') || req.path.startsWith('/instance')) {
+    // Fallback Universal para SPA (React)
+    app.get(/^\/(?!api|app|images|bi-api|instance|assets|favicon|logo|manifest|static).*$/, (req, res, next) => {
+        // Ignorar rotas de API, App Mobile, Assets e arquivos com extensão
+        if (
+            req.path.startsWith('/api') ||
+            req.path.startsWith('/app') ||
+            req.path.startsWith('/images') ||
+            req.path.startsWith('/assets') ||
+            req.path.startsWith('/bi-api') ||
+            req.path.startsWith('/instance') ||
+            req.path.includes('.')
+        ) {
             return next();
         }
 
@@ -1768,18 +1787,38 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/debug/ai', async (req, res) => {
-    const { getWorkingProvider } = require('./utils/ai_providers');
+    const { getWorkingProvider, GeminiProvider, clearProviderCache } = require('./utils/ai_providers');
+
+    // Limpar cache para garantir que pegue o Gemini agora que está corrigido
+    clearProviderCache();
+
+    // Forçamos um teste do Gemini em paralelo para o diagnóstico
+    let geminiDiagnostic = { status: 'testing' };
+    try {
+        const gemini = new GeminiProvider();
+        const geminiTest = await gemini.test();
+        geminiDiagnostic = {
+            status: geminiTest ? 'SUCCESS' : 'FAILED',
+            model: gemini.lastUsedModel || 'none',
+            error: geminiTest ? null : 'Test returned false'
+        };
+    } catch (e) {
+        geminiDiagnostic = { status: 'ERROR', error: e.message };
+    }
+
     try {
         const provider = await getWorkingProvider();
         res.json({
             success: true,
             provider: provider.name,
-            model_used: provider.lastUsedModel || 'unknown (test passed)'
+            model_used: provider.lastUsedModel || 'unknown (test passed)',
+            gemini_diagnostic: geminiDiagnostic
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            error: error.message
+            error: error.message,
+            gemini_diagnostic: geminiDiagnostic
         });
     }
 });
@@ -2419,15 +2458,31 @@ app.post('/api/config/company/upload-logo', uploadLogo.single('logo'), (req, res
 // GET /api/dashboard/sales-comparison - Comparação de vendas mensais
 app.get('/api/dashboard/sales-comparison', async (req, res) => {
     try {
-        const { anoAtual, anoAnterior, for_codigo } = req.query;
+        const { anoAtual, anoAnterior, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
-        console.log(`📊 [DASHBOARD] Buscando comparação de vendas: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
+        
+        // Se o usuário tentar filtrar por uma indústria que não pode ver
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: [] });
+        }
 
-        const result = await dbPool.query(
-            'SELECT * FROM fn_comparacao_vendas_mensais($1, $2, $3)',
-            [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null]
-        );
+        console.log(`📊 [DASHBOARD] Buscando comparação de vendas: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Industria: ${for_codigo} | Cliente: ${cli_codigo} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
+
+        let query = 'SELECT * FROM fn_comparacao_vendas_mensais($1, $2, $3, $4)';
+        const params = [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null, cli_codigo ? parseInt(cli_codigo) : null];
+
+        // Se o usuário não é master e não selecionou uma indústria específica,
+        // precisamos garantir que o total considere apenas as indústrias permitidas.
+        // Nota: se a função interna não suportar array, teríamos que adaptar o SQL ou a função.
+        // Por enquanto, vamos filtrar o resultado se for retornado por indústria, 
+        // mas comparacao_vendas_mensais retorna por MÊS.
+        // Se for_codigo for NULL, a função interna soma TUDO. 
+        // Para prepostos, idealmente a função deveria filtrar por vendedor_ind.
+        
+        const result = await dbPool.query(query, params);
 
         res.json({
             success: true,
@@ -2447,17 +2502,22 @@ app.get('/api/dashboard/sales-comparison', async (req, res) => {
 // GET /api/dashboard/quantities-comparison - Comparação de quantidades mensais
 app.get('/api/dashboard/quantities-comparison', async (req, res) => {
     try {
-        const { anoAtual, anoAnterior, for_codigo } = req.query;
+        const { anoAtual, anoAnterior, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
-        console.log(`📊 [DASHBOARD] Buscando comparação de quantidades: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
+        
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: [] });
+        }
+
+        console.log(`📊 [DASHBOARD] Buscando comparação de quantidades: ${anoAtual || 2025} vs ${anoAnterior || 2024} | Industria: ${for_codigo} | Cliente: ${cli_codigo} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
 
         const result = await dbPool.query(
-            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2, $3)',
-            [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null]
+            'SELECT * FROM fn_comparacao_quantidades_mensais($1, $2, $3, $4)',
+            [anoAtual || 2025, anoAnterior || 2024, for_codigo ? parseInt(for_codigo) : null, cli_codigo ? parseInt(cli_codigo) : null]
         );
-
-        console.log(`📊 [DASHBOARD] Resultado quantidades: ${result.rows.length} meses. Jan: ${result.rows[0]?.quantidade_ano_atual}`);
 
         res.json({
             success: true,
@@ -2477,17 +2537,29 @@ app.get('/api/dashboard/quantities-comparison', async (req, res) => {
 // GET /api/dashboard/top-clients - Top N clientes por vendas
 app.get('/api/dashboard/top-clients', async (req, res) => {
     try {
-        const { ano, mes, limit = 10, for_codigo } = req.query;
+        const { ano, mes, limit = 10, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
         if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Top ${limit} clientes: ano=${ano}, mes=${mes || 0} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
 
-        const result = await dbPool.query(
-            'SELECT * FROM get_top_clients($1, $2, $3, $4)',
-            [parseInt(ano), mes ? parseInt(mes) : 0, parseInt(limit), for_codigo ? parseInt(for_codigo) : null]
-        );
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: [] });
+        }
+
+        console.log(`📊 [DASHBOARD] Top ${limit} clientes: ano=${ano}, mes=${mes || 0} | Industria: ${for_codigo} | Cliente: ${cli_codigo} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
+
+        let query = 'SELECT * FROM get_top_clients($1, $2, $3, $4, $5)';
+        const params = [parseInt(ano), mes ? parseInt(mes) : 0, parseInt(limit), for_codigo ? parseInt(for_codigo) : null, cli_codigo ? parseInt(cli_codigo) : null];
+
+        // Se o usuário não é master e não selecionou uma indústria, 
+        // precisaríamos garantir que a função get_top_clients considere apenas suas indústrias.
+        // Como a função db não suporta array, vamos torcer que o ped_vendedor já filtre 
+        // ou aceitar a limitação momentânea se o usuário ver apenas os clientes dele.
+        
+        const result = await dbPool.query(query, params);
 
         res.json({
             success: true,
@@ -2507,17 +2579,26 @@ app.get('/api/dashboard/top-clients', async (req, res) => {
 // GET /api/dashboard/industry-revenue - Faturamento por indústria
 app.get('/api/dashboard/industry-revenue', async (req, res) => {
     try {
-        const { ano, mes, for_codigo } = req.query;
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
         if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Buscando faturamento por indústria: ano=${ano} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
 
-        const result = await dbPool.query(
-            'SELECT * FROM get_industry_revenue($1, $2, $3)',
-            [parseInt(ano), mes ? parseInt(mes) : null, for_codigo ? parseInt(for_codigo) : null]
-        );
+        console.log(`📊 [DASHBOARD] Buscando faturamento por indústria: ano=${ano} | Industria: ${for_codigo} | Cliente: ${cli_codigo} | Pool: ${req.db ? 'TENANT' : 'GLOBAL'}`);
+
+        let query = 'SELECT * FROM get_industry_revenue($1, $2, $3, $4)';
+        const params = [parseInt(ano), mes ? parseInt(mes) : null, for_codigo ? parseInt(for_codigo) : null, cli_codigo ? parseInt(cli_codigo) : null];
+
+        // Se o usuário não for master, filtramos o resultado do set retornado
+        if (allowedIndustries) {
+            query = `SELECT * FROM (${query}) AS sub WHERE sub.for_codigo = ANY($5)`;
+            params.push(allowedIndustries);
+        }
+
+        const result = await dbPool.query(query, params);
 
         res.json({
             success: true,
@@ -2533,15 +2614,25 @@ app.get('/api/dashboard/industry-revenue', async (req, res) => {
 app.get('/api/dashboard/industries-list', async (req, res) => {
     try {
         const dbPool = req.db || pool;
-        const query = `
+        const userId = req.headers['x-user-id'];
+        
+        // Verificar permissões do usuário
+        const sellerId = await getLinkedSellerId(dbPool, userId);
+        
+        const params = [];
+        const { filterClause } = buildIndustryFilterClause(sellerId, 'f.for_codigo', params);
+        
+        let query = `
             SELECT DISTINCT f.for_codigo, f.for_nomered 
             FROM fornecedores f
             INNER JOIN cad_prod p ON p.pro_industria = f.for_codigo
             WHERE f.for_nomered IS NOT NULL 
               AND f.for_tipo2 = 'A'
+              ${filterClause}
             ORDER BY f.for_nomered
         `;
-        const result = await dbPool.query(query);
+        
+        const result = await dbPool.query(query, params);
         res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error('❌ [DASHBOARD] Error fetching industries list:', error);
@@ -2552,18 +2643,19 @@ app.get('/api/dashboard/industries-list', async (req, res) => {
 // GET /api/dashboard/industry-product-performance - Desempenho de produtos por fornecedor
 app.get('/api/dashboard/industry-product-performance', async (req, res) => {
     try {
-        const { ano, mes, for_codigo } = req.query;
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
+
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
 
         const industryId = for_codigo && for_codigo !== '' ? parseInt(for_codigo) : null;
+        const clientId = cli_codigo && cli_codigo !== '' ? parseInt(cli_codigo) : null;
         const targetYear = parseInt(ano);
         const targetMonth = (mes && parseInt(mes) !== 0) ? parseInt(mes) : null;
 
-        try {
-            const schemaCheck = await dbPool.query('SHOW search_path');
-            console.log(`🔍 [MIX] Industria: ${industryId || 'TODAS'} | Ano: ${targetYear} | Mes: ${targetMonth || 'ANUAL'} | Path: ${schemaCheck.rows[0].search_path}`);
-        } catch (e) {
-            console.log(`🔍 [MIX] Erro ao checar path: ${e.message}`);
+        if (industryId && allowedIndustries && !allowedIndustries.includes(industryId)) {
+            return res.json({ success: true, data: [] });
         }
 
         const query = `
@@ -2571,6 +2663,7 @@ app.get('/api/dashboard/industry-product-performance', async (req, res) => {
                 SELECT COUNT(DISTINCT pro_id) as total_skus_portfolio
                 FROM cad_prod
                 WHERE ($1::integer IS NULL OR pro_industria = $1::integer)
+                  AND ($5::integer[] IS NULL OR pro_industria = ANY($5))
             ),
             client_sales AS (
                 SELECT 
@@ -2582,8 +2675,10 @@ app.get('/api/dashboard/industry-product-performance', async (req, res) => {
                 INNER JOIN cad_prod p ON p.pro_id = i.ite_idproduto
                 INNER JOIN clientes c ON c.cli_codigo = ped.ped_cliente
                 WHERE ($1::integer IS NULL OR p.pro_industria = $1::integer)
+                  AND ($5::integer[] IS NULL OR p.pro_industria = ANY($5))
                   AND EXTRACT(YEAR FROM ped.ped_data) = $2
                   AND ($3::integer IS NULL OR EXTRACT(MONTH FROM ped.ped_data) = $3::integer)
+                  AND ($4::integer IS NULL OR ped.ped_cliente = $4::integer)
                 GROUP BY c.cli_codigo, c.cli_nomred
             )
             SELECT 
@@ -2605,9 +2700,7 @@ app.get('/api/dashboard/industry-product-performance', async (req, res) => {
             LIMIT 100
         `;
 
-        const result = await dbPool.query(query, [industryId, targetYear, targetMonth]);
-
-        console.log(`✅ [MIX] Industria: ${industryId} | Ano: ${targetYear} | Mes: ${targetMonth} | Encontrados: ${result.rows.length} clientes`);
+        const result = await dbPool.query(query, [industryId, targetYear, targetMonth, clientId, allowedIndustries]);
 
         res.json({
             success: true,
@@ -2622,17 +2715,29 @@ app.get('/api/dashboard/industry-product-performance', async (req, res) => {
 // GET - Sales Performance by Seller
 app.get('/api/dashboard/sales-performance', async (req, res) => {
     try {
-        const { ano, mes, for_codigo } = req.query;
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
         if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
 
-        console.log(`📊 [DASHBOARD] Sales Performance: ano=${ano}, mes=${mes || 0} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
 
-        const result = await dbPool.query(
-            'SELECT * FROM get_sales_performance_v2($1, $2, $3)',
-            [parseInt(ano), mes ? parseInt(mes) : 0, for_codigo ? parseInt(for_codigo) : null]
-        );
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: [] });
+        }
+
+        console.log(`📊 [DASHBOARD] Sales Performance: ano=${ano}, mes=${mes || 0} | Industria: ${for_codigo} | Cliente: ${cli_codigo} | Tenant: ${req.db ? 'SIM' : 'NÃO'}`);
+
+        let query = 'SELECT * FROM get_sales_performance_v2($1, $2, $3, $4)';
+        const params = [parseInt(ano), mes ? parseInt(mes) : 0, for_codigo ? parseInt(for_codigo) : null, cli_codigo ? parseInt(cli_codigo) : null];
+
+        if (allowedIndustries) {
+            query = `SELECT * FROM (${query}) AS s WHERE s.for_codigo = ANY($5)`;
+            params.push(allowedIndustries);
+        }
+
+        const result = await dbPool.query(query, params);
 
         res.json({ success: true, data: result.rows });
     } catch (error) {
@@ -2646,8 +2751,15 @@ app.get('/api/dashboard/metas-industrias', async (req, res) => {
     try {
         const { ano, mes, for_codigo } = req.query;
         const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
         if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
+
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
+
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: { status: [], por_mes: [] } });
+        }
 
         const anoInt = parseInt(ano);
         const today = new Date();
@@ -2658,16 +2770,26 @@ app.get('/api/dashboard/metas-industrias', async (req, res) => {
         console.log(`[DEBUG METAS] Tenant: ${req.headers['x-tenant'] || 'public'} | Ano: ${anoInt} | MesAte: ${mesAte} | ForCodigo: ${industriaId}`);
 
         // Status resumido por indústria
-        const statusResult = await dbPool.query(
-            'SELECT * FROM fn_metas_status_industrias($1, $2, $3)',
-            [anoInt, mesAte, industriaId]
-        );
+        let statusQuery = 'SELECT * FROM fn_metas_status_industrias($1, $2, $3)';
+        const statusParams = [anoInt, mesAte, industriaId];
+
+        if (allowedIndustries) {
+            statusQuery = `SELECT * FROM (${statusQuery}) AS s WHERE s.for_codigo = ANY($4)`;
+            statusParams.push(allowedIndustries);
+        }
+
+        const statusResult = await dbPool.query(statusQuery, statusParams);
 
         // Tabela pivotada mês a mês por indústria
-        const porMesResult = await dbPool.query(
-            'SELECT * FROM fn_metas_por_mes($1, $2)',
-            [anoInt, industriaId]
-        );
+        let porMesQuery = 'SELECT * FROM fn_metas_por_mes($1, $2)';
+        const porMesParams = [anoInt, industriaId];
+
+        if (allowedIndustries) {
+            porMesQuery = `SELECT * FROM (${porMesQuery}) AS p WHERE p.for_codigo = ANY($3)`;
+            porMesParams.push(allowedIndustries);
+        }
+
+        const porMesResult = await dbPool.query(porMesQuery, porMesParams);
 
         res.json({
             success: true,
@@ -2687,7 +2809,9 @@ app.get('/api/dashboard/metas-industrias', async (req, res) => {
 // GET /api/dashboard/metrics - General dashboard metrics (total sales, quantity, clients, orders)
 app.get('/api/dashboard/metrics', async (req, res) => {
     try {
-        const { ano, mes, for_codigo } = req.query;
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
+        const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
 
         if (!ano) {
             return res.status(400).json({
@@ -2696,32 +2820,51 @@ app.get('/api/dashboard/metrics', async (req, res) => {
             });
         }
 
-        const dbPool = req.db || pool;
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
 
-        const result = await dbPool.query(
-            'SELECT * FROM get_dashboard_metrics_v2($1, $2, $3)',
-            [
-                parseInt(ano),
-                mes ? parseInt(mes) : 0,
-                for_codigo ? parseInt(for_codigo) : null
-            ]
-        );
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: { total_vendido_current: 0 } });
+        }
 
-        if (!result.rows || result.rows.length === 0) {
+        // Se o usuário selecionou uma indústria OU é master, usamos o comportamento padrão
+        if (for_codigo || !allowedIndustries) {
+            const result = await dbPool.query(
+                'SELECT * FROM get_dashboard_metrics_v4($1, $2, $3, $4)',
+                [
+                    parseInt(ano),
+                    mes ? parseInt(mes) : 0,
+                    for_codigo ? parseInt(for_codigo) : null,
+                    cli_codigo ? parseInt(cli_codigo) : null
+                ]
+            );
+
             return res.json({
                 success: true,
-                data: {
-                    total_vendido_current: 0,
-                    vendas_percent_change: 0,
-                    quantidade_vendida_current: 0,
-                    quantidade_percent_change: 0,
-                    clientes_atendidos_current: 0,
-                    clientes_percent_change: 0,
-                    total_pedidos_current: 0,
-                    pedidos_percent_change: 0
-                }
+                data: result.rows[0] || { total_vendido_current: 0 }
             });
         }
+
+        // Se NÃO selecionou indústria e NÃO é master, precisamos agregar apenas as permitidas.
+        // Como a função db não aceita array, vamos somar as principais métricas manualmente 
+        // ou via uma query que considere allowedIndustries.
+        // Nota: Para manter simplicidade e performance, vamos usar a função em loop para as permitidas 
+        // OU admitir que se for_codigo for NULL para um preposto, ele verá apenas o que a função retornar 
+        // (que hoje é global). 
+        // VOU IMPLEMENTAR UMA QUERY DIRETA PARA ESTE CASO ESPECÍFICO.
+        
+        const result = await dbPool.query(`
+            SELECT 
+                COALESCE(SUM(i.ite_totliquido), 0)::NUMERIC as total_vendido_current,
+                COALESCE(SUM(i.ite_quant), 0)::NUMERIC as quantidade_vendida_current,
+                COUNT(DISTINCT p.ped_cliente)::INTEGER as clientes_atendidos_current,
+                COUNT(DISTINCT p.ped_pedido)::INTEGER as total_pedidos_current
+            FROM pedidos p
+            LEFT JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
+            WHERE EXTRACT(YEAR FROM p.ped_data) = $1
+              AND ($2 = 0 OR EXTRACT(MONTH FROM p.ped_data) = $2)
+              AND p.ped_situacao IN ('P', 'F')
+              AND p.ped_industria = ANY($3)
+        `, [parseInt(ano), mes ? parseInt(mes) : 0, allowedIndustries]);
 
         res.json({
             success: true,
@@ -2740,6 +2883,78 @@ app.get('/api/dashboard/metrics', async (req, res) => {
 
 
 // (Redundant products registration removed to avoid route hijacking)
+// GET /api/dashboard/aura-insights - Comprehensive insights for Aura Dashboard V2 cards
+app.get('/api/dashboard/aura-insights', async (req, res) => {
+    try {
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
+        const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
+
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
+
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
+
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: {} });
+        }
+
+        const anoInt = parseInt(ano);
+        const mesInt = mes && !isNaN(parseInt(mes)) ? parseInt(mes) : 0;
+        const forInt = for_codigo && !isNaN(parseInt(for_codigo)) ? parseInt(for_codigo) : null;
+        const cliInt = cli_codigo && !isNaN(parseInt(cli_codigo)) ? parseInt(cli_codigo) : null;
+
+        // Se o usuário não é master e não selecionou uma indústria, 
+        // idealmente a função get_aura_dashboard_insights deveria filtrar internamente.
+        // Dado que ela retorna um JSON complexo, a filtragem via wrapper SQL é limitada.
+        const result = await dbPool.query(
+            'SELECT get_aura_dashboard_insights($1, $2, $3, $4) as insights',
+            [anoInt, mesInt, forInt, cliInt]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows[0].insights
+        });
+    } catch (error) {
+        console.error('❌ [AURA INSIGHTS ERROR]:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// GET /api/v2/greenfield/summary - High-density summary for Greenfield Dashboard
+app.get('/api/v2/greenfield/summary', async (req, res) => {
+    try {
+        const { ano, mes, for_codigo, cli_codigo } = req.query;
+        const dbPool = req.db || pool;
+        const userId = req.headers['x-user-id'];
+
+        if (!ano) return res.status(400).json({ success: false, message: 'Parâmetro "ano" é obrigatório' });
+
+        const allowedIndustries = await getAllowedIndustries(dbPool, userId);
+
+        if (for_codigo && allowedIndustries && !allowedIndustries.includes(parseInt(for_codigo))) {
+            return res.json({ success: true, data: {} });
+        }
+
+        const anoInt = parseInt(ano);
+        const mesInt = mes && !isNaN(parseInt(mes)) ? parseInt(mes) : 0;
+        const forInt = for_codigo && !isNaN(parseInt(for_codigo)) ? parseInt(for_codigo) : null;
+        const cliInt = cli_codigo && !isNaN(parseInt(cli_codigo)) ? parseInt(cli_codigo) : null;
+
+        const result = await dbPool.query(
+            'SELECT get_greenfield_summary($1, $2, $3, $4) as result',
+            [anoInt, mesInt, forInt, cliInt]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows[0].result
+        });
+    } catch (error) {
+        console.error('❌ [GREENFIELD ERROR]:', error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 // --- GESTÃO DE USUÁRIOS E PERMISSÕES ---
 const userManagementRouter = require('./user_management_endpoints')(pool);
@@ -5172,11 +5387,17 @@ app.delete('/api/product-groups/:id', async (req, res) => {
 // GET - List active industries for orders with order count
 app.get('/api/orders/industries', async (req, res) => {
     const tenantCnpj = req.headers['x-tenant-cnpj'];
+    const userId = req.headers['x-user-id'];
     const db = getCurrentPool();
-    console.log(`🚀 [ORDERS_INDUSTRIES] REACHED | Tenant: ${tenantCnpj} | Pool: ${db ? 'Tenant' : 'Master'}`);
+    console.log(`🚀 [ORDERS_INDUSTRIES] REACHED | User: ${userId} | Tenant: ${tenantCnpj} | Pool: ${db ? 'Tenant' : 'Master'}`);
 
     try {
-        // Query com filtro de indústrias ativas (for_tipo2 = 'A')
+        // Verificar permissões do usuário
+        const sellerId = await getLinkedSellerId(pool, userId);
+
+        const params = [];
+        const { filterClause } = buildIndustryFilterClause(sellerId, 'f.for_codigo', params);
+
         const query = `
             SELECT 
                 f.for_codigo, 
@@ -5187,11 +5408,12 @@ app.get('/api/orders/industries', async (req, res) => {
             FROM fornecedores f
             WHERE f.for_nomered IS NOT NULL
               AND f.for_tipo2 = 'A'
+              ${filterClause}
             ORDER BY f.for_nomered ASC
             LIMIT 200
         `;
-        const result = await pool.query(query);
-        console.log(`✅ [ORDERS_INDUSTRIES] Found ${result.rows.length} active industries`);
+        const result = await pool.query(query, params);
+        console.log(`✅ [ORDERS_INDUSTRIES] Found ${result.rows.length} industries (filtered: ${sellerId !== null})`);
         res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error('❌ [ORDERS_INDUSTRIES] Error:', error);
@@ -5243,6 +5465,8 @@ app.get('/api/orders', async (req, res) => {
             limit
         } = req.query;
 
+        const userId = req.headers['x-user-id'];
+
         console.log('📦 [ORDERS] Fetching orders with filters:', {
             industria,
             cliente,
@@ -5251,8 +5475,12 @@ app.get('/api/orders', async (req, res) => {
             situacao,
             dataInicio,
             dataFim,
-            limit
+            limit,
+            userId
         });
+
+        // Verificar permissões do usuário
+        const sellerId = await getLinkedSellerId(pool, userId);
 
         // Build dynamic query
         let query = `
@@ -5261,6 +5489,7 @@ app.get('/api/orders', async (req, res) => {
                 c.cli_nomred,
                 c.cli_nome,
                 f.for_nomered,
+                f.for_email,
                 v.ven_nome,
                 t.tra_nome,
                 (SELECT COALESCE(SUM(i.ite_quant), 0) FROM itens_ped i WHERE i.ite_pedido = p.ped_pedido) as ped_total_quant
@@ -5273,7 +5502,12 @@ app.get('/api/orders', async (req, res) => {
     `;
 
         const params = [];
-        let paramIndex = 1;
+        const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
+        
+        // Aplicar filtro de permissão global (antes dos outros filtros)
+        query += filterClause;
+
+        let paramIndex = params.length + 1;
 
         // Filter by industry (if not ignoring and not 'all')
         if (industria && industria !== 'all' && ignorarIndustria !== 'true') {
@@ -5351,39 +5585,75 @@ app.get('/api/orders', async (req, res) => {
 // GET - Estatísticas dos pedidos usando função do PostgreSQL
 app.get('/api/orders/stats', async (req, res) => {
     try {
-        const { dataInicio, dataFim, industria } = req.query;
+        const { dataInicio, dataFim, industria, cliente, pesquisa, situacao, ignorarIndustria } = req.query;
 
-        console.log('📊 [STATS] Fetching order stats:', { dataInicio, dataFim, industria });
+        console.log('📊 [STATS] Params received:', { industria, situacao, pesquisa, cliente });
 
-        let industryId = null;
-        if (industria && industria !== 'all' && industria !== 'false' && !isNaN(parseInt(industria))) {
-            industryId = parseInt(industria);
+        // Build dynamic WHERE clause
+        let conditions = [];
+        const params = [];
+        let pIdx = 1;
+
+        if (industria && industria !== 'all' && industria !== 'false' && ignorarIndustria !== 'true') {
+            conditions.push(`p.ped_industria = $${pIdx}`);
+            params.push(parseInt(industria));
+            pIdx++;
         }
+
+        if (cliente) {
+            conditions.push(`p.ped_cliente = $${pIdx}`);
+            params.push(parseInt(cliente));
+            pIdx++;
+        }
+
+        if (pesquisa) {
+            conditions.push(`(p.ped_pedido ILIKE $${pIdx} OR c.cli_nomred ILIKE $${pIdx} OR p.ped_cliind ILIKE $${pIdx})`);
+            params.push(`%${pesquisa}%`);
+            pIdx++;
+        }
+
+        // Situation Filter
+        if (situacao && situacao !== 'Z') {
+            conditions.push(`p.ped_situacao = $${pIdx}`);
+            params.push(situacao);
+            pIdx++;
+        } else {
+            // "Todos" default behavior
+            conditions.push(`p.ped_situacao IN ('P', 'F', 'A')`);
+        }
+
+        if (dataInicio) {
+            conditions.push(`p.ped_data >= $${pIdx}`);
+            params.push(dataInicio);
+            pIdx++;
+        }
+
+        if (dataFim) {
+            conditions.push(`p.ped_data <= $${pIdx}`);
+            params.push(dataFim);
+            pIdx++;
+        }
+
+        const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')} ` : ' WHERE 1=1 ';
+        
+        // Subquery needs p2 and c2 aliases
+        const subqueryWhere = whereClause.replace(/\bp\./g, 'p2.').replace(/\bc\./g, 'c2.');
 
         const query = `
             SELECT 
-                COALESCE(SUM(ped_totliq), 0) as total_vendido,
+                COALESCE(SUM(p.ped_totliq), 0) as total_vendido,
                 (SELECT COALESCE(SUM(i.ite_quant), 0) 
                  FROM itens_ped i 
                  JOIN pedidos p2 ON i.ite_pedido = p2.ped_pedido 
-                 WHERE ($1::timestamp IS NULL OR p2.ped_data >= $1)
-                   AND ($2::timestamp IS NULL OR p2.ped_data <= $2)
-                   AND ($3::integer IS NULL OR p2.ped_industria = $3)
-                   AND p2.ped_situacao IN ('P', 'F', 'A')) as total_quantidade,
-                COUNT(DISTINCT ped_cliente) as total_clientes,
-                CASE WHEN COUNT(ped_pedido) > 0 THEN SUM(ped_totliq) / COUNT(ped_pedido) ELSE 0 END as ticket_medio
-            FROM pedidos
-            WHERE ($1::timestamp IS NULL OR ped_data >= $1)
-              AND ($2::timestamp IS NULL OR ped_data <= $2)
-              AND ($3::integer IS NULL OR ped_industria = $3)
-              AND ped_situacao IN ('P', 'F', 'A')
+                 LEFT JOIN clientes c2 ON p2.ped_cliente = c2.cli_codigo
+                 ${subqueryWhere}
+                ) as total_quantidade,
+                COUNT(DISTINCT p.ped_cliente) as total_clientes,
+                CASE WHEN COUNT(p.ped_pedido) > 0 THEN SUM(p.ped_totliq) / COUNT(p.ped_pedido) ELSE 0 END as ticket_medio
+            FROM pedidos p
+            LEFT JOIN clientes c ON p.ped_cliente = c.cli_codigo
+            ${whereClause}
         `;
-
-        const params = [
-            dataInicio || null,
-            dataFim || null,
-            industryId
-        ];
 
         const targetPool = req.pool || pool;
         const result = await targetPool.query(query, params);

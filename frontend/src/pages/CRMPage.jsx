@@ -629,7 +629,7 @@ export default function CRMPage() {
             <main className="flex-1 flex flex-col overflow-hidden">
                 <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md px-8 flex items-center justify-between shadow-sm z-10">
                     <div>
-                        <span className="tactical-label block !mb-0 text-blue-600">Terminal de Inteligência</span>
+                        <span className="tactical-label block !mb-0 text-blue-600">Atendimentos / Telemarketing</span>
                         <h1 className="text-lg font-black tracking-tight uppercase text-slate-900">
                             {viewMode === 'dashboard' ? 'Overview' : viewMode === 'kanban' ? 'Strategic Pipeline' : 'Data Logs'}
                         </h1>
@@ -637,9 +637,15 @@ export default function CRMPage() {
 
                     <div className="flex items-center gap-4">
                         {loading && <Loader2 size={16} className="animate-spin text-slate-400" />}
+                        <button 
+                            onClick={() => setHelpOpen(true)}
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 transition-all shadow-sm group"
+                        >
+                            <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
+                        </button>
                         <Button
                             onClick={() => viewMode === 'kanban' ? setNovaOportunidadeOpen(true) : setNovaInteracaoOpen(true)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] tracking-widest px-6 h-10 shadow-lg shadow-blue-500/20"
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-[10px] tracking-widest px-6 h-10 shadow-lg shadow-emerald-500/20 border-none transition-all hover:scale-105 active:scale-95"
                         >
                             <Plus size={14} className="mr-2 stroke-[3]" />
                             Nova Entrada

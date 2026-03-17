@@ -189,38 +189,36 @@ export default function ComparativoClientesPage() {
     const totalWidth = Object.values(colWidths).reduce((acc, w) => acc + w, 0)
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
             {/* Header */}
-            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 shadow-sm z-20">
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-blue-50 p-2 rounded-lg">
-                                <ArrowRightLeft className="text-blue-600 w-6 h-6" />
-                            </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-xl font-bold text-gray-800">Comparativo entre Clientes</h1>
-                                <span className="text-xs text-slate-400 font-mono">Referência vs Alvo</span>
-                            </div>
+                            <h1 className="text-xl font-bold tracking-tight text-stone-900">Comparativo entre Clientes</h1>
                             <div className="ml-4 flex items-center gap-2">
                                 <ClosePageButton />
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600">
-                                <Download className="w-4 h-4" /> Exportar Excel
-                            </Button>
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <Download className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
+                            <button onClick={handleProcess} disabled={loading} className="h-[38px] px-6 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                {loading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : null}
+                                <span className="!text-white">{loading ? 'Processando...' : 'Processar'}</span>
+                            </button>
                         </div>
                     </div>
 
                     {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <div className="flex flex-wrap items-end gap-3">
 
                         {/* Indústria */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Indústria <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Indústria <span className="text-red-500">*</span></label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {industrias.map(i => (
                                         <SelectItem key={i.for_codigo} value={String(i.for_codigo)}>
@@ -232,10 +230,10 @@ export default function ComparativoClientesPage() {
                         </div>
 
                         {/* Cliente Referência */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Cliente Referência <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Cliente Referência <span className="text-red-500">*</span></label>
                             <Select value={clienteRef} onValueChange={setClienteRef}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Referência..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Referência..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {clientes.map(c => (
                                         <SelectItem key={c.cli_codigo} value={String(c.cli_codigo)}>
@@ -247,14 +245,14 @@ export default function ComparativoClientesPage() {
                         </div>
 
                         {/* Cliente Alvo */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Cliente Alvo <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Cliente Alvo <span className="text-red-500">*</span></label>
                             <Select value={clienteAlvo} onValueChange={setClienteAlvo}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Alvo..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Alvo..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {clientes.map(c => (
                                         <SelectItem key={c.cli_codigo} value={String(c.cli_codigo)}>
-                                            {renderSelectItem(<User className="w-4 h-4 text-red-500" />, c.cli_nomred, `Cod: ${c.cli_codigo}`)}
+                                            {renderSelectItem(<User className="w-4 h-4 text-rose-500" />, c.cli_nomred, `Cod: ${c.cli_codigo}`)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -262,81 +260,73 @@ export default function ComparativoClientesPage() {
                         </div>
 
                         {/* Período */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase">Período</Label>
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-1.5 min-w-[240px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Período</label>
+                            <div className="flex items-center gap-2 bg-stone-50 p-1 rounded-lg border border-stone-200 shadow-sm h-[38px]">
                                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                                    className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs" />
-                                <span className="text-slate-400">-</span>
+                                    className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
+                                <span className="text-stone-300 font-bold">-</span>
                                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                                    className="h-9 w-full rounded-md border border-slate-200 px-2 text-xs" />
+                                    className="h-8 w-full rounded bg-transparent px-2 text-xs outline-none text-stone-700" />
                             </div>
                         </div>
 
-                        {/* Mode Selection & Process Button */}
-                        <div className="col-span-12 flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-
-                            <div className="flex items-center gap-6">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" name="mode" className="accent-blue-600"
-                                        checked={mode === 'GAP'} onChange={() => setMode('GAP')} />
-                                    <span className="text-sm text-slate-700">Referência comprou e alvo não</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="radio" name="mode" className="accent-blue-600"
-                                        checked={mode === 'FULL'} onChange={() => setMode('FULL')} />
-                                    <span className="text-sm text-slate-700">Comparativo entre ambos</span>
-                                </label>
+                        {/* Mode Selection */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Modo</label>
+                            <div className="flex bg-stone-100 p-0.5 rounded-md border border-stone-200 h-[38px] items-center">
+                                <button onClick={() => setMode('GAP')} className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 whitespace-nowrap ${mode === 'GAP' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                                    Só Ref
+                                </button>
+                                <button onClick={() => setMode('FULL')} className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 whitespace-nowrap ${mode === 'FULL' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                                    Ambos
+                                </button>
                             </div>
-
-                            <Button onClick={handleProcess} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white min-w-[120px]">
-                                {loading ? 'Processando...' : 'Processar'}
-                            </Button>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Table Area - COMPACT STYLE & RESIZABLE */}
-            <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
-                <Card className="h-full flex flex-col border-slate-200 shadow-lg overflow-hidden">
+            <div className="flex-1 overflow-auto p-4 bg-stone-50">
+                <Card className="h-full flex flex-col border-stone-200 shadow-sm overflow-hidden">
                     <CardContent className="p-0 overflow-auto flex-1">
                         {!data.length && !loading ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                            <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                                 <span className="text-4xl">📊</span>
                                 <span className="text-sm">Configure os filtros e clique em Processar</span>
                             </div>
                         ) : (
                             <Table className="table-fixed border-collapse" style={{ width: totalWidth }}>
-                                <TableHeader className="sticky top-0 z-10 bg-slate-700 shadow-sm block w-full" style={{ width: totalWidth }}>
-                                    <TableRow className="bg-slate-700 hover:bg-slate-700 flex w-full">
+                                <TableHeader className="sticky top-0 z-10 bg-stone-800 shadow-sm block w-full" style={{ width: totalWidth }}>
+                                    <TableRow className="bg-stone-800 hover:bg-stone-800 flex w-full">
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-500 bg-slate-800 group select-none block" style={{ width: colWidths.codigo, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-600 bg-stone-900 group select-none block" style={{ width: colWidths.codigo, height: 30 }}>
                                             Código
                                             <Resizer colKey="codigo" />
                                         </TableHead>
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 group select-none block" style={{ width: colWidths.descricao, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-700 group select-none block" style={{ width: colWidths.descricao, height: 30 }}>
                                             Descrição
                                             <Resizer colKey="descricao" />
                                         </TableHead>
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-blue-900/50 group select-none block" style={{ width: colWidths.qtd_ref, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-700 text-right bg-stone-800 group select-none block" style={{ width: colWidths.qtd_ref, height: 30 }}>
                                             Ref (Qtd)
                                             <Resizer colKey="qtd_ref" />
                                         </TableHead>
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-blue-900/70 group select-none block" style={{ width: colWidths.val_ref, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-700 text-right bg-stone-700/80 group select-none block" style={{ width: colWidths.val_ref, height: 30 }}>
                                             Ref (Valor)
                                             <Resizer colKey="val_ref" />
                                         </TableHead>
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-red-900/50 group select-none block" style={{ width: colWidths.qtd_alvo, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-700 text-right bg-rose-900/50 group select-none block" style={{ width: colWidths.qtd_alvo, height: 30 }}>
                                             Alvo (Qtd)
                                             <Resizer colKey="qtd_alvo" />
                                         </TableHead>
 
-                                        <TableHead className="relative text-white font-bold text-xs py-1 px-2 border-r border-slate-600 text-right bg-red-900/70 group select-none block" style={{ width: colWidths.val_alvo, height: 30 }}>
+                                        <TableHead className="relative text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 border-r border-stone-700 text-right bg-rose-900/70 group select-none block" style={{ width: colWidths.val_alvo, height: 30 }}>
                                             Alvo (Valor)
                                             <Resizer colKey="val_alvo" />
                                         </TableHead>
@@ -345,29 +335,29 @@ export default function ComparativoClientesPage() {
                                 </TableHeader>
                                 <TableBody className="block w-full" style={{ width: totalWidth }}>
                                     {data.map((row, idx) => (
-                                        <TableRow key={idx} className="hover:bg-blue-50/50 border-b border-slate-100 flex w-full h-[28px] group/row">
-                                            <TableCell className="py-1 px-2 text-xs font-mono font-bold text-slate-800 border-r border-slate-300 bg-slate-100 truncate block" style={{ width: colWidths.codigo }}>
+                                        <TableRow key={idx} className="hover:bg-stone-50 border-b border-stone-100 flex w-full h-[28px] group/row">
+                                            <TableCell className="py-1 px-2 text-xs font-mono font-semibold text-stone-700 border-r border-stone-200 bg-stone-100 truncate block" style={{ width: colWidths.codigo }}>
                                                 {row.codigo}
                                             </TableCell>
 
-                                            <TableCell className="py-1 px-2 text-xs text-slate-700 border-r border-slate-200 truncate block" style={{ width: colWidths.descricao }} title={row.descricao}>
+                                            <TableCell className="py-1 px-2 text-xs text-stone-700 border-r border-stone-100 truncate block" style={{ width: colWidths.descricao }} title={row.descricao}>
                                                 {row.descricao}
                                             </TableCell>
 
                                             {/* Referência */}
-                                            <TableCell className="py-1 px-2 text-xs text-right font-medium text-slate-700 border-r border-slate-200 bg-blue-50/30 truncate block" style={{ width: colWidths.qtd_ref }}>
+                                            <TableCell className="py-1 px-2 text-xs text-right font-medium text-stone-700 border-r border-stone-100 bg-stone-50 truncate block" style={{ width: colWidths.qtd_ref }}>
                                                 {formatNumber(row.qtd_ref)}
                                             </TableCell>
 
-                                            <TableCell className="py-1 px-2 text-xs text-right font-medium text-blue-700 border-r border-slate-200 bg-blue-50/50 truncate block" style={{ width: colWidths.val_ref }}>
+                                            <TableCell className="py-1 px-2 text-xs text-right font-medium text-stone-700 border-r border-stone-100 bg-stone-50/50 truncate block" style={{ width: colWidths.val_ref }}>
                                                 {formatCurrency(row.val_ref)}
                                             </TableCell>
 
-                                            <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-slate-200 bg-red-50/30 truncate block ${Number(row.qtd_alvo) === 0 ? 'text-red-300' : 'text-slate-700'}`} style={{ width: colWidths.qtd_alvo }}>
+                                            <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-stone-100 bg-rose-50/30 truncate block ${Number(row.qtd_alvo) === 0 ? 'text-rose-300' : 'text-stone-700'}`} style={{ width: colWidths.qtd_alvo }}>
                                                 {formatNumber(row.qtd_alvo)}
                                             </TableCell>
 
-                                            <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-slate-200 bg-red-50/50 truncate block ${Number(row.val_alvo) === 0 ? 'text-red-300' : 'text-rose-700'}`} style={{ width: colWidths.val_alvo }}>
+                                            <TableCell className={`py-1 px-2 text-xs text-right font-medium border-r border-stone-100 bg-rose-50/50 truncate block ${Number(row.val_alvo) === 0 ? 'text-rose-300' : 'text-rose-700'}`} style={{ width: colWidths.val_alvo }}>
                                                 {formatCurrency(row.val_alvo)}
                                             </TableCell>
                                         </TableRow>

@@ -67,7 +67,7 @@ const OverviewTab = ({ filters, refreshTrigger }) => {
                 const params = {
                     ano: filters.ano,
                     mes: filters.mes,
-                    metrica: filters.metrica,
+                    metrica: filters.metrica || 'valor', // Fallback
                     startDate: filters.startDate,
                     endDate: filters.endDate
                 };
@@ -108,10 +108,11 @@ const OverviewTab = ({ filters, refreshTrigger }) => {
     // Fetch Evolution & Pareto Data & Narratives
     useEffect(() => {
         const fetchDashboardData = async () => {
+            const currentMetrica = filters.metrica || 'valor';
             try {
                 const params = {
                     ano: filters.ano,
-                    metrica: filters.metrica.toLowerCase()
+                    metrica: currentMetrica.toLowerCase()
                 };
 
                 // Evolution
@@ -173,7 +174,7 @@ const OverviewTab = ({ filters, refreshTrigger }) => {
                             <BubbleChart
                                 data={industries}
                                 selectedIndustryId={selectedIndustry?.codigo}
-                                metrica={filters.metrica}
+                                metrica={filters.metrica || 'valor'}
                                 onIndustryClick={(id) => setSelectedIndustry(prev => prev?.codigo === id ? null : industries.find(i => i.codigo === id))}
                             />
                         </div>

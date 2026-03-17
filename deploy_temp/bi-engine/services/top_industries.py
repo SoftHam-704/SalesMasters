@@ -25,9 +25,10 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
     if startDate and endDate:
         date_filter = f"p.ped_data BETWEEN :startDate AND :endDate"
     else:
-        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = :ano"
         if mes and mes != 'Todos':
-            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {int(mes)}"
+            date_filter = f"p.ped_data >= make_date(:ano, {int(mes)}, 1) AND p.ped_data < (make_date(:ano, {int(mes)}, 1) + INTERVAL '1 month')"
+        else:
+            date_filter = f"p.ped_data >= make_date(:ano, 1, 1) AND p.ped_data <= make_date(:ano, 12, 31)"
     
     query = f"""
         WITH vendas_industria AS (
@@ -44,6 +45,7 @@ def fetch_top_industries(ano: int, mes: str = 'Todos', metrica: str = 'valor', l
             JOIN fornecedores f ON p.ped_industria = f.for_codigo
             WHERE {date_filter}
               AND p.ped_situacao IN ('P', 'F')
+              AND f.for_tipo2 = 'A'
             GROUP BY f.for_codigo, f.for_nomered, f.for_homepage
         ),
         total_geral AS (

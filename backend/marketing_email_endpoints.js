@@ -239,8 +239,21 @@ module.exports = function (pool) {
 
             const transporter = createTransporter(config);
 
+            // Fetch Company Name for Branding
+            let companyName = 'SalesMasters';
+            try {
+                const companyResult = await pool.query('SELECT emp_nome FROM empresa_status WHERE emp_id = 1');
+                if (companyResult.rows.length > 0 && companyResult.rows[0].emp_nome) {
+                    companyName = companyResult.rows[0].emp_nome.trim();
+                }
+            } catch (companyError) {
+                console.warn('⚠️ [BULK_SEND] Erro ao buscar nome da empresa:', companyError.message);
+            }
+
+            const senderName = config.par_sisuser || companyName;
+
             const mailOptions = {
-                from: `"${config.par_sisuser || 'SalesMasters'}" <${config.par_email}>`,
+                from: `"${senderName}" <${config.par_email}>`,
                 to: (recipients || []).join(', '),
                 bcc: (bccRecipients || []).join(', '),
                 subject: subject,

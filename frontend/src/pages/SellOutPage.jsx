@@ -32,7 +32,7 @@ import {
     HelpCircle,
     ArrowLeft
 } from "lucide-react"
-import * as XLSX from 'xlsx'
+import { exportToExcel, readExcelFile, loadXLSX } from "@/utils/excelUtils"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell } from 'recharts'
 import SellOutHelpModal from "@/components/sellout/SellOutHelpModal"
 import { Combobox } from "@/components/ui/combobox"
@@ -270,7 +270,7 @@ export default function SellOutPage() {
         setQuantidade("")
     }
 
-    const downloadTemplate = () => {
+    const downloadTemplate = async () => {
         // Aba principal de lançamentos
         const template = [
             { CLI_CODIGO: "Ex: 123", FOR_CODIGO: "Ex: 1", PERIODO: "2026-02", VALOR: 1500.50, QUANTIDADE: 100 },
@@ -289,6 +289,7 @@ export default function SellOutPage() {
             NOME: i.nome || i.for_nomered || i.for_nome
         }))
 
+        const XLSX = await loadXLSX()
         const wb = XLSX.utils.book_new()
 
         // Criar as planilhas
@@ -313,68 +314,56 @@ export default function SellOutPage() {
         const loadingToast = toast.loading("Analisando planilha...")
 
         try {
-            const reader = new FileReader()
-            reader.onload = async (evt) => {
-                const bstr = evt.target?.result
-                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true })
-                const wsname = wb.SheetNames[0]
-                const ws = wb.Sheets[wsname]
-                const jsonData = XLSX.utils.sheet_to_json(ws)
+            const jsonData = await readExcelFile(file)
 
-                if (jsonData.length === 0) {
-                    toast.dismiss(loadingToast)
-                    toast.error("Planilha vazia ou sem dados válidos.")
-                    return
-                }
-
-                const data = jsonData.map((row, index) => {
-                    // Normalizar nomes das colunas (Case insensitive e sem espaços)
-                    const normalizedRow = Object.keys(row).reduce((acc, key) => {
-                        acc[key.trim().toUpperCase()] = row[key]
-                        return acc
-                    }, {})
-
-                    let p = normalizedRow.PERIODO || ""
-
-                    // Tratamento flexível de data
-                    if (p instanceof Date) {
-                        p = p.toISOString().substring(0, 7)
-                    } else if (typeof p === 'string' && p.includes('/') && p.length >= 7) {
-                        const parts = p.split('/')
-                        if (parts.length >= 2) {
-                            if (parts[1].length === 4) p = `${parts[1]}-${parts[0].padStart(2, '0')}` // MM/YYYY
-                            else if (parts[2]?.length === 4) p = `${parts[2]}-${parts[1].padStart(2, '0')}` // DD/MM/YYYY
-                        }
-                    }
-
-                    return {
-                        cli_codigo: parseInt(normalizedRow.CLI_CODIGO || normalizedRow.CLIENTE),
-                        for_codigo: parseInt(normalizedRow.FOR_CODIGO || normalizedRow.INDUSTRIA),
-                        periodo: p.length === 7 ? p + "-01" : p,
-                        valor: parseFloat(normalizedRow.VALOR || 0),
-                        quantidade: parseInt(normalizedRow.QUANTIDADE || normalizedRow.QTD || 0)
-                    }
-                }).filter(row => !isNaN(row.cli_codigo) && !isNaN(row.for_codigo) && row.periodo.length === 10)
-
-                if (data.length === 0) {
-                    toast.dismiss(loadingToast)
-                    toast.error("Nenhum registro válido processado. Verifique os códigos e o formato da data.")
-                    return
-                }
-
-                const res = await axios.post("/crm/sellout/import", { data })
+            if (jsonData.length === 0) {
                 toast.dismiss(loadingToast)
-                toast.success(`Sucesso! ${res.data.imported} registros de sell-out importados.`)
+                toast.error("Planilha vazia ou sem dados válidos.")
+                return
+            }
 
-                if (res.data.errors?.length > 0) {
-                    console.log("Erros durante importação:", res.data.errors)
+            const data = jsonData.map((row, index) => {
+                // Normalizar nomes das colunas (Case insensitive e sem espaços)
+                const normalizedRow = Object.keys(row).reduce((acc, key) => {
+                    acc[key.trim().toUpperCase()] = row[key]
+                    return acc
+                }, {})
+
+                let p = normalizedRow.PERIODO || ""
+
+                // Tratamento flexível de data
+                if (p instanceof Date) {
+                    p = p.toISOString().substring(0, 7)
+                } else if (typeof p === 'string' && p.includes('/') && p.length >= 7) {
+                    const parts = p.split('/')
+                    if (parts.length >= 2) {
+                        if (parts[1].length === 4) p = `${parts[1]}-${parts[0].padStart(2, '0')}` // MM/YYYY
+                        else if (parts[2]?.length === 4) p = `${parts[2]}-${parts[1].padStart(2, '0')}` // DD/MM/YYYY
+                    }
                 }
 
-                carregarDados()
-                carregarSummary()
-                carregarPendencias()
+                return {
+                    cli_codigo: parseInt(normalizedRow.CLI_CODIGO || normalizedRow.CLIENTE),
+                    for_codigo: parseInt(normalizedRow.FOR_CODIGO || normalizedRow.INDUSTRIA),
+                    periodo: p.length === 7 ? p + "-01" : p,
+                    valor: parseFloat(normalizedRow.VALOR || 0),
+                    quantidade: parseInt(normalizedRow.QUANTIDADE || normalizedRow.QTD || 0)
+                }
+            }).filter(row => !isNaN(row.cli_codigo) && !isNaN(row.for_codigo) && row.periodo.length === 10)
+
+            if (data.length === 0) {
+                toast.dismiss(loadingToast)
+                toast.error("Nenhum registro válido processado. Verifique os códigos e o formato da data.")
+                return
             }
-            reader.readAsBinaryString(file)
+
+            const res = await axios.post("/crm/sellout/import", { data })
+            toast.dismiss(loadingToast)
+            toast.success(`Sucesso! ${res.data.imported} registros de sell-out importados.`)
+
+            carregarDados()
+            carregarSummary()
+            carregarPendencias()
         } catch (error) {
             toast.dismiss(loadingToast)
             toast.error("Falha ao processar arquivo Excel")
@@ -389,8 +378,13 @@ export default function SellOutPage() {
 
     const formatPeriodo = (dateStr) => {
         if (!dateStr) return "—"
-        const d = new Date(dateStr)
-        return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        // Evita deslocamento de fuso horário (UTC vs Local) pegando apenas a string ISO
+        const isoDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        const parts = isoDate.split('-');
+        if (parts.length >= 2) {
+            return `${parts[1]}/${parts[0]}`; // MM/YYYY
+        }
+        return dateStr;
     }
 
     const filteredRegistros = registros.filter(reg => {
@@ -780,10 +774,10 @@ export default function SellOutPage() {
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Indústria Representada</label>
                                                     <Combobox
-                                                        items={industrias.map(i => ({
-                                                            value: (i.id || i.for_codigo).toString(),
-                                                            label: i.nome || i.for_nomered || i.for_nome
-                                                        }))}
+                                                         items={industrias.map(i => ({
+                                                             value: (i.id || i.for_codigo).toString(),
+                                                             label: i.for_nomered || i.for_nome || i.nome
+                                                         }))}
                                                         value={forCodigo}
                                                         onChange={setForCodigo}
                                                         placeholder="Selecione a indústria..."
@@ -907,7 +901,7 @@ export default function SellOutPage() {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="p-5 font-bold text-slate-600">{reg.for_nome}</td>
+                                                         <td className="p-5 font-bold text-slate-600">{reg.for_nomered || reg.for_nome}</td>
                                                         <td className="p-5">
                                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 text-[11px] font-bold shadow-sm">
                                                                 <Calendar className="w-3 h-3 text-slate-400" />

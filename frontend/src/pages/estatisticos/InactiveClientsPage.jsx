@@ -83,13 +83,13 @@ export default function InactiveClientsPage() {
     };
 
     return (
-        <div className="p-6 bg-slate-50 min-h-screen">
+        <div className="p-6 bg-stone-50 min-h-screen font-sans">
             <div className="flex flex-col gap-6 max-w-7xl mx-auto">
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <h1 className="text-2xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
                             {periodo === -1 ? (
                                 <Search className="w-8 h-8 text-emerald-500" />
                             ) : (
@@ -97,20 +97,20 @@ export default function InactiveClientsPage() {
                             )}
                             {periodo === -1 ? 'Clientes Ativos' : 'Clientes Inativos'}
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1">
+                        <p className="text-stone-500 text-sm mt-1">
                             {periodo === -1
                                 ? 'Listagem de todos os clientes com cadastro ativo no sistema.'
                                 : 'Listagem de clientes sem compras no período selecionado.'}
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" onClick={loadData} disabled={loading} className="gap-2">
+                        <button onClick={loadData} disabled={loading} className="h-[38px] px-4 border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
                             <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                             Atualizar
-                        </Button>
-                        <Button onClick={handleExport} className="bg-green-600 hover:bg-green-700 gap-2">
-                            <Download className="w-4 h-4" /> Exportar Excel
-                        </Button>
+                        </button>
+                        <button onClick={handleExport} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                            <Download className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                        </button>
                     </div>
                 </div>
 
@@ -176,18 +176,18 @@ export default function InactiveClientsPage() {
                 </div>
 
                 {/* Filters */}
-                <Card className="border-slate-200 shadow-sm">
+                <Card className="border-stone-200 shadow-sm">
                     <CardContent className="p-4 flex flex-wrap gap-2 items-center">
-                        <span className="text-sm font-semibold text-slate-600 uppercase tracking-wide mr-2 flex items-center gap-2">
+                        <span className="text-xs font-bold text-stone-600 uppercase tracking-wider mr-2 flex items-center gap-2">
                             <Calendar className="w-4 h-4" /> Período de Inatividade:
                         </span>
                         {periodOptions.map(opt => (
                             <button
                                 key={opt.value}
                                 onClick={() => setPeriodo(opt.value)}
-                                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${periodo === opt.value
+                                className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all ${periodo === opt.value
                                     ? opt.active
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                    : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
                                     }`}
                             >
                                 {opt.label}
@@ -197,22 +197,22 @@ export default function InactiveClientsPage() {
                 </Card>
 
                 {/* Data Table */}
-                <Card className="border-slate-200 shadow-lg">
+                <Card className="border-stone-200 shadow-sm">
                     <CardContent className="p-0">
                         <div className="relative overflow-x-auto">
                             <Table>
-                                <TableHeader className="bg-slate-100">
-                                    <TableRow>
-                                        <TableHead className="w-[80px]">Cód.</TableHead>
-                                        <TableHead>CNPJ/CPF</TableHead>
-                                        <TableHead>Nome Cliente</TableHead>
-                                        <TableHead>Cidade</TableHead>
-                                        <TableHead>Vendedor</TableHead>
-                                        <TableHead className="text-right">Freq. (dias)</TableHead>
-                                        <TableHead className="text-right">Perdidos</TableHead>
-                                        <TableHead className="text-right">Ticket Médio</TableHead>
-                                        <TableHead className="text-right font-bold text-rose-600">Receita Potencial</TableHead>
-                                        <TableHead className="text-right">Última Compra</TableHead>
+                                <TableHeader className="bg-stone-100">
+                                    <TableRow className="border-b border-stone-200">
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider w-[80px]">Cód.</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider">CNPJ/CPF</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider">Nome Cliente</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider">Cidade</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider">Vendedor</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider text-right">Freq. (dias)</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider text-right">Perdidos</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider text-right">Ticket Médio</TableHead>
+                                        <TableHead className="text-xs font-bold text-rose-600 uppercase tracking-wider text-right">Receita Potencial</TableHead>
+                                        <TableHead className="text-xs font-bold text-stone-600 uppercase tracking-wider text-right">Última Compra</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -235,36 +235,36 @@ export default function InactiveClientsPage() {
                                         </TableRow>
                                     ) : (
                                         data.map((item, idx) => (
-                                            <TableRow key={idx} className="hover:bg-slate-50 group transition-colors">
-                                                <TableCell className="font-mono text-xs font-bold text-slate-500">
+                                            <TableRow key={idx} className="hover:bg-stone-50 group transition-colors border-b border-stone-100">
+                                                <TableCell className="font-mono text-xs font-bold text-stone-500">
                                                     {item.codigo}
                                                 </TableCell>
-                                                <TableCell className="text-xs text-slate-600 font-mono">
+                                                <TableCell className="text-xs text-stone-600 font-mono">
                                                     {formatCNPJ(item.cnpj) || '-'}
                                                 </TableCell>
-                                                <TableCell className="font-medium text-slate-800">
+                                                <TableCell className="font-medium text-stone-800 text-xs">
                                                     {item.nome}
-                                                    <span className="block text-xs text-slate-400 font-normal">{item.nome_reduzido}</span>
+                                                    <span className="block text-xs text-stone-400 font-normal">{item.nome_reduzido}</span>
                                                 </TableCell>
-                                                <TableCell className="text-xs text-slate-600">
+                                                <TableCell className="text-xs text-stone-600">
                                                     {item.cidade ? `${item.cidade} - ${item.uf}` : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-xs font-semibold text-slate-700">
+                                                <TableCell className="text-xs font-semibold text-stone-700">
                                                     {item.vendedor || '-'}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs font-medium text-slate-500">
+                                                <TableCell className="text-right text-xs font-medium text-stone-500">
                                                     {Math.round(item.frequencia_dias) || '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs font-black text-rose-500">
                                                     {item.pedidos_perdidos || 0}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs font-medium text-slate-600">
+                                                <TableCell className="text-right text-xs font-medium text-stone-600">
                                                     {item.potential_ticket ? `R$ ${parseFloat(item.potential_ticket).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-right text-sm font-black text-rose-700 bg-rose-50/50">
+                                                <TableCell className="text-right text-xs font-black text-rose-700 bg-rose-50/50">
                                                     {item.receita_potencial ? `R$ ${parseFloat(item.receita_potencial).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium">
+                                                <TableCell className="text-right font-medium text-xs">
                                                     <span className={periodo === -1 ? "text-emerald-600" : "text-rose-600"}>
                                                         {item.ultima_compra ? new Date(item.ultima_compra).toLocaleDateString() : 'Nunca'}
                                                     </span>

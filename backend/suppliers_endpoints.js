@@ -7,22 +7,64 @@ module.exports = (pool) => {
     // 1. List All Suppliers (THE MISSING ONE)
     router.get('/', async (req, res) => {
         try {
-            const { status } = req.query;
+            const { status, all } = req.query;
+            const userId = req.headers['x-user-id'] || req.query.userId;
+            const currentPool = getPool(req);
+
             let query = `
                 SELECT f.*, 
                     (SELECT COUNT(*) FROM cad_prod p WHERE p.pro_industria = f.for_codigo) as total_produtos
                 FROM fornecedores f
             `;
             const params = [];
+            const filters = [];
 
             if (status) {
-                query += ` WHERE f.for_tipo2 = $1 `;
+                filters.push(`f.for_tipo2 = $${params.length + 1}`);
                 params.push(status);
+            } else if (all !== 'true') {
+                // Default to active only unless all=true is specified
+                filters.push(`f.for_tipo2 = 'A'`);
+            }
+
+            // Filtro de Indústrias por Usuário/Vendedor (Se não for Master)
+            if (userId && userId !== 'undefined') {
+                try {
+                    const userRes = await currentPool.query(
+                        'SELECT master FROM user_nomes WHERE codigo = $1',
+                        [parseInt(userId)]
+                    );
+
+                    if (userRes.rows.length > 0 && !userRes.rows[0].master) {
+                        // Busca o vendedor vinculado por ID (ven_codusu = user_nomes.codigo)
+                        const sellerRes = await currentPool.query(
+                            'SELECT ven_codigo FROM vendedores WHERE ven_codusu = $1',
+                            [parseInt(userId)]
+                        );
+
+                        if (sellerRes.rows.length > 0) {
+                            const sellerId = sellerRes.rows[0].ven_codigo;
+                            // Filtra apenas as indústrias que o vendedor atende
+                            filters.push(`f.for_codigo IN (SELECT vin_industria FROM vendedor_ind WHERE vin_codigo = $${params.length + 1})`);
+                            params.push(sellerId);
+                        } else {
+                            // Não-master sem vendedor vinculado → bloqueia tudo
+                            console.log(`🔐 [SUPPLIERS] User ${userId}: não-master sem vendedor vinculado, bloqueando acesso.`);
+                            filters.push('1=0');
+                        }
+                    }
+                } catch (err) {
+                    console.error('⚠️ [SUPPLIERS] Erro ao aplicar filtro de usuário:', err.message);
+                }
+            }
+
+            if (filters.length > 0) {
+                query += ` WHERE ${filters.join(' AND ')} `;
             }
 
             query += ` ORDER BY f.for_nomered ASC `;
 
-            const result = await getPool(req).query(query, params);
+            const result = await currentPool.query(query, params);
             res.json({ success: true, data: result.rows });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
@@ -244,6 +286,75 @@ module.exports = (pool) => {
                 message: 'Erro ao atualizar indústria.',
                 error: error.message
             });
+        }
+    });
+
+    // 8. GET IA Knowledge
+    router.get('/:supplierId/ia-knowledge', async (req, res) => {
+        try {
+            const { supplierId } = req.params;
+            const query = `
+                SELECT * FROM ia_conhecimento 
+                WHERE for_codigo = $1
+            `;
+            const result = await getPool(req).query(query, [supplierId]);
+            res.json({ success: true, data: result.rows[0] || {} });
+        } catch (error) {
+            // Se tabela não existir ainda, retorna vazio sem erro
+            if (error.code === '42P01') {
+                return res.json({ success: true, data: {} });
+            }
+            console.error('❌ [IA_KNOWLEDGE] GET error:', error.message);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // 9. SAVE IA Knowledge (Upsert)
+    router.post('/:supplierId/ia-knowledge', async (req, res) => {
+        try {
+            const { supplierId } = req.params;
+            const { nome_marca, resumo_negocio, persona_ia, palavras_chave } = req.body;
+
+            // Converter supplierId para inteiro
+            const fid = parseInt(supplierId);
+            if (isNaN(fid)) throw new Error("ID do fornecedor inválido");
+
+            // Verifica se já existe registro para esse fornecedor
+            const checkQuery = `SELECT id FROM ia_conhecimento WHERE for_codigo = $1`;
+            const checkRes = await getPool(req).query(checkQuery, [fid]);
+
+            let query;
+            let params;
+
+            if (checkRes.rows.length > 0) {
+                // UPDATE
+                query = `
+                    UPDATE ia_conhecimento 
+                    SET nome_marca = $1, 
+                        resumo_negocio = $2, 
+                        persona_ia = $3, 
+                        palavras_chave = $4,
+                        updated_at = NOW()
+                    WHERE for_codigo = $5
+                    RETURNING *
+                `;
+                params = [nome_marca, resumo_negocio, persona_ia, palavras_chave, fid];
+            } else {
+                query = `
+                    INSERT INTO ia_conhecimento (
+                        nome_marca, resumo_negocio, persona_ia, palavras_chave, for_codigo
+                    ) VALUES ($1, $2, $3, $4, $5)
+                    RETURNING *
+                `;
+                params = [nome_marca, resumo_negocio, persona_ia, palavras_chave, fid];
+            }
+
+            const result = await getPool(req).query(query, params);
+            res.json({ success: true, message: 'Dados de IA salvos com sucesso!', data: result.rows[0] });
+
+        } catch (error) {
+            console.error('❌ [IA_KNOWLEDGE] SAVE error:', error.message);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 

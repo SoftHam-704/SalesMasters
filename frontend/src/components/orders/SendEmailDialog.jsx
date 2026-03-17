@@ -40,7 +40,7 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
     const [logs, setLogs] = useState([]);
     const [smtpInfo, setSmtpInfo] = useState({ host: '...', user: '...' });
 
-    const isEligibleForIndustryEmail = orderData?.order?.ped_situacao === 'P';
+    const isEligibleForIndustryEmail = ['P', 'A', 'F', 'G', 'B'].includes(orderData?.order?.ped_situacao);
 
     // Fetch user parameters and company data on mount
     useEffect(() => {
@@ -85,14 +85,17 @@ const SendEmailDialog = ({ isOpen, onClose, orderData, onSend }) => {
         if (orderData && isOpen) {
             setLogs([]);
             const order = orderData.order;
-            const isEligible = order?.ped_situacao === 'P';
+            const isEligible = ['P', 'A', 'F', 'G', 'B'].includes(order?.ped_situacao);
+
+            // Fetch industry email with multiple fallbacks
+            const industryEmail = order?.for_email || order?.cli_emailcomprador || '';
 
             setRecipients(prev => ({
                 ...prev,
                 cliente: { ...prev.cliente, email: order?.cli_email || order?.cli_emailnfe || '' },
                 industria: {
-                    enabled: isEligible,
-                    email: isEligible ? (order?.for_email || '') : ''
+                    enabled: !!industryEmail && isEligible,
+                    email: industryEmail
                 }
             }));
 

@@ -286,6 +286,27 @@ export default function OrdersPage({ forceProjetos }) {
     const [userParams, setUserParams] = useState(null);
 
     useEffect(() => {
+        const handlePortalImport = (e) => {
+            const { portal, items, cliente, clienteNome, industriaId, tabela } = e.detail;
+            sessionStorage.setItem('PORTAL_IMPORT_DATA', JSON.stringify({
+                portal,
+                cliente,
+                clienteNome,
+                items,
+                industriaId,
+                tabela
+            }));
+            
+            // Força a criação de um pedido novo
+            setSelectedOrderObj(null);
+            setIsReadOnly(false);
+            setOrderDialogOpen(true);
+        };
+        window.addEventListener('portalImportCompleted', handlePortalImport);
+        return () => window.removeEventListener('portalImportCompleted', handlePortalImport);
+    }, []);
+
+    useEffect(() => {
         const loadUserParams = async () => {
             const userStr = sessionStorage.getItem('user');
             if (userStr) {
@@ -578,6 +599,20 @@ export default function OrdersPage({ forceProjetos }) {
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                    setSelectedPortalOrder(null);
+                                    setPortalsDialogOpen(true);
+                                }}
+                                className="px-6 py-2.5 bg-orange-500 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-orange-600 transition-all shadow-sm flex items-center gap-2"
+                                title="Importar Pedidos via Portais"
+                            >
+                                <Globe className="h-4 w-4" />
+                                Portais
+                            </motion.button>
+
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={handleSearch}
                                 className="px-6 py-2.5 bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-sm"
                             >
@@ -798,6 +833,10 @@ export default function OrdersPage({ forceProjetos }) {
                 selectedOrder={selectedOrderObj}
                 readOnly={isReadOnly}
                 forceProjetos={forceProjetos}
+                onPortals={(orderId) => {
+                    setSelectedPortalOrder(orderId);
+                    setPortalsDialogOpen(true);
+                }}
             />
 
             <PrintOrderDialog

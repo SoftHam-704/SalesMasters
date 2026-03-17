@@ -330,18 +330,21 @@ const SellerForm = ({ data, onClose, onSave }) => {
                         <div className="col-6">
                             <DbComboBox
                                 label="Usuário (Acesso)"
-                                value={formData.ven_nomeusu ? { label: formData.ven_nomeusu, value: formData.ven_nomeusu } : null}
-                                onChange={(item) => handleChange('ven_nomeusu', item?.value || '')}
+                                value={formData.ven_nomeusu ? { label: formData.ven_nomeusu, value: formData.ven_codusu || formData.ven_nomeusu } : null}
+                                onChange={(val, fullItem) => {
+                                    handleChange('ven_nomeusu', fullItem?.usuario || fullItem?.label || '');
+                                    handleChange('ven_codusu', fullItem?.codigo || val || null);
+                                }}
                                 fetchData={async (search) => {
                                     try {
                                         const res = await fetch(getApiUrl(NODE_API_URL, `/api/users?search=${search}`));
                                         const json = await res.json();
-                                        // Filter/Map if necessary. Assuming API returns {data: [{usuario, nome...}]}
-                                        // We need to map to { label, value }
                                         const list = json.data || json;
                                         return list.map(u => ({
                                             label: `${u.nome}${u.sobrenome ? ' ' + u.sobrenome : ''} (${u.usuario})`,
-                                            value: u.usuario
+                                            value: u.codigo,
+                                            codigo: u.codigo,
+                                            usuario: u.usuario
                                         }));
                                     } catch (e) {
                                         console.error(e);

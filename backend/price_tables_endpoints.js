@@ -4,6 +4,7 @@
 // Endpoints para gerenciar tabelas de preço e importação de produtos
 
 const express = require('express');
+const { getLinkedSellerId, buildIndustryFilterClause } = require('./utils/permissions');
 
 module.exports = (pool) => {
     const router = express.Router();
@@ -15,6 +16,10 @@ module.exports = (pool) => {
     // ============================================================================
     router.get('/', async (req, res) => {
         try {
+            const userId = req.headers['x-user-id'];
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause, params } = buildIndustryFilterClause(sellerId, 't.itab_idindustria');
+
             const query = `
             SELECT DISTINCT 
                 itab_tabela as nome_tabela,
@@ -26,11 +31,13 @@ module.exports = (pool) => {
                 BOOL_AND(itab_status) as todas_ativas
             FROM cad_tabelaspre t
             INNER JOIN fornecedores f ON f.for_codigo = t.itab_idindustria
+            WHERE 1=1
+              ${filterClause}
             GROUP BY itab_tabela, itab_idindustria, f.for_nomered
             ORDER BY itab_idindustria, itab_tabela
         `;
 
-            const result = await pool.query(query);
+            const result = await pool.query(query, params);
 
             res.json({
                 success: true,
@@ -51,19 +58,24 @@ module.exports = (pool) => {
     router.get('/:industria', async (req, res) => {
         try {
             const { industria } = req.params;
+            const userId = req.headers['x-user-id'];
 
-            // Validação de segurança para evitar erros de cast (ex: $1 = '...')
-            const targetId = parseInt(industria);
-            if (isNaN(targetId)) {
+            // Handle composite IDs like "2:1" by taking only the first part
+            const cleanIndustria = parseInt(industria && String(industria).includes(':') ? String(industria).split(':')[0] : industria);
+
+            if (isNaN(cleanIndustria)) {
                 return res.json({ success: true, data: [], message: 'ID da indústria inválido' });
             }
 
+            // Verificar permissões do usuário
+            const sellerId = await getLinkedSellerId(pool, userId);
+            
+            // Aqui passamos o array com o parâmetro já existente ($1 = cleanIndustria)
+            const { filterClause, params } = buildIndustryFilterClause(sellerId, 'itab_idindustria', [cleanIndustria]);
+
             // DEBUG: Detectar chamadas incorretas (formato industria_tabela)
-            if (industria && (industria.includes('_') || industria.includes('&') || industria.includes('.'))) {
+            if (industria && (String(industria).includes('_') || String(industria).includes('&'))) {
                 console.warn(`⚠️ [PRICE-TABLES] Chamada suspeita detectada! industria="${industria}"`);
-                console.warn(`⚠️ [PRICE-TABLES] O parâmetro deveria ser apenas o código numérico da indústria.`);
-                console.warn(`⚠️ [PRICE-TABLES] User-Agent: ${req.headers['user-agent']}`);
-                console.warn(`⚠️ [PRICE-TABLES] Referer: ${req.headers['referer'] || 'N/A'}`);
             }
 
             const query = `
@@ -75,11 +87,12 @@ module.exports = (pool) => {
                 BOOL_AND(itab_status) as todas_ativas
             FROM cad_tabelaspre
             WHERE itab_idindustria = $1
+              ${filterClause}
             GROUP BY itab_tabela
             ORDER BY itab_tabela
         `;
 
-            const result = await pool.query(query, [industria]);
+            const result = await pool.query(query, params);
 
             res.json({
                 success: true,
@@ -100,14 +113,22 @@ module.exports = (pool) => {
     router.get('/:industria/:tabela/products', async (req, res) => {
         try {
             const { industria, tabela } = req.params;
-            const { page = 1, limit = 50 } = req.query;
+            const { limit = 50, offset = 0 } = req.query;
+            const userId = req.headers['x-user-id'];
 
-            const offset = (page - 1) * limit;
+            const cleanIndustria = parseInt(industria && String(industria).includes(':') ? String(industria).split(':')[0] : industria);
+            if (isNaN(cleanIndustria)) {
+                return res.status(400).json({ success: false, message: 'ID da indústria inválido' });
+            }
+
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause, params } = buildIndustryFilterClause(sellerId, 'pro_industria', [cleanIndustria, tabela, limit, offset]);
 
             const query = `
             SELECT * FROM vw_produtos_precos
             WHERE pro_industria = $1 
               AND itab_tabela = $2
+              ${filterClause}
             ORDER BY pro_nome
             LIMIT $3 OFFSET $4
         `;
@@ -116,18 +137,19 @@ module.exports = (pool) => {
             SELECT COUNT(*) as total
             FROM cad_tabelaspre
             WHERE itab_idindustria = $1 AND itab_tabela = $2
+              ${filterClause.replace('pro_industria', 'itab_idindustria')}
         `;
 
             const [dataResult, countResult] = await Promise.all([
-                pool.query(query, [industria, tabela, limit, offset]),
-                pool.query(countQuery, [industria, tabela])
+                pool.query(query, params),
+                pool.query(countQuery, params)
             ]);
 
             res.json({
                 success: true,
                 data: dataResult.rows,
                 pagination: {
-                    page: parseInt(page),
+                    page: parseInt(req.query.page || 1), // Use original page from query or default to 1
                     limit: parseInt(limit),
                     total: parseInt(countResult.rows[0].total),
                     totalPages: Math.ceil(countResult.rows[0].total / limit)
@@ -150,15 +172,19 @@ module.exports = (pool) => {
         try {
             let { industria, tabela } = req.params;
 
-            console.log(`📋 [MEMTABLE] Request recebido: Indústria=${industria}, Tabela="${tabela}", query.tabela="${req.query.tabela}"`);
-            console.log(`📋 [MEMTABLE] Full URL: ${req.originalUrl}`);
-
             // Suporte a passar tabela via query parameter (para evitar problemas com barras / na URL)
             if (req.query.tabela) {
                 tabela = req.query.tabela;
             }
+            const userId = req.headers['x-user-id'];
 
-            // console.log(`📋 [MEMTABLE] Carregando tabela completa: Indústria=${industria}, Tabela="${tabela}"`);
+            const cleanIndustria = parseInt(industria && String(industria).includes(':') ? String(industria).split(':')[0] : industria);
+            if (isNaN(cleanIndustria)) {
+                return res.status(400).json({ success: false, message: 'ID da indústria inválido' });
+            }
+
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause, params } = buildIndustryFilterClause(sellerId, 'p.pro_industria', [cleanIndustria, tabela]);
 
             // Usar a função que foi corrigida para usar itab_idindustria
             // Incluindo p.pro_id para que o frontend tenha o ID do produto
@@ -170,14 +196,19 @@ module.exports = (pool) => {
                        p.pro_nome as pro_nome_prod,
                        p.pro_codprod,
                        p.pro_peso,
+                       p.pro_embalagem as pro_mult,
+                       p.pro_embalagem,
                        p.pro_conversao,
-                       p.pro_codigooriginal
+                       p.pro_codigooriginal,
+                       p.pro_codbarras
                 FROM fn_listar_produtos_tabela($1::integer, $2::text) f
                 LEFT JOIN cad_prod p ON f.itab_idprod = p.pro_id
+                WHERE 1=1
+                  ${filterClause}
                 ORDER BY f.pro_nome
             `;
 
-            const result = await pool.query(query, [industria, tabela]);
+            const result = await pool.query(query, params);
 
             // console.log(`📋 [MEMTABLE] Carregados ${result.rows.length} produtos`);
 
@@ -234,11 +265,11 @@ module.exports = (pool) => {
                         // 1. UPSERT do produto (dados fixos)
                         // Casting explícito para garantir tipos no Postgres
                         const upsertProdutoResult = await client.query(
-                            `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                            `SELECT fn_upsert_produto($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
                             [
                                 Number(industria),
-                                produto.codigo,
-                                produto.descricao,
+                                produto.codigo ? String(produto.codigo).substring(0, 100) : null,
+                                produto.descricao ? String(produto.descricao).substring(0, 100) : null,
                                 produto.peso ? Number(produto.peso) : null,
                                 produto.embalagem ? Number(produto.embalagem) : null,
                                 produto.grupo ? Number(produto.grupo) : null,
@@ -248,7 +279,13 @@ module.exports = (pool) => {
                                 produto.origem || null,
                                 produto.aplicacao || null,
                                 produto.codbarras || null,
-                                produto.conversao || null
+                                produto.conversao || null,
+                                null, // p_linhaleve (null = preservar existente)
+                                null, // p_linhapesada
+                                null, // p_linhaagricola
+                                null, // p_linhautilitarios
+                                null, // p_motocicletas
+                                null  // p_offroad
                             ]
                         );
 
@@ -489,7 +526,7 @@ module.exports = (pool) => {
                 `UPDATE cad_tabelaspre 
                  SET itab_descontoadd = 0 
                  WHERE itab_idprod = $1 
-                   AND itab_industria = $2 
+                   AND itab_idindustria = $2 
                    AND itab_tabela = $3 
                  RETURNING *`,
                 [productId, industria, tabela]

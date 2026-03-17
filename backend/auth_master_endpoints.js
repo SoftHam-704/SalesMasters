@@ -35,10 +35,15 @@ router.post('/master-login', async (req, res) => {
         const isDev = process.env.NODE_ENV !== 'production';
 
         const masterQuery = `
+
             SELECT id, cnpj, razao_social, nome_fantasia, status, db_host, db_nome, db_schema, db_usuario, db_senha, db_porta, 
                    COALESCE(limite_sessoes, 999) as limite_sessoes, 
                    COALESCE(bloqueio_ativo, 'N') as bloqueio_ativo,
-                   ramoatv, ios_enabled
+                   ramoatv, ios_enabled,
+                   COALESCE(modulo_bi_ativo, false) as modulo_bi_ativo,
+                   COALESCE(modulo_whatsapp_ativo, false) as modulo_whatsapp_ativo,
+                   COALESCE(modulo_crmrep_ativo, false) as modulo_crmrep_ativo,
+                   COALESCE(plano_ia_nivel, 'BASIC') as plano_ia_nivel
             FROM empresas 
             WHERE regexp_replace(cnpj, '[^0-9]', '', 'g') = $1 AND status = 'ATIVO'
         `;
@@ -157,11 +162,12 @@ router.post('/master-login', async (req, res) => {
 
         console.log(`✅ [AUTH] Login realizado no schema "${schema}" para: ${user.nome}`);
 
-        res.json({
+        const loginResponse = {
             success: true,
             token: sessionToken,
             user: {
                 id: user.id,
+                codigo: user.id, // V1.1 - Forçado para Mobile Dashboard
                 empresa_id: empresa.id,
                 nome: user.nome,
                 sobrenome: user.sobrenome,
@@ -169,16 +175,56 @@ router.post('/master-login', async (req, res) => {
                 role: isHamilton ? 'superadmin' : (user.e_admin === true || user.e_admin === 'S' ? 'admin' : 'user'),
                 empresa: empresa.nome_fantasia || empresa.razao_social,
                 cnpj: empresa.cnpj,
-                biEnabled: empresa.bloqueio_ativo === 'S',
+                // Features ativas:
+                biEnabled: empresa.modulo_bi_ativo === true,
+                whatsappEnabled: empresa.modulo_whatsapp_ativo === true,
+                crmRepEnabled: empresa.modulo_crmrep_ativo === true,
+                iaPlanLevel: empresa.plano_ia_nivel,
+
                 ios_enabled: empresa.ios_enabled || 'N',
                 ramoatv: empresa.ramoatv || 'PADRAO'
             },
             tenantConfig: {
                 cnpj: empresa.cnpj,
                 ramoatv: empresa.ramoatv || 'PADRAO',
+                features: {
+                    bi: empresa.modulo_bi_ativo === true,
+                    whatsapp: empresa.modulo_whatsapp_ativo === true,
+                    crmrep: empresa.modulo_crmrep_ativo === true,
+                    ia_level: empresa.plano_ia_nivel
+                },
                 dbConfig: { ...dbConfig }
             }
-        });
+        };
+
+        // --- SINCRONIZAR COM CHAT_USERS (MASTER DB) ---
+        // Isso centraliza o chat independente do schema
+        const chatSyncQuery = `
+            INSERT INTO chat_users (empresa_id, tenant_user_id, nome, sobrenome, usuario_login, email, perfil)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (empresa_id, tenant_user_id) 
+            DO UPDATE SET 
+                nome = EXCLUDED.nome,
+                sobrenome = EXCLUDED.sobrenome,
+                usuario_login = EXCLUDED.usuario_login,
+                email = EXCLUDED.email,
+                perfil = EXCLUDED.perfil,
+                updated_at = NOW()
+            RETURNING id
+        `;
+        const chatSyncRes = await masterPool.query(chatSyncQuery, [
+            empresa.id,
+            user.id,
+            user.nome,
+            user.sobrenome,
+            user.usuario || null,
+            email || null,
+            loginResponse.user.role
+        ]);
+
+        loginResponse.user.chat_user_id = chatSyncRes.rows[0].id;
+
+        res.json(loginResponse);
 
     } catch (error) {
         console.error('❌ [AUTH MASTER] Erro crítico no fluxo de login:', error);
@@ -187,6 +233,19 @@ router.post('/master-login', async (req, res) => {
             message: 'Erro interno ao processar login.',
             detail: error.message
         });
+    }
+});
+
+router.post('/logout', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (token) {
+            await masterPool.query("UPDATE sessoes_ativas SET ativo = false WHERE token_sessao = $1", [token]);
+        }
+        res.json({ success: true, message: 'Logout realizado com sucesso' });
+    } catch (error) {
+        console.error('❌ [AUTH LOGOUT] Erro:', error.message);
+        res.json({ success: true }); // Retornar sucesso mesmo com erro para não travar o app
     }
 });
 

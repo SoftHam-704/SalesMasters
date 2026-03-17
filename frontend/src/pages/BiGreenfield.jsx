@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
 import {
     Sparkles,
     TrendingUp,
     Users,
     Search,
-    ArrowUpRight,
-    ArrowDownRight,
     Zap,
     BrainCircuit,
     BarChart3,
@@ -16,10 +15,11 @@ import {
     UserCircle,
     Package,
     ChevronRight,
-    Filter,
-    Calendar,
     RefreshCw,
-    CircleDashed
+    CircleDashed,
+    Calendar,
+    ArrowUpRight,
+    Plus
 } from "lucide-react";
 import {
     AreaChart,
@@ -31,377 +31,504 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
+// --- Aura Sub-Components ---
+
+// Flashlight Card Effect
+const FlashlightCard = ({ children, className = "" }) => {
+    const cardRef = useRef(null);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e) => {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        setPosition({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+    };
+
+    return (
+        <div
+            ref={cardRef}
+            onMouseMove={handleMouseMove}
+            className={`flashlight-card relative overflow-hidden ${className}`}
+            style={{
+                "--mouse-x": `${position.x}px`,
+                "--mouse-y": `${position.y}px`,
+            }}
+        >
+            <div className="relative z-10 h-full w-full">{children}</div>
+        </div>
+    );
+};
+
+// Metric Card with Aura Aesthetic
+const MetricCardAura = ({ title, value, change, icon: Icon, delay = 0 }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay }}
+    >
+        <FlashlightCard className="p-6 bg-white/80 backdrop-blur-xl border border-stone-200 rounded-[2rem] shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-stone-100 rounded-2xl">
+                    <Icon className="w-5 h-5 text-stone-600" />
+                </div>
+                <div className={`flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded-full border ${change >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                    }`}>
+                    {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+                    {Math.abs(change)}%
+                </div>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-stone-400 block mb-1">{title}</span>
+            <div className="flex items-baseline gap-2">
+                <h3 className="text-2xl font-display font-medium text-stone-900 tracking-tight">{value}</h3>
+            </div>
+        </FlashlightCard>
+    </motion.div>
+);
+
+// Advanced Industry Bubble Cluster (Magnetic Bubble Packing "Caracol")
+const IndustryBubbleClusterAura = ({ data }) => {
+    const [nodes, setNodes] = useState([]);
+    const [hoveredIndex, setHoveredIndex] = useState(null);
+
+    useEffect(() => {
+        if (!data || data.length === 0) return;
+
+        // Estratégia de Slots Fixos (Centros exatos conforme solicitado)
+        const fixedSlots = [
+            { id: "mob", size: 201, x: 185, y: 240 }, // Bolha 1 (Principal)
+            { id: "ima", size: 163, x: 364, y: 192 }, // Bolha 2 (IMA)
+            { id: "urb", size: 150, x: 256, y: 75 },  // Bolha 3 (Superior R)
+            { id: "aut", size: 140, x: 108, y: 87 },  // Bolha 4 (Superior L)
+            { id: "igu", size: 115, x: 32, y: 192 },  // Bolha 5 (Médio L)
+            { id: "dri", size: 100, x: 42, y: 301 }   // Bolha 6 (WEL)
+        ];
+
+        const sorted = [...data].sort((a, b) => (parseFloat(b.revenue) || 0) - (parseFloat(a.revenue) || 0));
+
+        const positioned = sorted.slice(0, 6).map((node, i) => ({
+            ...node,
+            ...fixedSlots[i]
+        }));
+
+        setNodes(positioned);
+    }, [data]);
+
+    if (!nodes.length) return null;
+
+    return (
+        <div
+            className="relative w-full h-full flex items-center justify-center overflow-visible auraCluster"
+            onMouseLeave={() => setHoveredIndex(null)}
+        >
+            {/* Background Aura Glow */}
+            <div className="absolute w-[450px] h-[450px] bg-cyan-500/10 blur-[120px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+
+            {nodes.map((node, i) => (
+                <motion.div
+                    key={node.name}
+                    className="bubble absolute cursor-pointer"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{
+                        scale: 1,
+                        opacity: (hoveredIndex !== null && hoveredIndex !== i) ? 0.35 : 1
+                    }}
+                    whileHover={{
+                        scale: 1.08,
+                        zIndex: 1000
+                    }}
+                    onMouseEnter={() => setHoveredIndex(i)}
+                    transition={{
+                        type: "spring",
+                        stiffness: 200,
+                        damping: 18,
+                        delay: i * 0.06
+                    }}
+                    style={{
+                        width: node.size,
+                        height: node.size,
+                        left: node.x - node.size / 2,
+                        top: node.y - node.size / 2,
+                        zIndex: 500 - Math.round(node.size),
+                        animation: `auraFloat ${6 + i}s ease-in-out infinite`
+                    }}
+                >
+                    <div
+                        className="w-full h-full rounded-full bg-[#052c3f] border-2 border-[#00d4ff] flex items-center justify-center shadow-[0_18px_40px_rgba(0,0,0,0.25),inset_0_2px_3px_rgba(255,255,255,0.12)] transition-all duration-300 hover:shadow-[0_0_28px_rgba(0,200,255,0.7),0_0_70px_rgba(0,200,255,0.25)]"
+                    >
+                        <div className="flex flex-col items-center justify-center p-6 transition-all duration-700">
+                            {node.logo ? (
+                                <img
+                                    src={node.logo}
+                                    alt={node.name}
+                                    className="max-w-[65%] object-contain pointer-events-none brightness-110 contrast-125"
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center text-center">
+                                    <span className="font-display text-base font-bold text-white tracking-tight leading-none mb-1">{node.name.slice(0, 3)}</span>
+                                    <span className="font-mono text-[9px] text-cyan-400 font-bold uppercase tracking-widest leading-none">{node.name}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </motion.div>
+            ))}
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @keyframes auraFloat {
+                    0% { transform: translateY(0px); }
+                    50% { transform: translateY(-2px); }
+                    100% { transform: translateY(0px); }
+                }
+                .auraCluster:hover .bubble { opacity: 0.35; }
+                .auraCluster .bubble:hover { opacity: 1; }
+            `}} />
+        </div>
+    );
+};
+
+const GoalsScrollerAura = () => {
+    const goals = [
+        { label: 'BOA', val: '0.0%', lack: 'R$ 1.1M', status: 'critical' },
+        { label: 'BOEING', val: '0.0%', lack: 'R$ 870k', status: 'critical' },
+        { label: 'UMBRELLA', val: '79.0%', lack: 'R$ 159k', status: 'warning' },
+        { label: 'WALMART', val: '0.0%', lack: 'R$ 1.1M', status: 'critical' },
+        { label: 'SAMPEL', val: '45.0%', lack: 'R$ 200k', status: 'warning' },
+        { label: 'VIEMAR', val: '92.0%', lack: 'R$ 45k', status: 'good' },
+    ];
+
+    const displayGoals = [...goals, ...goals];
+
+    return (
+        <div className="bg-white/60 backdrop-blur-xl border-y border-stone-200 py-10 overflow-hidden relative group">
+            <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-[#EAEAE5] to-transparent z-20" />
+            <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#EAEAE5] to-transparent z-20" />
+
+            <div className="flex items-center gap-6 mb-6 px-12 relative z-10">
+                <CircleDashed className="w-5 h-5 text-emerald-500 animate-spin-slow" />
+                <span className="text-xs font-mono font-bold text-stone-400 uppercase tracking-[0.4em]">Metas das Indústrias: Performance de Campo (YTD)</span>
+            </div>
+
+            <div className="flex animate-marquee hover:[animation-play-state:paused] whitespace-nowrap">
+                {displayGoals.map((goal, idx) => (
+                    <div key={idx} className="flex items-center gap-16 mx-12 border-l border-stone-200 pl-12 overflow-hidden group/item">
+                        <div className="flex flex-col">
+                            <span className="text-xs font-mono font-bold text-stone-900 group-hover/item:text-emerald-600 transition-colors uppercase tracking-widest">{goal.label}</span>
+                            <div className="flex items-center gap-4">
+                                <span className={`text-xl font-display font-medium ${goal.status === 'warning' ? 'text-amber-500' : goal.status === 'good' ? 'text-emerald-500' : 'text-stone-400'}`}>{goal.val}</span>
+                                <div className="h-1.5 w-16 bg-stone-100 rounded-full overflow-hidden">
+                                    <div className={`h-full ${goal.status === 'warning' ? 'bg-amber-500' : goal.status === 'good' ? 'bg-emerald-500' : 'bg-stone-400'}`} style={{ width: goal.val }} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-mono font-bold text-rose-400/80 uppercase tracking-tighter">Faltante</span>
+                            <span className="text-xs font-mono font-bold text-stone-600">{goal.lack}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const BiGreenfield = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('visao-geral');
     const [selectedYear, setSelectedYear] = useState(2026);
+    const [summaryData, setSummaryData] = useState(null);
+
+    const formatCurrency = (val) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val || 0);
+    };
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`/api/v2/greenfield/summary`, {
+                params: { ano: selectedYear }
+            });
+            if (response.data.success) {
+                setSummaryData(response.data.data);
+            }
+        } catch (error) {
+            console.error("❌ Erro ao buscar dados Greenfield:", error);
+        } finally {
+            // Pequeno delay para a animação do loader
+            setTimeout(() => setLoading(false), 800);
+        }
+    };
 
     useEffect(() => {
-        const timer = setTimeout(() => setLoading(false), 1200);
-        return () => clearTimeout(timer);
-    }, []);
+        fetchData();
+    }, [selectedYear]);
 
     const tabs = [
-        { id: 'visao-geral', label: 'VISÃO GERAL', icon: LayoutGrid, iconColor: 'text-slate-800' },
-        { id: 'industrias', label: 'INDÚSTRIAS', icon: Building2, iconColor: 'text-[#10B981]' },
-        { id: 'clientes', label: 'CLIENTES', icon: Users, iconColor: 'text-[#3B82F6]' },
-        { id: 'estatisticas', label: 'ESTATÍSTICAS', icon: BarChart3, iconColor: 'text-[#818CF8]' },
-        { id: 'curva-abc', label: 'CURVA ABC', icon: TrendingUp, iconColor: 'text-[#F59E0B]' },
-        { id: 'metas', label: 'METAS', icon: Target, iconColor: 'text-[#F43F5E]' },
-        { id: 'equipe', label: 'EQUIPE', icon: UserCircle, iconColor: 'text-[#A855F7]' },
-        { id: 'produtos', label: 'PRODUTOS', icon: Package, iconColor: 'text-[#06B6D4]' },
+        { id: 'visao-geral', label: 'Visão Geral', icon: LayoutGrid },
+        { id: 'industrias', label: 'Indústrias', icon: Building2 },
+        { id: 'clientes', label: 'Clientes', icon: Users },
+        { id: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
+        { id: 'curva-abc', label: 'Curva ABC', icon: TrendingUp },
+        { id: 'metas', label: 'Metas', icon: Target },
+        { id: 'equipe', label: 'Equipe', icon: UserCircle },
+        { id: 'produtos', label: 'Produtos', icon: Package },
     ];
-
-    const chartData = [
-        { name: 'Jan', value: 4000 },
-        { name: 'Fev', value: 3000 },
-        { name: 'Mar', value: 2000 },
-        { name: 'Abr', value: 2780 },
-        { name: 'Mai', value: 1890 },
-        { name: 'Jun', value: 2390 },
-        { name: 'Jul', value: 3490 },
-    ];
-
-    const brandData = [
-        { name: 'VIEMAR', share: 30, logo: 'https://viemar.com.br/wp-content/uploads/2021/05/Logo-Viemar-Automotive.png' },
-        { name: 'IMA', share: 22, logo: 'https://img.image_grid.com/ind/ima.png' },
-        { name: 'FUCHS', share: 18, logo: 'https://img.image_grid.com/ind/fuchs.png' },
-        { name: 'MTE-THOMSON', share: 12, logo: 'https://img.image_grid.com/ind/mte.png' },
-        { name: 'SAMPEL', share: 10, logo: 'https://img.image_grid.com/ind/sampel.png' },
-        { name: 'SYL', share: 8, logo: 'https://img.image_grid.com/ind/syl.png' },
-    ];
-
-    // --- Component: Compact Legacy Styled KPI Card ---
-    const KpiCardCompact = ({ title, value, change }) => (
-        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex flex-col items-center justify-center text-center">
-            <span className="text-slate-400 text-[8px] font-black uppercase tracking-[0.1em] mb-1">{title}</span>
-            <h3 className="text-sm font-black text-[#1E293B] tracking-tight mb-1">{value}</h3>
-            <div className={`flex items-center gap-1 text-[8px] font-black ${change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                <span className="opacity-60">M-1:</span>
-                {change >= 0 ? '▲' : '▼'} {Math.abs(change)}%
-            </div>
-        </div>
-    );
 
     if (loading) {
         return (
-            <div className="h-full flex flex-col items-center justify-center bg-[#F8FAFC]">
+            <div className="h-full flex flex-col items-center justify-center bg-[#E7E5E4] aura-bg overflow-hidden relative">
+                <div className="noise" />
+                <div className="bg-grid opacity-20" />
                 <motion.div
-                    animate={{ scale: [1, 1.1, 1], rotate: [0, 360] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="p-5 rounded-[2rem] bg-emerald-600 shadow-2xl shadow-emerald-600/30"
+                    animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    className="relative z-10 flex flex-col items-center"
                 >
-                    <BrainCircuit className="w-10 h-10 text-white" />
-                </motion.div>
-                <div className="mt-8 flex flex-col items-center gap-3">
-                    <h2 className="text-[#10B981] font-black tracking-[0.3em] uppercase text-xs">Greenfield Engine</h2>
-                    <div className="h-1.5 w-48 bg-slate-200 rounded-full overflow-hidden">
-                        <motion.div
-                            initial={{ x: "-100%" }}
-                            animate={{ x: "0%" }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                            className="h-full w-full bg-[#10B981] shadow-[0_0_10px_#10B981]"
-                        />
+                    <div className="p-10 bg-white border border-stone-200 rounded-[3.5rem] shadow-2xl relative overflow-hidden group">
+                        <BrainCircuit className="w-12 h-12 text-stone-900 relative z-10" />
                     </div>
-                </div>
+                    <div className="mt-12 flex flex-col items-center gap-3">
+                        <span className="text-[11px] font-mono tracking-[0.5em] uppercase text-stone-500 font-bold">Iniciando Greenfield...</span>
+                        <div className="h-[1.5px] w-48 bg-stone-200 rounded-full relative overflow-hidden">
+                            <motion.div
+                                animate={{ x: ["-100%", "100%"] }}
+                                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-0 bg-emerald-500 shadow-[0_0_10px_#10B981]"
+                            />
+                        </div>
+                    </div>
+                </motion.div>
             </div>
         );
     }
 
+    // Fallbacks para dados vazios
+    const kpis = summaryData?.kpis || {};
+    const brandData = summaryData?.top_industries?.length > 0 ? summaryData.top_industries : [];
+    const chartData = summaryData?.chart_data?.length > 0 ? summaryData.chart_data : [];
+
     return (
-        <div className="h-full bg-[#F8FAFC] overflow-y-auto custom-scrollbar flex flex-col">
+        <div className="h-full bg-[#EAEAE5] aura-bg overflow-y-auto custom-scrollbar flex flex-col relative font-sans text-stone-900 selection:bg-stone-900 selection:text-white">
+            <div className="noise" />
+            <div className="bg-grid opacity-10" />
 
             {/* --- HEADER --- */}
-            <header className="px-8 pt-6 pb-2 bg-white/40 backdrop-blur-xl border-b border-slate-200/60 transition-all duration-300">
-                <div className="max-w-[1700px] mx-auto">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-4">
-                        <div className="flex items-start gap-4">
-                            <motion.div className="p-3.5 bg-[#10B981] rounded-[1.5rem] shadow-2xl relative">
-                                <Zap className="w-7 h-7 text-white" />
-                            </motion.div>
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-2.5">
-                                    <h1 className="text-2xl font-black text-[#1E293B] tracking-tight">BI Intelligence</h1>
-                                    <div className="flex gap-1.5">
-                                        <span className="px-3 py-1 bg-[#FEF9C3] text-[#92400E] text-[10px] font-medium rounded-md border border-[#FEF08A] shadow-sm italic">PREMIUM</span>
-                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-black rounded-md border border-slate-200 uppercase">V3.0 Greenfield</span>
-                                    </div>
-                                </div>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-0.5">Plataforma de Análise Estratégica & Performance</p>
-                            </div>
+            <header className="px-12 pt-12 pb-6 relative z-10">
+                <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <div className="p-5 bg-white border border-stone-200 rounded-[2.5rem] shadow-sm flex items-center justify-center">
+                            <Sparkles className="w-8 h-8 text-stone-900" />
                         </div>
-
-                        {/* NOVO GLOBAL FILTERS - MATCH PRINT */}
-                        <div className="bg-white rounded-[1rem] p-5 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-slate-200 flex flex-col xl:flex-row xl:items-start justify-between gap-8 flex-1 xl:max-w-max">
-                            {/* Left/Middle Section Wrapper */}
-                            <div className="flex flex-col md:flex-row gap-8 xl:gap-12">
-                                {/* Referência */}
-                                <div className="flex flex-col">
-                                    <div className="flex items-center gap-1 mb-3">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFERÊNCIA</span>
-                                    </div>
-                                    <div className="flex flex-col gap-3">
-                                        <div className="flex gap-2">
-                                            {[2026, 2025, 2024, 2023].map(y => (
-                                                <button
-                                                    key={y}
-                                                    onClick={() => setSelectedYear(y)}
-                                                    className={`px-4 py-1.5 text-xs font-bold rounded-[0.5rem] border transition-all ${y === selectedYear ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
-                                                >
-                                                    {y}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="flex flex-col gap-2 ml-1">
-                                            <label className="flex items-center gap-2 cursor-pointer group w-max">
-                                                <div className="relative flex items-center">
-                                                    <input type="checkbox" className="peer appearance-none w-3.5 h-3.5 rounded border border-slate-300 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer" />
-                                                    <div className="absolute opacity-0 peer-checked:opacity-100 pointer-events-none text-white left-0.5"><Zap className="w-2 h-2 fill-current" /></div>
-                                                </div>
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors">ANO TODO</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer ml-5 w-max group">
-                                                <div className="relative flex items-center">
-                                                    <input type="checkbox" className="peer appearance-none w-3.5 h-3.5 rounded border border-slate-300 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer" />
-                                                    <div className="absolute opacity-0 peer-checked:opacity-100 pointer-events-none text-white left-0.5"><Users className="w-2 h-2 fill-current" /></div>
-                                                </div>
-                                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition-colors">REDE DE LOJAS</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Período & Visão */}
-                                <div className="flex gap-8">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-3">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PERÍODO</span>
-                                            <div className="w-3.5 h-3.5 rounded-full border border-slate-300 flex items-center justify-center text-[8px] text-slate-400 font-bold">i</div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="relative">
-                                                <input type="text" value="01/01/2025" readOnly className="pl-3 pr-8 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-[0.5rem] outline-none hover:border-slate-300 focus:border-blue-500 w-[110px] shadow-sm transition-colors cursor-pointer" />
-                                                <Calendar className="w-4 h-4 text-slate-800 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                            </div>
-                                            <span className="text-[10px] font-bold text-slate-300">até</span>
-                                            <div className="relative">
-                                                <input type="text" value="31/12/2025" readOnly className="pl-3 pr-8 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-[0.5rem] outline-none hover:border-slate-300 focus:border-blue-500 w-[110px] shadow-sm transition-colors cursor-pointer" />
-                                                <Calendar className="w-4 h-4 text-slate-800 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1.5 mb-3">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">VISÃO</span>
-                                            <div className="w-3.5 h-3.5 rounded-full border border-slate-300 flex items-center justify-center text-[8px] text-slate-400 font-bold">i</div>
-                                        </div>
-                                        <div className="relative">
-                                            <select className="appearance-none pl-3 pr-8 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-[0.5rem] outline-none hover:border-slate-300 focus:border-blue-500 w-36 cursor-pointer shadow-sm transition-colors">
-                                                <option>Financeiro (R$)</option>
-                                            </select>
-                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <path d="M1 1L5 5L9 1" stroke="#334155" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-4xl font-display font-medium tracking-tighter text-stone-900">Greenfield BI</h1>
+                                <div className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-[10px] font-mono font-bold text-emerald-600 uppercase tracking-widest">Master Intelligence</div>
                             </div>
+                            <p className="text-stone-400 text-xs font-mono uppercase tracking-[0.3em] flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                Monitoramento em tempo real
+                            </p>
+                        </div>
+                    </div>
 
-                            {/* Right Section: Atualizar */}
-                            <div className="flex flex-col items-center xl:items-end gap-3 mt-4 xl:mt-0 xl:pt-1">
-                                <div className="flex items-center gap-1.5 px-3 py-0.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-600 xl:mr-1">
-                                    <Zap className="w-3 h-3 fill-current" />
-                                    <span className="text-[10px] font-black tracking-widest uppercase">LIVE FLOW</span>
-                                </div>
-                                <button className="flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-blue-700 text-white px-8 py-2.5 rounded-[0.6rem] transition-all shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)] hover:-translate-y-0.5">
-                                    <RefreshCw className="w-4 h-4" />
-                                    <span className="text-sm font-black tracking-[0.05em] uppercase">ATUALIZAR</span>
+                    <div className="flex items-center gap-6">
+                        <div className="flex bg-white/40 backdrop-blur-xl border border-stone-200 p-1.5 rounded-2xl">
+                            {[2024, 2025, 2026].map((y) => (
+                                <button
+                                    key={y}
+                                    onClick={() => setSelectedYear(y)}
+                                    className={`px-8 py-2.5 text-xs font-mono font-bold rounded-lg transition-all ${y === selectedYear ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400'
+                                        }`}
+                                >
+                                    {y}
                                 </button>
+                            ))}
+                        </div>
+                        <div className="h-8 w-[1px] bg-stone-200" />
+                        <div className="flex items-center gap-4 px-3 cursor-pointer group">
+                            <Calendar className="w-5 h-5 text-stone-400 group-hover:text-stone-900 transition-colors" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-tighter">Período Customizado</span>
+                                <span className="text-xs font-mono font-bold text-stone-600">01 JAN - 31 DEZ</span>
                             </div>
                         </div>
+                        <button
+                            onClick={fetchData}
+                            className="bg-white border border-stone-200 text-stone-900 p-4 rounded-xl hover:bg-stone-50 transition-colors shadow-sm active:scale-95 group"
+                        >
+                            <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-700" />
+                        </button>
                     </div>
                 </div>
             </header>
 
-            {/* Navigation Tabs - CENTERED */}
-            <div className="sticky top-0 z-40 px-8 py-4 bg-[#F8FAFC]/90 backdrop-blur-lg">
-                <div className="max-w-[1700px] mx-auto flex justify-center">
-                    <div className="bg-[#123E3A] border border-[#115E59]/30 rounded-full p-2.5 flex items-center shadow-[0_10px_30px_-5px_rgba(18,62,58,0.4)]">
-                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-2">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-6 py-2.5 rounded-full transition-all duration-300 border ${activeTab === tab.id
-                                        ? 'bg-[#0F5A53] border-[#10B981]/40 text-white font-black shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]'
-                                        : 'bg-transparent border-transparent text-white font-black hover:bg-white/5'
-                                        }`}
-                                >
-                                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? tab.iconColor : tab.iconColor}`} />
-                                    <span className="text-[10px] tracking-widest uppercase">{tab.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+            {/* --- CENTERED NAVIGATION --- */}
+            <div className="px-12 py-4">
+                <div className="max-w-[1600px] mx-auto flex justify-center">
+                    <nav className="flex items-center gap-3 overflow-x-auto no-scrollbar p-1.5 bg-white/40 backdrop-blur-sm rounded-2xl border border-white/20 shadow-sm">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`px-10 py-3.5 rounded-xl text-xs font-mono font-bold uppercase tracking-[0.15em] transition-all whitespace-nowrap border ${activeTab === tab.id ? 'bg-white border-stone-300 text-stone-900 shadow-md scale-[1.02]' : 'text-stone-400 border-transparent hover:text-stone-600 hover:bg-white/40'
+                                    }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
                 </div>
             </div>
 
-            <main className="flex-1 px-8 pb-12 pt-2">
+            {/* --- CONTENT --- */}
+            <main className="flex-1 px-12 pb-24 relative z-10 mt-8">
                 <AnimatePresence mode="wait">
-                    <motion.div key={activeTab} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="max-w-[1700px] mx-auto">
-
-                        {activeTab === 'visao-geral' && (
-                            <div className="space-y-4">
-
-                                {/* 1. AI Narrative Card */}
-                                <div className="bg-gradient-to-br from-[#064e4b] to-[#012423] rounded-[2rem] p-6 relative overflow-hidden shadow-2xl border border-emerald-400/20">
-                                    <div className="flex flex-col lg:flex-row items-center gap-8 relative z-10">
-                                        <div className="p-4 bg-white/10 backdrop-blur-3xl rounded-[1.5rem] border border-white/10"><Zap className="w-8 h-8 text-amber-300 animate-pulse" /></div>
-                                        <div className="flex-1">
-                                            <div className="px-3 py-1 bg-[#FEF9C3] text-[#92400E] text-[10px] font-medium uppercase tracking-[0.1em] rounded-md inline-block mb-3 shadow-sm border border-[#FEF08A]">Análise AI</div>
-                                            <h2 className="text-xl font-black mb-1 tracking-tight text-[#FFFFFF]">Foco Estratégico: <span className="text-amber-300 underline decoration-[#EAB308]">Indústria Bertolini</span></h2>
-                                            <p className="text-[#F8FAFC] text-xs leading-relaxed max-w-2xl font-bold opacity-90">
-                                                Crescimento de 12% projetado. Verticalização da linha Premium em clientes Curva A impulsionando o ticket.
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button className="px-6 py-3 bg-[#10B981] text-[#022c22] font-black text-[10px] uppercase rounded-xl shadow-lg">Pipeline</button>
-                                            <button className="px-6 py-3 bg-white/10 text-white font-black text-[10px] uppercase rounded-xl border border-white/20">Relatório</button>
-                                        </div>
-                                    </div>
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, scale: 0.99 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="max-w-[1600px] mx-auto space-y-12"
+                    >
+                        {activeTab === 'visao-geral' ? (
+                            <div className="space-y-12">
+                                {/* KPI Section */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                    <MetricCardAura
+                                        title="Vendas Totais"
+                                        value={formatCurrency(kpis?.vendas?.val)}
+                                        change={kpis?.vendas?.change}
+                                        icon={Zap}
+                                        delay={0.1}
+                                    />
+                                    <MetricCardAura
+                                        title="Clientes Atendidos"
+                                        value={kpis?.clientes?.val || 0}
+                                        change={kpis?.clientes?.change}
+                                        icon={Users}
+                                        delay={0.2}
+                                    />
+                                    <MetricCardAura
+                                        title="Ticket Médio"
+                                        value={formatCurrency(kpis?.ticket?.val)}
+                                        change={kpis?.ticket?.change}
+                                        icon={TrendingUp}
+                                        delay={0.3}
+                                    />
+                                    <MetricCardAura
+                                        title="Pedidos Realizados"
+                                        value={kpis?.pedidos?.val || 0}
+                                        change={kpis?.pedidos?.change}
+                                        icon={BarChart3}
+                                        delay={0.4}
+                                    />
                                 </div>
 
-                                {/* 2. MARKET SHARE & KPI Cluster - Re-compacted in same row */}
-                                <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                                    {/* Market Share Bubble Grid - MATCH PRINT 1 */}
-                                    <div className="xl:col-span-8 bg-[#09332D] p-6 rounded-[1rem] flex flex-col items-center justify-center shadow-lg relative min-h-[180px]">
-                                        <h3 className="text-[9px] font-black text-white/90 uppercase tracking-[0.2em] mb-6">MARKET SHARE: TOP 6 INDÚSTRIAS - PERFORMANCE</h3>
-                                        <div className="flex items-center justify-center w-full gap-4 md:gap-8 px-4 flex-wrap mt-[20px]">
-                                            {brandData.map((brand, i) => {
-                                                const size = 60 + (brand.share * 1.5);
-                                                return (
-                                                    <motion.div
-                                                        key={i}
-                                                        whileHover={{ scale: 1.1, y: -4 }}
-                                                        style={{ width: size, height: size }}
-                                                        className="rounded-full border-[1.5px] border-cyan-400/70 shadow-[0_0_20px_rgba(34,211,238,0.3)] flex items-center justify-center p-1.5 cursor-pointer flex-shrink-0"
-                                                    >
-                                                        <div className="w-full h-full rounded-full border border-slate-500/30 bg-gradient-to-b from-[#112332] to-[#040D17] flex items-center justify-center p-2 relative overflow-hidden">
-                                                            <img
-                                                                src={brand.logo}
-                                                                alt={brand.name}
-                                                                className="max-w-[85%] max-h-[85%] object-contain"
-                                                                onError={(e) => {
-                                                                    e.target.style.display = 'none';
-                                                                    e.target.nextSibling.style.display = 'block';
-                                                                }}
-                                                            />
-                                                            <span className="text-[8px] font-black text-white text-center leading-tight hidden">{brand.name}</span>
-                                                        </div>
-                                                    </motion.div>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
+                                {/* Goals Scroller */}
+                                <GoalsScrollerAura />
 
-                                    {/* KPI Cluster in same line */}
-                                    <div className="xl:col-span-4 grid grid-cols-2 gap-3">
-                                        <KpiCardCompact title="Faturamento" value="R$ 35.4M" change={11.4} />
-                                        <KpiCardCompact title="Qtd. Pedidos" value="2.090" change={12.4} />
-                                        <KpiCardCompact title="Clientes" value="141" change={21.6} />
-                                        <KpiCardCompact title="Quantidades" value="791.5K" change={33.8} />
-                                    </div>
-                                </div>
-
-                                {/* 3. Goals Bar Optimized */}
-                                <div className="bg-[#0b3b3a] px-6 py-3 rounded-[1.5rem] border border-emerald-800/60 shadow-inner flex flex-col gap-2">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <CircleDashed className="w-3 h-3 text-emerald-400 animate-spin-slow" />
-                                        <span className="text-[8px] font-black text-emerald-100/60 uppercase tracking-widest">METAS ATINGIDAS (YTD)</span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
-                                        {[
-                                            { label: 'BOA', val: '0.0%', lack: 'R$ 1.1M', color: 'text-emerald-400' },
-                                            { label: 'BOEING', val: '0.0%', lack: 'R$ 870k', color: 'text-emerald-400' },
-                                            { label: 'UMBRELLA', val: '79.0%', lack: 'R$ 159k', color: 'text-amber-400' },
-                                            { label: 'WALMART', val: '0.0%', lack: 'R$ 1.1M', color: 'text-emerald-400' },
-                                        ].map((item, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                                <span className="text-[9px] font-black text-[#FFFFFF]">{item.label}</span>
-                                                <span className={`text-[9px] font-black ${item.color}`}>{item.val}</span>
-                                                <div className="flex items-center gap-1 bg-slate-900/40 px-1.5 py-0.5 rounded border border-white/5">
-                                                    <span className="text-[7px] font-bold text-rose-400/80">FALTA</span>
-                                                    <span className="text-[8px] font-black text-rose-100">{item.lack}</span>
-                                                </div>
+                                {/* Slide 3 Style Graph Card */}
+                                <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+                                    <div className="lg:col-span-8 bg-white border border-stone-200 rounded-[3.5rem] p-12 shadow-sm relative overflow-hidden group flex flex-col h-[580px]">
+                                        <div className="flex justify-between items-start mb-12 relative z-10">
+                                            <div className="space-y-2">
+                                                <span className="text-xs font-mono font-bold text-stone-400 uppercase tracking-[0.3em]">Total Revenue Analysis</span>
+                                                <h2 className="text-7xl font-display font-medium tracking-tighter text-stone-900">{formatCurrency(kpis?.vendas?.val)}</h2>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* 4. Charts Bottom Section */}
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    {/* Main Area Chart */}
-                                    <div className="lg:col-span-2 bg-white border border-slate-200 p-6 rounded-[2rem] shadow-sm h-[320px] flex flex-col">
-                                        <div className="mb-4">
-                                            <h3 className="text-sm font-black text-[#1E293B] tracking-tight">Curva de Faturamento</h3>
-                                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">SÉRIE HISTÓRICA CONSOLIDADA</p>
+                                            <div className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full border border-emerald-100 text-xs font-mono font-bold">
+                                                <Target className="w-4 h-4 text-emerald-500" />
+                                                <span>META MENSAL ATINGIDA</span>
+                                            </div>
                                         </div>
-                                        <div className="flex-1 w-full relative">
+
+                                        <div className="flex-1 relative z-10 w-full min-h-0">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart data={chartData}>
                                                     <defs>
-                                                        <linearGradient id="colorMain" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#2563EB" stopOpacity={0.15} />
-                                                            <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                                                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
+                                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                                                         </linearGradient>
                                                     </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 900 }} />
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                                    <XAxis
+                                                        dataKey="name"
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{ fill: '#9CA3AF', fontSize: 10, fontWeight: 700 }}
+                                                        dy={10}
+                                                    />
                                                     <YAxis hide />
-                                                    <Tooltip />
-                                                    <Area type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={3} fill="url(#colorMain)" dot={{ r: 3, fill: '#fff', stroke: '#2563EB', strokeWidth: 2 }} />
+                                                    <Tooltip
+                                                        contentStyle={{
+                                                            backgroundColor: '#FFFFFF',
+                                                            borderRadius: '1.5rem',
+                                                            border: '1px solid #E5E7EB',
+                                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                                            fontWeight: 700,
+                                                            fontSize: '11px'
+                                                        }}
+                                                    />
+                                                    <Area
+                                                        type="monotone"
+                                                        dataKey="valor"
+                                                        stroke="#10B981"
+                                                        strokeWidth={4}
+                                                        fillOpacity={1}
+                                                        fill="url(#colorSales)"
+                                                        animationDuration={2000}
+                                                    />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         </div>
-                                    </div>
 
-                                    {/* Industry Performance Bars */}
-                                    <div className="bg-white border border-slate-200 p-6 rounded-[2rem] shadow-sm h-[320px] flex flex-col">
-                                        <h3 className="text-sm font-black text-[#1E293B] tracking-tight mb-4 uppercase">Performance Industrial</h3>
-                                        <div className="space-y-4 flex-1 overflow-y-auto no-scrollbar">
-                                            {[
-                                                { name: "Bertolini S.A", val: 82, color: "bg-emerald-500" },
-                                                { name: "Móveis Finger", val: 68, color: "bg-blue-500" },
-                                                { name: "Ferramentas Star", val: 45, color: "bg-amber-500" },
-                                                { name: "Plásticos Total", val: 32, color: "bg-indigo-500" },
-                                            ].map((ind, i) => (
-                                                <div key={i}>
-                                                    <div className="flex justify-between text-[10px] font-black text-[#1E293B] mb-1.5 px-1 truncate">
-                                                        <span>{ind.name}</span>
-                                                        <span>{ind.val}%</span>
-                                                    </div>
-                                                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                        <motion.div initial={{ width: 0 }} animate={{ width: `${ind.val}%` }} className={`h-full ${ind.color}`} />
-                                                    </div>
+                                        <div className="mt-8 flex items-center justify-between relative z-10 pt-8 border-t border-stone-100">
+                                            <div className="flex gap-12">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-widest">Growth rate</span>
+                                                    <span className="text-xl font-display font-bold text-stone-900">+24.5%</span>
                                                 </div>
-                                            ))}
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-mono font-bold text-stone-400 uppercase tracking-widest">Active clients</span>
+                                                    <span className="text-xl font-display font-bold text-stone-900">1,240</span>
+                                                </div>
+                                            </div>
+                                            <button className="flex items-center gap-3 bg-stone-900 text-white px-8 py-3.5 rounded-2xl text-[10px] font-mono font-bold uppercase tracking-widest hover:bg-stone-800 transition-all shadow-xl shadow-stone-200 active:scale-95">
+                                                View Complete Report
+                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        )}
 
-                        {activeTab !== 'visao-geral' && (
-                            <div className="h-[60vh] flex flex-col items-center justify-center text-center">
-                                <div className="p-10 rounded-[3rem] bg-white border border-slate-100 shadow-sm flex flex-col items-center">
-                                    <Zap className="w-12 h-12 text-[#10B981] mb-4" />
-                                    <h2 className="text-xl font-black text-[#1E293B] mb-1 uppercase tracking-tighter">Greenfield Intel</h2>
-                                    <p className="text-slate-500 text-xs max-w-sm mb-6">Módulo em calibração estratégica para o padrão 2026.</p>
-                                    <button className="px-8 py-3 bg-[#10B981] text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl">Roadmap</button>
+                                    {/* Industry Bubble Cluster (THE CARACOL) */}
+                                    <div className="lg:col-span-4 bg-white border border-stone-200 rounded-[3.5rem] p-12 shadow-sm relative overflow-hidden h-[580px] flex flex-col">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <h4 className="text-[11px] font-mono font-bold text-stone-400 uppercase tracking-[0.2em]">Top 6 Indústrias</h4>
+                                            <CircleDashed className="w-4 h-4 text-stone-300" />
+                                        </div>
+                                        <div className="flex-1 relative">
+                                            {brandData.length > 0 ? (
+                                                <IndustryBubbleClusterAura data={brandData} />
+                                            ) : (
+                                                <div className="h-full flex items-center justify-center text-stone-300 font-mono text-[10px]">Aguardando dados...</div>
+                                            )}
+                                        </div>
+                                        <p className="text-[9px] text-stone-400 font-mono text-center pt-8 lowercase opacity-60 italic">Matriz de faturamento proporcional / aura cluster v2.4</p>
+                                    </div>
+                                </section>
+                            </div>
+                        ) : (
+                            <div className="h-[50vh] flex flex-col items-center justify-center text-center">
+                                <div className="w-24 h-24 bg-white border border-stone-200 rounded-[2.5rem] flex items-center justify-center mb-10 shadow-sm">
+                                    <iconify-icon icon="solar:programming-bold-duotone" class="text-4xl text-stone-300"></iconify-icon>
                                 </div>
+                                <h3 className="text-3xl font-display font-medium text-stone-900 uppercase tracking-tighter">Engine Blueprinting</h3>
+                                <p className="text-stone-400 text-sm font-mono mt-3 lowercase tracking-widest">Integrating high-density data matrices...</p>
                             </div>
                         )}
                     </motion.div>

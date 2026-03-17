@@ -1,5 +1,6 @@
 // CRM Endpoints Module
 // Manages customer relationship interactions and pipeline
+const { ensureCrmFollowupsTable } = require('./utils/migration');
 
 module.exports = function (app, pool) {
     console.log("🚀 [CRM] Module Loaded - v2026-02-02-FIX-DATA-COLUMN");
@@ -13,11 +14,11 @@ module.exports = function (app, pool) {
 
             // Definição das etapas (Hardcoded por enquanto para evitar erro)
             const stages = [
-                { etapa_id: 1, titulo: 'Prospecção' },
-                { etapa_id: 2, titulo: 'Qualificação' },
-                { etapa_id: 3, titulo: 'Proposta' },
-                { etapa_id: 4, titulo: 'Negociação' },
-                { etapa_id: 5, titulo: 'Fechamento' }
+                { etapa_id: 1, descricao: 'Prospecção' },
+                { etapa_id: 2, descricao: 'Qualificação' },
+                { etapa_id: 3, descricao: 'Proposta' },
+                { etapa_id: 4, descricao: 'Negociação' },
+                { etapa_id: 5, descricao: 'Fechamento' }
             ];
 
             let query = `
@@ -74,27 +75,49 @@ module.exports = function (app, pool) {
         try {
             const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato } = req.body;
 
-            // Check if for_codigo column exists implicitly by trying to insert
-            // If table doesn't have the column yet, we should add it.
-            // For safety in this environment, I'll assume the migration script I'll provide next will be run.
+            if (!titulo || !cli_codigo) {
+                return res.status(400).json({ success: false, message: 'Título e cliente são obrigatórios' });
+            }
+
+            // Convert empty strings to null for optional numeric/integer fields
+            const cleanValue = (val) => (val === '' || val === undefined) ? null : val;
 
             const result = await pool.query(`
                 INSERT INTO crm_oportunidades 
                 (titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
-            `, [titulo, cli_codigo, ven_codigo || 1, valor_estimado, etapa_id || 1, for_codigo || null, telefone_contato || null]);
+            `, [
+                titulo, 
+                parseInt(cli_codigo), 
+                parseInt(ven_codigo) || 1, 
+                cleanValue(valor_estimado), 
+                parseInt(etapa_id) || 1, 
+                cleanValue(for_codigo), 
+                telefone_contato || null
+            ]);
 
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
             console.error('❌ [CRM] Error creating opportunity:', error);
             if (error.code === '42703') { // Undefined column
-                // Auto-fix attempt (DANGEROUS but requested for "learning system")
-                // Ideally we send a 500 and ask user to run migration.
-                res.status(500).json({ success: false, message: 'Erro de Banco: Coluna for_codigo ausente. Execute migração.' });
+                res.status(500).json({ success: false, message: 'Erro de Banco: Colunas ausentes. Execute migração.' });
+            } else if (error.code === '23503') { // FK violation
+                res.status(500).json({ success: false, message: 'Erro de integridade: Vendedor ou Cliente inválido.' });
             } else {
                 res.status(500).json({ success: false, message: error.message });
             }
+        }
+    });
+
+    // GET - List sellers (Simplified for lookups)
+    app.get('/api/crm/vendedores', async (req, res) => {
+        try {
+            const result = await pool.query('SELECT ven_codigo, ven_nome FROM vendedores WHERE ven_status = \'A\' OR ven_status IS NULL ORDER BY ven_nome');
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ [CRM] Error fetching sellers:', error);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 
@@ -104,9 +127,13 @@ module.exports = function (app, pool) {
             const { id } = req.params;
             const { etapa_id } = req.body;
 
+            if (!etapa_id || isNaN(parseInt(etapa_id))) {
+                return res.status(400).json({ success: false, message: 'Etapa inválida' });
+            }
+
             await pool.query(
                 'UPDATE crm_oportunidades SET etapa_id = $1, atualizado_em = CURRENT_TIMESTAMP WHERE oportunidade_id = $2',
-                [etapa_id, id]
+                [parseInt(etapa_id), id]
             );
 
             res.json({ success: true });
@@ -122,6 +149,9 @@ module.exports = function (app, pool) {
             const { id } = req.params;
             const { titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato } = req.body;
 
+            // Convert empty strings to null for optional numeric/integer fields
+            const cleanValue = (val) => (val === '' || val === undefined) ? null : val;
+
             const result = await pool.query(`
                 UPDATE crm_oportunidades 
                 SET titulo = $1, 
@@ -134,7 +164,16 @@ module.exports = function (app, pool) {
                     atualizado_em = CURRENT_TIMESTAMP
                 WHERE oportunidade_id = $8
                 RETURNING *
-            `, [titulo, cli_codigo, ven_codigo, valor_estimado, etapa_id, for_codigo, telefone_contato || null, id]);
+            `, [
+                titulo, 
+                parseInt(cli_codigo), 
+                parseInt(ven_codigo) || 1, 
+                cleanValue(valor_estimado), 
+                parseInt(etapa_id) || 1, 
+                cleanValue(for_codigo), 
+                telefone_contato || null, 
+                id
+            ]);
 
             if (result.rows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Oportunidade não encontrada' });
@@ -1009,6 +1048,8 @@ module.exports = function (app, pool) {
             const result = await pool.query(`
                 INSERT INTO crm_sellout (cli_codigo, for_codigo, periodo, valor, quantidade)
                 VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (cli_codigo, for_codigo, periodo) 
+                DO UPDATE SET valor = EXCLUDED.valor, quantidade = EXCLUDED.quantidade
                 RETURNING *
             `, [cli_codigo, for_codigo, periodo, valor || 0, quantidade || 0]);
 
@@ -1477,6 +1518,239 @@ module.exports = function (app, pool) {
             res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('❌ [CRM V2] Error fetching last purchases:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== FOLLOW-UPS ENDPOINTS ====================
+
+    // Helper to resolve ven_codigo if missing
+    const resolveVendedor = async (req, bodyOrQuery) => {
+        let ven = bodyOrQuery.ven_codigo;
+        if (!ven || isNaN(parseInt(ven))) {
+            const userId = req.headers['x-user-id'];
+            if (userId) {
+                const res = await pool.query('SELECT ven_codigo FROM vendedores WHERE ven_codusu = $1 LIMIT 1', [userId]);
+                ven = res.rows[0]?.ven_codigo;
+            }
+        }
+        return ven;
+    };
+
+    // GET - List follow-ups for a seller
+    app.get('/api/crm/followups', async (req, res) => {
+        try {
+            const { ven_nome, status, periodo, cli_codigo } = req.query;
+            let ven_codigo = await resolveVendedor(req, req.query);
+
+            let query = `
+                SELECT 
+                    f.*,
+                    c.cli_nomred,
+                    c.cli_cidade,
+                    c.cli_uf
+                FROM crm_followups f
+                LEFT JOIN clientes c ON c.cli_codigo = f.cli_codigo
+                LEFT JOIN vendedores v ON v.ven_codigo = f.ven_codigo
+                WHERE 1=1
+            `;
+            const params = [];
+            let paramIndex = 1;
+
+            if (ven_codigo) {
+                query += ` AND f.ven_codigo = $${paramIndex++}`;
+                params.push(ven_codigo);
+            } else if (ven_nome) {
+                query += ` AND v.ven_nome ILIKE $${paramIndex++}`;
+                params.push(`%${ven_nome}%`);
+            }
+
+            if (status && status !== 'todos') {
+                query += ` AND f.status = $${paramIndex++}`;
+                params.push(status);
+            }
+
+            if (cli_codigo) {
+                query += ` AND f.cli_codigo = $${paramIndex++}`;
+                params.push(cli_codigo);
+            }
+
+            if (periodo === 'atrasados') {
+                query += ` AND f.status = 'pendente' AND f.data_prevista < CURRENT_DATE`;
+            } else if (periodo === 'hoje') {
+                query += ` AND f.status = 'pendente' AND f.data_prevista = CURRENT_DATE`;
+            } else if (periodo === 'semana') {
+                query += ` AND f.status = 'pendente' AND f.data_prevista BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'`;
+            }
+
+            query += ` ORDER BY 
+                CASE f.status WHEN 'pendente' THEN 0 WHEN 'concluido' THEN 1 ELSE 2 END,
+                CASE f.prioridade WHEN 'alta' THEN 0 WHEN 'media' THEN 1 ELSE 2 END,
+                f.data_prevista ASC
+                LIMIT 200
+            `;
+
+            const result = await pool.query(query, params);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            if (error.message.includes('relation "crm_followups" does not exist')) {
+                console.warn('⚠️ [CRM V2] Tabela crm_followups não encontrada. Iniciando migração automática...');
+                await ensureCrmFollowupsTable(pool);
+                
+                try {
+                    const retryResult = await pool.query(query, params);
+                    return res.json({ success: true, data: retryResult.rows });
+                } catch (retryErr) {
+                    console.error('❌ [CRM V2] Erro persistente após migração automática (listagem):', retryErr.message);
+                    return res.json({ success: true, data: [] });
+                }
+            }
+            console.error('❌ [CRM V2] Error fetching follow-ups:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // GET - Follow-up counters (for dashboard widget)
+    app.get('/api/crm/followups/count', async (req, res) => {
+        try {
+            const { ven_nome } = req.query;
+            let ven_codigo = await resolveVendedor(req, req.query);
+
+            let whereClause = ' WHERE 1=1';
+            const params = [];
+            let paramIndex = 1;
+
+            if (ven_codigo) {
+                whereClause += ` AND ven_codigo = $${paramIndex++}`;
+                params.push(ven_codigo);
+            } else if (ven_nome) {
+                whereClause += ` AND EXISTS (SELECT 1 FROM vendedores v WHERE v.ven_codigo = crm_followups.ven_codigo AND v.ven_nome ILIKE $${paramIndex++})`;
+                params.push(`%${ven_nome}%`);
+            }
+
+            const sqlCount = `
+                SELECT 
+                    COUNT(*) FILTER (WHERE status = 'pendente' AND data_prevista < CURRENT_DATE) as atrasados,
+                    COUNT(*) FILTER (WHERE status = 'pendente' AND data_prevista = CURRENT_DATE) as hoje,
+                    COUNT(*) FILTER (WHERE status = 'pendente' AND data_prevista BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days') as semana,
+                    COUNT(*) FILTER (WHERE status = 'pendente') as total_pendentes,
+                    COUNT(*) FILTER (WHERE status = 'concluido' AND data_conclusao >= CURRENT_DATE - INTERVAL '30 days') as concluidos_mes
+                FROM crm_followups
+                ${whereClause}
+            `;
+
+            const result = await pool.query(sqlCount, params);
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            if (error.message.includes('relation "crm_followups" does not exist')) {
+                console.warn('⚠️ [CRM V2] Tabela crm_followups não encontrada. Iniciando migração automática...');
+                await ensureCrmFollowupsTable(pool);
+                
+                try {
+                    const retryCount = await pool.query(sqlCount, params);
+                    return res.json({ success: true, data: retryCount.rows[0] });
+                } catch (retryErr) {
+                    console.error('❌ [CRM V2] Erro persistente após migração automática (contagem):', retryErr.message);
+                    return res.json({ success: true, data: { atrasados: 0, hoje: 0, semana: 0, total_pendentes: 0, concluidos_mes: 0 } });
+                }
+            }
+            console.error('❌ [CRM V2] Error fetching follow-up counts:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // POST - Create follow-up
+    app.post('/api/crm/followups', async (req, res) => {
+        try {
+            const { cli_codigo, interacao_id, oportunidade_id, titulo, descricao, data_prevista, prioridade, tipo } = req.body;
+            let ven_codigo = await resolveVendedor(req, req.body);
+
+            if (!ven_codigo || !titulo || !data_prevista) {
+                return res.status(400).json({ success: false, message: 'ven_codigo (ou vínculo de vendedor), titulo e data_prevista são obrigatórios' });
+            }
+
+            const result = await pool.query(`
+                INSERT INTO crm_followups 
+                (ven_codigo, cli_codigo, interacao_id, oportunidade_id, titulo, descricao, data_prevista, prioridade, tipo)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING *
+            `, [
+                ven_codigo,
+                cli_codigo || null,
+                interacao_id || null,
+                oportunidade_id || null,
+                titulo,
+                descricao || null,
+                data_prevista,
+                prioridade || 'media',
+                tipo || 'outro'
+            ]);
+
+            console.log(`✅ [CRM V2] Follow-up ${result.rows[0].id} created`);
+            res.status(201).json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM V2] Error creating follow-up:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PATCH - Update follow-up (status, reschedule, edit)
+    app.patch('/api/crm/followups/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status, titulo, descricao, data_prevista, prioridade, tipo } = req.body;
+
+            const setClauses = [];
+            const params = [];
+            let paramIndex = 1;
+
+            if (status !== undefined) {
+                setClauses.push(`status = $${paramIndex++}`);
+                params.push(status);
+                if (status === 'concluido') {
+                    setClauses.push(`data_conclusao = NOW()`);
+                }
+            }
+            if (titulo !== undefined) { setClauses.push(`titulo = $${paramIndex++}`); params.push(titulo); }
+            if (descricao !== undefined) { setClauses.push(`descricao = $${paramIndex++}`); params.push(descricao); }
+            if (data_prevista !== undefined) { setClauses.push(`data_prevista = $${paramIndex++}`); params.push(data_prevista); }
+            if (prioridade !== undefined) { setClauses.push(`prioridade = $${paramIndex++}`); params.push(prioridade); }
+            if (tipo !== undefined) { setClauses.push(`tipo = $${paramIndex++}`); params.push(tipo); }
+
+            if (setClauses.length === 0) {
+                return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar' });
+            }
+
+            params.push(id);
+            const result = await pool.query(
+                `UPDATE crm_followups SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+                params
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Follow-up não encontrado' });
+            }
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('❌ [CRM V2] Error updating follow-up:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // DELETE - Remove follow-up
+    app.delete('/api/crm/followups/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query('DELETE FROM crm_followups WHERE id = $1 RETURNING id', [id]);
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Follow-up não encontrado' });
+            }
+
+            res.json({ success: true, message: 'Follow-up removido' });
+        } catch (error) {
+            console.error('❌ [CRM V2] Error deleting follow-up:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });

@@ -11,7 +11,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, Plus, Pencil, Trash2, Radio, Search, Image, MapPin, Phone, Mail } from "lucide-react";
+import { FileText, Save, Plus, Pencil, Trash2, Radio, Search, Image, MapPin, Phone, Mail, BrainCircuit, Info } from "lucide-react";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { toast } from "sonner";
 import { ContactDialog } from "./ContactDialog";
@@ -28,19 +28,78 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
     const [editingField, setEditingField] = useState(null);
     const [tempValue, setTempValue] = useState('');
 
+    const [iaData, setIaData] = useState({
+        nome_marca: '',
+        resumo_negocio: '',
+        persona_ia: 'Consultor Técnico Especialista',
+        palavras_chave: ''
+    });
+
     useEffect(() => {
         if (supplier) {
             setFormData(supplier);
             loadContacts(supplier.id);
             loadGoals(supplier.id, selectedYear);
+            loadIaData(supplier.id);
         } else {
             setFormData({
                 situacao: 'Ativo'
             });
             setContacts([]);
             setGoals({});
+            setIaData({
+                nome_marca: '',
+                resumo_negocio: '',
+                persona_ia: 'Consultor Técnico Especialista',
+                palavras_chave: ''
+            });
         }
     }, [supplier, selectedYear]);
+
+    const loadIaData = async (supplierId) => {
+        if (!supplierId) return;
+        try {
+            const response = await fetch(`${NODE_API_URL}/api/suppliers/${supplierId}/ia-knowledge`);
+            const result = await response.json();
+            if (result.success && result.data && result.data.id) {
+                setIaData(result.data);
+            } else {
+                // Pre-fill brand name if empty
+                setIaData(prev => ({ ...prev, nome_marca: supplier.nomeReduzido || supplier.razaoSocial || '' }));
+            }
+        } catch (error) {
+            console.error('Error loading IA data:', error);
+        }
+    };
+
+    const handleSaveIaData = async () => {
+        if (!supplier?.id) {
+            toast.error("Salve o fornecedor primeiro antes de configurar a IA.");
+            return;
+        }
+
+        const toastId = toast.loading("Salvando configurações da IA...");
+        try {
+            const response = await fetch(`${NODE_API_URL}/api/suppliers/${supplier.id}/ia-knowledge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(iaData)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                toast.dismiss(toastId);
+                toast.success(result.message);
+                setIaData(result.data); // Update with returned data (e.g. ID)
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            toast.dismiss(toastId);
+            toast.error(`Erro ao salvar IA: ${error.message}`);
+        }
+    };
+
 
     if (!open) return null;
 
@@ -72,7 +131,6 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
 
     const handleDeleteContact = async (contact) => {
         if (!confirm(`Excluir contato ${contact.con_nome}?`)) return;
-
         try {
             const response = await fetch(
                 `${NODE_API_URL}/api/suppliers/${supplier.id}/contacts/${contact.con_codigo}`,
@@ -121,11 +179,9 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                 toast.success(result.message || 'Metas salvas com sucesso!');
             } else {
                 toast.error(result.message || 'Erro ao salvar metas');
-                console.error('[GOALS] Save failed:', result);
             }
         } catch (error) {
             toast.error('Erro de conexão ao salvar metas');
-            console.error('[GOALS] Save error:', error);
         }
     };
 
@@ -147,18 +203,14 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
             toast.error("Informe um CNPJ válido (14 dígitos) para consultar.");
             return;
         }
-
         const toastId = toast.loading("Consultando Receita Federal...");
-
         try {
             const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
             if (!response.ok) {
                 if (response.status === 404) throw new Error("CNPJ não encontrado.");
                 throw new Error("Erro na consulta à Receita.");
             }
-
             const apiData = await response.json();
-
             setFormData(prev => ({
                 ...prev,
                 razaoSocial: apiData.razao_social,
@@ -172,7 +224,6 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                 email: apiData.email || prev.email,
                 situacao: apiData.descricao_situacao_cadastral === 'ATIVA' ? 'Ativo' : 'Inativo'
             }));
-
             toast.dismiss(toastId);
             toast.success("Dados encontrados com sucesso!");
         } catch (error) {
@@ -195,6 +246,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         }
     };
 
+    // Definitions moved to top to avoid ReferenceError
     const mainTabs = [
         { id: 'principal', label: 'Principal', icon: <FileText size={16} /> },
         { id: 'complemento', label: 'Complemento', icon: <FileText size={16} /> },
@@ -206,6 +258,7 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
         { id: 'politica_desc', label: 'Política de descontos' },
         { id: 'politica_com', label: 'Política comercial' },
         { id: 'meta', label: 'Meta anual' },
+        { id: 'ia_whatsapp', label: 'IA / WhatsApp' },
     ];
 
     const renderTabContent = (activeTab) => {
@@ -778,6 +831,121 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                 return (
                     <div className="h-full bg-white flex flex-col pt-4">
                         <SupplierCustomersTab supplierId={supplier?.id} />
+                    </div>
+                );
+
+            case 'ia_whatsapp':
+                return (
+                    <div className="h-full flex flex-col pt-4 space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-purple-100 text-purple-700 rounded-lg">
+                                    <BrainCircuit size={18} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Inteligência Artificial & WhatsApp</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Ensine a IA sobre esta marca</p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={handleSaveIaData}
+                                className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 font-bold h-8 text-xs gap-2"
+                                disabled={!supplier?.id}
+                            >
+                                <Save size={14} /> Salvar Conhecimento
+                            </Button>
+                        </div>
+
+                        {!supplier?.id ? (
+                            <div className="p-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <p className="text-slate-400 font-bold text-xs uppercase">Salve o fornecedor primeiro para habilitar a IA.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-12 gap-6 px-1 overflow-auto pb-4">
+                                {/* Coluna Esquerda: Identidade */}
+                                <div className="col-span-12 md:col-span-5 space-y-4">
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between">
+                                            <Label className="uppercase text-[10px] font-black tracking-widest text-slate-500">Nome da Marca (Para a IA)</Label>
+                                            <div className="group relative cursor-help">
+                                                <Info size={12} className="text-slate-300" />
+                                                <div className="absolute bottom-full right-[-50px] mb-2 w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-xl hidden group-hover:block z-50">
+                                                    Como a IA deve chamar a empresa nas conversas. Ex: "Moraes", "Vanucci".
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Input
+                                            className="font-bold border-slate-200 focus:border-purple-500"
+                                            value={iaData.nome_marca}
+                                            onChange={(e) => setIaData(prev => ({ ...prev, nome_marca: e.target.value }))}
+                                            placeholder="Ex: Auto Peças XPTO"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between">
+                                            <Label className="uppercase text-[10px] font-black tracking-widest text-slate-500">Persona / Tom de Voz</Label>
+                                            <div className="group relative cursor-help">
+                                                <Info size={12} className="text-slate-300" />
+                                                <div className="absolute bottom-full right-[-50px] mb-2 w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-xl hidden group-hover:block z-50">
+                                                    Define como a IA se comporta. Ex: "Técnico e formal", "Vendedor agressivo", "Amigável".
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Input
+                                            className="font-bold border-slate-200 focus:border-purple-500"
+                                            value={iaData.persona_ia}
+                                            onChange={(e) => setIaData(prev => ({ ...prev, persona_ia: e.target.value }))}
+                                            placeholder="Ex: Consultor Especialista"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="flex justify-between">
+                                            <Label className="uppercase text-[10px] font-black tracking-widest text-slate-500">Palavras-Chave (Match Rápido)</Label>
+                                            <div className="group relative cursor-help">
+                                                <Info size={12} className="text-slate-300" />
+                                                <div className="absolute bottom-full right-[-50px] mb-2 w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-xl hidden group-hover:block z-50">
+                                                    Termos que quando digitados pelo cliente, ativam essa marca imediatamente. Separe por vírgula.
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Textarea
+                                            className="h-24 resize-none border-slate-200 focus:border-purple-500 text-xs"
+                                            value={iaData.palavras_chave}
+                                            onChange={(e) => setIaData(prev => ({ ...prev, palavras_chave: e.target.value }))}
+                                            placeholder="Ex: amortecedor, suspensão, freio, promoção xpto"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Coluna Direita: Conhecimento */}
+                                <div className="col-span-12 md:col-span-7 space-y-4">
+                                    <div className="space-y-1.5 h-full flex flex-col">
+                                        <div className="flex justify-between">
+                                            <Label className="uppercase text-[10px] font-black tracking-widest text-slate-500">Resumo do Negócio (Conhecimento Base)</Label>
+                                            <div className="group relative cursor-help">
+                                                <Info size={12} className="text-slate-300" />
+                                                <div className="absolute bottom-full right-[0] mb-2 w-64 bg-slate-800 text-white text-[10px] p-2 rounded shadow-xl hidden group-hover:block z-50">
+                                                    Explique o que a empresa vende, seus diferenciais, prazos de entrega e condições gerais. A IA usará isso para responder dúvidas.
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Textarea
+                                            className="flex-1 min-h-[250px] resize-none border-slate-200 focus:border-purple-500 text-sm leading-relaxed p-4 shadow-inner bg-slate-50/50"
+                                            value={iaData.resumo_negocio}
+                                            onChange={(e) => setIaData(prev => ({ ...prev, resumo_negocio: e.target.value }))}
+                                            placeholder="Descreva aqui o negócio desta indústria para a IA.
+Exemplo:
+Somos especialistas em linha pesada, vendemos peças de motor e câmbio para caminhões Volvo e Scania.
+Nossa entrega é em 24h para SP e RJ.
+Pedido mínimo R$ 500,00.
+Temos garantia de 1 ano em todos os produtos."
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
 

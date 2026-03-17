@@ -55,12 +55,14 @@ const NotificationService = () => {
         }
     };
 
+    const hasAuthError = React.useRef(false);
+    
     const checkPendingNotifications = useCallback(async () => {
         // Only check if user is logged in and has a session token
         const user = sessionStorage.getItem('user');
         const sessionToken = localStorage.getItem('session_token');
 
-        if (!user || !sessionToken) return;
+        if (!user || !sessionToken || hasAuthError.current) return;
 
         try {
             const response = await axios.get('/agenda/notifications/pending');
@@ -74,7 +76,9 @@ const NotificationService = () => {
             }
         } catch (error) {
             // Silently fail for 401 or other network errors during polling to avoid console noise
-            if (error.response?.status !== 401) {
+            if (error.response?.status === 401) {
+                hasAuthError.current = true; // Stop polling on auth error
+            } else {
                 console.error('Polling notifications error:', error);
             }
         }

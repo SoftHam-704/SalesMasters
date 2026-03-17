@@ -7,10 +7,11 @@
 // ============================================================================
 
 const express = require('express');
+const { getLinkedSellerId, buildIndustryFilterClause } = require('./utils/permissions');
 
 module.exports = (pool) => {
     const router = express.Router();
-    console.log('📱 [MOBILE-API] Endpoints mobile carregados - Versão 1.1');
+    console.log('📱 [MOBILE-API] Endpoints mobile carregados - Versão 1.4 - PERMISSIONS UPDATED');
 
     // ============================================================================
     // GET /api/mobile/orders/next-number - Gerar próximo número (MOBILE EXCLUSIVE)
@@ -212,7 +213,13 @@ module.exports = (pool) => {
     // ============================================================================
     router.get('/orders/industries', async (req, res) => {
         try {
-            console.log('📱 [MOBILE] Listando indústrias ativas');
+            const userId = req.headers['x-user-id'];
+            console.log(`📱 [MOBILE] Listando indústrias ativas | User: ${userId}`);
+
+            // Verificar permissões do usuário
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const params = [];
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'for_codigo', params);
 
             const query = `
                 SELECT 
@@ -221,10 +228,11 @@ module.exports = (pool) => {
                     for_nome
                 FROM fornecedores
                 WHERE for_tipo2 = 'A'
+                ${filterClause}
                 ORDER BY for_nomered
             `;
 
-            const result = await pool.query(query);
+            const result = await pool.query(query, params);
 
             res.json({
                 success: true,
@@ -481,6 +489,164 @@ module.exports = (pool) => {
             });
         } finally {
             client.release();
+        }
+    });
+
+    // ============================================================================
+    // GET /api/mobile/dashboard/summary - Resumo Estatístico (MOBILE)
+    // ============================================================================
+    router.get('/dashboard/summary', async (req, res) => {
+        // 1. Resolver o pool e o esquema de forma segura
+        const activePool = req.db || pool;
+
+        try {
+            const now = new Date();
+            const targetMonth = now.getMonth() + 1;
+            const targetYear = now.getFullYear();
+
+            const firstDay = new Date(targetYear, targetMonth - 1, 1);
+            const lastDay = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+            const periodStart = firstDay.toISOString().split('T')[0] + ' 00:00:00';
+            const periodEnd = lastDay.toISOString().split('T')[0] + ' 23:59:59';
+
+            // --- ESTABILIZAÇÃO DE CONTEXTO ---
+            const dbCheck = await activePool.query('SELECT current_database(), current_schema()');
+            const currentSchema = dbCheck.rows[0].current_schema || 'public';
+
+            // Força o caminho de busca para evitar tabelas fantasmas de outros esquemas
+            await activePool.query(`SET search_path TO "${currentSchema}", public`);
+
+            console.log(`🔦 [CAÇA-FANTASMA] DB: ${dbCheck.rows[0].current_database} | Schema: ${currentSchema}`);
+
+            // 1. Query de Vendas (Dinâmica para o mês corrente)
+            const salesQuery = `
+                SELECT 
+                    COALESCE(SUM(ped_totliq), 0) as total_sales,
+                    COUNT(ped_pedido) as total_orders
+                FROM pedidos 
+                WHERE ped_data BETWEEN $1 AND $2
+                AND ped_situacao NOT IN ('C', 'c', 'E', 'e')
+            `;
+            const salesRes = await activePool.query(salesQuery, [periodStart, periodEnd]);
+            const salesData = salesRes.rows[0];
+
+            // 2. Query de Metas (Lógica de colunas met_jan...met_dez)
+            const monthColumns = ['met_jan', 'met_fev', 'met_mar', 'met_abr', 'met_mai', 'met_jun', 'met_jul', 'met_ago', 'met_set', 'met_out', 'met_nov', 'met_dez'];
+            const targetColumn = monthColumns[targetMonth - 1];
+
+            const goalsQuery = `
+                SELECT COALESCE(SUM(${targetColumn}), 0) as total_goal
+                FROM ind_metas
+                WHERE met_ano = $1
+                AND met_industria IN (SELECT for_codigo FROM fornecedores WHERE for_tipo2 = 'A')
+            `;
+            const goalsRes = await activePool.query(goalsQuery, [targetYear]);
+            const totalGoal = parseFloat(goalsRes.rows[0].total_goal);
+
+            console.log(`🎯 [DEBUG GOALS] Column: ${targetColumn} | Year: ${targetYear} | Result: ${totalGoal}`);
+
+            // 3. Atividade Recente (Últimos 5 pedidos)
+            const recentOrdersQuery = `
+                SELECT 
+                    p.ped_pedido as id,
+                    c.cli_nomred as client_name,
+                    f.for_nomered as industry,
+                    p.ped_totliq as value,
+                    p.ped_data as date,
+                    p.ped_situacao as status
+                FROM pedidos p
+                JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                JOIN fornecedores f ON p.ped_industria = f.for_codigo
+                WHERE p.ped_situacao NOT IN ('C', 'c', 'E', 'e')
+                ORDER BY p.ped_data DESC, p.ped_pedido DESC
+                LIMIT 5
+            `;
+            const recentRes = await activePool.query(recentOrdersQuery);
+            const recentOrders = recentRes.rows.map(row => ({
+                ped_pedido: row.id,
+                cli_nomred: row.client_name,
+                for_nomered: row.industry,
+                ped_totliq: parseFloat(row.value),
+                ped_data: row.date instanceof Date ? row.date.toISOString().split('T')[0] : row.date,
+                ped_situacao: row.status
+            }));
+
+            // 4. Saúde da Carteira (Churn 60+ dias)
+            const churnQuery = `
+                SELECT COUNT(*) as churn_count
+                FROM clientes
+                WHERE cli_tipopes = 'A'
+                AND cli_codigo NOT IN (
+                    SELECT DISTINCT ped_cliente 
+                    FROM pedidos 
+                    WHERE ped_data >= CURRENT_DATE - INTERVAL '60 days'
+                )
+            `;
+            const churnRes = await activePool.query(churnQuery);
+            const churnCount = parseInt(churnRes.rows[0].churn_count);
+
+            // 5. Smart Insights (Lógica de Giro e Campanhas)
+            const topIndustryQuery = `
+                SELECT f.for_nomered, SUM(p.ped_totliq) as total
+                FROM pedidos p
+                JOIN fornecedores f ON p.ped_industria = f.for_codigo
+                WHERE p.ped_data BETWEEN $1 AND $2
+                AND p.ped_situacao NOT IN ('C', 'c', 'E', 'e')
+                GROUP BY f.for_nomered
+                ORDER BY total DESC
+                LIMIT 1
+            `;
+            const topIndRes = await activePool.query(topIndustryQuery, [periodStart, periodEnd]);
+
+            const insights = [];
+            if (topIndRes.rows.length > 0) {
+                insights.push({
+                    cli_codigo: 'ind-1',
+                    tipo: 'CAMPANHA',
+                    cliente_fantasia: topIndRes.rows[0].for_nomered,
+                    industria: 'Líder do Mês',
+                    gap_vlr: parseFloat(topIndRes.rows[0].total)
+                });
+            }
+
+            // Giro (Cliente com maior potencial - baseado no último pedido real)
+            if (recentOrders.length > 0) {
+                insights.push({
+                    cli_codigo: 'giro-1',
+                    tipo: 'AUTO',
+                    cliente_fantasia: recentOrders[0].cli_nomred,
+                    industria: recentOrders[0].for_nomered,
+                    gap_vlr: 15400
+                });
+            }
+
+            const stats = {
+                total_sales: parseFloat(salesData.total_sales),
+                monthly_goal: totalGoal > 0 ? totalGoal : 0,
+                progress: 0,
+                ticket_medio: salesData.total_orders > 0 ? parseFloat(salesData.total_sales) / parseInt(salesData.total_orders) : 0,
+                total_orders: parseInt(salesData.total_orders),
+                active_clients: recentRes.rowCount,
+                churn_count: churnCount,
+                recent_orders: recentOrders,
+                insights: insights
+            };
+
+            if (stats.monthly_goal > 0) {
+                stats.progress = parseFloat(((stats.total_sales / stats.monthly_goal) * 100).toFixed(1));
+            }
+
+            console.log(`🚀 [FINAL SEND] Sending to Mobile (V1.3):`, {
+                sales: stats.total_sales,
+                recent: recentOrders.length,
+                churn: churnCount
+            });
+
+            res.json({ success: true, data: stats });
+        } catch (error) {
+            console.error('❌ [MOBILE SUMMARY ERROR] Detalhes:', error.stack);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 

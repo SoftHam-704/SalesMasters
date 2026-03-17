@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { Loader2, DollarSign, Calendar, FileText, User, Tag, Layers } from 'lucide-react';
+import { CurrencyInput } from '@/components/ui/CurrencyInput';
+
 
 const NovaContaModal = ({ open, onOpenChange, type = 'PAGAR', onSuccess }) => {
     const [loading, setLoading] = useState(false);
@@ -223,15 +225,14 @@ const NovaContaModal = ({ open, onOpenChange, type = 'PAGAR', onSuccess }) => {
                                 <DollarSign className="w-4 h-4" />
                                 Valor Total *
                             </Label>
-                            <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0,00"
+                            <CurrencyInput
+                                placeholder="R$ 0,00"
                                 value={formData.valor_total}
-                                onChange={e => setFormData({ ...formData, valor_total: e.target.value })}
+                                onChange={val => setFormData({ ...formData, valor_total: val })}
                                 className="font-bold text-lg"
                                 required
                             />
+
                         </div>
 
                         {/* Centro de Custo */}

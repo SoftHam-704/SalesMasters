@@ -65,18 +65,18 @@ module.exports = (originalPool) => {
                         LIMIT 1
                     ) as ultima_mensagem,
                     (
-                        SELECT json_build_object('id', u.codigo, 'nome', u.nome)
+                        SELECT json_build_object('id', u.id, 'nome', u.nome)
                         FROM chat_mensagens m
-                        JOIN user_nomes u ON u.codigo = m.remetente_id
+                        JOIN chat_users u ON u.id = m.remetente_id
                         WHERE m.conversa_id = c.id AND m.is_deleted = false
                         ORDER BY m.created_at DESC 
                         LIMIT 1
                     ) as ultimo_remetente,
                     -- Para conversas diretas, pegar info do outro participante
                     CASE WHEN c.tipo = 'direct' THEN (
-                        SELECT json_build_object('id', u.codigo, 'nome', u.nome)
+                        SELECT json_build_object('id', u.id, 'nome', u.nome)
                         FROM chat_participantes op
-                        JOIN user_nomes u ON u.codigo = op.usuario_id
+                        JOIN chat_users u ON u.id = op.usuario_id
                         WHERE op.conversa_id = c.id AND op.usuario_id != $1
                         LIMIT 1
                     ) ELSE NULL END as outro_participante
@@ -224,9 +224,9 @@ module.exports = (originalPool) => {
                     m.is_edited,
                     m.is_deleted,
                     m.created_at,
-                    json_build_object('id', u.codigo, 'nome', u.nome) as remetente
+                    json_build_object('id', u.id, 'nome', u.nome) as remetente
                 FROM chat_mensagens m
-                LEFT JOIN user_nomes u ON u.codigo = m.remetente_id
+                LEFT JOIN chat_users u ON u.id = m.remetente_id
                 WHERE m.conversa_id = $1
             `;
             const params = [conversaId];
@@ -291,7 +291,7 @@ module.exports = (originalPool) => {
 
             // Buscar info do remetente
             const remetente = await pool.query(`
-                SELECT codigo as id, nome FROM user_nomes WHERE codigo = $1
+                SELECT id, nome FROM chat_users WHERE id = $1
             `, [usuarioId]);
 
             const mensagem = {
@@ -427,10 +427,11 @@ module.exports = (originalPool) => {
             const empresaId = req.headers['x-empresa-id'] || 1;
 
             const result = await pool.query(`
-                SELECT codigo as id, nome, sobrenome
-                FROM user_nomes
-                WHERE codigo != $1 AND ativo = true
-                ORDER BY nome
+                SELECT u.id, u.nome, u.sobrenome, e.nome_fantasia as empresa
+                FROM chat_users u
+                JOIN empresas e ON u.empresa_id = e.id
+                WHERE u.id != $1 AND u.ativo = true
+                ORDER BY u.nome
                 LIMIT 100
             `, [usuarioId]);
 
@@ -516,10 +517,10 @@ module.exports = (originalPool) => {
 
             const result = await pool.query(`
                 SELECT 
-                    u.codigo as id,
+                    u.id,
                     u.nome,
                     u.sobrenome,
-                    u.usuario,
+                    u.usuario_login as usuario,
                     COALESCE(p.status, 'offline') as status,
                     p.custom_message,
                     p.last_seen,
@@ -541,10 +542,10 @@ module.exports = (originalPool) => {
                             'Há ' || EXTRACT(DAY FROM NOW() - p.last_seen)::TEXT || ' dias'
                         ELSE 'Há mais de uma semana'
                     END as last_seen_text
-                FROM user_nomes u
-                LEFT JOIN user_presence p ON p.usuario_id = u.codigo
+                FROM chat_users u
+                LEFT JOIN user_presence p ON p.usuario_id = u.id
                 ${whereClause}
-                AND u.codigo != $1
+                AND u.id != $1
                 ORDER BY 
                     CASE 
                         WHEN p.status = 'online' AND p.last_activity > NOW() - INTERVAL '2 minutes' THEN 1
@@ -598,7 +599,7 @@ module.exports = (originalPool) => {
                 [usuarioId, device_info ? JSON.stringify(device_info) : null]
             );
 
-            console.log(`🟢 [CHAT] Usuário ${usuarioId} marcado como ONLINE`);
+            console.log(`🟢[CHAT] Usuário ${usuarioId} marcado como ONLINE`);
 
             res.json({ success: true, message: 'Marcado como online' });
         } catch (error) {
@@ -617,7 +618,7 @@ module.exports = (originalPool) => {
 
             await pool.query('SELECT fn_set_user_offline($1)', [usuarioId]);
 
-            console.log(`⚪ [CHAT] Usuário ${usuarioId} marcado como OFFLINE`);
+            console.log(`⚪[CHAT] Usuário ${usuarioId} marcado como OFFLINE`);
 
             res.json({ success: true, message: 'Marcado como offline' });
         } catch (error) {
@@ -664,12 +665,12 @@ module.exports = (originalPool) => {
             await pool.query(`
                 UPDATE user_presence 
                 SET status = COALESCE($2, status),
-                    custom_message = $3,
-                    last_activity = NOW()
+                custom_message = $3,
+                last_activity = NOW()
                 WHERE usuario_id = $1
-            `, [usuarioId, status, custom_message || null]);
+                `, [usuarioId, status, custom_message || null]);
 
-            console.log(`🔄 [CHAT] Usuário ${usuarioId} alterou status para: ${status || 'sem mudança'}`);
+            console.log(`🔄[CHAT] Usuário ${usuarioId} alterou status para: ${status || 'sem mudança'}`);
 
             res.json({ success: true, message: 'Status atualizado' });
         } catch (error) {
@@ -684,21 +685,21 @@ module.exports = (originalPool) => {
             const { userId } = req.params;
 
             const result = await pool.query(`
-                SELECT 
-                    u.codigo as id,
-                    u.nome,
-                    COALESCE(p.status, 'offline') as status,
-                    p.custom_message,
-                    p.last_seen,
-                    p.last_activity,
-                    CASE 
+        SELECT
+        u.id,
+            u.nome,
+            COALESCE(p.status, 'offline') as status,
+            p.custom_message,
+            p.last_seen,
+            p.last_activity,
+            CASE 
                         WHEN p.status = 'online' AND p.last_activity > NOW() - INTERVAL '2 minutes' THEN 'online'
                         WHEN p.status = 'online' AND p.last_activity > NOW() - INTERVAL '5 minutes' THEN 'away'
                         ELSE 'offline'
-                    END as effective_status
-                FROM user_nomes u
-                LEFT JOIN user_presence p ON p.usuario_id = u.codigo
-                WHERE u.codigo = $1
+        END as effective_status
+                FROM chat_users u
+                LEFT JOIN user_presence p ON p.usuario_id = u.id
+                WHERE u.id = $1
             `, [userId]);
 
             if (result.rows.length === 0) {
@@ -718,7 +719,7 @@ module.exports = (originalPool) => {
             const result = await pool.query('SELECT fn_cleanup_inactive_users()');
             const affectedRows = result.rows[0].fn_cleanup_inactive_users;
 
-            console.log(`🧹 [CHAT] ${affectedRows} usuários marcados como offline (inatividade)`);
+            console.log(`🧹[CHAT] ${affectedRows} usuários marcados como offline(inatividade)`);
 
             res.json({
                 success: true,

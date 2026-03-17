@@ -52,7 +52,7 @@ const ItemsModel14 = ({ groupedItems, order }) => {
 
             {allItems.map((item, idx) => {
                 globalSeq++;
-                const conv = item.pro_codigooriginal || item.ite_embuch || '';
+                const conv = item.ite_embuch || '';
                 return (
                     <View key={idx} style={styles.tableRowDashed} wrap={false}>
                         <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
@@ -263,7 +263,7 @@ const ItemsModel11 = ({ groupedItems, order }) => {
 
                         {items.map((item, idx) => {
                             globalSeq++;
-                            const conv = item.pro_codigooriginal || item.ite_embuch || '';
+                            const conv = item.ite_embuch || '';
                             return (
                                 <View key={idx} style={styles.tableRowDashed} wrap={false}>
                                     <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
@@ -658,14 +658,14 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                     </View>
                 </View>
 
-                {[11, 12, 13, 14].includes(modelNum) && (
+                {[4, 11, 12, 13, 14].includes(modelNum) && (
                     <View style={{ borderTopWidth: 0.5, borderTopColor: '#000', borderTopStyle: 'solid', paddingTop: 2, flexDirection: 'row', justifyContent: 'space-between' }}>
                         <View style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 2 }}>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>{titulo} nº: </Text><Text style={styles.value}>{order.ped_pedido}</Text></View>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Data: </Text><Text style={styles.value}>{formatDate(order.ped_data)}</Text></View>
                         </View>
                         <View style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 5 }}>
-                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Nº pedido cliente: </Text><Text style={styles.value}>{order.ped_pedcli || order.ped_pedindu || order.ped_pedindustria || ''}</Text></View>
+                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Nº pedido cliente: </Text><Text style={styles.value}>{order.ped_pedcli || order.ped_cliind || order.ped_pedindu || order.ped_pedindustria || ''}</Text></View>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Cond. Pagamento: </Text><Text style={{ ...styles.value, color: '#dc2626' }}>{order.order_payment_type || order.ped_condpag || ''}</Text></View>
                         </View>
                         <View style={{ flex: 0.8, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 5 }}>
@@ -682,13 +682,13 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                 )}
 
                 {/* Info Bar (Only for models that don't use expansions) */}
-                {![11, 12, 13, 14].includes(modelNum) && (
+                {![4, 11, 12, 13, 14].includes(modelNum) && (
                     <View style={{ flexDirection: 'row', borderWidth: 0.5, borderColor: '#000000', borderStyle: 'solid', padding: 3, backgroundColor: '#ffffff', alignItems: 'center' }}>
                         <View style={{ width: '30%' }}>
                             <Text style={{ fontSize: 9, fontWeight: 'bold', ...titleStyle }}>{titulo} nº: {order.ped_pedido}</Text>
                         </View>
                         <View style={{ width: '40%', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 9 }}>Pedido cliente nº: <Text style={{ fontWeight: 'bold' }}>{order.ped_pedcli || ''}</Text></Text>
+                            <Text style={{ fontSize: 9 }}>Pedido cliente nº: <Text style={{ fontWeight: 'bold' }}>{order.ped_pedcli || order.ped_cliind || ''}</Text></Text>
                         </View>
                         <View style={{ width: '30%', alignItems: 'flex-end' }}>
                             <Text style={{ fontSize: 9, fontWeight: 'bold' }}>Data: {formatDate(order.ped_data)}</Text>
@@ -816,7 +816,7 @@ const CommercialSection = ({ order }) => (
                 <View style={{ flex: 1.5 }}><Text style={styles.label}>E-Mail:</Text><Text style={{ ...styles.value, textTransform: 'lowercase' }}>{order.ped_emailcomp || ''}</Text></View>
             </View>
             <View style={styles.gridRow}>
-                <View style={{ flex: 1 }}><Text style={styles.label}>Pedido Cliente:</Text><Text style={styles.value}>{order.ped_pedcli || ''}</Text></View>
+                <View style={{ flex: 1 }}><Text style={styles.label}>Pedido Cliente:</Text><Text style={styles.value}>{order.ped_pedcli || order.ped_cliind || ''}</Text></View>
                 <View style={{ flex: 1 }}><Text style={styles.label}>Pedido Indústria:</Text><Text style={styles.value}>{order.ped_pedindu || ''}</Text></View>
             </View>
         </View>
@@ -1035,6 +1035,13 @@ const ItemsModel4 = ({ groupedItems, order }) => {
 
     return (
         <View style={{ marginBottom: 3 }}>
+            {/* Discount Header - Added as requested in Print 1 */}
+            <View style={{ backgroundColor: '#ffffff', padding: 2, borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', borderBottomWidth: 0 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 7, ...styles.redLabel }}>
+                    Descontos: <Text style={{ color: '#000000' }}>{getDiscountString(order)}</Text>
+                </Text>
+            </View>
+
             <View style={styles.tableHeader}>
                 <Text style={styles.colQuant3}>Quant:</Text>
                 <Text style={styles.colProd3}>Produto:</Text>
@@ -2031,8 +2038,8 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
         rep_user_email: companyData?.email || ''
     };
     const logo = formatBase64(companyData?.logotipo, 'RepLogo'); // Base64 from empresa_status
-    // Logotipo da indústria restaurado com redimensionamento prévio
-    const industryLogo = formatBase64(order.industry_logotipo_resized || order.for_logotipo || order.for_locimagem, 'IndustryLogo');
+    // Logotipo da indústria restaurado (com prioridade para o campo processado pelo backend)
+    const industryLogo = formatBase64(order.industry_logotipo || order.industry_logotipo_resized || order.for_logotipo || order.for_locimagem, 'IndustryLogo');
 
     // Group items by discount
     const groupedItems = groupItemsByDiscount(items);
@@ -2083,7 +2090,7 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
             case 3:
                 return <TotalsSection3 order={order} items={items} />;
             case 4:
-                return <TotalsSection3 order={order} items={items} />;
+                return <TotalsSection13 order={order} items={items} />;
             case 5:
                 return <TotalsSection5 order={order} items={items} />;
             case 7:
@@ -2124,13 +2131,15 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
                 />
 
                 {/* Client Section - Includes Industry, Commercial data */}
-                {modelNum !== 11 && modelNum !== 12 && modelNum !== 13 && modelNum !== 14 && <ClientSection order={order} modelNum={modelNum} />}
+                {modelNum !== 4 && modelNum !== 11 && modelNum !== 12 && modelNum !== 13 && modelNum !== 14 && <ClientSection order={order} modelNum={modelNum} />}
 
-                {/* 3. Carrier, Billing and Obs - Only if modelNum != 10, 11, 12, 13, 14 and not reorder model */}
-                {modelNum !== 10 && modelNum !== 11 && modelNum !== 12 && modelNum !== 13 && modelNum !== 14 && !isReorderModel && (
+
+                {/* 3. Carrier, Billing and Obs - Only if modelNum != 4, 10, 11, 12, 13, 14 and not reorder model */}
+                {modelNum !== 4 && modelNum !== 10 && modelNum !== 11 && modelNum !== 12 && modelNum !== 13 && modelNum !== 14 && !isReorderModel && (
                     <>
                         {/* Commercial Data (for models that don't have it in ClientSection) */}
-                        {[3, 4, 5, 7, 8, 9].includes(modelNum) && <CommercialSection order={order} />}
+                        {[3, 5, 7, 8, 9].includes(modelNum) && <CommercialSection order={order} />}
+
 
                         <View style={{ flexDirection: 'row', gap: 3 }}>
                             {!isReorderModel && (
@@ -2151,8 +2160,8 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
                     </>
                 )}
 
-                {/* Model 11 and 12 sections (centered titles and full boxes) */}
-                {(modelNum === 11 || modelNum === 12) && (
+                {/* Model 4, 11 and 12 sections (centered titles and full boxes) */}
+                {(modelNum === 4 || modelNum === 11 || modelNum === 12) && (
                     <>
                         <Text style={styles.centeredSectionTitle}>DADOS DO CLIENTE</Text>
                         <View style={styles.sectionContentModel11}>
@@ -2164,10 +2173,14 @@ const OrderPdfReport = ({ order, items, companyData, model = '1' }) => {
                             <BillingSection order={order} hideTitle={true} noBorder={true} />
                         </View>
 
-                        <Text style={styles.centeredSectionTitle}>TRANSPORTADORA</Text>
-                        <View style={styles.sectionContentModel11}>
-                            <CarrierSection order={order} hideTitle={true} noBorder={true} />
-                        </View>
+                        {(modelNum === 11 || modelNum === 12) && (
+                            <>
+                                <Text style={styles.centeredSectionTitle}>TRANSPORTADORA</Text>
+                                <View style={styles.sectionContentModel11}>
+                                    <CarrierSection order={order} hideTitle={true} noBorder={true} />
+                                </View>
+                            </>
+                        )}
                     </>
                 )}
 

@@ -5,26 +5,17 @@ Executa o arquivo SQL com as 9 functions avançadas.
 """
 
 import psycopg2
-from config import DATABASE_URL
-import re
+from config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
 
 def get_connection():
-    """Cria conexão com o banco usando a URL do config"""
-    # Parse DATABASE_URL
-    pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
-    match = re.match(pattern, DATABASE_URL)
-    
-    if match:
-        user, password, host, port, dbname = match.groups()
-        return psycopg2.connect(
-            host=host,
-            port=port,
-            database=dbname,
-            user=user,
-            password=password
-        )
-    else:
-        raise ValueError(f"Invalid DATABASE_URL format: {DATABASE_URL}")
+    """Cria conexão com o banco usando as credenciais do config"""
+    return psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
 
 def create_functions():
     """Cria as functions de BI Intelligence"""

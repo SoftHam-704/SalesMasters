@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Sidebar from './components/SidebarNew';
 import { TabContentManager } from './components/layout/TabContentManager';
 
@@ -12,8 +12,10 @@ import { TabControl } from './components/settings/TabControl';
 import OrderReportEngine from './components/orders/OrderReportEngine';
 import CustomerReducedEngine from './components/reports/CustomerReducedEngine';
 import ChatWidget from './components/chat/ChatWidget';
+import NotificationService from './components/dashboard/NotificationService';
 
 function App() {
+  const navigate = useNavigate();
   const isPrintView = window.location.pathname.startsWith('/print/');
   const [isAuthenticated, setIsAuthenticated] = React.useState(!!sessionStorage.getItem('user'));
 
@@ -57,6 +59,24 @@ function App() {
           focusableElements[nextIndex].focus();
         }
       }
+
+      // Atalho Alt + C - Chat
+      if (e.altKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('chat:toggle'));
+      }
+
+      // Atalho F9 - Tabela de Preços
+      if (e.key === 'F9' && isAuthenticated) {
+        e.preventDefault();
+        navigate('/produtos');
+      }
+
+      // Atalho F11 - Tela de Pedidos
+      if (e.key === 'F11' && isAuthenticated) {
+        e.preventDefault();
+        navigate('/vendas/pedidos');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -92,6 +112,7 @@ function App() {
                 <TabContentManager />
               </main>
               <ChatWidget />
+              <NotificationService />
             </div>
           )
         }

@@ -88,7 +88,7 @@ class PortfolioAnalyzer:
         industria: int
     ) -> Optional[Dict]:
         """Valida período usando fn_validar_periodo"""
-        query = "SELECT * FROM fn_validar_periodo(:ano, :industria, :mes)"
+        query = "SELECT * FROM fn_validar_periodo(:ano, :industria, :mes::integer)"
         df = execute_query(query, {"ano": ano, "industria": industria, "mes": mes})
         
         if df.empty:

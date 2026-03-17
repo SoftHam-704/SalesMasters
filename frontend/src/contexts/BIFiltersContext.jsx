@@ -17,6 +17,7 @@ export const BIFiltersProvider = ({ children }) => {
     const [filters, setFilters] = useState({
         ano: currentYear,
         mes: currentMonth,
+        metrica: 'valor',
         startDate: '',
         endDate: ''
     });

@@ -5,6 +5,7 @@
 
 module.exports = function (pool) {
     const express = require('express');
+    const { getLinkedSellerId, buildIndustryFilterClause } = require('./utils/permissions');
     const router = express.Router();
 
     /**
@@ -14,8 +15,13 @@ module.exports = function (pool) {
     router.get('/:clientCode/:supplierCode', async (req, res) => {
         try {
             const { clientCode, supplierCode } = req.params;
+            const userId = req.headers['x-user-id'];
 
             console.log(`📋 [CLI_IND] Buscando condições para cliente ${clientCode} + indústria ${supplierCode}`);
+
+            // Verificar permissões do usuário
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'cli_forcodigo');
 
             const query = `
                 SELECT 
@@ -39,6 +45,7 @@ module.exports = function (pool) {
                 FROM cli_ind
                 WHERE cli_forcodigo = $1 
                   AND cli_codigo = $2
+                  ${filterClause}
                 LIMIT 1
             `;
 

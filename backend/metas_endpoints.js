@@ -257,7 +257,7 @@ module.exports = (pool) => {
                     COALESCE(m.met_dez, 0) as met_dez
                 FROM fornecedores f
                 LEFT JOIN ind_metas m ON m.met_industria = f.for_codigo AND m.met_ano = $1
-                WHERE f.for_tipo2 <> 'I'
+                WHERE f.for_tipo2 = 'A'
                 ORDER BY f.for_nomered
             `;
             const result = await pool.query(query, [parseInt(ano || new Date().getFullYear())]);

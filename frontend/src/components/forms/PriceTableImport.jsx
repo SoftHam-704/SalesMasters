@@ -80,7 +80,6 @@ const PriceTableImport = () => {
         industria: '',
         nomeTabela: '',
         tabelaExistente: '',
-        grupoDesconto: '',
         dataTabela: new Date().toISOString().split('T')[0],
         dataVencimento: '',
     });
@@ -105,7 +104,8 @@ const PriceTableImport = () => {
         ncm: '',
         curva: '',
         categoria: '',
-        conversao: ''
+        conversao: '',
+        itab_grupodesconto: ''
     });
 
     const [lineCounts, setLineCounts] = useState({});
@@ -113,7 +113,6 @@ const PriceTableImport = () => {
     const [isValid, setIsValid] = useState(false);
     const [industries, setIndustries] = useState([]);
     const [existingTables, setExistingTables] = useState([]);
-    const [discountGroups, setDiscountGroups] = useState([]);
     const [importing, setImporting] = useState(false);
     const [result, setResult] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0, percentage: 0 });
@@ -134,7 +133,7 @@ const PriceTableImport = () => {
             label: 'Detalhes do Produto',
             icon: FileText,
             color: 'blue',
-            fields: ['grupo', 'aplicacao', 'embalagem', 'peso', 'prepeso', 'ipi', 'st']
+            fields: ['grupo', 'aplicacao', 'embalagem', 'peso', 'prepeso', 'itab_grupodesconto', 'ipi', 'st']
         },
         {
             id: 2,
@@ -165,7 +164,8 @@ const PriceTableImport = () => {
         ncm: { label: 'NCM', required: false },
         curva: { label: 'Curva ABC', required: false },
         categoria: { label: 'Categoria', required: false },
-        conversao: { label: 'Conversão', required: false }
+        conversao: { label: 'Conversão', required: false },
+        itab_grupodesconto: { label: 'Grupo de Desconto', required: false }
     };
 
     // Load industries
@@ -176,7 +176,7 @@ const PriceTableImport = () => {
     }, [location.state]);
 
     useEffect(() => {
-        fetch(getApiUrl(NODE_API_URL, '/api/suppliers'))
+        fetch(getApiUrl(NODE_API_URL, '/api/suppliers?status=A'))
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -186,16 +186,7 @@ const PriceTableImport = () => {
             .catch(err => console.error('Erro ao carregar indústrias:', err));
     }, []);
 
-    useEffect(() => {
-        fetch(getApiUrl(NODE_API_URL, '/api/v2/discount-groups'))
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    setDiscountGroups(data.data);
-                }
-            })
-            .catch(err => console.error('Erro ao carregar grupos de desconto:', err));
-    }, []);
+
 
     useEffect(() => {
         if (formData.industria) {
@@ -317,7 +308,8 @@ const PriceTableImport = () => {
                     ncm: getLinha('ncm'),
                     curva: getLinha('curva'),
                     categoria: getLinha('categoria'),
-                    conversao: getLinha('conversao')
+                    conversao: getLinha('conversao'),
+                    grupodesconto: getLinha('itab_grupodesconto')
                 });
             }
 
@@ -346,9 +338,6 @@ const PriceTableImport = () => {
                 const payload = {
                     industria: parseInt(formData.industria),
                     nomeTabela: formData.nomeTabela.toUpperCase(),
-                    grupoDesconto: formData.grupoDesconto && formData.grupoDesconto !== 'none'
-                        ? parseInt(formData.grupoDesconto)
-                        : null,
                     dataTabela: formData.dataTabela,
                     dataVencimento: formData.dataVencimento || null,
                     produtos: lote
@@ -638,28 +627,7 @@ const PriceTableImport = () => {
                                 )}
                             </div>
 
-                            {/* Grupo de Desconto */}
-                            <div className="col-span-12 lg:col-span-2">
-                                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-2">
-                                    Grupo Desconto
-                                </Label>
-                                <Select
-                                    value={formData.grupoDesconto}
-                                    onValueChange={(val) => setFormData({ ...formData, grupoDesconto: val })}
-                                >
-                                    <SelectTrigger className="h-12 rounded-xl border-2 border-slate-200 bg-white hover:border-purple-400 transition-colors">
-                                        <SelectValue placeholder="Nenhum" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Nenhum</SelectItem>
-                                        {discountGroups.map(grupo => (
-                                            <SelectItem key={grupo.gde_id} value={grupo.gde_id.toString()}>
-                                                {grupo.gde_nome}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+
 
                             {/* Datas */}
                             <div className="col-span-6 lg:col-span-2">

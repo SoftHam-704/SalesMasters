@@ -22,9 +22,21 @@ window.fetch = async (...args) => {
         // Tenta pegar o tenant do sessionStorage
         const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
         const sessionToken = localStorage.getItem('session_token');
+        const userRaw = sessionStorage.getItem('user');
 
         if (sessionToken) {
             config.headers['x-access-token'] = sessionToken;
+        }
+
+        if (userRaw) {
+            try {
+                const user = JSON.parse(userRaw);
+                if (user.codigo || user.id) {
+                    config.headers['x-user-id'] = user.codigo || user.id;
+                }
+            } catch (e) {
+                console.error('Erro ao processar user no interceptor fetch', e);
+            }
         }
 
         if (tenantConfigRaw) {

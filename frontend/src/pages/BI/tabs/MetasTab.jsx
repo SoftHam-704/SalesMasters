@@ -515,7 +515,7 @@ const MetasTab = ({ filters, refreshTrigger }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map(mes => {
+                                {Array.isArray(metasPorMes) && Array.from({ length: 12 }, (_, i) => i + 1).map(mes => {
                                     const dadosMes = metasPorMes.filter(m => m.mes === mes);
                                     const metaTotal = dadosMes.reduce((acc, m) => acc + (parseFloat(m.meta_ano_corrente) || 0), 0);
                                     const realizadoTotal = dadosMes.reduce((acc, m) => acc + (parseFloat(m.vendas_ano_corrente) || 0), 0);
@@ -563,7 +563,7 @@ const MetasTab = ({ filters, refreshTrigger }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {analiseDiaria.map((item, idx) => (
+                                {Array.isArray(analiseDiaria) && analiseDiaria.map((item, idx) => (
                                     <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50">
                                         <td className="py-1.5 text-slate-700">{item.dia}</td>
                                         <td className="py-1.5 text-right text-slate-700">{formatNumber(item.mes_anterior)}</td>

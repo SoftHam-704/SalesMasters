@@ -7,7 +7,7 @@ import {
 import axios from '../lib/axios';
 import { PYTHON_API_URL, getApiUrl } from '../utils/apiConfig';
 import { formatCurrency, formatNumber, formatPercent } from '../utils/formatters';
-import * as XLSX from 'xlsx';
+import { exportToExcel } from '../utils/excelUtils';
 import { toast } from 'sonner';
 
 const ValueQuantityAnomaly = ({ filters, refreshTrigger }) => {
@@ -71,7 +71,7 @@ const ValueQuantityAnomaly = ({ filters, refreshTrigger }) => {
         }
     };
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
         if (!data?.anomalies?.length) {
             toast.warning("Sem dados para exportar");
             return;
@@ -87,24 +87,18 @@ const ValueQuantityAnomaly = ({ filters, refreshTrigger }) => {
             "% Qtd": (item.perc_qtd / 100)
         }));
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-
-        // Formating numbers/percents
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            for (let C = 1; C <= 4; ++C) {
-                const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
-                if (cell) cell.z = '#,##0.00';
+        await exportToExcel(
+            exportData,
+            `Mapa_YoY_${filters?.mes}_${anoAtual}.xlsx`,
+            "Mapa_YoY",
+            {
+                formats: [
+                    { colStart: 1, colEnd: 4, format: '#,##0.00' },
+                    { colStart: 5, colEnd: 6, format: '0.00%' }
+                ]
             }
-            for (let C = 5; C <= 6; ++C) {
-                const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
-                if (cell) cell.z = '0.00%';
-            }
-        }
+        );
 
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Mapa_YoY");
-        XLSX.writeFile(wb, `Mapa_YoY_${filters?.mes}_${anoAtual}.xlsx`);
         toast.success("Exportado para Excel com sucesso!");
     };
 

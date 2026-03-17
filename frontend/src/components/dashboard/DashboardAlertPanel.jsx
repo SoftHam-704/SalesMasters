@@ -9,7 +9,9 @@ import {
     User, Settings, LogOut, Cake, CheckCircle2,
     Phone, MapPin, FileText, RefreshCw, X
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
+import axios from '@/lib/axios';
 
 // Ícones por tipo de tarefa
 const tipoIcons = {
@@ -24,6 +26,7 @@ const tipoIcons = {
 };
 
 const DashboardAlertPanel = ({ userName, userInitials, onLogout, onOpenAgenda }) => {
+    const navigate = useNavigate();
     const [resumo, setResumo] = useState({
         tarefas_hoje: 0,
         atrasadas: 0,
@@ -47,15 +50,15 @@ const DashboardAlertPanel = ({ userName, userInitials, onLogout, onOpenAgenda })
             const userId = user?.id || '1';
             const empresaId = user?.empresa_id || '1';
 
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/agenda/resumo'), {
+            const response = await axios.get('/agenda/resumo', {
                 headers: {
                     'x-user-id': userId,
                     'x-empresa-id': empresaId
                 }
             });
-            const data = await response.json();
-            if (data.success) {
-                setResumo(data.data);
+
+            if (response.data.success) {
+                setResumo(response.data.data);
             }
         } catch (error) {
             console.error('Erro ao carregar resumo da agenda:', error);
@@ -146,31 +149,61 @@ const DashboardAlertPanel = ({ userName, userInitials, onLogout, onOpenAgenda })
                         </div>
 
                         <div className="max-h-80 overflow-y-auto">
-                            {/* Tarefas pendentes */}
-                            {resumo.tarefas_hoje > 0 && (
-                                <div className="p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group" onClick={onOpenAgenda}>
+                            {/* Follow-ups CRM Hoje */}
+                            {resumo.crm_hoje > 0 && (
+                                <div className="p-3 border-b border-slate-50 hover:bg-blue-50/30 transition-colors cursor-pointer group" onClick={() => navigate('/repcrm/followups')}>
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <Calendar size={18} />
+                                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <RefreshCw size={18} />
                                         </div>
                                         <div>
-                                            <p className="text-sm text-slate-800 font-bold">{resumo.tarefas_hoje} tarefa(s) para hoje</p>
-                                            <p className="text-xs text-slate-500 group-hover:text-emerald-600 transition-colors">Clique para ver detalhes</p>
+                                            <p className="text-sm text-slate-800 font-bold">{resumo.crm_hoje} follow-up(s) CRM hoje</p>
+                                            <p className="text-xs text-slate-500 group-hover:text-blue-600 transition-colors">Ver painel comercial</p>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Atrasadas */}
-                            {resumo.atrasadas > 0 && (
+                            {/* Tarefas Agenda Hoje */}
+                            {resumo.agenda_hoje > 0 && (
+                                <div className="p-3 border-b border-slate-50 hover:bg-emerald-50/30 transition-colors cursor-pointer group" onClick={onOpenAgenda}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Calendar size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-slate-800 font-bold">{resumo.agenda_hoje} tarefa(s) na agenda</p>
+                                            <p className="text-xs text-slate-500 group-hover:text-emerald-600 transition-colors">Ver agenda pessoal</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Follow-ups CRM Atrasados */}
+                            {resumo.crm_atrasadas > 0 && (
+                                <div className="p-3 border-b border-slate-50 hover:bg-rose-50/20 transition-colors cursor-pointer group" onClick={() => navigate('/repcrm/followups')}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <AlertTriangle size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-orange-700 font-bold">{resumo.crm_atrasadas} follow-up(s) CRM atrasados</p>
+                                            <p className="text-xs text-orange-500 font-medium">Atenção no funil de vendas!</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Tarefas Agenda Atrasadas */}
+                            {resumo.agenda_atrasadas > 0 && (
                                 <div className="p-3 border-b border-slate-50 hover:bg-rose-50/30 transition-colors cursor-pointer group" onClick={onOpenAgenda}>
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center group-hover:scale-110 transition-transform">
                                             <AlertTriangle size={18} />
                                         </div>
                                         <div>
-                                            <p className="text-sm text-rose-700 font-bold">{resumo.atrasadas} tarefa(s) atrasada(s)</p>
-                                            <p className="text-xs text-rose-500 font-medium">Atenção necessária!</p>
+                                            <p className="text-sm text-rose-700 font-bold">{resumo.agenda_atrasadas} tarefa(s) atrasada(s)</p>
+                                            <p className="text-xs text-rose-500 font-medium">Ver agenda pessoal</p>
                                         </div>
                                     </div>
                                 </div>
@@ -178,7 +211,7 @@ const DashboardAlertPanel = ({ userName, userInitials, onLogout, onOpenAgenda })
 
                             {/* Próximo compromisso */}
                             {proximo && (
-                                <div className="p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group" onClick={onOpenAgenda}>
+                                <div className="p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group" onClick={proximo.module === 'crm' ? () => navigate('/repcrm/followups') : onOpenAgenda}>
                                     <div className="flex items-start gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
                                             {tipoIcons[proximo.tipo] || <Clock size={18} />}

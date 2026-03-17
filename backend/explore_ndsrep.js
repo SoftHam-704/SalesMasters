@@ -54,6 +54,18 @@ async function explore() {
             console.table(columns.rows);
         }
 
+        // 6. Check itens_ped structure in ndsrep
+        if (tables.rows.some(t => t.tablename === 'itens_ped')) {
+            const columns = await pool.query(`
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = 'ndsrep' AND table_name = 'itens_ped'
+                ORDER BY ordinal_position
+            `);
+            console.log('Columns in itens_ped:');
+            console.table(columns.rows);
+        }
+
     } catch (err) {
         console.error('ERRO:', err.message);
     } finally {

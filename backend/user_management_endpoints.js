@@ -138,7 +138,7 @@ module.exports = function (pool) {
                     { idx: 305, label: 'Clientes Financeiros' },
                     { idx: 307, label: 'Fornecedores Fin.' },
 
-                    { idx: 50, label: 'ESTATÍSTICOS', isParent: true },
+                    { idx: 50, label: 'ESTATÍSTICAS', isParent: true },
                     { idx: 501, label: 'Mapa de Vendas' },
                     { idx: 502, label: 'Mapa Cli/Indústria' },
                     { idx: 503, label: 'Mapa Cli Mês a Mês' },
@@ -244,7 +244,7 @@ module.exports = function (pool) {
         try {
             const query = `
                 SELECT 
-                    codigo, nome, sobrenome, usuario, grupo, master, gerencia, COALESCE(ativo, true) as ativo
+                    codigo, nome, sobrenome, usuario, grupo, master, gerencia, imagem, COALESCE(ativo, true) as ativo
                 FROM user_nomes 
                 ORDER BY nome
             `;
@@ -253,7 +253,7 @@ module.exports = function (pool) {
         } catch (error) {
             console.warn('⚠️ [USERS] Erro ao buscar usuários com coluna ativo, tentando fallback:', error.message);
             try {
-                const fallbackQuery = 'SELECT codigo, nome, sobrenome, usuario, grupo, master, gerencia, true as ativo FROM user_nomes ORDER BY nome';
+                const fallbackQuery = 'SELECT codigo, nome, sobrenome, usuario, grupo, master, gerencia, imagem, true as ativo FROM user_nomes ORDER BY nome';
                 const result = await pool.query(fallbackQuery);
                 res.json({ success: true, data: result.rows });
             } catch (err2) {
@@ -266,7 +266,7 @@ module.exports = function (pool) {
     // Criar/Atualizar usuário (Resiliente à falta da coluna 'ativo')
     router.post('/users', async (req, res) => {
         try {
-            const { codigo, nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo } = req.body;
+            const { codigo, nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo, imagem } = req.body;
             const tenantCnpj = req.headers['x-tenant-cnpj'];
 
             if (!codigo) {
@@ -296,11 +296,11 @@ module.exports = function (pool) {
                 // Prosseguir com INSERT resiliente
                 try {
                     const query = `
-                        INSERT INTO user_nomes (nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        INSERT INTO user_nomes (nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo, imagem)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                         RETURNING *
                     `;
-                    const result = await pool.query(query, [nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo !== undefined ? ativo : true]);
+                    const result = await pool.query(query, [nome, sobrenome, usuario, senha, grupo, master, gerencia, ativo !== undefined ? ativo : true, imagem]);
                     return res.json({ success: true, data: result.rows[0], message: 'Usuário criado!' });
                 } catch (insErr) {
                     if (insErr.message.includes('ativo')) {
@@ -319,12 +319,12 @@ module.exports = function (pool) {
                 try {
                     const query = `
                         UPDATE user_nomes 
-                        SET nome = $1, sobrenome = $2, usuario = $3, grupo = $4, master = $5, gerencia = $6, ativo = $7
-                        ${senha ? ', senha = $8' : ''}
-                        WHERE codigo = $${senha ? '9' : '8'}
+                        SET nome = $1, sobrenome = $2, usuario = $3, grupo = $4, master = $5, gerencia = $6, ativo = $7, imagem = $8
+                        ${senha ? ', senha = $9' : ''}
+                        WHERE codigo = $${senha ? '10' : '9'}
                         RETURNING *
                     `;
-                    const params = [nome, sobrenome, usuario, grupo, master, gerencia, ativo !== undefined ? ativo : true];
+                    const params = [nome, sobrenome, usuario, grupo, master, gerencia, ativo !== undefined ? ativo : true, imagem];
                     if (senha) params.push(senha);
                     params.push(codigo);
 

@@ -523,7 +523,7 @@ const ConcentrationChart = ({ data }) => {
             </div>
 
             <div className="w-full h-[110px] mt-2 relative">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={110}>
                     <PieChart>
                         <Pie
                             data={chartData}
@@ -628,7 +628,7 @@ const ActivationBarChart = ({ data }) => {
             </div>
 
             <div className="flex-1 min-h-[110px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={110}>
                     <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f4" />
                         <XAxis
@@ -707,7 +707,7 @@ const CustomerHealthChart = ({ data }) => {
 
     return (
         <div className="w-full h-[110px] py-1">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={110}>
                 <BarChart data={displayData} layout="vertical" margin={{ left: 10, right: 10, top: 0, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 9, fontWeight: 'bold', fill: '#78716c' }} axisLine={false} tickLine={false} />
@@ -727,7 +727,7 @@ const MixCoverageChart = ({ data }) => {
     if (!data) return null;
     return (
         <div className="w-full h-[110px] flex flex-col items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={110}>
                 <PieChart>
                     <Pie data={data} cx="50%" cy="50%" outerRadius={40} innerRadius={25} paddingAngle={2} dataKey="value" labelLine={false}>
                         {data.map((entry, index) => <Cell key={`cell-${index}`} fill={['#6366f1', '#10b981', '#f59e0b'][index % 3]} />)}

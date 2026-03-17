@@ -4,18 +4,22 @@ import { AlertTriangle, ChevronRight, User, Phone } from 'lucide-react';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
 import { useNavigate } from 'react-router-dom';
 
-const RetentionAlertCard = () => {
+const RetentionAlertCard = ({ selectedIndustry }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
         fetchRetentionData();
-    }, []);
+    }, [selectedIndustry]);
 
     const fetchRetentionData = async () => {
         try {
-            const response = await fetch(getApiUrl(NODE_API_URL, '/api/intelligence/retention-alert'));
+            const params = new URLSearchParams();
+            if (selectedIndustry) params.append('industria', selectedIndustry);
+
+            const url = getApiUrl(NODE_API_URL, `/api/intelligence/retention-alert?${params}`);
+            const response = await fetch(url);
             const result = await response.json();
             if (result.success) {
                 setData(result.data);

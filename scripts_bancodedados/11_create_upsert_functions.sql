@@ -23,7 +23,14 @@ CREATE OR REPLACE FUNCTION fn_upsert_produto(
     p_ncm VARCHAR(10) DEFAULT NULL,
     p_origem CHAR(1) DEFAULT NULL,
     p_aplicacao VARCHAR(300) DEFAULT NULL,
-    p_codbarras VARCHAR(13) DEFAULT NULL
+    p_codbarras VARCHAR(13) DEFAULT NULL,
+    p_conversao VARCHAR(50) DEFAULT NULL,
+    p_linhaleve BOOLEAN DEFAULT FALSE,
+    p_linhapesada BOOLEAN DEFAULT FALSE,
+    p_linhaagricola BOOLEAN DEFAULT FALSE,
+    p_linhautilitarios BOOLEAN DEFAULT FALSE,
+    p_motocicletas BOOLEAN DEFAULT FALSE,
+    p_offroad BOOLEAN DEFAULT FALSE
 )
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -35,7 +42,7 @@ BEGIN
     -- Normaliza o código
     v_codigo_normalizado := fn_normalizar_codigo(p_codprod);
     
-    -- Tenta atualizar primeiro (Abordagem mais segura que garante o encontro do registro)
+    -- Tenta atualizar primeiro
     UPDATE cad_prod SET
         pro_nome = COALESCE(NULLIF(p_nome, ''), pro_nome),
         pro_peso = COALESCE(NULLIF(p_peso, 0), pro_peso),
@@ -47,30 +54,46 @@ BEGIN
         pro_origem = COALESCE(NULLIF(p_origem, ''), pro_origem),
         pro_aplicacao = COALESCE(NULLIF(p_aplicacao, ''), pro_aplicacao),
         pro_codbarras = COALESCE(NULLIF(p_codbarras, ''), pro_codbarras),
-        pro_codprod = p_codprod -- Atualiza código original se mudou formatação
+        pro_conversao = COALESCE(NULLIF(p_conversao, ''), pro_conversao),
+        pro_linhaleve = p_linhaleve,
+        pro_linhapesada = p_linhapesada,
+        pro_linhaagricola = p_linhaagricola,
+        pro_linhautilitarios = p_linhautilitarios,
+        pro_motocicletas = p_motocicletas,
+        pro_offroad = p_offroad,
+        pro_codprod = p_codprod
     WHERE pro_industria = p_industria 
       AND pro_codigonormalizado = v_codigo_normalizado
     RETURNING pro_id INTO v_pro_id;
     
     -- Se não encontrou para atualizar, insere novo
     IF v_pro_id IS NULL THEN
-        -- Antes de inserir, verifica se existe algum resquício por pro_codprod antigo sem normalização
         SELECT pro_id INTO v_pro_id FROM cad_prod 
         WHERE pro_industria = p_industria AND pro_codprod = p_codprod LIMIT 1;
 
         IF v_pro_id IS NOT NULL THEN
-            -- Se achou pelo código bruto, atualiza e normaliza
-            UPDATE cad_prod SET pro_codigonormalizado = v_codigo_normalizado WHERE pro_id = v_pro_id;
+            UPDATE cad_prod SET 
+                pro_codigonormalizado = v_codigo_normalizado,
+                pro_linhaleve = p_linhaleve,
+                pro_linhapesada = p_linhapesada,
+                pro_linhaagricola = p_linhaagricola,
+                pro_linhautilitarios = p_linhautilitarios,
+                pro_motocicletas = p_motocicletas,
+                pro_offroad = p_offroad
+            WHERE pro_id = v_pro_id;
         ELSE
-            -- Insere realmente novo
             INSERT INTO cad_prod (
                 pro_industria, pro_codprod, pro_codigonormalizado, pro_codigooriginal,
                 pro_nome, pro_peso, pro_embalagem, pro_grupo, pro_setor,
-                pro_linha, pro_ncm, pro_origem, pro_aplicacao, pro_codbarras, pro_status
+                pro_linha, pro_ncm, pro_origem, pro_aplicacao, pro_codbarras, pro_conversao, 
+                pro_linhaleve, pro_linhapesada, pro_linhaagricola, pro_linhautilitarios,
+                pro_motocicletas, pro_offroad, pro_status
             ) VALUES (
                 p_industria, p_codprod, v_codigo_normalizado, p_codprod,
                 p_nome, p_peso, p_embalagem, p_grupo, p_setor,
-                p_linha, p_ncm, p_origem, p_aplicacao, p_codbarras, true
+                p_linha, p_ncm, p_origem, p_aplicacao, p_codbarras, p_conversao,
+                p_linhaleve, p_linhapesada, p_linhaagricola, p_linhautilitarios,
+                p_motocicletas, p_offroad, true
             )
             RETURNING pro_id INTO v_pro_id;
         END IF;
@@ -92,8 +115,6 @@ COMMENT ON FUNCTION fn_upsert_produto IS
 -- Função: UPSERT de Preço (Dados Variáveis)
 -- ============================================================================
 -- Esta função insere ou atualiza os dados de preço em uma tabela específica
-DROP FUNCTION IF EXISTS fn_upsert_preco(INTEGER, INTEGER, VARCHAR, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, INTEGER, DOUBLE PRECISION, DATE, DATE);
-
 CREATE OR REPLACE FUNCTION fn_upsert_preco(
     p_pro_id INTEGER,
     p_industria INTEGER,
@@ -105,8 +126,9 @@ CREATE OR REPLACE FUNCTION fn_upsert_preco(
     p_st DOUBLE PRECISION DEFAULT 0,
     p_grupodesconto INTEGER DEFAULT NULL,
     p_descontoadd DOUBLE PRECISION DEFAULT 0,
-    p_datatbela DATE DEFAULT CURRENT_DATE,
-    p_datavencimento DATE DEFAULT NULL
+    p_datatabela DATE DEFAULT CURRENT_DATE,
+    p_datavencimento DATE DEFAULT NULL,
+    p_prepeso DOUBLE PRECISION DEFAULT 0
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -115,7 +137,7 @@ BEGIN
     -- UPSERT: insere ou atualiza
     INSERT INTO cad_tabelaspre (
         itab_idprod,
-        itab_industria,
+        itab_idindustria,
         itab_tabela,
         itab_precobruto,
         itab_precopromo,
@@ -126,6 +148,7 @@ BEGIN
         itab_descontoadd,
         itab_datatabela,
         itab_datavencimento,
+        itab_prepeso,
         itab_status
     ) VALUES (
         p_pro_id,
@@ -138,8 +161,9 @@ BEGIN
         p_st,
         p_grupodesconto,
         p_descontoadd,
-        p_datatbela,
+        p_datatabela,
         p_datavencimento,
+        p_prepeso,
         true
     )
     ON CONFLICT (itab_idprod, itab_tabela) 
@@ -153,6 +177,7 @@ BEGIN
         itab_descontoadd = COALESCE(NULLIF(EXCLUDED.itab_descontoadd, 0), cad_tabelaspre.itab_descontoadd),
         itab_datatabela = COALESCE(EXCLUDED.itab_datatabela, cad_tabelaspre.itab_datatabela),
         itab_datavencimento = COALESCE(EXCLUDED.itab_datavencimento, cad_tabelaspre.itab_datavencimento),
+        itab_prepeso = COALESCE(NULLIF(EXCLUDED.itab_prepeso, 0), cad_tabelaspre.itab_prepeso),
         itab_status = EXCLUDED.itab_status;
 END;
 $$;

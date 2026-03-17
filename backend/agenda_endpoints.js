@@ -5,6 +5,8 @@
 // =====================================================
 
 const express = require('express');
+const { resolveVendedor } = require('./crm_endpoints_v2');
+const { ensureCrmFollowupsTable } = require('./utils/migration');
 
 module.exports = (pool) => {
     const router = express.Router();
@@ -94,8 +96,17 @@ module.exports = (pool) => {
                 return res.status(401).json({ success: false, message: 'Empresa não identificada' });
             }
 
-            // Tarefas de hoje
-            const tarefasHoje = await pool.query(`
+            // --- CÁLCULO UNIFICADO (Agenda + CRM) ---
+            
+            // 1. Buscamos o ven_codigo do usuário comercial
+            const vendedorRes = await pool.query(
+                'SELECT ven_codigo FROM vendedores WHERE ven_codusu = $1 LIMIT 1',
+                [usuarioId]
+            );
+            const ven_codigo = vendedorRes.rows[0]?.ven_codigo;
+
+            // 2. Tarefas da Agenda Pessoal
+            const tarefasHojeAgenda = await pool.query(`
                 SELECT COUNT(*) as total 
                 FROM agenda 
                 WHERE usuario_id = $1 AND empresa_id = $2
@@ -103,8 +114,7 @@ module.exports = (pool) => {
                   AND data_inicio = CURRENT_DATE
             `, [usuarioId, empresaId]);
 
-            // Tarefas atrasadas
-            const atrasadas = await pool.query(`
+            const atrasadasAgenda = await pool.query(`
                 SELECT COUNT(*) as total 
                 FROM agenda 
                 WHERE usuario_id = $1 AND empresa_id = $2
@@ -112,8 +122,47 @@ module.exports = (pool) => {
                   AND data_inicio < CURRENT_DATE
             `, [usuarioId, empresaId]);
 
-            // Próximo compromisso
-            const proximo = await pool.query(`
+            // 3. Follow-ups do CRM (se for um vendedor)
+            let crmHoje = 0;
+            let crmAtrasadas = 0;
+            if (ven_codigo) {
+                try {
+                    const crmCounts = await pool.query(`
+                        SELECT 
+                            COUNT(CASE WHEN data_prevista = CURRENT_DATE THEN 1 END) as hoje,
+                            COUNT(CASE WHEN data_prevista < CURRENT_DATE THEN 1 END) as atrasadas
+                        FROM crm_followups
+                        WHERE ven_codigo = $1 AND status = 'pendente'
+                    `, [ven_codigo]);
+                    crmHoje = parseInt(crmCounts.rows[0]?.hoje || 0);
+                    crmAtrasadas = parseInt(crmCounts.rows[0]?.atrasadas || 0);
+                } catch (crmErr) {
+                    if (crmErr.message.includes('relation "crm_followups" does not exist')) {
+                        console.warn('⚠️ [CRM] Tabela crm_followups não encontrada no dashboard. Iniciando migração automática...');
+                        await ensureCrmFollowupsTable(pool);
+                        
+                        // Tenta novamente uma única vez após a migração
+                        try {
+                            const retryCounts = await pool.query(`
+                                SELECT 
+                                    COUNT(CASE WHEN data_prevista = CURRENT_DATE THEN 1 END) as hoje,
+                                    COUNT(CASE WHEN data_prevista < CURRENT_DATE THEN 1 END) as atrasadas
+                                FROM crm_followups
+                                WHERE ven_codigo = $1 AND status = 'pendente'
+                            `, [ven_codigo]);
+                            crmHoje = parseInt(retryCounts.rows[0]?.hoje || 0);
+                            crmAtrasadas = parseInt(retryCounts.rows[0]?.atrasadas || 0);
+                        } catch (retryErr) {
+                            console.error('❌ [CRM] Erro persistente após migração no dashboard:', retryErr.message);
+                        }
+                    } else {
+                        console.warn('⚠️ [CRM] Erro na consulta de follow-ups no dashboard:', crmErr.message);
+                    }
+                }
+            }
+
+            // Próximo compromisso (Prioridade para Agenda Pessoal se houver horário, senão CRM)
+            const proximoAgenda = await pool.query(`
                 SELECT titulo, hora_inicio, tipo
                 FROM agenda 
                 WHERE usuario_id = $1 AND empresa_id = $2
@@ -123,6 +172,22 @@ module.exports = (pool) => {
                 ORDER BY hora_inicio ASC NULLS LAST
                 LIMIT 1
             `, [usuarioId, empresaId]);
+
+            let proximoCompromisso = proximoAgenda.rows[0] || null;
+            if (!proximoCompromisso && ven_codigo) {
+                const crmProx = await pool.query(`
+                    SELECT titulo, tipo, 'crm' as module
+                    FROM crm_followups
+                    WHERE ven_codigo = $1 AND status = 'pendente' AND data_prevista = CURRENT_DATE
+                    LIMIT 1
+                `, [ven_codigo]);
+                if (crmProx.rows[0]) {
+                    proximoCompromisso = {
+                        ...crmProx.rows[0],
+                        hora_inicio: 'Dia todo'
+                    };
+                }
+            }
 
             // Aniversários de hoje (contatos de clientes)
             const aniversarios = await pool.query(`
@@ -137,10 +202,15 @@ module.exports = (pool) => {
             res.json({
                 success: true,
                 data: {
-                    tarefas_hoje: parseInt(tarefasHoje.rows[0]?.total || 0),
-                    atrasadas: parseInt(atrasadas.rows[0]?.total || 0),
-                    proximo_compromisso: proximo.rows[0] || null,
-                    aniversarios_hoje: aniversarios.rows
+                    tarefas_hoje: parseInt(tarefasHojeAgenda.rows[0]?.total || 0) + crmHoje,
+                    atrasadas: parseInt(atrasadasAgenda.rows[0]?.total || 0) + crmAtrasadas,
+                    proximo_compromisso: proximoCompromisso,
+                    aniversarios_hoje: aniversarios.rows,
+                    // Detalhes para navegação inteligente no front
+                    agenda_hoje: parseInt(tarefasHojeAgenda.rows[0]?.total || 0),
+                    crm_hoje: crmHoje,
+                    agenda_atrasadas: parseInt(atrasadasAgenda.rows[0]?.total || 0),
+                    crm_atrasadas: crmAtrasadas
                 }
             });
         } catch (error) {
@@ -455,6 +525,74 @@ module.exports = (pool) => {
             });
         } catch (error) {
             console.error('❌ [AGENDA] Erro ao excluir tarefa:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // ==================== NOTIFICAÇÕES ====================
+
+    // GET - Buscar notificações pendentes
+    router.get('/notifications/pending', async (req, res) => {
+        try {
+            const usuarioId = req.headers['x-user-id'];
+            const empresaId = req.headers['x-empresa-id'];
+            if (!usuarioId || !empresaId) {
+                return res.status(401).json({ success: false, message: 'Usuário ou empresa não identificados' });
+            }
+
+            // Busca tarefas que:
+            // 1. Têm lembrete ativo
+            // 2. Ainda não foram notificadas
+            // 3. O horário do lembrete (data_inicio + hora_inicio - lembrete_antes) já passou ou é agora
+            const query = `
+                SELECT 
+                    id, titulo, tipo, data_inicio, hora_inicio, lembrete_antes
+                FROM agenda
+                WHERE usuario_id = $1 AND empresa_id = $2
+                  AND status IN ('pendente', 'em_andamento')
+                  AND lembrete_ativo = true
+                  AND lembrete_enviado = false
+                  AND (
+                    (data_inicio + COALESCE(hora_inicio, '00:00:00'::time)) - (lembrete_antes * interval '1 minute') <= NOW()
+                  )
+                ORDER BY data_inicio ASC, hora_inicio ASC
+            `;
+
+            const result = await pool.query(query, [usuarioId, empresaId]);
+
+            res.json({
+                success: true,
+                data: result.rows
+            });
+        } catch (error) {
+            console.error('❌ [AGENDA] Erro ao buscar notificações pendentes:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    // PATCH - Marcar notificação como enviada
+    router.patch('/notifications/:id/sent', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const usuarioId = req.headers['x-user-id'];
+            const empresaId = req.headers['x-empresa-id'];
+
+            if (!usuarioId || !empresaId) {
+                return res.status(401).json({ success: false, message: 'Usuário ou empresa não identificados' });
+            }
+
+            await pool.query(`
+                UPDATE agenda 
+                SET lembrete_enviado = true, updated_at = NOW()
+                WHERE id = $1 AND usuario_id = $2 AND empresa_id = $3
+            `, [id, usuarioId, empresaId]);
+
+            res.json({
+                success: true,
+                message: 'Notificação marcada como enviada'
+            });
+        } catch (error) {
+            console.error('❌ [AGENDA] Erro ao marcar notificação como enviada:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });

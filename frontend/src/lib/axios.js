@@ -10,7 +10,7 @@ const instance = axios.create({
     }
 });
 
-// Interceptor para injetar headers de Multi-tenant em cada requisição
+// Interceptor para injetar headers de Multi-tenant e User ID em cada requisição
 instance.interceptors.request.use((config) => {
     const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
     if (tenantConfigRaw) {
@@ -26,6 +26,22 @@ instance.interceptors.request.use((config) => {
             }
         } catch (e) {
             console.error('Erro ao processar tenantConfig do localStorage', e);
+        }
+    }
+
+    // Injetar User ID para filtros de permissão no backend
+    const userRaw = sessionStorage.getItem('user');
+    if (userRaw) {
+        try {
+            const user = JSON.parse(userRaw);
+            if (user.codigo || user.id) {
+                config.headers['x-user-id'] = user.codigo || user.id;
+            }
+            if (user.empresa_id) {
+                config.headers['x-empresa-id'] = user.empresa_id;
+            }
+        } catch (e) {
+            console.error('Erro ao processar user no interceptor axios', e);
         }
     }
 

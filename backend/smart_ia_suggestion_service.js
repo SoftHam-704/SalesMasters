@@ -32,16 +32,16 @@ Cidade/UF: ${context.cliente?.cli_cidade || 'N/A'}/${context.cliente?.cli_uf || 
 Indústria analisada ID: ${context.industria_analisada}
 
 ## HISTÓRICO DO CLIENTE
-${JSON.stringify(context.historico_compras, null, 2)}
+${JSON.stringify(context.historico_compras)}
 
 ## GAP ANALYSIS (PRODUTOS NÃO COMPRADOS)
-${JSON.stringify(context.gap_analysis, null, 2)}
+${JSON.stringify(context.gap_analysis)}
 
 ## ALERTAS DE RECOMPRA
-${JSON.stringify(context.alertas_recompra, null, 2)}
+${JSON.stringify(context.alertas_recompra)}
 
 ## CURVA ABC DA INDÚSTRIA
-${JSON.stringify(context.curva_abc_produtos, null, 2)}
+${JSON.stringify(context.curva_abc_produtos)}
 
 ---
 Com base nesses dados, gere o plano de sugestão de compras seguindo este formato JSON:

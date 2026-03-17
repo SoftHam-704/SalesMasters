@@ -132,7 +132,7 @@ export const BirthdayCard = ({ birthdays = [], loading = false }) => {
                                     borderRadius: '4px',
                                     whiteSpace: 'nowrap'
                                 }}>
-                                    {b.cli_datanasc ? `${new Date(b.cli_datanasc).getDate()}/${('0' + (new Date(b.cli_datanasc).getMonth() + 1)).slice(-2)}` : '--/--'}
+                                    {b.ani_diaaniv ? `${String(b.ani_diaaniv).padStart(2, '0')}/${String(b.ani_mes).padStart(2, '0')}` : '--/--'}
                                 </span>
                             </div>
 

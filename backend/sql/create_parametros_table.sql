@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS parametros (
     par_email               VARCHAR(80),
     par_emailuser           VARCHAR(80),
     par_emailporta          INTEGER,
-    par_emailpassword       VARCHAR(15),
+    par_emailpassword       VARCHAR(100),
     par_emailtls            BOOLEAN DEFAULT FALSE,
     par_emailssl            BOOLEAN DEFAULT FALSE,
     par_emailalternativo    VARCHAR(80),

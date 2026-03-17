@@ -173,8 +173,12 @@ module.exports = (pool) => {
                 SELECT *, CASE WHEN ranking <= 0.2 THEN 'A' WHEN ranking <= 0.5 THEN 'B' ELSE 'C' END as curva
                 FROM IndustryABC
                 WHERE ite_idproduto NOT IN (
-                    SELECT DISTINCT ite_idproduto FROM itens_ped JOIN pedidos ON ite_pedido = ped_pedido
-                    WHERE ped_cliente = $2 AND ped_industria = $1
+                    SELECT DISTINCT ite_idproduto 
+                    FROM itens_ped 
+                    JOIN pedidos ON ite_pedido = ped_pedido
+                    WHERE ped_cliente = $2 
+                      AND ped_industria = $1
+                      AND ped_situacao NOT IN ('C', 'E')
                 )
                 ORDER BY curva ASC, total_vendas DESC LIMIT 30
             `;
@@ -188,6 +192,36 @@ module.exports = (pool) => {
                 }))
             });
         } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    /**
+     * GET /api/intelligence/:id/smart-mix-gap
+     * Consumes the stored function fn_smart_mix_gap
+     */
+    router.get('/:id/smart-mix-gap', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { industria_id, meses = 6 } = req.query;
+
+            if (!industria_id) {
+                return res.status(400).json({ success: false, message: 'industria_id é obrigatório' });
+            }
+
+            const query = 'SELECT * FROM fn_smart_mix_gap($1, $2, $3)';
+            const result = await pool.query(query, [id, industria_id, meses]);
+
+            res.json({
+                success: true,
+                data: result.rows.map(row => ({
+                    ...row,
+                    avg_market_qty: parseFloat(row.avg_market_qty),
+                    market_penetration_pct: parseFloat(row.market_penetration_pct)
+                }))
+            });
+        } catch (error) {
+            console.error('Error in smart-mix-gap endpoint:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });
@@ -312,6 +346,7 @@ module.exports = (pool) => {
      */
     router.get('/retention-alert', async (req, res) => {
         try {
+            const { industria } = req.query;
             const query = `
                 SELECT 
                     c.cli_codigo,
@@ -322,6 +357,7 @@ module.exports = (pool) => {
                     SELECT p.ped_data as ultima_data
                     FROM pedidos p
                     WHERE p.ped_cliente = c.cli_codigo AND p.ped_situacao IN ('P', 'F')
+                      ${industria ? 'AND p.ped_industria = ' + parseInt(industria) : ''}
                     ORDER BY p.ped_data DESC
                     LIMIT 1
                 ) lp ON true
@@ -421,6 +457,75 @@ module.exports = (pool) => {
             res.json({ success: true });
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
+        }
+    });
+    /**
+     * GET /api/intelligence/sellout-periodo
+     * Gera os dados em formato cross-tab/pivot por cliente x mes/ano
+     */
+    router.get('/sellout-periodo', async (req, res) => {
+        try {
+            const { startDate, endDate, industriaId, clienteId } = req.query;
+
+            if (!startDate || !endDate) {
+                return res.status(400).json({ success: false, message: 'startDate e endDate são obrigatórios.' });
+            }
+
+            const params = [startDate, endDate];
+            let filters = `p.ped_situacao IN ('P', 'F') AND p.ped_data >= $1 AND p.ped_data <= $2`;
+            let paramIndex = 3;
+
+            if (industriaId && industriaId !== 'all') {
+                filters += ` AND p.ped_industria = $${paramIndex}`;
+                params.push(industriaId);
+                paramIndex++;
+            }
+
+            if (clienteId && clienteId !== 'all') {
+                filters += ` AND p.ped_cliente = $${paramIndex}`;
+                params.push(clienteId);
+                paramIndex++;
+            }
+
+            const query = `
+                SELECT 
+                    p.ped_cliente as cliente_id,
+                    c.cli_nomred as cliente_nome,
+                    EXTRACT(YEAR FROM p.ped_data) as ano,
+                    EXTRACT(MONTH FROM p.ped_data) as mes,
+                    SUM(ip.ite_totliquido) as valor,
+                    SUM(ip.ite_quant) as quantidade
+                FROM pedidos p
+                JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido AND p.ped_industria = ip.ite_industria
+                JOIN clientes c ON p.ped_cliente = c.cli_codigo
+                WHERE ${filters}
+                GROUP BY 
+                    p.ped_cliente, 
+                    c.cli_nomred, 
+                    EXTRACT(YEAR FROM p.ped_data), 
+                    EXTRACT(MONTH FROM p.ped_data)
+                ORDER BY 
+                    c.cli_nomred, 
+                    ano, 
+                    mes
+            `;
+
+            const result = await pool.query(query, params);
+
+            res.json({
+                success: true,
+                count: result.rows.length,
+                data: result.rows.map(row => ({
+                    ...row,
+                    ano: parseInt(row.ano),
+                    mes: parseInt(row.mes),
+                    valor: parseFloat(row.valor),
+                    quantidade: parseFloat(row.quantidade)
+                }))
+            });
+        } catch (error) {
+            console.error('Error fetching sellout period data:', error);
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 

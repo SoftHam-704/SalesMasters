@@ -1,43 +1,36 @@
 import { useState, useEffect } from 'react';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import {
-    Loader2, Shield, Calendar, Clock, MessageCircle, Zap, Target, User, Phone
+import { 
+    Loader2, MessageCircle, Calendar, Clock, 
+    User, Target, CheckCircle2, Building2, 
+    Send, MapPin, Search, Check
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
 import DbComboBox from '@/components/DbComboBox';
-import { NODE_API_URL } from '../../utils/apiConfig';
+import axios from '@/lib/axios';
 
-const NovaInteracaoModal = ({ open, onClose, onSuccess, editData = null }) => {
+const NovaInteracaoModal = ({ open, onClose, onSuccess, editData = null, preData = null }) => {
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const isEdit = !!editData?.interacao_id;
+    const isEditMode = !!editData;
 
-    // Form state
+    // Form states
+    const [clienteId, setClienteId] = useState(null);
+    const [clienteLabel, setClienteLabel] = useState('');
+    const [canalId, setCanalId] = useState('');
+    const [tipoId, setTipoId] = useState('');
+    const [resultadoId, setResultadoId] = useState('');
+    const [descricao, setDescricao] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [time, setTime] = useState(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-    const [clientId, setClientId] = useState(null);
-    const [clientLabel, setClientLabel] = useState('');
-    const [clientPhone, setClientPhone] = useState('');
-    const [tipoId, setTipoId] = useState('');
-    const [canalId, setCanalId] = useState('');
-    const [resultadoId, setResultadoId] = useState('');
-    const [contatoNome, setContatoNome] = useState('');
-    const [descricao, setDescricao] = useState('');
-    const [selectedIndustries, setSelectedIndustries] = useState([]);
+    const [oportunidadeId, setOportunidadeId] = useState(null);
+    const [industriasSelecionadas, setIndustriasSelecionadas] = useState(new Set());
 
     // Lookups
     const [tipos, setTipos] = useState([]);
@@ -45,263 +38,327 @@ const NovaInteracaoModal = ({ open, onClose, onSuccess, editData = null }) => {
     const [resultados, setResultados] = useState([]);
     const [industriasList, setIndustriasList] = useState([]);
 
-    useEffect(() => {
-        if (open) {
-            fetchLookupData();
-            if (editData) {
-                // Ensure we have a valid date from source or fallback to now
-                const dateSource = editData.data_interacao || editData.data_hora;
-                const d = (dateSource && !isNaN(new Date(dateSource).getTime()))
-                    ? new Date(dateSource)
-                    : new Date();
-
-                setDate(d.toISOString().split('T')[0]);
-                setTime(d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-
-                setClientId(editData.cli_codigo || null);
-                setClientLabel(editData.cli_nomred || editData.cli_nome || '');
-                setClientPhone(editData.cli_fone1 || '');
-                setTipoId(String(editData.tipo_interacao_id || ''));
-                setCanalId(String(editData.canal_id || ''));
-                setResultadoId(String(editData.resultado_id || ''));
-                const desc = editData.descricao || '';
-                const match = desc.match(/^\[Contato: (.*?)\] (.*)$/s);
-                if (match) { setContatoNome(match[1]); setDescricao(match[2]); }
-                else { setContatoNome(''); setDescricao(desc); }
-                setSelectedIndustries(editData.industrias || []);
-            } else { resetForm(); }
-        }
-    }, [open, editData]);
-
-    const resetForm = () => {
-        setDate(new Date().toISOString().split('T')[0]);
-        setTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-        setClientId(null); setClientLabel(''); setClientPhone(''); setTipoId(''); setCanalId('');
-        setResultadoId(''); setContatoNome(''); setDescricao(''); setSelectedIndustries([]);
-    };
-
     const fetchLookupData = async () => {
         setLoading(true);
         try {
             const [tiposRes, canaisRes, resultadosRes, industriasRes] = await Promise.all([
-                fetch(`${NODE_API_URL}/api/crm/tipos`),
-                fetch(`${NODE_API_URL}/api/crm/canais`),
-                fetch(`${NODE_API_URL}/api/crm/resultados`),
-                fetch(`${NODE_API_URL}/api/suppliers?status=A`)
+                axios.get('/crm/tipos'),
+                axios.get('/crm/canais'),
+                axios.get('/crm/resultados'),
+                axios.get('/suppliers?status=A')
             ]);
-            const d1 = await tiposRes.json();
-            const d2 = await canaisRes.json();
-            const d3 = await resultadosRes.json();
-            const d4 = await industriasRes.json();
-            setTipos(d1.success ? d1.data : d1);
-            setCanais(d2.success ? d2.data : d2);
-            setResultados(d3.success ? d3.data : d3);
-            setIndustriasList(d4.success ? d4.data : d4);
-        } catch (error) { toast.error('Falha de uplink com auxiliares'); }
-        finally { setLoading(false); }
+
+            setTipos(tiposRes.data.success ? tiposRes.data.data : (Array.isArray(tiposRes.data) ? tiposRes.data : []));
+            setCanais(canaisRes.data.success ? canaisRes.data.data : (Array.isArray(canaisRes.data) ? canaisRes.data : []));
+            setResultados(resultadosRes.data.success ? resultadosRes.data.data : (Array.isArray(resultadosRes.data) ? resultadosRes.data : []));
+            setIndustriasList(industriasRes.data.success ? industriasRes.data.data : (Array.isArray(industriasRes.data) ? industriasRes.data : []));
+        } catch (error) {
+            console.error('Erro ao carregar lookups:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const fetchClients = async (search) => {
-        try {
-            const response = await fetch(`${NODE_API_URL}/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
-            const data = await response.json();
-            return data.success ? data.data : [];
-        } catch (error) { return []; }
+    const resetForm = () => {
+        setClienteId(null); setClienteLabel('');
+        setCanalId(''); setTipoId(''); setResultadoId('');
+        setDescricao(''); setOportunidadeId(null);
+        setIndustriasSelecionadas(new Set());
+        setDate(new Date().toISOString().split('T')[0]);
+        setTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     };
+
+    const toggleIndustria = (forCodigo) => {
+        setIndustriasSelecionadas(prev => {
+            const next = new Set(prev);
+            if (next.has(forCodigo)) {
+                next.delete(forCodigo);
+            } else {
+                next.add(forCodigo);
+            }
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        if (open) {
+            fetchLookupData();
+            if (editData) {
+                setClienteId(editData.cli_codigo);
+                setClienteLabel(editData.cli_nomred || '');
+                setCanalId(editData.canal_id || '');
+                setTipoId(editData.tipo_interacao_id || '');
+                setResultadoId(editData.resultado_id || '');
+                setDescricao(editData.descricao || '');
+                // Load multi-industry from backend array
+                if (editData.industrias && Array.isArray(editData.industrias)) {
+                    setIndustriasSelecionadas(new Set(editData.industrias.map(Number)));
+                } else if (editData.for_codigo) {
+                    // Fallback: single industry (legacy)
+                    setIndustriasSelecionadas(new Set([editData.for_codigo]));
+                } else {
+                    setIndustriasSelecionadas(new Set());
+                }
+                if (editData.data_interacao) {
+                    const d = new Date(editData.data_interacao);
+                    setDate(d.toISOString().split('T')[0]);
+                    setTime(d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+                }
+            } else {
+                resetForm();
+                if (preData) {
+                    if (preData.canal_id) setCanalId(preData.canal_id);
+                    if (preData.tipo_interacao_id) setTipoId(preData.tipo_interacao_id);
+                    if (preData.cli_codigo) {
+                        setClienteId(preData.cli_codigo);
+                        setClienteLabel(preData.cli_nomred || '');
+                    }
+                }
+            }
+        }
+    }, [open, editData]);
 
     const handleSave = async () => {
-        if (!clientId || !canalId || !tipoId) return toast.error('Campos obrigatórios ausentes');
+        if (!clienteId || !tipoId || !canalId || !descricao) {
+            return toast.error('Preencha os campos obrigatórios (Cliente, Tipo, Canal e Descrição)');
+        }
+
         setSaving(true);
         try {
+            const userData = JSON.parse(sessionStorage.getItem('user') || '{}');
+            const ven_codigo = userData.ven_codigo;
+
+            if (!ven_codigo) {
+                toast.error('Código do vendedor não encontrado na sessão');
+                setSaving(false);
+                return;
+            }
+
+            const dataHora = `${date}T${time}:00`;
             const payload = {
-                cli_codigo: clientId,
-                ven_codigo: JSON.parse(sessionStorage.getItem('user'))?.id || 1,
-                tipo_interacao_id: parseInt(tipoId),
+                cli_codigo: clienteId,
                 canal_id: parseInt(canalId),
+                tipo_interacao_id: parseInt(tipoId),
                 resultado_id: resultadoId ? parseInt(resultadoId) : null,
-                descricao: contatoNome ? `[Contato: ${contatoNome}] ${descricao}` : descricao,
-                industrias: selectedIndustries,
-                data_hora: new Date(`${date}T${time}`).toISOString(),
+                descricao,
+                data_interacao: dataHora,
+                oportunidade_id: oportunidadeId,
+                industrias: Array.from(industriasSelecionadas),
+                ven_codigo: ven_codigo
             };
-            const url = isEdit ? `${NODE_API_URL}/api/crm/interacoes/${editData.interacao_id}` : `${NODE_API_URL}/api/crm/interacoes`;
-            const method = isEdit ? 'PUT' : 'POST';
-            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (response.ok) { toast.success('Operação registrada no log'); onSuccess?.(); onClose(); }
-            else { toast.error('Falha na transmissão'); }
-        } catch (error) { toast.error('Erro de protocolo'); }
-        finally { setSaving(false); }
+
+            if (isEditMode) {
+                await axios.put(`/crm/interacoes/${editData.interacao_id}`, payload);
+            } else {
+                await axios.post('/crm/interacoes', payload);
+            }
+
+            toast.success(isEditMode ? 'Interação atualizada!' : 'Atendimento registrado!');
+            onSuccess?.();
+            onClose();
+        } catch (error) {
+            console.error('Erro ao salvar interação:', error);
+            const msg = error.response?.data?.message || 'Erro ao conectar com o servidor';
+            toast.error(msg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // DB ComboBox fetchers
+    const fetchClients = async (search) => {
+        try {
+            const res = await axios.get('/clients', { params: { search, limit: 10 } });
+            return res.data.success ? res.data.data : [];
+        } catch { return []; }
     };
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden bg-white border-slate-200 shadow-2xl rounded-2xl">
+            <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden bg-white border-slate-200/80 shadow-2xl rounded-3xl">
                 <DialogHeader className="sr-only">
-                    <DialogTitle>{isEdit ? 'Editar Operação' : 'Nova Operação'}</DialogTitle>
-                    <DialogDescription>Formulário de registro tático de CRM.</DialogDescription>
+                    <DialogTitle>{isEditMode ? 'Editar Atendimento' : 'Novo Atendimento'}</DialogTitle>
+                    <DialogDescription>Registro de interação com cliente.</DialogDescription>
                 </DialogHeader>
 
-                {/* High-Contrast Professional Header */}
-                <div className="bg-[#003366] p-6 flex justify-between items-center border-b border-blue-800">
+                {/* Header */}
+                <div className="px-8 pt-7 pb-5 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 border-b border-slate-100">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white border border-white/20">
-                            <Shield size={26} />
+                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shadow-sm transition-transform hover:scale-105">
+                            <MessageCircle size={24} className="text-emerald-600" />
                         </div>
                         <div>
-                            <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest block mb-0.5">MÓDULO DE OPERAÇÕES</span>
-                            <h2 className="text-xl font-bold text-white uppercase tracking-tight">{isEdit ? 'Editar Registro' : 'Nova Interação'}</h2>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight">
+                                {isEditMode ? 'Editar Atendimento' : 'Novo Atendimento'}
+                            </h2>
+                            <p className="text-xs font-medium text-slate-400 mt-0.5">Gestão de Canais e Interações</p>
                         </div>
                     </div>
                 </div>
 
-                {loading ? (
-                    <div className="p-32 flex flex-col items-center justify-center gap-6 bg-white">
-                        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-widest">Carregando dados...</span>
-                    </div>
-                ) : (
-                    <div className="p-8 space-y-8 max-h-[75vh] overflow-y-auto custom-scrollbar bg-white">
-
-                        {/* Section 1: Identification */}
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-6">
-                            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-4">
-                                <User size={18} className="text-blue-600" />
-                                <h3 className="text-sm font-black text-slate-900 uppercase">Identificação do Alvo</h3>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-slate-900">Cliente / Prospect *</Label>
-                                    <DbComboBox
-                                        placeholder="Pesquisar por nome ou código..."
-                                        value={clientId ? { cli_codigo: clientId, cli_nomred: clientLabel } : null}
-                                        onChange={(val, item) => {
-                                            setClientId(val);
-                                            setClientLabel(item ? item.cli_nomred : '');
-                                            setClientPhone(item ? item.cli_fone1 : '');
-                                        }}
-                                        fetchData={fetchClients}
-                                        labelKey="cli_nomred"
-                                        valueKey="cli_codigo"
-                                        className="bg-white border-slate-400 hover:border-blue-600 transition-colors h-12 text-slate-900 font-bold"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-bold text-slate-900">Data *</Label>
-                                        <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-12 border-slate-400 text-slate-900 font-bold focus:border-blue-600" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm font-bold text-slate-900">Hora *</Label>
-                                        <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="h-12 border-slate-400 text-slate-900 font-bold focus:border-blue-600" />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Section 2: Strategy */}
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-6">
-                            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 mb-4">
-                                <Zap size={18} className="text-amber-600" />
-                                <h3 className="text-sm font-black text-slate-900 uppercase">Protocolos Táticos</h3>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-slate-900">Canal de Contato *</Label>
-                                    <Select value={canalId} onValueChange={setCanalId}>
-                                        <SelectTrigger className="h-12 border-slate-400 text-slate-900 font-bold bg-white">
-                                            <SelectValue placeholder="Selecione..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {canais.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.descricao}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-slate-900">Tipo de Ação *</Label>
-                                    <Select value={tipoId} onValueChange={setTipoId}>
-                                        <SelectTrigger className="h-12 border-slate-400 text-slate-900 font-bold bg-white">
-                                            <SelectValue placeholder="Selecione..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {tipos.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.descricao}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-slate-900">Desfecho / Status *</Label>
-                                    <Select value={resultadoId} onValueChange={setResultadoId}>
-                                        <SelectTrigger className="h-12 border-slate-400 text-slate-900 font-bold bg-white">
-                                            <SelectValue placeholder="Selecione..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {resultados.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.descricao}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Section 3: Descriptive */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-black text-slate-900 uppercase">Resumo da Interação / Próximos Passos</Label>
-                            <Textarea
-                                value={descricao}
-                                onChange={e => setDescricao(e.target.value)}
-                                placeholder="Descreva aqui os detalhes da conversa..."
-                                className="min-h-[140px] border-slate-400 text-slate-900 font-medium p-4 focus:border-blue-600 bg-white"
+                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    
+                    {/* Cliente + Data/Hora */}
+                    <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 space-y-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                <User size={12} className="text-emerald-500" /> Cliente / Prospect *
+                            </Label>
+                            <DbComboBox
+                                placeholder="Buscar cliente por nome ou código..."
+                                value={clienteId ? { cli_codigo: clienteId, cli_nomred: clienteLabel } : null}
+                                onChange={(val, item) => { setClienteId(val); setClienteLabel(item ? item.cli_nomred : ''); }}
+                                fetchData={fetchClients}
+                                labelKey="cli_nomred"
+                                valueKey="cli_codigo"
+                                className="bg-white border-slate-200 h-11 text-slate-800 font-bold rounded-xl"
                             />
                         </div>
 
-                        {/* Section 4: Industries */}
-                        <div className="space-y-4">
-                            <Label className="text-sm font-black text-slate-900 uppercase">Indústrias Envolvidas</Label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {industriasList.map((ind) => {
-                                    const isSelected = selectedIndustries.includes(ind.for_codigo);
-                                    const displayName = ind.for_nomered || ind.for_nome || `Ind. ${ind.for_codigo}`;
-
-                                    return (
-                                        <button
-                                            key={ind.for_codigo}
-                                            type="button"
-                                            onClick={() => {
-                                                if (isSelected) setSelectedIndustries(selectedIndustries.filter(i => i !== ind.for_codigo));
-                                                else setSelectedIndustries([...selectedIndustries, ind.for_codigo]);
-                                            }}
-                                            className={cn(
-                                                "p-3 rounded-xl border-2 font-black text-[10px] uppercase transition-all shadow-sm",
-                                                isSelected
-                                                    ? "bg-blue-700 border-blue-900 text-white shadow-md ring-2 ring-blue-400/30"
-                                                    : "bg-slate-200 border-slate-400 text-slate-900 hover:bg-slate-300 hover:border-slate-500"
-                                            )}
-                                        >
-                                            <span className="truncate w-full block">{displayName}</span>
-                                        </button>
-                                    );
-                                })}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                    <Calendar size={12} className="text-emerald-500" /> Data
+                                </Label>
+                                <Input 
+                                    type="date" 
+                                    value={date} 
+                                    onChange={(e) => setDate(e.target.value)}
+                                    className="h-11 border-slate-200 rounded-xl font-medium focus:border-emerald-400"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                    <Clock size={12} className="text-emerald-500" /> Hora
+                                </Label>
+                                <Input 
+                                    type="time" 
+                                    value={time} 
+                                    onChange={(e) => setTime(e.target.value)}
+                                    className="h-11 border-slate-200 rounded-xl font-medium focus:border-emerald-400"
+                                />
                             </div>
                         </div>
                     </div>
-                )}
 
-                {/* VISIBLE ACCESSIBLE FOOTER */}
-                <div className="p-6 bg-slate-100 border-t-2 border-slate-200 flex justify-end gap-6">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="border-slate-400 text-slate-900 font-bold uppercase text-xs px-8 hover:bg-slate-200"
-                    >
-                        CANCELAR
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving || loading}
-                        className="bg-blue-600 hover:bg-blue-800 text-white font-black uppercase text-xs px-12 h-14 shadow-xl"
-                    >
-                        {saving ? <Loader2 className="animate-spin" /> : 'CONCLUIR E SALVAR LOG'}
-                    </Button>
+                    {/* Indústrias Abordadas — Toggle Buttons */}
+                    <div className="space-y-2">
+                        <Label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                            <Building2 size={12} className="text-emerald-500" /> Indústrias Abordadas
+                            {industriasSelecionadas.size > 0 && (
+                                <span className="ml-2 text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                    {industriasSelecionadas.size} selecionada{industriasSelecionadas.size > 1 ? 's' : ''}
+                                </span>
+                            )}
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                            {industriasList.map(ind => {
+                                const isSelected = industriasSelecionadas.has(ind.for_codigo);
+                                return (
+                                    <button
+                                        key={ind.for_codigo}
+                                        type="button"
+                                        onClick={() => toggleIndustria(ind.for_codigo)}
+                                        className={cn(
+                                            "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all duration-150 active:scale-95",
+                                            isSelected
+                                                ? "bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/20"
+                                                : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/50"
+                                        )}
+                                    >
+                                        {isSelected && <Check size={12} strokeWidth={3} />}
+                                        <Building2 size={12} />
+                                        {ind.for_nomered || ind.for_nome}
+                                    </button>
+                                );
+                            })}
+                            {industriasList.length === 0 && !loading && (
+                                <span className="text-xs text-slate-400 italic py-2">Nenhuma indústria disponível</span>
+                            )}
+                            {loading && (
+                                <span className="text-xs text-slate-400 italic py-2 flex items-center gap-2">
+                                    <Loader2 size={12} className="animate-spin" /> Carregando...
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Categorização */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600">Canal Atendimento *</Label>
+                            <select 
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 bg-white focus:border-emerald-400 outline-none transition-all appearance-none"
+                                value={canalId}
+                                onChange={(e) => setCanalId(e.target.value)}
+                            >
+                                <option value="">Selecione...</option>
+                                {canais.map(c => <option key={c.canal_id || c.id} value={c.canal_id || c.id}>{c.descricao}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600">Tipo Interação *</Label>
+                            <select 
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 bg-white focus:border-emerald-400 outline-none transition-all appearance-none"
+                                value={tipoId}
+                                onChange={(e) => setTipoId(e.target.value)}
+                            >
+                                <option value="">Selecione...</option>
+                                {tipos.map(t => <option key={t.tipo_id || t.id} value={t.tipo_id || t.id}>{t.descricao}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600">Resultado</Label>
+                            <select 
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 bg-white focus:border-emerald-400 outline-none transition-all appearance-none"
+                                value={resultadoId}
+                                onChange={(e) => setResultadoId(e.target.value)}
+                            >
+                                <option value="">Selecione...</option>
+                                {resultados.map(r => <option key={r.resultado_id || r.id} value={r.resultado_id || r.id}>{r.descricao}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Descrição */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                            <span>Resumo do Atendimento *</span>
+                            <span className={cn("text-[10px]", descricao.length > 500 ? "text-red-500" : "text-slate-400")}>
+                                {descricao.length} caracteres
+                            </span>
+                        </Label>
+                        <textarea
+                            className="w-full min-h-[100px] p-4 rounded-2xl border border-slate-200 text-sm font-medium text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 outline-none transition-all bg-white placeholder:text-slate-300 resize-none"
+                            placeholder="Descreva o que foi conversado, pendências ou próximos passos..."
+                            value={descricao}
+                            onChange={(e) => setDescricao(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <CheckCircle2 size={12} /> Salvar como Atendimento Finalizado
+                    </p>
+                    <div className="flex gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="rounded-xl border-slate-200 text-slate-600 font-bold h-11 px-6 hover:bg-slate-100 active:scale-95 transition-all"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving || loading}
+                            className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-11 px-8 shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95 group"
+                        >
+                            {saving ? <Loader2 size={18} className="animate-spin mr-2" /> : <Send size={18} className="mr-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
+                            {isEditMode ? 'Atualizar Registro' : 'Registrar Atendimento'}
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

@@ -135,11 +135,13 @@ module.exports = (pool) => {
         try {
             const { codigo, descricao } = req.body;
 
-            const result = await pool.query(`
-                INSERT INTO fin_centro_custo (codigo, descricao)
-                VALUES ($1, $2)
-                RETURNING *
-            `, [codigo, descricao]);
+            const query = codigo
+                ? 'INSERT INTO fin_centro_custo (codigo, descricao) VALUES ($1, $2) RETURNING *'
+                : 'INSERT INTO fin_centro_custo (descricao) VALUES ($1) RETURNING *';
+
+            const params = codigo ? [codigo, descricao] : [descricao];
+
+            const result = await pool.query(query, params);
 
             res.json({ success: true, data: result.rows[0] });
         } catch (error) {
@@ -693,6 +695,35 @@ module.exports = (pool) => {
         }
     });
 
+    // DELETE - Remove account and its parcels
+    router.delete('/contas-pagar/:id', async (req, res) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const { id } = req.params;
+
+            // Delete parcels first
+            await client.query('DELETE FROM fin_parcelas_pagar WHERE id_conta_pagar = $1', [id]);
+
+            // Delete the account
+            const result = await client.query('DELETE FROM fin_contas_pagar WHERE id = $1 RETURNING *', [id]);
+
+            if (result.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, message: 'Conta não encontrada' });
+            }
+
+            await client.query('COMMIT');
+            res.json({ success: true, message: 'Conta excluída com sucesso' });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error deleting conta a pagar:', error);
+            res.status(500).json({ success: false, message: error.message });
+        } finally {
+            client.release();
+        }
+    });
+
     // GET Vencidas
     router.get('/contas-pagar/status/vencidas', async (req, res) => {
         try {
@@ -1023,6 +1054,35 @@ module.exports = (pool) => {
         } catch (error) {
             await client.query('ROLLBACK');
             console.error('Error processing receipt:', error);
+            res.status(500).json({ success: false, message: error.message });
+        } finally {
+            client.release();
+        }
+    });
+
+    // DELETE - Remove account and its parcels
+    router.delete('/contas-receber/:id', async (req, res) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const { id } = req.params;
+
+            // Delete parcels first
+            await client.query('DELETE FROM fin_parcelas_receber WHERE id_conta_receber = $1', [id]);
+
+            // Delete the account
+            const result = await client.query('DELETE FROM fin_contas_receber WHERE id = $1 RETURNING *', [id]);
+
+            if (result.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, message: 'Conta não encontrada' });
+            }
+
+            await client.query('COMMIT');
+            res.json({ success: true, message: 'Conta excluída com sucesso' });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('Error deleting conta a receber:', error);
             res.status(500).json({ success: false, message: error.message });
         } finally {
             client.release();

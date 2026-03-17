@@ -50,6 +50,17 @@ export const auxDataService = {
     },
 
     /**
+     * Lista indústrias ativas
+     */
+    async getIndustries(pesquisa = '') {
+        const response = await fetch(`${API_BASE_URL}/aux/industrias?pesquisa=${pesquisa}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch industries');
+        }
+        return response.json();
+    },
+
+    /**
      * Carrega todos os dados auxiliares de uma vez
      * @param {string} industryCode - Código da indústria (para tabelas de preço)
      * @param {string} status - Status dos clientes

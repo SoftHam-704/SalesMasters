@@ -63,8 +63,10 @@ class SmartIAAnalyticMotor {
             JOIN pedidos p ON p.ped_pedido = i.ite_pedido
             WHERE p.ped_cliente = $1 AND p.ped_industria = $2
             AND p.ped_situacao NOT IN ('C', 'E')
+            AND p.ped_data < CURRENT_DATE - INTERVAL '60 days'
             GROUP BY i.ite_produto, i.ite_nomeprod
             ORDER BY total_valor DESC
+            LIMIT 80
         `;
         const res = await this.pool.query(query, [clienteId, industriaId]);
         return res.rows;
@@ -80,6 +82,7 @@ class SmartIAAnalyticMotor {
                 FROM itens_ped i 
                 JOIN pedidos ped ON ped.ped_pedido = i.ite_pedido
                 WHERE ped.ped_cliente = $1 AND ped.ped_industria = $2
+                AND ped.ped_situacao NOT IN ('C', 'E')
                 AND i.ite_produto = p.pro_codprod
             )
             ORDER BY p.pro_nome ASC
@@ -97,6 +100,7 @@ class SmartIAAnalyticMotor {
                 INNER JOIN pedidos p ON p.ped_pedido = i.ite_pedido
                 WHERE i.ite_industria = $1
                   AND p.ped_data >= CURRENT_DATE - INTERVAL '365 days'
+                  AND p.ped_data < CURRENT_DATE - INTERVAL '60 days'
                   AND p.ped_situacao NOT IN ('C', 'E')
                 GROUP BY i.ite_produto
             ),
@@ -114,7 +118,7 @@ class SmartIAAnalyticMotor {
                    END as curva_abc
             FROM ranked_vendas
             ORDER BY total_faturado DESC
-            LIMIT 100
+            LIMIT 80
         `;
         const res = await this.pool.query(query, [industriaId]);
         return res.rows;
@@ -129,9 +133,12 @@ class SmartIAAnalyticMotor {
             FROM itens_ped i
             JOIN pedidos p ON p.ped_pedido = i.ite_pedido
             WHERE p.ped_cliente = $1 AND p.ped_industria = $2
+              AND p.ped_situacao NOT IN ('C', 'E')
               AND p.ped_data >= CURRENT_DATE - INTERVAL '730 days'
             GROUP BY i.ite_produto
             HAVING (CURRENT_DATE - MAX(p.ped_data)) > 45
+            ORDER BY dias_sem_compra DESC
+            LIMIT 40
         `;
         const res = await this.pool.query(query, [clienteId, industriaId]);
         return res.rows;

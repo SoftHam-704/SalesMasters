@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx'
 import { toast } from "sonner"
 import { formatCurrency, formatNumber } from "@/utils/formatters"
 
-export default function ClientesMoMPage() {
+export default function ClientesMoMPage({ isSubComponent = false }) {
     const today = new Date();
     const [selectedMonth, setSelectedMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'));
     const [selectedYear, setSelectedYear] = useState(String(today.getFullYear()));
@@ -128,55 +128,53 @@ export default function ClientesMoMPage() {
     );
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
             {/* Header / Filters */}
-            <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-20">
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-indigo-50 p-2 rounded-lg">
-                                <BarChart3 className="text-indigo-600 w-6 h-6" />
-                            </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-xl font-bold text-gray-800">Clientes MoM (Atual vs Anterior)</h1>
-                                <span className="text-xs text-slate-400 font-mono">Referência contra o mesmo período do ano anterior</span>
-                            </div>
+                            {!isSubComponent && (
+                                <>
+                                    <h1 className="text-xl font-bold tracking-tight text-stone-900">Clientes MoM (Atual vs Anterior)</h1>
+                                </>
+                            )}
                             <div className="ml-4 flex items-center gap-2">
-                                <ClosePageButton />
+                                {!isSubComponent && <ClosePageButton />}
                             </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600">
-                            <DownloadIcon className="w-4 h-4" /> Exportar Excel
-                        </Button>
+                        <div className="flex gap-2">
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <DownloadIcon className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
+                            <button onClick={handleProcess} disabled={loading} className="h-[38px] px-6 bg-stone-900 hover:bg-stone-800 disabled:bg-stone-300 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                {loading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : null}
+                                <span className="!text-white">{loading ? 'Processando...' : 'Processar'}</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-sm">
-
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5">
-                            <Label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
-                                Período de Referência <span className="text-red-500">*</span>
-                            </Label>
+                    {/* Filters Row */}
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[220px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Período de Referência <span className="text-red-500">*</span></label>
                             <div className="flex items-center gap-2">
                                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                                    <SelectTrigger className="h-9 w-32 bg-white"><SelectValue placeholder="Mês" /></SelectTrigger>
+                                    <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm w-36"><SelectValue placeholder="Mês" /></SelectTrigger>
                                     <SelectContent>{months.map(m => <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>)}</SelectContent>
                                 </Select>
-                                <span className="text-slate-300">/</span>
+                                <span className="text-stone-300 font-bold">/</span>
                                 <Select value={selectedYear} onValueChange={setSelectedYear}>
-                                    <SelectTrigger className="h-9 w-24 bg-white"><SelectValue placeholder="Ano" /></SelectTrigger>
+                                    <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm w-28"><SelectValue placeholder="Ano" /></SelectTrigger>
                                     <SelectContent>{years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
                                 </Select>
-                                <div className="ml-2 flex items-center space-x-2">
-                                    <Checkbox id="anoTodo" checked={anoTodo} onCheckedChange={setAnoTodo} />
-                                    <Label htmlFor="anoTodo" className="text-xs cursor-pointer text-slate-600 font-medium">Considerar o ano todo</Label>
-                                </div>
                             </div>
                         </div>
 
-                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1.5">
-                            <Label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Indústria <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Indústria <span className="text-red-500">*</span></label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm"><SelectValue placeholder="Selecione a indústria..." /></SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
                                     {industrias.map(i => (
                                         <SelectItem key={i.for_codigo} value={String(i.for_codigo)}>
@@ -187,67 +185,65 @@ export default function ClientesMoMPage() {
                             </Select>
                         </div>
 
-                        <div className="col-span-12 md:col-span-2 flex items-center mt-auto pb-2">
-                            <div className="flex items-center space-x-2 ml-4">
+                        <div className="flex flex-col gap-2 ml-auto">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <Checkbox id="anoTodo" checked={anoTodo} onCheckedChange={setAnoTodo} />
+                                <Label htmlFor="anoTodo" className="text-xs font-bold uppercase tracking-wider text-stone-600 cursor-pointer">Ano todo</Label>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer group">
                                 <Checkbox id="rede" checked={redeLojas} onCheckedChange={setRedeLojas} />
-                                <Label htmlFor="rede" className="text-xs cursor-pointer text-slate-600 font-bold">Rede de lojas</Label>
-                            </div>
-                        </div>
-
-                        <div className="col-span-12 md:col-span-3">
-                            <Button onClick={handleProcess} disabled={loading} className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md transition-all active:scale-[0.98]">
-                                {loading ? 'Carregando...' : 'Processar Análise'}
-                            </Button>
+                                <Label htmlFor="rede" className="text-xs font-bold uppercase tracking-wider text-stone-600 cursor-pointer">Rede de lojas</Label>
+                            </label>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Content area */}
-            <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
+            <div className="flex-1 overflow-auto p-4 bg-stone-50">
                 {!data.length && !loading ? (
-                    <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-300">
+                    <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-300">
                         <TrendingUp className="w-16 h-16 opacity-10" />
                         <span className="text-sm italic font-medium">Configure o período e a indústria para visualizar a comparação anual</span>
                     </div>
                 ) : (
                     <div className="max-w-[1400px] mx-auto">
-                        <Card className="border-slate-200 shadow-xl overflow-hidden rounded-xl">
+                        <Card className="border-stone-200 shadow-sm overflow-hidden rounded-xl">
                             <CardContent className="p-0 overflow-auto max-h-[calc(100vh-250px)]">
                                 <Table className="table-fixed border-collapse">
-                                    <TableHeader className="sticky top-0 z-10 bg-slate-800 shadow-md">
-                                        <TableRow className="bg-slate-800 hover:bg-slate-800 border-b-0">
-                                            <TableHead className="w-[320px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700">Cliente</TableHead>
-                                            <TableHead className="w-[130px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700 text-right">Valor {parseInt(selectedYear) - 1}</TableHead>
-                                            <TableHead className="w-[110px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700 text-right">Qtd {parseInt(selectedYear) - 1}</TableHead>
-                                            <TableHead className="w-[130px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700 text-right">Valor {selectedYear}</TableHead>
-                                            <TableHead className="w-[110px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700 text-right">Qtd {selectedYear}</TableHead>
-                                            <TableHead className="w-[120px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-r border-slate-700 text-right">% Valor</TableHead>
-                                            <TableHead className="w-[120px] text-white font-bold h-10 uppercase text-sm py-1 px-4 border-none text-right">% Qtd</TableHead>
+                                    <TableHeader className="sticky top-0 z-10 bg-stone-100 shadow-md">
+                                        <TableRow className="bg-stone-100 hover:bg-stone-100 border-b border-stone-200">
+                                            <TableHead className="w-[320px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200">Cliente</TableHead>
+                                            <TableHead className="w-[130px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200 text-right">Valor {parseInt(selectedYear) - 1}</TableHead>
+                                            <TableHead className="w-[110px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200 text-right">Qtd {parseInt(selectedYear) - 1}</TableHead>
+                                            <TableHead className="w-[130px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200 text-right">Valor {selectedYear}</TableHead>
+                                            <TableHead className="w-[110px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200 text-right">Qtd {selectedYear}</TableHead>
+                                            <TableHead className="w-[120px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-r border-stone-200 text-right">% Valor</TableHead>
+                                            <TableHead className="w-[120px] text-stone-700 font-bold h-10 uppercase text-xs py-1 px-4 border-none text-right">% Qtd</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {data.map((row, idx) => (
-                                            <TableRow key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 h-[34px]">
-                                                <TableCell className="text-sm font-semibold text-slate-700 py-1.5 px-4 border-r border-slate-100 truncate" title={row.cliente_nome}>
+                                            <TableRow key={idx} className="hover:bg-stone-50 transition-colors border-b border-stone-100 h-[34px]">
+                                                <TableCell className="text-xs font-semibold text-stone-800 py-1.5 px-4 border-r border-stone-100 truncate" title={row.cliente_nome}>
                                                     {row.cliente_nome}
                                                 </TableCell>
-                                                <TableCell className="text-sm font-mono text-slate-500 py-1.5 px-4 border-r border-slate-100 text-right">
+                                                <TableCell className="text-xs tabular-nums text-stone-500 py-1.5 px-4 border-r border-stone-100 text-right">
                                                     {formatCurrency(row.valor_prev)}
                                                 </TableCell>
-                                                <TableCell className="text-sm font-mono text-slate-500 py-1.5 px-4 border-r border-slate-100 text-right">
+                                                <TableCell className="text-xs tabular-nums text-stone-500 py-1.5 px-4 border-r border-stone-100 text-right">
                                                     {formatNumber(row.qtd_prev)}
                                                 </TableCell>
-                                                <TableCell className="text-sm font-mono font-bold text-slate-800 py-1.5 px-4 border-r border-slate-100 text-right bg-blue-50/20">
+                                                <TableCell className="text-xs tabular-nums font-bold text-stone-800 py-1.5 px-4 border-r border-stone-100 text-right bg-stone-50">
                                                     {formatCurrency(row.valor_curr)}
                                                 </TableCell>
-                                                <TableCell className="text-sm font-mono font-bold text-slate-800 py-1.5 px-4 border-r border-slate-100 text-right bg-blue-50/20">
+                                                <TableCell className="text-xs tabular-nums font-bold text-stone-800 py-1.5 px-4 border-r border-stone-100 text-right bg-stone-50">
                                                     {formatNumber(row.qtd_curr)}
                                                 </TableCell>
-                                                <TableCell className="text-sm py-1.5 px-4 border-r border-slate-100 text-right">
+                                                <TableCell className="text-xs py-1.5 px-4 border-r border-stone-100 text-right">
                                                     {renderPerc(row.perc_valor)}
                                                 </TableCell>
-                                                <TableCell className="text-sm py-1.5 px-4 border-none text-right">
+                                                <TableCell className="text-xs py-1.5 px-4 border-none text-right">
                                                     {renderPerc(row.perc_qtd)}
                                                 </TableCell>
                                             </TableRow>

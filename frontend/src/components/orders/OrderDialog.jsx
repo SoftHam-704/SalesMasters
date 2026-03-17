@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import OrderForm from './OrderForm';
 import OrderFormProjetos from './OrderFormProjetos';
 
-const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder, readOnly, forceProjetos }) => {
+const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, selectedOrder, readOnly, forceProjetos, onPortals }) => {
     // Detect Tenant Type
     const tenantConfigStr = sessionStorage.getItem('tenantConfig');
     let isProjetos = forceProjetos || false;
@@ -39,6 +39,7 @@ const OrderDialog = ({ open, onOpenChange, selectedIndustry, onOrderCreated, sel
                         onSave={handleSave}
                         existingOrder={selectedOrder}
                         readOnly={readOnly}
+                        onPortals={onPortals}
                     />
                 </div>
             </DialogContent>

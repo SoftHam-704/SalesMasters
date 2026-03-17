@@ -24,6 +24,9 @@ RETURNS TABLE (
 ) 
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_inicio DATE := make_date(p_ano, p_mes_inicio, 1);
+    v_fim DATE := (make_date(p_ano, p_mes_fim, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
 BEGIN
     RETURN QUERY
     WITH vendas AS (
@@ -33,8 +36,7 @@ BEGIN
         FROM pedidos p
         INNER JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
         WHERE p.ped_situacao IN ('P', 'F')
-          AND EXTRACT(YEAR FROM p.ped_data) = p_ano
-          AND EXTRACT(MONTH FROM p.ped_data) BETWEEN p_mes_inicio AND p_mes_fim
+          AND p.ped_data >= v_inicio AND p.ped_data <= v_fim
           AND (p_industria IS NULL OR p.ped_industria = p_industria)
           AND (p_cliente IS NULL OR p.ped_cliente = p_cliente)
         GROUP BY i.ite_idproduto
@@ -90,6 +92,9 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_inicio DATE := make_date(p_ano, p_mes_inicio, 1);
+    v_fim DATE := (make_date(p_ano, p_mes_fim, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
 BEGIN
     RETURN QUERY
     WITH vendas_familia AS (
@@ -103,8 +108,7 @@ BEGIN
         INNER JOIN cad_prod cp ON cp.pro_id = i.ite_idproduto
         LEFT JOIN grupos g ON g.gru_codigo = cp.pro_grupo
         WHERE p.ped_situacao IN ('P', 'F')
-          AND EXTRACT(YEAR FROM p.ped_data) = p_ano
-          AND EXTRACT(MONTH FROM p.ped_data) BETWEEN p_mes_inicio AND p_mes_fim
+          AND p.ped_data >= v_inicio AND p.ped_data <= v_fim
           AND (p_industria IS NULL OR p.ped_industria = p_industria)
           AND (p_cliente IS NULL OR p.ped_cliente = p_cliente)
         GROUP BY g.gru_codigo, g.gru_nome

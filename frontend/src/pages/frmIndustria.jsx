@@ -34,7 +34,7 @@ const FrmIndustria = () => {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const url = getApiUrl(NODE_API_URL, '/api/suppliers');
+            const url = getApiUrl(NODE_API_URL, '/api/suppliers?all=true');
             const response = await fetch(url);
             if (!response.ok) throw new Error('Falha ao buscar dados');
 

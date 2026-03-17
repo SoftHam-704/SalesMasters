@@ -30,6 +30,7 @@ import MapaQuantidadePage from './MapaQuantidadePage';
 import ProdutosUnicaCompraPage from './ProdutosUnicaCompraPage';
 import UltimasComprasPage from './UltimasComprasPage';
 import InactiveClientsPage from './InactiveClientsPage';
+import MapaMensalItemPage from './MapaMensalItemPage';
 
 import ClosePageButton from '../../components/common/ClosePageButton';
 
@@ -38,6 +39,7 @@ const REPORTS = [
     { id: 'sellout-periodo', label: 'Sellout Período', icon: Calendar, component: SelloutPeriodPage },
     { id: 'mapa-cli-ind', label: 'Mapa Cli/Indústria', icon: Users, component: ClientIndustryMapPage },
     { id: 'clientes-mom', label: 'Clientes MoM', icon: BarChart2, component: ClientesMoMPage },
+    { id: 'mapa-mensal-item', label: 'Mapa Mensal de Itens', icon: FilePieChart, component: MapaMensalItemPage },
     { id: 'comparativo', label: 'Comparativo Clientes', icon: ArrowLeftRight, component: ComparativoClientesPage },
     { id: 'grupo-lojas', label: 'Grupo de Lojas', icon: Building2, component: GrupoLojasPage },
     { id: 'itens-nunca', label: 'Itens Nunca Comprados', icon: Package, component: ItensNuncaCompradosPage },
@@ -61,11 +63,11 @@ export default function FrmEstatisticos() {
                 <div className="flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-stone-900 text-white rounded-xl flex items-center justify-center shadow-lg shadow-stone-200">
+                            <div className="w-11 h-11 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transform hover:scale-105 transition-transform duration-300">
                                 <PieChart className="w-5 h-5 !text-white" />
                             </div>
                             <div>
-                                <h1 className="text-lg font-bold text-stone-900 tracking-tight">Central de Estatísticos</h1>
+                                <h1 className="text-lg font-bold text-stone-900 tracking-tight">Central de Estatísticas</h1>
                                 <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 uppercase tracking-widest">
                                     <span>Business Intelligence</span>
                                     <ChevronRight size={10} />
@@ -100,10 +102,10 @@ export default function FrmEstatisticos() {
                                     className="relative flex-shrink-0 px-[2px] py-[2px] rounded-xl group overflow-hidden transition-all duration-300 scale-[1.02] shadow-md shadow-stone-200"
                                 >
                                     {/* Orbital Gradient Background for Active State */}
-                                    <div className="absolute inset-[-2px] z-0 bg-[conic-gradient(from_90deg_at_50%_50%,#E2E8F0_0%,#000000_50%,#E2E8F0_100%)] animate-[spin_4s_linear_infinite]" />
+                                    <div className="absolute inset-[-2px] z-0 bg-[conic-gradient(from_90deg_at_50%_50%,#e2e8f0_0%,#10b981_50%,#e2e8f0_100%)] animate-[spin_4s_linear_infinite]" />
 
                                     {/* Inner Button Content */}
-                                    <div className="relative z-10 flex items-center justify-center w-full h-full gap-2 px-4 py-2 bg-stone-900 border border-white/10 rounded-[10px] text-[11px] font-bold tracking-wider !text-white uppercase whitespace-nowrap">
+                                    <div className="relative z-10 flex items-center justify-center w-full h-full gap-2 px-4 py-2 bg-gradient-to-br from-emerald-600 to-teal-700 border border-white/10 rounded-[10px] text-[11px] font-bold tracking-wider !text-white uppercase whitespace-nowrap shadow-inner">
                                         <report.icon size={14} className="!text-white" />
                                         <span className="!text-white">{report.label}</span>
                                     </div>

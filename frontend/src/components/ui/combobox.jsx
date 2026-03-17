@@ -1,8 +1,7 @@
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import {
     Command,
     CommandEmpty,
@@ -18,17 +17,8 @@ import {
 } from "@/components/ui/popover"
 
 /**
- * Standard Combobox component for SalesMasters.
- * 
- * @param {Object} props
- * @param {Array<{value: string, label: string}>} props.items - List of items to select from.
- * @param {string} props.value - Currently selected value.
- * @param {Function} props.onChange - Callback when value changes.
- * @param {string} props.placeholder - Placeholder text when no item is selected.
- * @param {string} props.searchPlaceholder - Placeholder text for search input.
- * @param {string} props.emptyMessage - Message to display when no items found.
- * @param {boolean} props.disabled - Whether the combobox is disabled.
- * @param {string} props.className - Additional classes for the trigger button.
+ * Combobox with trigger styled identically to SelectTrigger.
+ * Uses raw string concatenation (not cn/twMerge) to match SelectTrigger behavior.
  */
 export function Combobox({
     items = [],
@@ -42,23 +32,26 @@ export function Combobox({
 }) {
     const [open, setOpen] = React.useState(false)
 
+    const selectedLabel = value
+        ? items.find((item) => String(item.value) === String(value))?.label
+        : null
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button
-                    variant="outline"
+                {/* Trigger uses SAME base classes + concatenation as SelectTrigger */}
+                <button
+                    type="button"
                     role="combobox"
                     aria-expanded={open}
                     disabled={disabled}
-                    className={cn("w-full justify-between", className)}
+                    className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className || ''}`}
                 >
-                    {value
-                        ? items.find((item) => String(item.value) === String(value))?.label
-                        : placeholder}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
+                    {selectedLabel || placeholder}
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0" align="start">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                 <Command shouldFilter={true}>
                     <CommandInput placeholder={searchPlaceholder} />
                     <CommandList>
@@ -72,16 +65,38 @@ export function Combobox({
                                         onChange(item.value);
                                         setOpen(false);
                                     }}
-                                    onPointerDown={(e) => e.preventDefault()}
-                                    className="flex items-center px-4 py-3 cursor-pointer text-slate-700 dark:text-slate-200 font-bold text-xs uppercase tracking-tight aria-selected:bg-emerald-50 aria-selected:text-emerald-700 transition-colors pointer-events-auto"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        onChange(item.value);
+                                        setOpen(false);
+                                    }}
+                                    className="flex items-center px-4 py-3 cursor-pointer aria-selected:bg-stone-50 aria-selected:text-stone-900 transition-colors"
                                 >
-                                    <Check
-                                        className={cn(
-                                            "mr-2 h-4 w-4",
-                                            String(value) === String(item.value) ? "text-emerald-600 opacity-100" : "opacity-0"
+                                    <div className="flex items-start gap-3 w-full">
+                                        <div className={cn(
+                                            "flex items-center justify-center w-4 h-4 mt-0.5",
+                                            String(value) === String(item.value) ? "opacity-100" : "opacity-0"
+                                        )}>
+                                            <Check className="w-4 h-4 text-stone-600" />
+                                        </div>
+
+                                        {item.icon && (
+                                            <div className="mt-0.5 bg-stone-100 p-1.5 rounded-md text-stone-600">
+                                                {item.icon}
+                                            </div>
                                         )}
-                                    />
-                                    {item.label}
+
+                                        <div className="flex flex-col text-left">
+                                            <span className="font-sans font-semibold text-stone-800 text-sm leading-tight tracking-tight">
+                                                {item.label}
+                                            </span>
+                                            {item.sublabel && (
+                                                <span className="text-[10px] text-stone-400 font-mono mt-0.5 tracking-widest uppercase">
+                                                    {item.sublabel}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </CommandItem>
                             ))}
                         </CommandGroup>

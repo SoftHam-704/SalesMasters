@@ -1,10 +1,35 @@
 """
 Client Dashboard Service
 Serviço para análise de desempenho por clientes.
+V2 - Performance optimized: No TRIM/EXTRACT on indexed columns, status 'E' included.
 """
 from services.database import execute_query
 import pandas as pd
 from datetime import datetime
+
+
+def _build_date_filter(ano: int, mes: int = None, startDate: str = None, endDate: str = None, alias: str = "p"):
+    """Build date filter using range comparison (index-friendly)."""
+    if startDate and endDate:
+        return f"{alias}.ped_data BETWEEN '{startDate}' AND '{endDate}'"
+    
+    if mes:
+        # First day of month to last day of month
+        return f"{alias}.ped_data >= make_date({ano}, {mes}, 1) AND {alias}.ped_data < (make_date({ano}, {mes}, 1) + INTERVAL '1 month')"
+    
+    return f"{alias}.ped_data >= make_date({ano}, 1, 1) AND {alias}.ped_data <= make_date({ano}, 12, 31)"
+
+
+def _build_industry_filter(industry_id: int = None, alias: str = "p"):
+    """Build industry filter (integer comparison, no quotes)."""
+    if industry_id:
+        return f"AND {alias}.ped_industria = {industry_id}"
+    return ""
+
+
+def _status_filter(alias: str = "p"):
+    """Standard status filter: P=Pedidos, F=Faturados."""
+    return f"{alias}.ped_situacao IN ('P', 'F')"
 
 
 def get_client_details(ano: int, mes: str, industry_id: int = None, metrica: str = 'valor', uf: str = None, startDate: str = None, endDate: str = None):
@@ -39,16 +64,8 @@ def get_client_groups(ano: int, mes: int = None, industry_id: int = None, metric
     Análise por grupo de lojas e indústrias.
     Retorna: [{grupo, valor, quantidade}]
     """
-    if startDate and endDate:
-        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
-    else:
-        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-        if mes:
-            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
-    
-    industry_filter = ""
-    if industry_id:
-        industry_filter = f"AND p.ped_industria = {industry_id}"
+    date_filter = _build_date_filter(ano, mes, startDate, endDate)
+    industry_filter = _build_industry_filter(industry_id)
     
     query = f"""
         SELECT 
@@ -62,7 +79,7 @@ def get_client_groups(ano: int, mes: int = None, industry_id: int = None, metric
             FROM itens_ped
             GROUP BY ite_pedido, ite_industria
         ) i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
-        WHERE p.ped_situacao IN ('P', 'F')
+        WHERE {_status_filter()}
           AND {date_filter}
           {industry_filter}
         GROUP BY COALESCE(c.cli_redeloja, c.cli_nomred)
@@ -88,11 +105,8 @@ def get_purchase_cycle(ano: int, mes: int = None, industry_id: int = None):
     """
     Comportamento de Compra: Ciclo Médio.
     Retorna clientes com ciclo médio e dias sem comprar.
-    Ordenado DESC por dias sem comprar (priorizar quem está há mais tempo).
     """
-    industry_filter = ""
-    if industry_id:
-        industry_filter = f"AND p.ped_industria = {industry_id}"
+    industry_filter = _build_industry_filter(industry_id)
     
     query = f"""
         WITH client_stats AS (
@@ -109,7 +123,7 @@ def get_purchase_cycle(ano: int, mes: int = None, industry_id: int = None):
                 END as ciclo_medio
             FROM pedidos p
             JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               {industry_filter}
             GROUP BY p.ped_cliente, c.cli_nomred
             HAVING COUNT(DISTINCT p.ped_pedido) >= 2
@@ -144,21 +158,19 @@ def get_top_clients_impact(ano: int, mes: int = None, industry_id: int = None, m
     Clientes de Maior Impacto: Valor e Variação Mensal.
     Top 10 clientes com valor/quantidade, variação MoM, e última compra.
     """
+    date_filter = _build_date_filter(ano, mes, startDate, endDate)
+    industry_filter = _build_industry_filter(industry_id)
+    
+    # Build previous period filter
     if startDate and endDate:
-        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
         prev_filter = f"p.ped_data BETWEEN ('{startDate}'::date - INTERVAL '1 year') AND ('{endDate}'::date - INTERVAL '1 year')"
     else:
-        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-        if mes:
-            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
-            
-        # Período anterior para MoM/YoY
         if mes:
             prev_mes = mes - 1 if mes > 1 else 12
             prev_ano = ano if mes > 1 else ano - 1
-            prev_filter = f"EXTRACT(YEAR FROM p.ped_data) = {prev_ano} AND EXTRACT(MONTH FROM p.ped_data) = {prev_mes}"
+            prev_filter = _build_date_filter(prev_ano, prev_mes)
         else:
-            prev_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano - 1}"
+            prev_filter = _build_date_filter(ano - 1)
     
     value_column = "SUM(p.ped_totliq)" if metrica == 'valor' else "COALESCE(SUM(i.total_qtd), 0)"
     
@@ -176,7 +188,7 @@ def get_top_clients_impact(ano: int, mes: int = None, industry_id: int = None, m
                 FROM itens_ped
                 GROUP BY ite_pedido, ite_industria
             ) i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               AND {date_filter}
               {industry_filter}
             GROUP BY p.ped_cliente, c.cli_nomred
@@ -191,7 +203,7 @@ def get_top_clients_impact(ano: int, mes: int = None, industry_id: int = None, m
                 FROM itens_ped
                 GROUP BY ite_pedido, ite_industria
             ) i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               AND {prev_filter}
               {industry_filter}
             GROUP BY p.ped_cliente
@@ -216,7 +228,6 @@ def get_top_clients_impact(ano: int, mes: int = None, industry_id: int = None, m
         valor = float(row['valor']) if row['valor'] else 0
         valor_prev = float(row['valor_prev']) if row['valor_prev'] else 0
         
-        # Calcular variação MoM
         if valor_prev > 0:
             delta_mom = ((valor - valor_prev) / valor_prev) * 100
         elif valor > 0:
@@ -238,40 +249,33 @@ def get_top_clients_impact(ano: int, mes: int = None, industry_id: int = None, m
 def get_active_vs_inactive(ano: int, industry_id: int = None, uf: str = None):
     """
     Clientes Ativos vs Inativos por ano e mês.
-    Carteira = clientes únicos que já compraram historicamente (pedidos P,F).
-    Atendidos = clientes que compraram no período com filtros.
-    Sem compra = carteira - atendidos.
     """
-    industry_filter = ""
+    industry_filter = _build_industry_filter(industry_id)
+    
     uf_filter = ""
-    
-    if industry_id:
-        industry_filter = f"AND p.ped_industria = '{industry_id}'"
-    
     if uf and uf != 'Todos':
         uf_filter = f"AND c.cli_uf = '{uf}'"
     
-    # 1. Carteira = clientes únicos que já compraram historicamente (com filtros de indústria e UF)
     carteira_query = f"""
         SELECT COUNT(DISTINCT p.ped_cliente) as total_carteira
         FROM pedidos p
         JOIN clientes c ON p.ped_cliente = c.cli_codigo
-        WHERE p.ped_situacao IN ('P', 'F')
+        WHERE {_status_filter()}
           {industry_filter}
           {uf_filter}
     """
     df_carteira = execute_query(carteira_query)
     total_carteira = int(df_carteira.iloc[0]['total_carteira']) if not df_carteira.empty else 0
     
-    # 2. Clientes atendidos por mês no ano selecionado
+    date_filter = _build_date_filter(ano)
     query = f"""
         SELECT 
             EXTRACT(MONTH FROM p.ped_data) as mes,
             COUNT(DISTINCT p.ped_cliente) as atendidos
         FROM pedidos p
         JOIN clientes c ON p.ped_cliente = c.cli_codigo
-        WHERE p.ped_situacao IN ('P', 'F')
-          AND EXTRACT(YEAR FROM p.ped_data) = {ano}
+        WHERE {_status_filter()}
+          AND {date_filter}
           {industry_filter}
           {uf_filter}
         GROUP BY EXTRACT(MONTH FROM p.ped_data)
@@ -298,20 +302,18 @@ def get_active_vs_inactive(ano: int, industry_id: int = None, uf: str = None):
             "sem_compra": sem_compra
         })
     
-    # Total atendidos únicos no ano (não soma de meses, pois cliente pode aparecer em vários meses)
     atendidos_ano_query = f"""
         SELECT COUNT(DISTINCT p.ped_cliente) as total_atendidos
         FROM pedidos p
         JOIN clientes c ON p.ped_cliente = c.cli_codigo
-        WHERE p.ped_situacao IN ('P', 'F')
-          AND EXTRACT(YEAR FROM p.ped_data) = {ano}
+        WHERE {_status_filter()}
+          AND {date_filter}
           {industry_filter}
           {uf_filter}
     """
     df_atendidos = execute_query(atendidos_ano_query)
     total_atendidos_ano = int(df_atendidos.iloc[0]['total_atendidos']) if not df_atendidos.empty else 0
     
-    # 3. Lista de UFs disponíveis para filtro (direto da tabela clientes)
     ufs_query = """
         SELECT DISTINCT UPPER(cli_uf) as uf
         FROM clientes
@@ -336,41 +338,28 @@ def get_active_vs_inactive(ano: int, industry_id: int = None, uf: str = None):
 def get_clients_no_purchase(ano: int, mes: int = None, industry_id: int = None, uf: str = None, startDate: str = None, endDate: str = None):
     """
     Clientes sem compras no período.
-    Carteira = clientes que já compraram historicamente.
-    Retorna quem da carteira não comprou no período selecionado.
     """
-    if startDate and endDate:
-        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
-    else:
-        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-        if mes:
-            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+    date_filter = _build_date_filter(ano, mes, startDate, endDate)
+    industry_filter = _build_industry_filter(industry_id)
     
-    industry_filter = ""
     uf_filter = ""
-    
-    if industry_id:
-        industry_filter = f"AND p.ped_industria = '{industry_id}'"
-    
     if uf and uf != 'Todos':
         uf_filter = f"AND c.cli_uf = '{uf}'"
     
     query = f"""
         WITH carteira AS (
-            -- Clientes que já compraram historicamente (com filtros de indústria e UF)
             SELECT DISTINCT p.ped_cliente as cli_codigo, c.cli_nomred
             FROM pedidos p
             JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               {industry_filter}
               {uf_filter}
         ),
         compradores_periodo AS (
-            -- Clientes que compraram no período selecionado
             SELECT DISTINCT p.ped_cliente
             FROM pedidos p
             JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               AND {date_filter}
               {industry_filter}
               {uf_filter}
@@ -380,7 +369,7 @@ def get_clients_no_purchase(ano: int, mes: int = None, industry_id: int = None, 
                 p.ped_cliente,
                 MAX(p.ped_data) as ult_compra
             FROM pedidos p
-            WHERE p.ped_situacao IN ('P', 'F')
+            WHERE {_status_filter()}
               {industry_filter}
             GROUP BY p.ped_cliente
         )
@@ -414,15 +403,8 @@ def get_clients_no_purchase(ano: int, mes: int = None, industry_id: int = None, 
 def get_churn_risk_clients(ano: int, mes: int = None, industry_id: int = None):
     """
     Risco de Perda de Clientes e Impacto Financeiro.
-    Calcula score de churn baseado em:
-    - Dias sem compra vs frequência habitual
-    - Ticket médio (impacto financeiro)
-    
-    Score: 🔴 Alto (>90 dias ou 2x freq), 🟡 Médio (45-90), 🟢 Baixo (<45)
     """
-    industry_filter = ""
-    if industry_id:
-        industry_filter = f"AND p.ped_industria = '{industry_id}'"
+    industry_filter = _build_industry_filter(industry_id)
     
     query = f"""
         WITH client_stats AS (
@@ -433,7 +415,6 @@ def get_churn_risk_clients(ano: int, mes: int = None, industry_id: int = None):
                 AVG(p.ped_totliq) as ticket_medio,
                 MAX(p.ped_data) as ultima_compra,
                 (CURRENT_DATE - MAX(p.ped_data)) as dias_sem_compra,
-                -- Frequência: dias entre primeira e última compra / número de pedidos
                 CASE 
                     WHEN COUNT(*) > 1 THEN
                         (MAX(p.ped_data) - MIN(p.ped_data)) / (COUNT(*) - 1)
@@ -441,8 +422,8 @@ def get_churn_risk_clients(ano: int, mes: int = None, industry_id: int = None):
                 END as frequencia_dias
             FROM pedidos p
             JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            WHERE p.ped_situacao IN ('P', 'F')
-              AND EXTRACT(YEAR FROM p.ped_data) >= {ano - 1}
+            WHERE {_status_filter()}
+              AND p.ped_data >= make_date({ano - 1}, 1, 1)
               {industry_filter}
             GROUP BY p.ped_cliente, c.cli_nomred
             HAVING COUNT(DISTINCT p.ped_pedido) >= 2
@@ -489,25 +470,18 @@ def get_store_industry_matrix(ano: int, mes: int = None, metrica: str = 'valor',
     """
     Matriz de Grupos de Lojas x Indústrias.
     """
-    if startDate and endDate:
-        date_filter = f"p.ped_data BETWEEN '{startDate}' AND '{endDate}'"
-    else:
-        date_filter = f"EXTRACT(YEAR FROM p.ped_data) = {ano}"
-        if mes:
-            date_filter += f" AND EXTRACT(MONTH FROM p.ped_data) = {mes}"
+    date_filter = _build_date_filter(ano, mes, startDate, endDate)
     
-    # Determinar a coluna de valor baseado na métrica
     if metrica == 'valor':
         value_column = "SUM(p.ped_totliq)"
         needs_items_join = False
     elif metrica == 'quantidade':
         value_column = "SUM(i.ite_quant)"
         needs_items_join = True
-    else:  # unidades
+    else:
         value_column = "COUNT(DISTINCT i.ite_idproduto)"
         needs_items_join = True
     
-    # 1. Buscar lista de indústrias ativas
     industries_query = """
         SELECT for_codigo as id, for_nomered as nome
         FROM fornecedores
@@ -523,49 +497,29 @@ def get_store_industry_matrix(ano: int, mes: int = None, metrica: str = 'valor',
     industry_ids = [ind['id'] for ind in industries]
     industry_names = [ind['nome'] for ind in industries]
     
-    # 2. Buscar dados agregados por grupo de lojas e indústria
-    # Considera apenas clientes ativos (cli_tipopes = 'A')
-    if needs_items_join:
-        query = f"""
-            SELECT 
-                COALESCE(NULLIF(TRIM(c.cli_redeloja), ''), c.cli_nomred) as grupo,
-                p.ped_industria,
-                {value_column} as valor
-            FROM pedidos p
-            JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            JOIN itens_ped i ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria
-            WHERE p.ped_situacao IN ('P', 'F')
-              AND c.cli_tipopes = 'A'
-              AND {date_filter}
-            GROUP BY COALESCE(NULLIF(TRIM(c.cli_redeloja), ''), c.cli_nomred), p.ped_industria
-            ORDER BY grupo
-        """
-    else:
-        query = f"""
-            SELECT 
-                COALESCE(NULLIF(TRIM(c.cli_redeloja), ''), c.cli_nomred) as grupo,
-                p.ped_industria,
-                {value_column} as valor
-            FROM pedidos p
-            JOIN clientes c ON p.ped_cliente = c.cli_codigo
-            WHERE p.ped_situacao IN ('P', 'F')
-              AND c.cli_tipopes = 'A'
-              AND {date_filter}
-            GROUP BY COALESCE(NULLIF(TRIM(c.cli_redeloja), ''), c.cli_nomred), p.ped_industria
-            ORDER BY grupo
-        """
+    items_join = "JOIN itens_ped i ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria" if needs_items_join else ""
+    
+    query = f"""
+        SELECT 
+            COALESCE(NULLIF(c.cli_redeloja, ''), c.cli_nomred) as grupo,
+            p.ped_industria,
+            {value_column} as valor
+        FROM pedidos p
+        JOIN clientes c ON p.ped_cliente = c.cli_codigo
+        {items_join}
+        WHERE {_status_filter()}
+          AND c.cli_tipopes = 'A'
+          AND {date_filter}
+        GROUP BY COALESCE(NULLIF(c.cli_redeloja, ''), c.cli_nomred), p.ped_industria
+        ORDER BY grupo
+    """
     
     df = execute_query(query)
-
     
     if df.empty:
         return {"industries": industry_names, "rows": [], "totals": {ind: 0 for ind in industry_names}}
     
-    # 3. Pivotar dados para criar matriz
-    # Criar dicionário de mapeamento id -> nome
     id_to_name = {ind['id']: ind['nome'] for ind in industries}
-    
-    # Agrupar por grupo de lojas
     grupos = df['grupo'].unique()
     
     rows = []
@@ -579,7 +533,6 @@ def get_store_industry_matrix(ano: int, mes: int = None, metrica: str = 'valor',
         
         for ind_id in industry_ids:
             ind_name = id_to_name[ind_id]
-            # Buscar valor para esta combinação grupo x indústria
             match = grupo_data[grupo_data['ped_industria'] == ind_id]
             if not match.empty:
                 val = float(match.iloc[0]['valor'])
@@ -598,10 +551,7 @@ def get_store_industry_matrix(ano: int, mes: int = None, metrica: str = 'valor',
             "total": row_total
         })
     
-    # Ordenar por total decrescente
     rows.sort(key=lambda x: x['total'], reverse=True)
-    
-    # Limitar a top 20 grupos para não sobrecarregar a interface
     rows = rows[:20]
     
     column_totals['total'] = grand_total
@@ -616,18 +566,13 @@ def get_store_industry_matrix(ano: int, mes: int = None, metrica: str = 'valor',
 def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str = 'valor', vendedor_id = None):
     """
     Retorna matriz de evolução mensal por cliente.
-    Linhas: Clientes (Nome + CNPJ)
-    Colunas: Meses formatados como MM/YYYY
     """
     print(f"DEBUG Evolution: ano={ano}, industry_id={industry_id}, metrica={metrica}, vendedor_id={vendedor_id} (type={type(vendedor_id)})", flush=True)
     
     try:
-        industry_filter = ""
-        if industry_id and str(industry_id) != 'None':
-            industry_filter = f"AND p.ped_industria = '{industry_id}'"
+        industry_filter = _build_industry_filter(industry_id)
         
         vendedor_filter = ""
-        # Tratar vendedor_id como string ou int
         if vendedor_id and str(vendedor_id) not in ['Todos', 'None', '']:
             try:
                 ven_id = int(vendedor_id)
@@ -636,11 +581,12 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
             except (ValueError, TypeError):
                 print(f"DEBUG: Could not parse vendedor_id: {vendedor_id}", flush=True)
             
-        # Determinar a coluna de valor baseado na métrica
+        date_filter = _build_date_filter(ano)
+        
         if metrica == 'valor':
             value_column = "SUM(p.ped_totliq)"
             join_clause = ""
-        else:  # quantidade
+        else:
             value_column = "SUM(i.ite_quant)"
             join_clause = "JOIN itens_ped i ON i.ite_pedido = p.ped_pedido AND i.ite_industria = p.ped_industria"
             
@@ -654,8 +600,8 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
             FROM pedidos p
             JOIN clientes c ON p.ped_cliente = c.cli_codigo
             {join_clause}
-            WHERE p.ped_situacao IN ('P', 'F')
-              AND EXTRACT(YEAR FROM p.ped_data) = {ano}
+            WHERE {_status_filter()}
+              AND {date_filter}
               {industry_filter}
               {vendedor_filter}
             GROUP BY c.cli_nomred, c.cli_cnpj, EXTRACT(YEAR FROM p.ped_data), EXTRACT(MONTH FROM p.ped_data)
@@ -666,18 +612,15 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
         df = execute_query(query)
         print(f"DEBUG Result: {len(df)} rows", flush=True)
         
-        # Labels como MM/YYYY
         columns = [f"{str(m).zfill(2)}/{ano}" for m in range(1, 13)]
         
         if df.empty:
             print("DEBUG: DataFrame empty, returning empty result", flush=True)
             return {"columns": columns, "rows": [], "year": ano}
             
-        # Agrupar por cliente para criar a matriz
         df['cliente_label'] = df['cli_nomred'].str.strip() + " (" + df['cli_cnpj'].str.strip() + ")"
         df['col_label'] = df['mes'].apply(lambda x: f"{str(int(x)).zfill(2)}/{ano}")
         
-        # Pivot Table para garantir que todos os meses existam
         matrix = df.pivot_table(
             index='cliente_label', 
             columns='col_label', 
@@ -685,12 +628,10 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
             aggfunc='sum'
         ).fillna(0)
         
-        # Garantir todas as colunas Jan-Dez
         for col in columns:
             if col not in matrix.columns:
                 matrix[col] = 0.0
         
-        # Reordenar colunas conforme a lista cronológica
         matrix = matrix[columns]
         
         rows = []
@@ -698,7 +639,6 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
             values = row_values.to_dict()
             total = sum(values.values())
             
-            # Só incluir clientes que tiveram alguma movimentação no ano
             if total > 0:
                 rows.append({
                     "cliente": label,
@@ -706,7 +646,6 @@ def get_client_monthly_evolution(ano: int, industry_id: int = None, metrica: str
                     "total": total
                 })
         
-        # Ordenar por total desc
         rows.sort(key=lambda x: x['total'], reverse=True)
         
         return {

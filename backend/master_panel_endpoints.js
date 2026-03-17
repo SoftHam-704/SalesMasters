@@ -39,6 +39,7 @@ router.get('/empresas', checkMasterAdmin, async (req, res) => {
                 id, cnpj, razao_social, nome_fantasia,
                 status, data_vencimento, valor_mensalidade,
                 limite_usuarios, limite_sessoes, bloqueio_ativo, ios_enabled,
+                modulo_bi_ativo, modulo_whatsapp_ativo, modulo_crmrep_ativo,
                 db_host, db_nome, db_porta,
                 data_adesao, email_contato, telefone
             FROM empresas
@@ -140,7 +141,8 @@ router.post('/empresas', checkMasterAdmin, async (req, res) => {
         const {
             cnpj, razao_social, nome_fantasia, email_contato, telefone,
             status, data_vencimento, valor_mensalidade, limite_usuarios,
-            db_host, db_nome, db_usuario, db_senha, db_porta
+            db_host, db_nome, db_usuario, db_senha, db_porta,
+            modulo_bi_ativo, modulo_whatsapp_ativo, modulo_crmrep_ativo
         } = req.body;
 
         // Remove máscara do CNPJ
@@ -151,8 +153,9 @@ router.post('/empresas', checkMasterAdmin, async (req, res) => {
                 cnpj, razao_social, nome_fantasia, email_contato, telefone,
                 status, data_vencimento, valor_mensalidade, limite_usuarios,
                 limite_sessoes, bloqueio_ativo, ios_enabled,
-                db_host, db_nome, db_usuario, db_senha, db_porta
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                db_host, db_nome, db_usuario, db_senha, db_porta,
+                modulo_bi_ativo, modulo_whatsapp_ativo, modulo_crmrep_ativo
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
             RETURNING *
         `;
 
@@ -160,7 +163,8 @@ router.post('/empresas', checkMasterAdmin, async (req, res) => {
             cnpjLimpo, razao_social, nome_fantasia, email_contato, telefone,
             status || 'ATIVO', data_vencimento, valor_mensalidade, limite_usuarios || 1,
             req.body.limite_sessoes || 3, req.body.bloqueio_ativo || 'S', req.body.ios_enabled || 'N',
-            db_host, db_nome, db_usuario, db_senha, db_porta || 5432
+            db_host, db_nome, db_usuario, db_senha, db_porta || 5432,
+            req.body.modulo_bi_ativo || false, req.body.modulo_whatsapp_ativo || false, req.body.modulo_crmrep_ativo || false
         ];
 
         const result = await masterPool.query(query, values);
@@ -181,7 +185,8 @@ router.put('/empresas/:id', checkMasterAdmin, async (req, res) => {
         const {
             razao_social, nome_fantasia, email_contato, telefone,
             status, data_vencimento, valor_mensalidade, limite_usuarios,
-            db_host, db_nome, db_usuario, db_senha, db_porta
+            db_host, db_nome, db_usuario, db_senha, db_porta,
+            modulo_bi_ativo, modulo_whatsapp_ativo, modulo_crmrep_ativo
         } = req.body;
 
         const emptyToNull = (val) => (val === '' || val === undefined) ? null : val;
@@ -221,6 +226,9 @@ router.put('/empresas/:id', checkMasterAdmin, async (req, res) => {
         if (db_usuario) { updates.push(`db_usuario = $${paramCount++} `); values.push(db_usuario); }
         if (db_senha) { updates.push(`db_senha = $${paramCount++} `); values.push(db_senha); }
         if (db_porta) { updates.push(`db_porta = $${paramCount++} `); values.push(db_porta); }
+        if (modulo_bi_ativo !== undefined) { updates.push(`modulo_bi_ativo = $${paramCount++} `); values.push(modulo_bi_ativo); }
+        if (modulo_whatsapp_ativo !== undefined) { updates.push(`modulo_whatsapp_ativo = $${paramCount++} `); values.push(modulo_whatsapp_ativo); }
+        if (modulo_crmrep_ativo !== undefined) { updates.push(`modulo_crmrep_ativo = $${paramCount++} `); values.push(modulo_crmrep_ativo); }
 
         if (updates.length === 0) {
             return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar.' });

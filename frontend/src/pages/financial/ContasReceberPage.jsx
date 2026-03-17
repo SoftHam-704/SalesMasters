@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, DollarSign, Calendar, AlertCircle, HelpCircle, Sparkles } from 'lucide-react';
+import { Plus, Search, DollarSign, Calendar, AlertCircle, HelpCircle, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { NODE_API_URL, getApiUrl } from '@/utils/apiConfig';
@@ -57,6 +57,27 @@ export default function ContasReceberPage() {
             setLoading(false);
         }
     };
+    const handleDelete = async (e, id) => {
+        e.stopPropagation();
+        if (!window.confirm('Tem certeza que deseja excluir esta conta? Todas as suas parcelas também serão removidas.')) return;
+
+        try {
+            const url = getApiUrl(NODE_API_URL, `/api/financeiro/contas-receber/${id}`);
+            const response = await fetch(url, { method: 'DELETE' });
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Conta excluída com sucesso');
+                fetchContas();
+            } else {
+                toast.error(data.message || 'Erro ao excluir conta');
+            }
+        } catch (error) {
+            console.error('Error deleting conta:', error);
+            toast.error('Erro ao conectar com o servidor');
+        }
+    };
+
 
     const getStatusBadge = (status) => {
         const variants = {
@@ -279,7 +300,16 @@ export default function ContasReceberPage() {
                                                 >
                                                     {conta.status === 'RECEBIDO' ? 'Ver' : 'Baixar'}
                                                 </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={(e) => handleDelete(e, conta.id)}
+                                                    className="h-8 text-slate-400 hover:text-red-600 hover:bg-red-50 ml-1"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
                                             </td>
+
                                         </tr>
                                     ))}
                                 </tbody>

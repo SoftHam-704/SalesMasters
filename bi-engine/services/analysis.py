@@ -8,16 +8,25 @@ def analyze_pareto(ano: int, metric: str = 'valor', limit: int = 20):
     """
     print(f"--- ANALYTICS: Processing Pareto {ano} ({metric}) ---", flush=True)
     
-    col_metric = 'i.ite_totliquido' if metric.lower() == 'valor' else 'i.ite_quant'
-    
+    agg_func = "SUM"
+    if metric.lower() == 'valor':
+        col_metric = 'i.ite_totliquido'
+    elif metric.lower() == 'quantidade':
+        col_metric = 'i.ite_quant'
+    elif metric.lower() == 'unidades':
+        agg_func = "COUNT(DISTINCT"
+        col_metric = "i.ite_idproduto)"
+    else:
+        col_metric = 'i.ite_quant'
+
     query = f"""
         SELECT 
             c.cli_nomred as nome,
-            SUM({col_metric}) as total
+            {agg_func} {col_metric} as total
         FROM pedidos p
         JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
         JOIN clientes c ON p.ped_cliente = c.cli_codigo
-        WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
+        WHERE p.ped_data >= make_date(:ano, 1, 1) AND p.ped_data <= make_date(:ano, 12, 31)
           AND p.ped_situacao IN ('P', 'F')
         GROUP BY 1
         ORDER BY 2 DESC
@@ -62,28 +71,37 @@ def analyze_industry_growth(ano: int, metric: str = 'valor', limit: int = 15):
     Calcula crescimento das indústrias em relação ao ano anterior.
     Retorna: nome, atual, anterior, dif_valor, dif_perc
     """
-    col_metric = 'i.ite_totliquido' if metric.lower() == 'valor' else 'i.ite_quant'
-    
+    agg_func = "SUM"
+    if metric.lower() == 'valor':
+        col_metric = 'i.ite_totliquido'
+    elif metric.lower() == 'quantidade':
+        col_metric = 'i.ite_quant'
+    elif metric.lower() == 'unidades':
+        agg_func = "COUNT(DISTINCT"
+        col_metric = "i.ite_idproduto)"
+    else:
+        col_metric = 'i.ite_quant'
+
     query = f"""
         WITH vendas_atual AS (
             SELECT 
                 f.for_nomered as nome,
-                SUM({col_metric}) as atual
+                {agg_func} {col_metric} as atual
             FROM pedidos p
             JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             JOIN fornecedores f ON p.ped_industria = f.for_codigo
-            WHERE EXTRACT(YEAR FROM p.ped_data) = :ano
+            WHERE p.ped_data >= make_date(:ano, 1, 1) AND p.ped_data <= make_date(:ano, 12, 31)
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1
         ),
         vendas_anterior AS (
             SELECT 
                 f.for_nomered as nome,
-                SUM({col_metric}) as anterior
+                {agg_func} {col_metric} as anterior
             FROM pedidos p
             JOIN itens_ped i ON p.ped_pedido = i.ite_pedido AND p.ped_industria = i.ite_industria
             JOIN fornecedores f ON p.ped_industria = f.for_codigo
-            WHERE EXTRACT(YEAR FROM p.ped_data) = :ano - 1
+            WHERE p.ped_data >= make_date(:ano - 1, 1, 1) AND p.ped_data <= make_date(:ano - 1, 12, 31)
               AND p.ped_situacao IN ('P', 'F')
             GROUP BY 1
         )

@@ -62,13 +62,13 @@ export const IndustryParetoCard = ({ data, loading }) => {
                     Análise Pareto 80/20
                 </h3>
             </div>
-            <div className="chart-container" style={{ padding: '10px 0', height: '100%', minHeight: '320px' }}>
+            <div className="chart-container" style={{ padding: '10px 0', height: '100%', minHeight: '320px', minWidth: '300px' }}>
                 {loading ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                         <p style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
                     </div>
-                ) : paretoData && paretoData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                ) : (paretoData && paretoData.length > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%" debounce={150}>
                         <ComposedChart
                             data={paretoData}
                             margin={{ top: 10, right: 30, left: 0, bottom: 40 }}

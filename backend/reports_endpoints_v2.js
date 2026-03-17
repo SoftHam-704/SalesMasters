@@ -1,4 +1,5 @@
 const express = require('express');
+const { getLinkedSellerId, buildIndustryFilterClause } = require('./utils/permissions');
 const router = express.Router();
 
 module.exports = (pool) => {
@@ -12,6 +13,7 @@ module.exports = (pool) => {
     router.get('/dashboard-summary', async (req, res) => {
         try {
             const { mes, ano, trimestre, industria } = req.query;
+            const userId = req.headers['x-user-id'];
 
             console.log(`🔎 [DASHBOARD SUMMARY] Ano=${ano}, Mes=${mes}, Trimestre=${trimestre}, Industria=${industria}`);
 
@@ -23,11 +25,87 @@ module.exports = (pool) => {
             const p_month = (mes && mes !== 'Todos' && mes !== 'ALL') ? parseInt(mes) : null;
             const p_industry = (industria && industria !== 'Todos' && industria !== 'ALL') ? parseInt(industria) : null;
 
-            // Note: get_dashboard_metrics accepts (year, month, industry_id)
-            const query = `SELECT * FROM get_dashboard_metrics($1::integer, $2::integer, $3::integer)`;
-            const params = [parseInt(ano), p_month, p_industry];
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause: metricsFilter } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+            const { filterClause: metaFilter } = buildIndustryFilterClause(sellerId, 'met_industria');
 
-            const result = await pool.query(query, params);
+            // Note: get_dashboard_metrics is a procedure, we need to check if it has internal filtering
+            // For now, we apply the industry filter on the meta search if no specific industry is selected
+            // or if the selected industry is not allowed.
+
+            // Note: get_dashboard_metrics accepts (year, month, industry_id)
+            let result;
+            try {
+                const query = `SELECT * FROM get_dashboard_metrics($1::integer, $2::integer, $3::integer)`;
+                const params = [parseInt(ano), p_month, p_industry];
+                result = await pool.query(query, params);
+            } catch (fnError) {
+                // Fallback: function may not exist in this tenant's schema
+                console.warn('⚠️ [DASHBOARD] get_dashboard_metrics not found, using fallback query:', fnError.message);
+                
+                const currentYear = parseInt(ano);
+                let currentStart, currentEnd, prevStart, prevEnd;
+                
+                if (p_month) {
+                    currentStart = `${currentYear}-${String(p_month).padStart(2, '0')}-01`;
+                    const lastDay = new Date(currentYear, p_month, 0).getDate();
+                    currentEnd = `${currentYear}-${String(p_month).padStart(2, '0')}-${lastDay}`;
+                    const prevMonth = p_month === 1 ? 12 : p_month - 1;
+                    const prevYear = p_month === 1 ? currentYear - 1 : currentYear;
+                    prevStart = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+                    const prevLastDay = new Date(prevYear, prevMonth, 0).getDate();
+                    prevEnd = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${prevLastDay}`;
+                } else {
+                    currentStart = `${currentYear}-01-01`;
+                    currentEnd = `${currentYear}-12-31`;
+                    prevStart = `${currentYear - 1}-01-01`;
+                    prevEnd = `${currentYear - 1}-12-31`;
+                }
+
+                const fallbackParams = [currentStart, currentEnd, prevStart, prevEnd];
+                let industryFilter = '';
+                if (p_industry) {
+                    industryFilter = ` AND p.ped_industria = $5`;
+                    fallbackParams.push(p_industry);
+                }
+
+                const fallbackQuery = `
+                    WITH current_metrics AS (
+                        SELECT 
+                            COALESCE(SUM(i.ite_totliquido), 0) as total_vendido,
+                            COALESCE(SUM(i.ite_quant), 0) as quantidade_vendida,
+                            COUNT(DISTINCT p.ped_cliente) as clientes_atendidos,
+                            COUNT(DISTINCT p.ped_pedido) as qtd_pedidos
+                        FROM pedidos p
+                        LEFT JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
+                        WHERE p.ped_data >= $1::date AND p.ped_data <= $2::date
+                          AND p.ped_situacao IN ('P', 'F')
+                          ${industryFilter}
+                    ),
+                    previous_metrics AS (
+                        SELECT 
+                            COALESCE(SUM(i.ite_totliquido), 0) as total_vendido
+                        FROM pedidos p
+                        LEFT JOIN itens_ped i ON i.ite_pedido = p.ped_pedido
+                        WHERE p.ped_data >= $3::date AND p.ped_data <= $4::date
+                          AND p.ped_situacao IN ('P', 'F')
+                          ${industryFilter}
+                    )
+                    SELECT 
+                        c.total_vendido as total_vendido_current,
+                        c.quantidade_vendida as quantidade_vendida_current,
+                        c.clientes_atendidos as clientes_atendidos_current,
+                        c.qtd_pedidos as qtd_pedidos_current,
+                        CASE WHEN prev.total_vendido = 0 THEN 
+                            CASE WHEN c.total_vendido > 0 THEN 100.0 ELSE 0.0 END
+                        ELSE 
+                            ((c.total_vendido - prev.total_vendido) / prev.total_vendido * 100)
+                        END as vendas_percent_change
+                    FROM current_metrics c, previous_metrics prev
+                `;
+                result = await pool.query(fallbackQuery, fallbackParams);
+            }
 
             // Buscar Meta Centralizada (se houver)
             let meta_total = 0;
@@ -37,14 +115,14 @@ module.exports = (pool) => {
                 let metaParams = [parseInt(ano)];
 
                 if (monthName) {
-                    metaQuery = `SELECT SUM(met_${monthName}) as meta FROM ind_metas WHERE met_ano = $1`;
+                    metaQuery = `SELECT SUM(met_${monthName}) as meta FROM ind_metas WHERE met_ano = $1 ${metaFilter}`;
                     if (p_industry) {
                         metaQuery += ` AND met_industria = $2`;
                         metaParams.push(p_industry);
                     }
                 } else {
                     // Soma ano todo
-                    metaQuery = `SELECT SUM(met_jan + met_fev + met_mar + met_abr + met_mai + met_jun + met_jul + met_ago + met_set + met_out + met_nov + met_dez) as meta FROM ind_metas WHERE met_ano = $1`;
+                    metaQuery = `SELECT SUM(met_jan + met_fev + met_mar + met_abr + met_mai + met_jun + met_jul + met_ago + met_set + met_out + met_nov + met_dez) as meta FROM ind_metas WHERE met_ano = $1 ${metaFilter}`;
                     if (p_industry) {
                         metaQuery += ` AND met_industria = $2`;
                         metaParams.push(p_industry);
@@ -64,7 +142,7 @@ module.exports = (pool) => {
                 };
                 res.json({ success: true, data });
             } else {
-                res.json({ success: false, message: 'Nenhum dado encontrado' });
+                res.json({ success: true, data: { total_vendido_current: 0, meta_total: meta_total, vendas_percent_change: 0 } });
             }
         } catch (error) {
             console.error('❌ Erro no sumário do dashboard:', error);
@@ -124,6 +202,10 @@ module.exports = (pool) => {
                 ? 'ip.ite_quant'
                 : 'ip.ite_totliquido';
 
+            const userId = req.headers['x-user-id'];
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+
             const query = `
                 SELECT 
                     f.for_codigo AS codigo,
@@ -135,6 +217,7 @@ module.exports = (pool) => {
                 JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
                 JOIN fornecedores f ON p.ped_industria = f.for_codigo
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY f.for_codigo, f.for_nomered, f.for_homepage
                 ORDER BY total_vendas DESC
                 LIMIT 6
@@ -170,11 +253,16 @@ module.exports = (pool) => {
         console.log("📍 [VENDAS_ROUTE] Request received:", req.query);
         try {
             const { start, end, industria, cliente, vendedor, grupo } = req.query;
+            const userId = req.headers['x-user-id'];
 
             // Validação básica
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
 
             // Helper para evitar NaN
             const safeInt = (val) => {
@@ -184,9 +272,9 @@ module.exports = (pool) => {
 
             let params = [start, end];
             let paramCounter = 3;
-            // TODO: Investigar se ped_situacao 'P' e 'F' são suficientes. 
-            // Em alguns ambientes pode ser 'A' (Aberto), 'E' (Emitido), etc.
-            let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F')`];
+            // TODO: Investigar os status de cada ambiente. 
+            // Incluindo A (Aberto), L (Liberado), P (Processado), F (Faturado)
+            let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F', 'A', 'L')`];
 
             // Filtro Indústria (Obrigatório segundo regra, mas vamos deixar flexível no código)
             // Filtro Indústria
@@ -243,10 +331,11 @@ module.exports = (pool) => {
                     SUM(ip.ite_totliquido) AS valor,
                     SUM(ip.ite_quant) AS qtd
                 FROM pedidos p
-                JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
+                JOIN itens_ped ip ON TRIM(p.ped_pedido) = TRIM(ip.ite_pedido)
                 JOIN clientes c ON p.ped_cliente = c.cli_codigo
                 JOIN fornecedores f ON p.ped_industria = f.for_codigo
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY 1, 2, 3
                 ORDER BY 2, 1
             `;
@@ -286,10 +375,15 @@ module.exports = (pool) => {
     router.get('/mapa_cliente_industria', async (req, res) => {
         try {
             const { start, end, industria, cliente, vendedor, grupo, detalhada } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
 
             // Helper para evitar NaN
             const safeInt = (val) => {
@@ -299,7 +393,7 @@ module.exports = (pool) => {
 
             let params = [start, end];
             let paramCounter = 3;
-            let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F')`];
+            let conditions = [`p.ped_data BETWEEN $1 AND $2`, `p.ped_situacao IN ('P', 'F', 'A', 'L')`];
 
             // Filtros comuns
             const indId = safeInt(industria);
@@ -347,6 +441,7 @@ module.exports = (pool) => {
                     JOIN clientes c ON p.ped_cliente = c.cli_codigo
                     JOIN fornecedores f ON p.ped_industria = f.for_codigo
                     WHERE ${conditions.join(' AND ')}
+                      ${filterClause}
                     ORDER BY f.for_nomered, p.ped_data DESC
                 `;
             } else {
@@ -369,6 +464,7 @@ module.exports = (pool) => {
                     JOIN clientes c ON p.ped_cliente = c.cli_codigo
                     JOIN fornecedores f ON p.ped_industria = f.for_codigo
                     WHERE ${conditions.join(' AND ')}
+                      ${filterClause}
                     GROUP BY f.for_nomered, ${clientCol}
                     ORDER BY f.for_nomered, ${clientCol}
                 `;
@@ -401,10 +497,15 @@ module.exports = (pool) => {
     router.get('/vendedor', async (req, res) => {
         try {
             const { start, end, vendedor } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
 
             let params = [start, end];
             let paramCounter = 3;
@@ -428,6 +529,7 @@ module.exports = (pool) => {
                 JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
                 JOIN fornecedores f ON p.ped_industria = f.for_codigo
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY 1, 2
                 ORDER BY 1, to_date(to_char(p.ped_data, 'MM/YYYY'), 'MM/YYYY')
             `;
@@ -459,6 +561,7 @@ module.exports = (pool) => {
     router.get('/produtos', async (req, res) => {
         try {
             const { start, end, industria, cliente } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
@@ -470,6 +573,11 @@ module.exports = (pool) => {
 
             let params = [start, end, industria];
             let paramCounter = 4;
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
+
             let conditions = [
                 `p.ped_data BETWEEN $1 AND $2`,
                 `p.ped_situacao IN ('P', 'F')`,
@@ -491,6 +599,7 @@ module.exports = (pool) => {
                 FROM pedidos p
                 JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY 1, 2
                 ORDER BY 1, to_date(to_char(p.ped_data, 'MM/YYYY'), 'MM/YYYY')
             `;
@@ -517,10 +626,15 @@ module.exports = (pool) => {
     router.get('/ultimas-compras', async (req, res) => {
         try {
             const { start, end, industria, cliente, vendedor, grupo, modo } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
 
             const isAllIndustries = !industria || industria === 'ALL';
 
@@ -577,6 +691,7 @@ module.exports = (pool) => {
                         JOIN clientes c ON p.ped_cliente = c.cli_codigo
                         ${isAllIndustries ? "JOIN fornecedores f ON p.ped_industria = f.for_codigo" : ""}
                         WHERE ${conditions.join(' AND ')} ${groupFilter}
+                          ${filterClause}
                         ORDER BY ${groupCol}${isAllIndustries ? ', f.for_nomered' : ''}, p.ped_data DESC
                     )
                     SELECT * FROM ultima_compra
@@ -597,6 +712,7 @@ module.exports = (pool) => {
                     JOIN clientes c ON p.ped_cliente = c.cli_codigo
                     ${isAllIndustries ? "JOIN fornecedores f ON p.ped_industria = f.for_codigo" : ""}
                     WHERE ${conditions.join(' AND ')} ${groupFilter}
+                      ${filterClause}
                     GROUP BY ${groupCol}${isGrouped ? '' : ', c.cli_uf'}${isAllIndustries ? ', f.for_nomered' : ''}
                     ORDER BY dias ASC, cliente
                 `;
@@ -628,11 +744,16 @@ module.exports = (pool) => {
     router.get('/mapa-quantidade', async (req, res) => {
         console.log('🔵 [MAPA-QTD] Endpoint chamado com params:', req.query);
         try {
-            const { start, end, industria, cliente } = req.query;
+            const { start, end, industria, cliente, grupo } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!start || !end) {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
 
             if (!industria || industria === 'ALL') {
                 return res.status(400).json({ success: false, message: 'Indústria é obrigatória para este relatório' });
@@ -648,7 +769,11 @@ module.exports = (pool) => {
 
             // Filtro Cliente (Opcional)
             if (cliente && cliente !== 'ALL') {
-                conditions.push(`p.ped_cliente = $${paramCounter}`);
+                if (String(grupo) === 'true') {
+                    conditions.push(`c.cli_redeloja = (SELECT cli_redeloja FROM clientes WHERE cli_codigo = $${paramCounter})`);
+                } else {
+                    conditions.push(`p.ped_cliente = $${paramCounter}`);
+                }
                 params.push(cliente);
                 paramCounter++;
             }
@@ -664,6 +789,7 @@ module.exports = (pool) => {
                 JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
                 JOIN clientes c ON p.ped_cliente = c.cli_codigo
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY ip.ite_produto, c.cli_nomred, c.cli_codigo
                 ORDER BY ip.ite_produto, c.cli_nomred
             `;
@@ -722,6 +848,7 @@ module.exports = (pool) => {
     router.get('/mapa-3-anos', async (req, res) => {
         try {
             const { anoBase, industria, cliente, modo, categoria } = req.query;
+            const userId = req.headers['x-user-id'];
 
             if (!anoBase || !industria) {
                 return res.status(400).json({
@@ -729,6 +856,10 @@ module.exports = (pool) => {
                     message: 'Ano base e indústria são obrigatórios'
                 });
             }
+
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
 
             const baseYear = parseInt(anoBase);
             const year1 = baseYear;
@@ -771,6 +902,7 @@ module.exports = (pool) => {
                 FROM pedidos p
                 JOIN itens_ped ip ON p.ped_pedido = ip.ite_pedido
                 WHERE ${conditions.join(' AND ')}
+                  ${filterClause}
                 GROUP BY ${labelField}, EXTRACT(YEAR FROM p.ped_data)
                 ORDER BY ${labelField}, ano DESC
             `;
@@ -934,6 +1066,10 @@ module.exports = (pool) => {
                 `;
             } else {
                 // Inativos no período (Sem compras nos últimos X meses)
+                const userId = req.headers['x-user-id'];
+                const sellerId = await getLinkedSellerId(pool, userId);
+                const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+
                 query = `
                     WITH stats AS (
                         SELECT 
@@ -953,6 +1089,7 @@ module.exports = (pool) => {
                             END AS frequencia_dias
                         FROM pedidos p
                         WHERE p.ped_situacao <> 'C'
+                          ${filterClause}
                         GROUP BY p.ped_cliente
                     )
                     SELECT 
@@ -1018,6 +1155,21 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Parâmetros obrigatórios faltando' });
             }
 
+            // Permission check
+            const userId = req.headers['x-user-id'];
+            const sellerId = await getLinkedSellerId(pool, userId);
+            if (sellerId !== null) {
+                const allowedRes = await pool.query(
+                    `SELECT 1 FROM vendedor_ind WHERE vin_codigo = $1 AND vin_industria = $2`,
+                    [sellerId, parseInt(industria)]
+                );
+                if (allowedRes.rows.length === 0) {
+                    return res.status(403).json({ success: false, message: 'Acesso negado para esta indústria' });
+                }
+            }
+
+
+
             const result = await pool.query(
                 `SELECT * FROM fn_mapa_cliente_geral($1::date, $2::date, $3::integer, $4::integer, $5::boolean)`,
                 [dataInicial, dataFinal, parseInt(industria), parseInt(cliente), grupo === 'true']
@@ -1034,11 +1186,24 @@ module.exports = (pool) => {
     router.get('/grupo-lojas', async (req, res) => {
         try {
             const { dataInicial, dataFinal, industria } = req.query;
+            const userId = req.headers['x-user-id'];
 
             console.log(`🔎 [GRUPO LOJAS] Ind=${industria}, Period=${dataInicial} to ${dataFinal}`);
 
             if (!industria || !dataInicial || !dataFinal) {
                 return res.status(400).json({ success: false, message: 'Parâmetros obrigatórios faltando' });
+            }
+
+            // Permission check
+            const sellerId = await getLinkedSellerId(pool, userId);
+            if (sellerId !== null) {
+                const allowedRes = await pool.query(
+                    `SELECT 1 FROM vendedor_ind WHERE vin_codigo = $1 AND vin_industria = $2`,
+                    [sellerId, parseInt(industria)]
+                );
+                if (allowedRes.rows.length === 0) {
+                    return res.status(403).json({ success: false, message: 'Acesso negado para esta indústria' });
+                }
             }
 
             const result = await pool.query(
@@ -1057,11 +1222,24 @@ module.exports = (pool) => {
     router.get('/produtos-unica-compra', async (req, res) => {
         try {
             const { dataInicial, dataFinal, industria } = req.query;
+            const userId = req.headers['x-user-id'];
 
             console.log(`🔎 [UNICA COMPRA] Ind=${industria}, Period=${dataInicial} to ${dataFinal}`);
 
             if (!industria || !dataInicial || !dataFinal) {
                 return res.status(400).json({ success: false, message: 'Parâmetros obrigatórios faltando' });
+            }
+
+            // Permission check
+            const sellerId = await getLinkedSellerId(pool, userId);
+            if (sellerId !== null) {
+                const allowedRes = await pool.query(
+                    `SELECT 1 FROM vendedor_ind WHERE vin_codigo = $1 AND vin_industria = $2`,
+                    [sellerId, parseInt(industria)]
+                );
+                if (allowedRes.rows.length === 0) {
+                    return res.status(403).json({ success: false, message: 'Acesso negado para esta indústria' });
+                }
             }
 
             const result = await pool.query(
@@ -1080,12 +1258,27 @@ module.exports = (pool) => {
     router.get('/clientes-mom', async (req, res) => {
         try {
             const { mes, ano, industria, anoTodo, redeLojas } = req.query;
+            const userId = req.headers['x-user-id'];
 
             console.log(`🔎 [CLIENTES MOM] Ind=${industria}, Period=${mes}/${ano}, FullYear=${anoTodo}, GroupRede=${redeLojas}`);
 
             if (!industria || !mes || !ano) {
                 return res.status(400).json({ success: false, message: 'Parâmetros obrigatórios faltando' });
             }
+
+            // Permission check
+            const sellerId = await getLinkedSellerId(pool, userId);
+            if (sellerId !== null) {
+                const allowedRes = await pool.query(
+                    `SELECT 1 FROM vendedor_ind WHERE vin_codigo = $1 AND vin_industria = $2`,
+                    [sellerId, parseInt(industria)]
+                );
+                if (allowedRes.rows.length === 0) {
+                    return res.status(403).json({ success: false, message: 'Acesso negado para esta indústria' });
+                }
+            }
+
+
 
             const result = await pool.query(
                 `SELECT * FROM fn_clientes_mom($1, $2, $3, $4, $5)`,
@@ -1095,6 +1288,75 @@ module.exports = (pool) => {
             res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('❌ Erro no relatório clientes mom:', error);
+            res.status(500).json({ success: false, message: 'Erro ao gerar relatório', detail: error.message });
+        }
+    });
+
+    // --- Novo Relatório: Mapa Mensal por Item ---
+    router.get('/mapa-item-mensal', async (req, res) => {
+        try {
+            const { ano, industria, cliente, grupo } = req.query;
+            const userId = req.headers['x-user-id'];
+
+            console.log(`🔎 [MAPA ITEM MENSAL] Ano=${ano}, Ind=${industria}, Cli=${cliente}, Group=${grupo}`);
+
+            if (!ano || !industria) {
+                return res.status(400).json({ success: false, message: 'Ano e Indústria são obrigatórios' });
+            }
+
+            // Permission check
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+
+            let params = [parseInt(ano), parseInt(industria)];
+            let paramCounter = 3;
+            let clientCondition = '';
+
+            if (cliente && cliente !== 'ALL' && cliente !== 'Todos') {
+                if (grupo === 'true') {
+                    clientCondition = `AND c.cli_redeloja = (SELECT cli_redeloja FROM clientes WHERE cli_codigo = $${paramCounter})`;
+                } else {
+                    clientCondition = `AND p.ped_cliente = $${paramCounter}`;
+                }
+                params.push(parseInt(cliente));
+                paramCounter++;
+            }
+
+            const query = `
+                SELECT 
+                    ip.ite_produto AS codigo,
+                    MAX(pr.pro_nome) AS descricao,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 1 THEN ip.ite_quant ELSE 0 END), 0) AS mes_01,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 2 THEN ip.ite_quant ELSE 0 END), 0) AS mes_02,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 3 THEN ip.ite_quant ELSE 0 END), 0) AS mes_03,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 4 THEN ip.ite_quant ELSE 0 END), 0) AS mes_04,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 5 THEN ip.ite_quant ELSE 0 END), 0) AS mes_05,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 6 THEN ip.ite_quant ELSE 0 END), 0) AS mes_06,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 7 THEN ip.ite_quant ELSE 0 END), 0) AS mes_07,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 8 THEN ip.ite_quant ELSE 0 END), 0) AS mes_08,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 9 THEN ip.ite_quant ELSE 0 END), 0) AS mes_09,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 10 THEN ip.ite_quant ELSE 0 END), 0) AS mes_10,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 11 THEN ip.ite_quant ELSE 0 END), 0) AS mes_11,
+                    COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM p.ped_data) = 12 THEN ip.ite_quant ELSE 0 END), 0) AS mes_12,
+                    SUM(ip.ite_quant) AS total_ano
+                FROM pedidos p
+                JOIN itens_ped ip ON ip.ite_pedido = p.ped_pedido
+                JOIN clientes c ON c.cli_codigo = p.ped_cliente
+                LEFT JOIN cad_prod pr ON TRIM(pr.pro_codprod) = TRIM(ip.ite_produto) AND pr.pro_industria = p.ped_industria
+                WHERE EXTRACT(YEAR FROM p.ped_data) = $1
+                  AND p.ped_industria = $2
+                  AND p.ped_situacao IN ('P', 'F')
+                  ${clientCondition}
+                  ${filterClause}
+                GROUP BY ip.ite_produto
+                HAVING SUM(ip.ite_quant) > 0
+                ORDER BY ip.ite_produto
+            `;
+
+            const result = await pool.query(query, params);
+            res.json({ success: true, data: result.rows });
+        } catch (error) {
+            console.error('❌ Erro no mapa mensal por item:', error);
             res.status(500).json({ success: false, message: 'Erro ao gerar relatório', detail: error.message });
         }
     });

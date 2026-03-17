@@ -93,6 +93,21 @@ module.exports = (pool) => {
         }
     });
 
+    // GET /api/sellers/:id - Retorna TODOS os campos de um vendedor para edição
+    router.get('/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await pool.query('SELECT * FROM vendedores WHERE ven_codigo = $1', [id]);
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Vendedor não encontrado' });
+            }
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('Error fetching seller:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
     // PUT /api/sellers/:id
     router.put('/:id', async (req, res) => {
         try {

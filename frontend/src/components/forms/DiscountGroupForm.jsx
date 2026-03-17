@@ -49,10 +49,21 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
 
     const handleSave = () => {
         if (!formData.gid?.trim()) {
-            toast.error('Código (ID) é obrigatório');
+            toast.error('Identificador é obrigatório');
             return;
         }
-        onSave(formData);
+
+        // Limpeza dos dados numéricos antes de salvar
+        const finalData = { ...formData };
+        [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => {
+            const field = `gde_desc${n}`;
+            let rawValue = String(finalData[field]);
+            // Remove pontos (milhar/formatação) e troca vírgula por ponto
+            const cleanValue = rawValue.replace(/\./g, '').replace(',', '.');
+            finalData[field] = parseFloat(cleanValue) || 0;
+        });
+
+        onSave(finalData);
     };
 
     return (
@@ -66,7 +77,7 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
                     {/* ID e Nome */}
                     <div className="col-3">
                         <InputField
-                            label="Código"
+                            label="Identificador"
                             value={formData.gid}
                             onChange={(e) => handleChange('gid', e.target.value)}
                             placeholder=""
@@ -94,18 +105,32 @@ const DiscountGroupForm = ({ data, onClose, onSave }) => {
                                 <div key={num}>
                                     <InputField
                                         label={`${num}º`}
-                                        value={formData[`gde_desc${num}`]?.toFixed(2) || '0.00'}
+                                        type="text"
+                                        placeholder="0,00"
+                                        value={
+                                            typeof formData[`gde_desc${num}`] === 'string'
+                                                ? formData[`gde_desc${num}`]
+                                                : (formData[`gde_desc${num}`] === 0 ? '' : formData[`gde_desc${num}`].toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                        }
                                         onChange={(e) => {
-                                            const value = e.target.value.replace(',', '.');
-                                            if (value === '' || value === '.') {
-                                                handleChange(`gde_desc${num}`, 0);
-                                            } else if (!isNaN(parseFloat(value))) {
-                                                handleChange(`gde_desc${num}`, parseFloat(value));
+                                            // Lógica de máscara: remove tudo que não é dígito
+                                            let val = e.target.value.replace(/\D/g, "");
+
+                                            if (val === "") {
+                                                setFormData(prev => ({ ...prev, [`gde_desc${num}`]: 0 }));
+                                                return;
                                             }
-                                        }}
-                                        onBlur={(e) => {
-                                            const val = parseFloat(e.target.value.replace(',', '.')) || 0;
-                                            handleChange(`gde_desc${num}`, parseFloat(val.toFixed(2)));
+
+                                            // Converte para decimal (ex: 1183 vira 11.83)
+                                            const floatVal = parseFloat(val) / 100;
+
+                                            // Mantém como string formatada durante a digitação para o usuário ver a máscara
+                                            const formatted = floatVal.toLocaleString('pt-BR', {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2
+                                            });
+
+                                            setFormData(prev => ({ ...prev, [`gde_desc${num}`]: formatted }));
                                         }}
                                         className={`text-center font-medium w-full ${num === 1 ? 'bg-yellow-50 text-yellow-700' : ''}`}
                                     />

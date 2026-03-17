@@ -14,11 +14,11 @@ import { toast } from "sonner"
 const DataCell = memo(({ value, isSelected, onClick }) => {
     return (
         <TableCell
-            className={`py-1 px-2 text-xs text-right font-mono font-semibold cursor-pointer border-r border-slate-200 ${isSelected
-                ? 'bg-blue-200 text-blue-900 border-2 border-blue-600 z-10'
+            className={`py-1 px-2 text-xs text-right font-mono font-semibold cursor-pointer border-r border-stone-200 ${isSelected
+                ? 'bg-stone-900 text-white border-2 border-stone-800 z-10'
                 : value
-                    ? 'text-blue-700 hover:bg-blue-50'
-                    : 'text-slate-300 hover:bg-slate-50'
+                    ? 'text-stone-700 hover:bg-stone-50'
+                    : 'text-stone-300 hover:bg-stone-50'
                 }`}
             onClick={onClick}
         >
@@ -29,7 +29,7 @@ const DataCell = memo(({ value, isSelected, onClick }) => {
 
 DataCell.displayName = 'DataCell';
 
-export default function Mapa3AnosPage() {
+export default function Mapa3AnosPage({ isSubComponent = false }) {
     const currentYear = new Date().getFullYear();
     const [anoBase, setAnoBase] = useState(currentYear.toString())
     const [selectedIndustria, setSelectedIndustria] = useState("")
@@ -175,39 +175,34 @@ export default function Mapa3AnosPage() {
     )
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-            {/* Header / Filters - STANDARD STYLE */}
-            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 shadow-sm z-20">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
+            {/* Header / Filters */}
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
-                    {/* Top Row: Title + Main Actions */}
+                    {/* Top Row */}
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-blue-50 p-2 rounded-lg">
-                                <Calendar className="text-blue-600 w-6 h-6" />
-                            </div>
+                            {!isSubComponent && (
+                                <h1 className="text-xl font-bold tracking-tight text-stone-900">Mapa 3 Anos</h1>
+                            )}
                             <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold text-gray-800">Mapa 3 Anos</h1>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-500 uppercase tracking-wider font-semibold">| Relatórios Estatísticos</span>
-                                <ClosePageButton />
+                                {!isSubComponent && <ClosePageButton />}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600 hover:text-slate-800 hover:border-slate-300">
-                                <Download className="w-4 h-4" /> Exportar Excel
-                            </Button>
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <Download className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* Filters Row - MODERN CARD */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-
+                    {/* Filters Row */}
+                    <div className="flex flex-wrap items-end gap-3">
                         {/* Ano Base */}
-                        <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ano Base</Label>
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Ano Base</label>
                             <Select value={anoBase} onValueChange={setAnoBase}>
-                                <SelectTrigger className="h-10 bg-white shadow-sm">
+                                <SelectTrigger className="h-[38px] w-[110px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -219,10 +214,10 @@ export default function Mapa3AnosPage() {
                         </div>
 
                         {/* Indústria */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5 relative z-30">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Indústria <span className="text-red-500">*</span></Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[180px] relative z-30">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Indústria <span className="text-red-500">*</span></label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className={`h-10 bg-white shadow-sm ${!selectedIndustria ? 'border-blue-300 ring-2 ring-blue-100' : ''}`}>
+                                <SelectTrigger className={`h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm ${!selectedIndustria ? 'border-red-300 ring-1 ring-red-100' : ''}`}>
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
@@ -236,10 +231,10 @@ export default function Mapa3AnosPage() {
                         </div>
 
                         {/* Cliente */}
-                        <div className="col-span-12 md:col-span-3 flex flex-col gap-1.5 relative z-20">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</Label>
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[180px] relative z-20">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Cliente</label>
                             <Select value={selectedCliente} onValueChange={setSelectedCliente}>
-                                <SelectTrigger className="h-10 bg-white shadow-sm">
+                                <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm">
                                     <SelectValue placeholder="Todos" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
@@ -253,42 +248,38 @@ export default function Mapa3AnosPage() {
                             </Select>
                         </div>
 
-                        {/* Modo (Segmented Control - STANDARD) */}
-                        <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filtros</Label>
-                            <div className="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                        {/* Modo (Segmented Control) */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Tipo</label>
+                            <div className="flex bg-stone-100 p-0.5 rounded-md border border-stone-200 h-[38px] items-center">
                                 <button
                                     onClick={() => setModo('valor')}
-                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${modo === 'valor' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                                        }`}
+                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${modo === 'valor' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                                 >
                                     VALOR
                                 </button>
                                 <button
                                     onClick={() => setModo('quantidade')}
-                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${modo === 'quantidade' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                                        }`}
+                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${modo === 'quantidade' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                                 >
                                     QTD
                                 </button>
                             </div>
                         </div>
 
-                        {/* Categoria (Segmented Control - STANDARD) */}
-                        <div className="col-span-12 md:col-span-2 flex flex-col gap-1.5">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Categoria</Label>
-                            <div className="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                        {/* Categoria (Segmented Control) */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Categoria</label>
+                            <div className="flex bg-stone-100 p-0.5 rounded-md border border-stone-200 h-[38px] items-center">
                                 <button
                                     onClick={() => setCategoria('mes')}
-                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${categoria === 'mes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                                        }`}
+                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${categoria === 'mes' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                                 >
                                     MÊS
                                 </button>
                                 <button
                                     onClick={() => setCategoria('codigo')}
-                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${categoria === 'codigo' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                                        }`}
+                                    className={`text-[10px] font-bold uppercase py-1.5 px-3 rounded-sm transition-all flex-1 ${categoria === 'codigo' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                                 >
                                     CÓDIGO
                                 </button>
@@ -299,16 +290,16 @@ export default function Mapa3AnosPage() {
             </div>
 
             {/* Table Area (Compact) */}
-            <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
-                <Card className="h-full flex flex-col border-slate-200 shadow-lg relative overflow-hidden">
+            <div className="flex-1 overflow-auto p-4 bg-stone-50">
+                <Card className="h-full flex flex-col border-stone-200 shadow-sm relative overflow-hidden">
                     <CardContent className="p-0 overflow-auto flex-1">
                         {loading ? (
                             <div className="flex flex-col justify-center items-center h-full gap-3">
-                                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm font-medium text-slate-500 animate-pulse">Carregando dados...</span>
+                                <div className="w-10 h-10 border-4 border-stone-400 border-t-stone-900 rounded-full animate-spin"></div>
+                                <span className="text-sm font-medium text-stone-500 animate-pulse">Carregando dados...</span>
                             </div>
                         ) : data.length === 0 ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                            <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                                 <span className="text-4xl">📊</span>
                                 <span className="text-sm">Selecione uma indústria para ver os dados</span>
                             </div>
@@ -316,15 +307,14 @@ export default function Mapa3AnosPage() {
                             <div className="overflow-auto h-full w-full">
                                 <Table>
                                     <TableHeader className="sticky top-0 z-10">
-                                        <TableRow className="bg-slate-700 hover:bg-slate-700">
-                                            <TableHead className="text-white font-bold text-xs py-1 px-2 sticky left-0 bg-slate-700 z-20 border-r border-slate-600">
+                                        <TableRow className="bg-stone-800 hover:bg-stone-800">
+                                            <TableHead className="text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 sticky left-0 bg-stone-900 z-20 border-r border-stone-700">
                                                 {categoria === 'mes' ? 'MÊS' : 'CÓDIGO'}
                                             </TableHead>
                                             {anos.map((ano, idx) => (
                                                 <TableHead
                                                     key={idx}
-                                                    className={`text-white font-bold text-xs py-1 px-2 text-right min-w-[100px] border-r border-slate-600 ${selectedCell?.colIdx === idx ? 'bg-blue-600' : ''
-                                                        }`}
+                                                    className={`text-stone-100 font-bold text-xs uppercase tracking-wider py-1.5 px-2 text-right min-w-[100px] border-r border-stone-700 ${selectedCell?.colIdx === idx ? 'bg-stone-700' : ''}`}
                                                 >
                                                     {ano}
                                                 </TableHead>
@@ -333,11 +323,11 @@ export default function Mapa3AnosPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {data.map((row, rowIdx) => (
-                                            <TableRow key={rowIdx} className="hover:bg-blue-50/50 border-b border-slate-200 h-7">
+                                            <TableRow key={rowIdx} className="hover:bg-stone-50 border-b border-stone-100 h-7">
                                                 <TableCell
-                                                    className={`py-1 px-2 text-xs font-bold text-slate-700 sticky left-0 z-10 cursor-pointer border-r border-slate-200 ${selectedCell?.rowIdx === rowIdx && selectedCell?.colIdx === -1
-                                                        ? 'bg-blue-100 border-2 border-blue-500'
-                                                        : 'bg-slate-50 hover:bg-slate-100'
+                                                    className={`py-1 px-2 text-xs font-bold text-stone-700 sticky left-0 z-10 cursor-pointer border-r border-stone-200 ${selectedCell?.rowIdx === rowIdx && selectedCell?.colIdx === -1
+                                                        ? 'bg-stone-900 text-white'
+                                                        : 'bg-stone-50 hover:bg-stone-100'
                                                         }`}
                                                     onClick={() => handleCellClick(rowIdx, -1)}
                                                 >
@@ -353,12 +343,12 @@ export default function Mapa3AnosPage() {
                                                 ))}
                                             </TableRow>
                                         ))}
-                                        <TableRow className="bg-blue-100 border-t-2 border-blue-600 font-bold h-8">
-                                            <TableCell className="py-1 px-2 text-xs font-bold text-slate-800 sticky left-0 bg-blue-100 z-10 border-r border-blue-300">
+                                        <TableRow className="bg-stone-100 border-t-2 border-stone-400 font-bold h-8">
+                                            <TableCell className="py-1 px-2 text-xs font-bold text-stone-800 sticky left-0 bg-stone-100 z-10 border-r border-stone-300 uppercase tracking-wider">
                                                 TOTAL
                                             </TableCell>
                                             {anos.map((ano, idx) => (
-                                                <TableCell key={idx} className="py-1 px-2 text-xs text-right font-bold text-blue-900 font-mono border-r border-blue-300">
+                                                <TableCell key={idx} className="py-1 px-2 text-xs text-right font-bold text-stone-800 tabular-nums border-r border-stone-300">
                                                     {formatNumber(totais[`ano_${ano}`])}
                                                 </TableCell>
                                             ))}

@@ -49,15 +49,15 @@ app.get('/api/v2/carriers/cnpj/:cnpj', async (req, res) => {
 app.post('/api/v2/carriers', async (req, res) => {
     try {
         const {
-            tra_nome, tra_cnpj, tra_endereco, tra_bairro, tra_cidade,
+            tra_nome, tra_endereco, tra_bairro, tra_cidade,
             tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
             tra_cgc, tra_inscricao, tra_obs
         } = req.body;
 
         // Check if CNPJ already exists
-        if (tra_cnpj) {
-            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cnpj = $1';
-            const checkResult = await pool.query(checkQuery, [tra_cnpj]);
+        if (tra_cgc) {
+            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cgc = $1';
+            const checkResult = await pool.query(checkQuery, [tra_cgc]);
             if (checkResult.rows.length > 0) {
                 return res.status(400).json({ success: false, message: 'CNPJ já cadastrado' });
             }
@@ -65,15 +65,15 @@ app.post('/api/v2/carriers', async (req, res) => {
 
         const query = `
             INSERT INTO transportadora (
-                tra_nome, tra_cnpj, tra_endereco, tra_bairro, tra_cidade,
+                tra_nome, tra_endereco, tra_bairro, tra_cidade,
                 tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
                 tra_cgc, tra_inscricao, tra_obs
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *
         `;
 
         const result = await pool.query(query, [
-            tra_nome, tra_cnpj, tra_endereco, tra_bairro, tra_cidade,
+            tra_nome, tra_endereco, tra_bairro, tra_cidade,
             tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
             tra_cgc, tra_inscricao, tra_obs
         ]);
@@ -92,15 +92,15 @@ app.put('/api/v2/carriers/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const {
-            tra_nome, tra_cnpj, tra_endereco, tra_bairro, tra_cidade,
+            tra_nome, tra_endereco, tra_bairro, tra_cidade,
             tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
             tra_cgc, tra_inscricao, tra_obs
         } = req.body;
 
         // Check if CNPJ already exists for another carrier
-        if (tra_cnpj) {
-            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cnpj = $1 AND tra_codigo != $2';
-            const checkResult = await pool.query(checkQuery, [tra_cnpj, id]);
+        if (tra_cgc) {
+            const checkQuery = 'SELECT tra_codigo FROM transportadora WHERE tra_cgc = $1 AND tra_codigo != $2';
+            const checkResult = await pool.query(checkQuery, [tra_cgc, id]);
             if (checkResult.rows.length > 0) {
                 return res.status(400).json({ success: false, message: 'CNPJ já cadastrado para outra transportadora' });
             }
@@ -108,16 +108,16 @@ app.put('/api/v2/carriers/:id', async (req, res) => {
 
         const query = `
             UPDATE transportadora SET
-                tra_nome = $1, tra_cnpj = $2, tra_endereco = $3, tra_bairro = $4,
-                tra_cidade = $5, tra_uf = $6, tra_cep = $7, tra_fone = $8,
-                tra_contato = $9, tra_email = $10, tra_cgc = $11,
-                tra_inscricao = $12, tra_obs = $13
-            WHERE tra_codigo = $14
+                tra_nome = $1, tra_endereco = $2, tra_bairro = $3,
+                tra_cidade = $4, tra_uf = $5, tra_cep = $6, tra_fone = $7,
+                tra_contato = $8, tra_email = $9, tra_cgc = $10,
+                tra_inscricao = $11, tra_obs = $12
+            WHERE tra_codigo = $13
             RETURNING *
         `;
 
         const result = await pool.query(query, [
-            tra_nome, tra_cnpj, tra_endereco, tra_bairro, tra_cidade,
+            tra_nome, tra_endereco, tra_bairro, tra_cidade,
             tra_uf, tra_cep, tra_fone, tra_contato, tra_email,
             tra_cgc, tra_inscricao, tra_obs, id
         ]);

@@ -64,7 +64,17 @@ module.exports = function (app, pool) {
                 ped_condpag,
                 ped_tipofrete,
                 ped_comprador,
-                ped_data
+                ped_data,
+                // New Project Fields
+                ped_ramoatv,
+                ped_obra_nome,
+                ped_obra_endereco,
+                ped_obra_contato,
+                ped_fase_projeto,
+                ped_area_m2,
+                ped_pe_direito,
+                ped_tipo_piso,
+                ped_obs_tecnicas
             } = req.body;
 
             // Normaliza nomes de campos vindo do frontend
@@ -107,10 +117,13 @@ module.exports = function (app, pool) {
                     ped_industria, ped_vendedor, ped_transp, ped_tabela, ped_totbruto, 
                     ped_totliq, ped_totalipi, ped_obs,
                     ped_pri, ped_seg, ped_ter, ped_qua, ped_qui, ped_sex, ped_set, ped_oit, ped_nov,
-                    ped_pedindustria, ped_cliind, ped_condpag, ped_tipofrete, ped_comprador
+                    ped_pedindustria, ped_cliind, ped_condpag, ped_tipofrete, ped_comprador,
+                    ped_ramoatv, ped_obra_nome, ped_obra_endereco, ped_obra_contato,
+                    ped_fase_projeto, ped_area_m2, ped_pe_direito, ped_tipo_piso, ped_obs_tecnicas
                 ) VALUES (
                     COALESCE($27, CURRENT_DATE), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                    $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+                    $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+                    $28, $29, $30, $31, $32, $33, $34, $35, $36
                 ) RETURNING *
             `;
 
@@ -121,7 +134,9 @@ module.exports = function (app, pool) {
                 ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
                 ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
                 final_ped_indu, final_ped_cli, ped_condpag || '', ped_tipofrete || 'C', ped_comprador || '',
-                ped_data || null
+                ped_data || null,
+                ped_ramoatv || '', ped_obra_nome || '', ped_obra_endereco || '', ped_obra_contato || '',
+                ped_fase_projeto || 'Orçamento', ped_area_m2 || 0, ped_pe_direito || 0, ped_tipo_piso || '', ped_obs_tecnicas || ''
             ];
 
             const result = await pool.query(query, values);
@@ -140,7 +155,10 @@ module.exports = function (app, pool) {
                 ped_cliente, ped_vendedor, ped_transp, ped_tabela, ped_totbruto,
                 ped_totliq, ped_totalipi, ped_obs, ped_situacao,
                 ped_pri, ped_seg, ped_ter, ped_qua, ped_qui, ped_sex, ped_set, ped_oit, ped_nov,
-                ped_pedindustria, ped_pedindu, ped_pedcli, ped_condpag, ped_tipofrete, ped_comprador
+                ped_pedindustria, ped_pedindu, ped_pedcli, ped_condpag, ped_tipofrete, ped_comprador,
+                // New Project Fields
+                ped_ramoatv, ped_obra_nome, ped_obra_endereco, ped_obra_contato,
+                ped_fase_projeto, ped_area_m2, ped_pe_direito, ped_tipo_piso, ped_obs_tecnicas
             } = req.body;
 
             const final_ped_indu = ped_pedindustria || ped_pedindu || '';
@@ -153,17 +171,21 @@ module.exports = function (app, pool) {
                     ped_situacao = $9, ped_pri = $11, ped_seg = $12, ped_ter = $13,
                     ped_qua = $14, ped_qui = $15, ped_sex = $16, ped_set = $17,
                     ped_oit = $18, ped_nov = $19, ped_pedindustria = $20, ped_cliind = $24,
-                    ped_condpag = $21, ped_tipofrete = $22, ped_comprador = $23
+                    ped_condpag = $21, ped_tipofrete = $22, ped_comprador = $23,
+                    ped_ramoatv = $25, ped_obra_nome = $26, ped_obra_endereco = $27, ped_obra_contato = $28,
+                    ped_fase_projeto = $29, ped_area_m2 = $30, ped_pe_direito = $31, ped_tipo_piso = $32, ped_obs_tecnicas = $33
                 WHERE TRIM(ped_pedido) = TRIM($10)
                 RETURNING *
             `;
             const values = [
-                ped_cliente, ped_vendedor, ped_transp, ped_tabela, ped_totbruto,
-                ped_totliq, ped_totalipi, ped_obs, ped_situacao || 'P', id,
+                ped_cliente, ped_vendedor || 0, ped_transp || 0, ped_tabela || '', ped_totbruto || 0,
+                ped_totliq || 0, ped_totalipi || 0, ped_obs || '', ped_situacao || 'P', id,
                 ped_pri || 0, ped_seg || 0, ped_ter || 0, ped_qua || 0, ped_qui || 0,
                 ped_sex || 0, ped_set || 0, ped_oit || 0, ped_nov || 0,
                 final_ped_indu, ped_condpag || '', ped_tipofrete || 'C', ped_comprador || '',
-                final_ped_cli
+                final_ped_cli,
+                ped_ramoatv || '', ped_obra_nome || '', ped_obra_endereco || '', ped_obra_contato || '',
+                ped_fase_projeto || 'Orçamento', ped_area_m2 || 0, ped_pe_direito || 0, ped_tipo_piso || '', ped_obs_tecnicas || ''
             ];
 
             const result = await pool.query(query, values);

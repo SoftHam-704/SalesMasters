@@ -26,6 +26,10 @@ DECLARE
     v_ano_anterior INTEGER;
     v_total_ant NUMERIC;
     v_total_atu NUMERIC;
+    v_inicio_ant DATE;
+    v_fim_ant DATE;
+    v_inicio_atu DATE;
+    v_fim_atu DATE;
 BEGIN
     IF p_mes = 1 THEN
         v_mes_anterior := 12;
@@ -35,21 +39,25 @@ BEGIN
         v_ano_anterior := p_ano;
     END IF;
 
-    -- Mês anterior
-    SELECT COALESCE(SUM(ped_totliq), 0) INTO v_total_ant
-    FROM pedidos
-    WHERE EXTRACT(YEAR FROM ped_data) = v_ano_anterior
-      AND EXTRACT(MONTH FROM ped_data) = v_mes_anterior
-      AND ped_situacao IN ('P', 'F')
-      AND (p_industria IS NULL OR ped_industria = p_industria);
+    -- Variáveis para range de data
+    v_inicio_ant := make_date(v_ano_anterior, v_mes_anterior, 1);
+    v_fim_ant := (make_date(v_ano_anterior, v_mes_anterior, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+    v_inicio_atu := make_date(p_ano, p_mes, 1);
+    v_fim_atu := (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
 
-    -- Mês atual
-    SELECT COALESCE(SUM(ped_totliq), 0) INTO v_total_atu
-    FROM pedidos
-    WHERE EXTRACT(YEAR FROM ped_data) = p_ano
-      AND EXTRACT(MONTH FROM ped_data) = p_mes
-      AND ped_situacao IN ('P', 'F')
-      AND (p_industria IS NULL OR ped_industria = p_industria);
+        -- Mês anterior
+        SELECT COALESCE(SUM(ped_totliq), 0) INTO v_total_ant
+        FROM pedidos
+        WHERE ped_data >= v_inicio_ant AND ped_data <= v_fim_ant
+          AND ped_situacao IN ('P', 'F')
+          AND (p_industria IS NULL OR ped_industria = p_industria);
+
+        -- Mês atual
+        SELECT COALESCE(SUM(ped_totliq), 0) INTO v_total_atu
+        FROM pedidos
+        WHERE ped_data >= v_inicio_atu AND ped_data <= v_fim_atu
+          AND ped_situacao IN ('P', 'F')
+          AND (p_industria IS NULL OR ped_industria = p_industria);
 
     RETURN QUERY
     SELECT 
@@ -111,7 +119,7 @@ AS $$
             f.for_nomered
         FROM fornecedores f
         WHERE ($2 IS NULL OR f.for_codigo = $2)
-          AND f.for_tipo2 <> 'I'
+          AND f.for_tipo2 = 'A'
     ),
     vendas_ano_ant AS (
         SELECT 
@@ -119,7 +127,7 @@ AS $$
             EXTRACT(MONTH FROM ped_data)::INTEGER AS mes,
             SUM(ped_totliq) AS total
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data) = $1 - 1
+        WHERE ped_data >= make_date($1 - 1, 1, 1) AND ped_data <= make_date($1 - 1, 12, 31)
           AND ped_situacao IN ('P', 'F')
           AND ($2 IS NULL OR ped_industria = $2)
         GROUP BY ped_industria, EXTRACT(MONTH FROM ped_data)
@@ -130,7 +138,7 @@ AS $$
             EXTRACT(MONTH FROM ped_data)::INTEGER AS mes,
             SUM(ped_totliq) AS total
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data) = $1
+        WHERE ped_data >= make_date($1, 1, 1) AND ped_data <= make_date($1, 12, 31)
           AND ped_situacao IN ('P', 'F')
           AND ($2 IS NULL OR ped_industria = $2)
         GROUP BY ped_industria, EXTRACT(MONTH FROM ped_data)
@@ -215,8 +223,8 @@ AS $$
             ped_industria,
             SUM(ped_totliq) AS soma_vendas
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data) = $1
-          AND EXTRACT(MONTH FROM ped_data) <= $2
+        WHERE ped_data >= make_date($1, 1, 1) 
+          AND ped_data <= (make_date($1, $2, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE
           AND ped_situacao IN ('P', 'F')
           AND ($3 IS NULL OR ped_industria = $3)
         GROUP BY ped_industria
@@ -284,8 +292,7 @@ BEGIN
 
     SELECT COALESCE(SUM(ped_totliq), 0) INTO v_total_geral
     FROM pedidos
-    WHERE EXTRACT(YEAR FROM ped_data) = p_ano
-      AND EXTRACT(MONTH FROM ped_data) = p_mes
+    WHERE ped_data >= make_date(p_ano, p_mes, 1) AND ped_data <= (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE
       AND ped_situacao IN ('P', 'F')
       AND (p_industria IS NULL OR ped_industria = p_industria);
 
@@ -302,8 +309,7 @@ BEGIN
     vendas_atu AS (
         SELECT ped_industria, SUM(ped_totliq) AS total
         FROM pedidos
-        WHERE EXTRACT(YEAR FROM ped_data) = p_ano
-          AND EXTRACT(MONTH FROM ped_data) = p_mes
+        WHERE ped_data >= make_date(p_ano, p_mes, 1) AND ped_data <= (make_date(p_ano, p_mes, 1) + INTERVAL '1 month' - INTERVAL '1 day')::DATE
           AND ped_situacao IN ('P', 'F')
           AND (p_industria IS NULL OR ped_industria = p_industria)
         GROUP BY ped_industria

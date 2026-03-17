@@ -6,32 +6,38 @@ const nodemailer = require('nodemailer');
  */
 const createTransporter = (config) => {
     const port = parseInt(config.par_emailporta) || 587;
-    // Port 465 = implicit SSL (always secure), 587/25 = STARTTLS
-    // par_emailssl is BOOLEAN in DB, not 'S'/'N'
-    const isSecure = port === 465 || config.par_emailssl === true;
 
-    const smtpUser = config.par_emailuser || config.par_email;
-    const hasPassword = !!config.par_emailpassword;
+    // SSL (Porta 465) vs TLS/STARTTLS (Porta 587)
+    // No nodemailer, 'secure: true' é para porta 465 (Implicit SSL/TLS)
+    // Para porta 587 o padrão é 'secure: false' e o nodemailer usa STARTTLS automaticamente.
+    const isSecure = (port === 465 || config.par_emailssl === true);
+    const requireTLS = config.par_emailtls === true;
 
-    console.log(`📧 [MAILER] Configurando: host=${config.par_emailserver}, port=${port}, secure=${isSecure}, user=${smtpUser}, hasPass=${hasPassword}`);
+    const smtpUser = (config.par_emailuser || config.par_email || '').toString().trim();
+    const smtpPass = (config.par_emailpassword || '').toString().trim();
+    const smtpHost = (config.par_emailserver || '').toString().trim();
+
+    console.log(`📧 [MAILER] Configurando SMTP: host=${smtpHost}, port=${port}, secure=${isSecure}, tls=${requireTLS}, user=${smtpUser}`);
 
     return nodemailer.createTransport({
-        host: (config.par_emailserver || '').trim(),
+        host: smtpHost,
         port: port,
         secure: isSecure,
         auth: {
-            user: smtpUser.trim(),
-            pass: (config.par_emailpassword || '').trim(),
+            user: smtpUser,
+            pass: smtpPass,
         },
+        requireTLS: requireTLS,
         tls: {
+            // NUNCA rejeitar certificados não autorizados em ambientes de produção legados
             rejectUnauthorized: false,
             minVersion: 'TLSv1'
         },
-        connectionTimeout: 10000,  // 10s to connect
-        greetingTimeout: 10000,    // 10s to receive greeting
-        socketTimeout: 30000,      // 30s for socket inactivity
-        debug: false,
-        logger: false
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
+        debug: process.env.NODE_ENV !== 'production',
+        logger: process.env.NODE_ENV !== 'production'
     });
 };
 

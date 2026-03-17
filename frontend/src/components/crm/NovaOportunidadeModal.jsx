@@ -5,243 +5,278 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Target, Shield } from 'lucide-react';
+import { 
+    Loader2, Target, Briefcase, Calendar, 
+    User, Building2, CheckCircle2, TrendingUp,
+    Rocket, MapPin
+} from 'lucide-react';
 import { toast } from 'sonner';
-
-// Custom Components
-import DbComboBox from '@/components/DbComboBox';
-import { NODE_API_URL } from '../../utils/apiConfig';
 import { cn } from "@/lib/utils";
+import DbComboBox from '@/components/DbComboBox';
+import axios from '@/lib/axios';
 
-export default function NovaOportunidadeModal({ open, onClose, onSuccess, opportunity = null }) {
+const NovaOportunidadeModal = ({ open, onClose, onSuccess, editData = null }) => {
+    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const isEditMode = !!opportunity;
+    const isEditMode = !!editData;
 
-    // Form Data
-    const [titulo, setTitulo] = useState('');
+    // Form states
+    const [clienteId, setClienteId] = useState(null);
+    const [clienteLabel, setClienteLabel] = useState('');
+    const [industriaId, setIndustriaId] = useState('');
+    const [etapaId, setEtapaId] = useState('1');
     const [valor, setValor] = useState('');
-    const [etapaId, setEtapaId] = useState(1);
-    const [clientId, setClientId] = useState(null);
-    const [clientLabel, setClientLabel] = useState('');
-    const [familiaId, setFamiliaId] = useState(null);
-    const [familiaLabel, setFamiliaLabel] = useState('');
-    const [promotorId, setPromotorId] = useState(null);
-    const [promotorLabel, setPromotorLabel] = useState('');
-    const [telefoneContato, setTelefoneContato] = useState('');
+    const [previsao, setPrevisao] = useState(new Date().toISOString().split('T')[0]);
+    const [vendedorId, setVendedorId] = useState('');
+    const [titulo, setTitulo] = useState('');
+
+    // Helpers para máscara monetária
+    const maskCurrency = (value) => {
+        if (!value) return '';
+        const cleanValue = value.toString().replace(/\D/g, '');
+        return (parseFloat(cleanValue) / 100).toFixed(2);
+    };
+
+    const displayValue = (val) => {
+        if (val === undefined || val === null || val === '') return '';
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(val);
+    };
+
+    // Lookups
+    const [industrias, setIndustrias] = useState([]);
+    const [vendedores, setVendedores] = useState([]);
+
+    const fetchLookupData = async () => {
+        setLoading(true);
+        try {
+            const [indRes, vendRes] = await Promise.all([
+                axios.get('/suppliers?status=A'),
+                axios.get('/crm/vendedores')
+            ]);
+            setIndustrias(indRes.data.success ? indRes.data.data : (Array.isArray(indRes.data) ? indRes.data : []));
+            setVendedores(vendRes.data.success ? vendRes.data.data : (Array.isArray(vendRes.data) ? vendRes.data : []));
+        } catch (error) {
+            console.error('Erro ao buscar lookups:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (open) {
-            if (opportunity) {
-                setTitulo(opportunity.titulo);
-                setValor(opportunity.valor_estimado ? opportunity.valor_estimado.toString() : '');
-                setEtapaId(opportunity.etapa_id);
-                setClientId(opportunity.cli_codigo);
-                setClientLabel(opportunity.cli_nomred || '');
-                setFamiliaId(opportunity.for_codigo);
-                setFamiliaLabel(opportunity.industria_nome || '');
-                setPromotorId(opportunity.ven_codigo);
-                setPromotorLabel(opportunity.promotor_nome || '');
-                setTelefoneContato(opportunity.telefone_contato || '');
+            fetchLookupData();
+            if (editData) {
+                setClienteId(editData.cli_codigo);
+                setClienteLabel(editData.cli_nomred || '');
+                setIndustriaId(editData.for_codigo || '');
+                setEtapaId(editData.etapa_id?.toString() || '1');
+                setValor(editData.valor_estimado || '');
+                setTitulo(editData.titulo || '');
+                if (editData.data_previsao) {
+                    setPrevisao(new Date(editData.data_previsao).toISOString().split('T')[0]);
+                }
+                setVendedorId(editData.ven_codigo || '');
             } else {
-                setTitulo(''); setValor(''); setEtapaId(1); setClientId(null); setClientLabel('');
-                setFamiliaId(null); setFamiliaLabel(''); setPromotorId(null); setPromotorLabel('');
-                setTelefoneContato('');
+                setClienteId(null); setClienteLabel('');
+                setIndustriaId(''); setEtapaId('1');
+                setValor(''); setTitulo('');
+                setPrevisao(new Date().toISOString().split('T')[0]);
+                
+                // Tenta pegar o vendedor atual do sessionStorage
+                try {
+                    const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+                    if (u.ven_codigo) setVendedorId(u.ven_codigo);
+                } catch {}
             }
         }
-    }, [open, opportunity]);
-
-    const fetchClients = async (search) => {
-        try {
-            const response = await fetch(`${NODE_API_URL}/api/clients?search=${encodeURIComponent(search || '')}&limit=10`);
-            const data = await response.json();
-            return data.success ? data.data : [];
-        } catch (error) { return []; }
-    };
-
-    const fetchSuppliers = async (search) => {
-        try {
-            const response = await fetch(`${NODE_API_URL}/api/suppliers?status=A`);
-            const data = await response.json();
-            const list = data.success ? data.data : (Array.isArray(data) ? data : []);
-            if (!search) return list.slice(0, 20);
-            return list.filter(s => (s.for_nomered || s.for_nome || '').toLowerCase().includes(search.toLowerCase())).slice(0, 20);
-        } catch (error) { return []; }
-    };
-
-    const fetchSellers = async (search) => {
-        try {
-            const response = await fetch(`${NODE_API_URL}/api/sellers`);
-            const data = await response.json();
-            const list = data.success ? data.data : (Array.isArray(data) ? data : []);
-            if (!search) return list;
-            return list.filter(v => (v.ven_nome || '').toLowerCase().includes(search.toLowerCase()));
-        } catch (error) { return []; }
-    };
-
-    const fetchObterEtapas = async () => ([
-        { id: 1, descricao: 'Prospecção' },
-        { id: 2, descricao: 'Qualificação' },
-        { id: 3, descricao: 'Proposta' },
-        { id: 4, descricao: 'Negociação' },
-        { id: 5, descricao: 'Fechamento' }
-    ]);
+    }, [open, editData]);
 
     const handleSave = async () => {
-        if (!titulo || !clientId || !valor) return toast.error('Parâmetros obrigatórios ausentes');
+        if (!clienteId || !titulo || !valor) {
+            return toast.error('Preencha os campos obrigatórios (Cliente, Título e Valor)');
+        }
+
         setSaving(true);
         try {
             const payload = {
-                titulo,
-                cli_codigo: clientId,
-                ven_codigo: promotorId || JSON.parse(sessionStorage.getItem('user'))?.id || 1,
-                for_codigo: familiaId,
-                valor_estimado: parseFloat(valor.replace(',', '.')),
-                etapa_id: etapaId,
-                telefone_contato: telefoneContato || null
+                cli_codigo: clienteId,
+                for_codigo: industriaId ? parseInt(industriaId) : null,
+                etapa_id: parseInt(etapaId),
+                valor_estimado: parseFloat(valor),
+                data_previsao: previsao,
+                ven_codigo: vendedorId ? parseInt(vendedorId) : null,
+                titulo
             };
-            const method = isEditMode ? 'PUT' : 'POST';
-            const url = isEditMode ? `${NODE_API_URL}/api/crm/oportunidades/${opportunity.oportunidade_id}` : `${NODE_API_URL}/api/crm/oportunidades`;
-            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (response.ok) { toast.success('Missão Parametrizada'); onSuccess?.(); onClose(); }
-            else { toast.error('Falha de Sincronização'); }
-        } catch (error) { toast.error('Erro de Protocolo'); }
-        finally { setSaving(false); }
+
+            if (isEditMode) {
+                await axios.put(`/crm/oportunidades/${editData.oportunidade_id}`, payload);
+            } else {
+                await axios.post('/crm/oportunidades', payload);
+            }
+
+            toast.success(isEditMode ? 'Oportunidade atualizada!' : 'Oportunidade criada!');
+            onSuccess?.();
+            onClose();
+        } catch (error) {
+            console.error('Erro ao salvar oportunidade:', error);
+            toast.error('Erro ao conectar com o servidor');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const fetchClients = async (search) => {
+        try {
+            const res = await axios.get('/clients', { params: { search, limit: 10 } });
+            return res.data.success ? res.data.data : [];
+        } catch { return []; }
     };
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-md p-0 gap-0 overflow-hidden bg-white border-slate-200 shadow-2xl rounded-2xl">
+            <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden bg-white border-slate-200/80 shadow-2xl rounded-3xl">
                 <DialogHeader className="sr-only">
-                    <DialogTitle>{isEditMode ? 'Ajustar Oportunidade' : 'Configurar Alvo'}</DialogTitle>
-                    <DialogDescription>Definição tática de oportunidade de mercado.</DialogDescription>
+                    <DialogTitle>{isEditMode ? 'Editar Oportunidade' : 'Nova Oportunidade'}</DialogTitle>
+                    <DialogDescription>Gerenciamento de oportunidade no pipeline comercial.</DialogDescription>
                 </DialogHeader>
 
-                {/* High-Contrast Professional Header */}
-                <div className="bg-[#003366] p-6 flex justify-between items-center border-b border-blue-800">
+                {/* Header */}
+                <div className="px-8 pt-7 pb-5 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 border-b border-slate-100">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white border border-white/20">
-                            <Target size={26} />
+                        <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 shadow-sm transition-transform hover:scale-105">
+                            <Rocket size={24} className="text-emerald-600" />
                         </div>
                         <div>
-                            <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest block mb-0.5">MÓDULO DE ESTRATÉGIA</span>
-                            <h2 className="text-xl font-bold text-white uppercase tracking-tight">Nova Missão / Alvo</h2>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight">
+                                {isEditMode ? 'Editar Oportunidade' : 'Novo Negócio'}
+                            </h2>
+                            <p className="text-xs font-medium text-slate-400 mt-0.5">Gestão de Pipeline Comercial</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar bg-white">
-                    <div className="space-y-6">
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-5">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-black text-slate-900 uppercase">Identificação do Alvo (Cliente) *</Label>
-                                <DbComboBox
-                                    placeholder="Pesquisar ponto de contato..."
-                                    value={clientId ? { cli_codigo: clientId, cli_nomred: clientLabel } : null}
-                                    onChange={(val, item) => { setClientId(val); setClientLabel(item ? item.cli_nomred : ''); }}
-                                    fetchData={fetchClients}
-                                    labelKey="cli_nomred"
-                                    valueKey="cli_codigo"
-                                    className="bg-white border-slate-400 h-12 text-slate-900 font-bold shadow-none"
-                                />
-                            </div>
+                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    {/* Título da Oportunidade */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                            <Target size={12} className="text-emerald-500" /> Título da Oportunidade *
+                        </Label>
+                        <Input 
+                            placeholder="Descreva brevemente o negócio (ex: Projeto Modernização 2026)"
+                            value={titulo}
+                            onChange={(e) => setTitulo(e.target.value)}
+                            className="h-11 border-slate-200 rounded-xl font-bold text-slate-800 bg-slate-50/50 focus:bg-white focus:border-emerald-400 transition-all"
+                        />
+                    </div>
 
-                            <div className="space-y-2">
-                                <Label className="text-sm font-black text-slate-900 uppercase">Título da Operação *</Label>
-                                <Input
-                                    placeholder="Ex: Expansão Mix de Produtos..."
-                                    value={titulo}
-                                    onChange={(e) => setTitulo(e.target.value)}
-                                    className="h-12 border-slate-400 text-slate-900 font-bold focus:border-blue-600 rounded-lg"
-                                />
-                            </div>
+                    {/* Cliente Selection */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                            <User size={12} className="text-emerald-500" /> Cliente / Prospect *
+                        </Label>
+                        <DbComboBox
+                            placeholder="Buscar cliente..."
+                            value={clienteId ? { cli_codigo: clienteId, cli_nomred: clienteLabel } : null}
+                            onChange={(val, item) => { setClienteId(val); setClienteLabel(item ? item.cli_nomred : ''); }}
+                            fetchData={fetchClients}
+                            labelKey="cli_nomred"
+                            valueKey="cli_codigo"
+                            className="bg-white border-slate-200 h-11 text-slate-800 font-bold rounded-xl"
+                        />
+                    </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-black text-slate-900 uppercase">Impacto Estimado (BRL) *</Label>
-                                    <Input
-                                        placeholder="0.00"
-                                        value={valor}
-                                        onChange={(e) => setValor(e.target.value)}
-                                        className="h-12 border-slate-400 text-blue-700 font-black text-lg focus:border-blue-600 rounded-lg"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-black text-slate-900 uppercase">Contato Direto</Label>
-                                    <Input
-                                        type="tel"
-                                        placeholder="(00) 00000-0000"
-                                        value={telefoneContato}
-                                        onChange={(e) => setTelefoneContato(e.target.value)}
-                                        className="h-12 border-slate-400 text-slate-900 font-bold rounded-lg"
-                                    />
-                                </div>
+                    {/* Contexto: Indústria e Etapa */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <Building2 size={12} className="text-emerald-500" /> Indústria
+                            </Label>
+                            <select 
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 bg-white focus:border-emerald-400 outline-none transition-all appearance-none"
+                                value={industriaId}
+                                onChange={(e) => setIndustriaId(e.target.value)}
+                            >
+                                <option value="">Sem Indústria</option>
+                                {industrias.map(ind => (
+                                    <option key={ind.for_codigo} value={ind.for_codigo}>{ind.for_nomered || ind.for_nome}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <TrendingUp size={12} className="text-emerald-500" /> Etapa Atual
+                            </Label>
+                            <select 
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800 bg-white focus:border-emerald-400 outline-none transition-all appearance-none"
+                                value={etapaId}
+                                onChange={(e) => setEtapaId(e.target.value)}
+                            >
+                                <option value="1">Prospecção</option>
+                                <option value="2">Qualificação</option>
+                                <option value="3">Proposta</option>
+                                <option value="4">Negociação</option>
+                                <option value="5">Fechamento</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Financeiro: Valor e Previsão */}
+                    <div className="grid grid-cols-2 gap-4 bg-slate-50/80 p-5 rounded-2xl border border-slate-100">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600">Valor Estimado</Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">R$</span>
+                                <Input 
+                                    type="text"
+                                    placeholder="0,00"
+                                    value={displayValue(valor)}
+                                    onChange={(e) => setValor(maskCurrency(e.target.value))}
+                                    className="h-11 pl-9 border-slate-200 rounded-xl font-black text-slate-800 focus:border-emerald-400"
+                                />
                             </div>
                         </div>
-
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-5">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-black text-slate-900 uppercase">Responsável / Unidade</Label>
-                                <DbComboBox
-                                    placeholder="Selecionar Operador..."
-                                    value={promotorId ? { id: promotorId, ven_nome: promotorLabel } : null}
-                                    onChange={(val, item) => { setPromotorId(val); setPromotorLabel(item ? item.ven_nome : ''); }}
-                                    fetchData={fetchSellers}
-                                    labelKey="ven_nome"
-                                    valueKey="ven_codigo"
-                                    className="bg-white border-slate-400 h-12 text-slate-900 font-bold shadow-none"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-black text-slate-900 uppercase">Indústria de Apoio</Label>
-                                    <DbComboBox
-                                        placeholder="Vincular Indústria..."
-                                        value={familiaId ? { id: familiaId, for_nomered: familiaLabel } : null}
-                                        onChange={(val, item) => { setFamiliaId(val); setFamiliaLabel(item ? item.for_nomered : ''); }}
-                                        fetchData={fetchSuppliers}
-                                        labelKey="for_nomered"
-                                        valueKey="for_codigo"
-                                        className="bg-white border-slate-400 h-12 text-slate-900 font-bold shadow-none"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-black text-slate-900 uppercase">Estágio do Funil</Label>
-                                    <DbComboBox
-                                        placeholder="Situação..."
-                                        value={etapaId ? { id: etapaId, descricao: '' } : null}
-                                        initialLabel={['Prospecção', 'Qualificação', 'Proposta', 'Negociação', 'Fechamento'][etapaId - 1]}
-                                        onChange={(val) => setEtapaId(val)}
-                                        fetchData={fetchObterEtapas}
-                                        labelKey="descricao"
-                                        valueKey="id"
-                                        className="bg-white border-slate-400 h-12 text-slate-900 font-bold shadow-none"
-                                    />
-                                </div>
-                            </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold text-slate-600">Data Prevista</Label>
+                            <Input 
+                                type="date"
+                                value={previsao}
+                                onChange={(e) => setPrevisao(e.target.value)}
+                                className="h-11 border-slate-200 rounded-xl font-bold text-slate-800 focus:border-emerald-400"
+                            />
                         </div>
                     </div>
                 </div>
 
-                {/* VISIBLE ACCESSIBLE FOOTER */}
-                <div className="p-6 bg-slate-100 border-t-2 border-slate-200 flex justify-end gap-6">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="border-slate-400 text-slate-900 font-bold uppercase text-xs px-8 hover:bg-slate-200"
-                    >
-                        CANCELAR
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="bg-blue-600 hover:bg-blue-800 text-white font-black uppercase text-[10px] px-6 h-14 shadow-xl flex-1 md:flex-none"
-                    >
-                        {saving ? <Loader2 className="animate-spin" /> : 'CONFIRMAR E SINCRONIZAR MISSÃO'}
-                    </Button>
+                {/* Footer */}
+                <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <CheckCircle2 size={12} /> Salvar no CRM Central
+                    </p>
+                    <div className="flex gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="rounded-xl border-slate-200 text-slate-600 font-bold h-11 px-6 hover:bg-slate-100 active:scale-95 transition-all"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving || loading}
+                            className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-11 px-8 shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95 group"
+                        >
+                            {saving ? <Loader2 size={18} className="animate-spin mr-2" /> : <Rocket size={18} className="mr-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
+                            {isEditMode ? 'Atualizar Oportunidade' : 'Lançar no Pipeline'}
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
     );
-}
+};
+
+export default NovaOportunidadeModal;
+

@@ -24,6 +24,25 @@ const RepCrmMetasConfig = () => {
     const [metas, setMetas] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Helper para formatar moeda enquanto digita
+    const maskCurrency = (value) => {
+        if (!value) return '';
+        // Remove tudo que não é dígito
+        const cleanValue = value.toString().replace(/\D/g, '');
+        const amount = (parseFloat(cleanValue) / 100).toFixed(2);
+        return amount;
+    };
+
+    // Helper para exibir o valor visualmente formatado no input (opcional, mas melhor usar type text para máscara real)
+    // Para simplificar e manter compatibilidade, vamos usar o valor bruto no estado e formatar na exibição ou usar Intl.NumberFormat
+    const displayValue = (val) => {
+        if (val === undefined || val === null || val === '') return '';
+        return new Intl.NumberFormat('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(val);
+    };
+
     const months = [
         { key: 'met_jan', label: 'Janeiro' },
         { key: 'met_fev', label: 'Fevereiro' },
@@ -107,7 +126,7 @@ const RepCrmMetasConfig = () => {
     );
 
     const calculateTotalYear = (m) => {
-        return months.reduce((acc, month) => acc + (m[month.key] || 0), 0);
+        return months.reduce((acc, month) => acc + Number(m[month.key] || 0), 0);
     };
 
     return (
@@ -157,7 +176,9 @@ const RepCrmMetasConfig = () => {
                 <div className="toolbar-stats">
                     <div className="stat-pill">
                         <span className="label">Total Geral {year}:</span>
-                        <span className="value">{formatCurrency(metas.reduce((acc, m) => acc + calculateTotalYear(m), 0))}</span>
+                        <span className="value">
+                            {formatCurrency(metas.reduce((acc, m) => acc + calculateTotalYear(m), 0))}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -192,12 +213,18 @@ const RepCrmMetasConfig = () => {
                                         </td>
                                         {months.map(month => (
                                             <td key={month.key} className="input-cell">
-                                                <input
-                                                    type="number"
-                                                    value={m[month.key] || ''}
-                                                    onChange={(e) => handleInputChange(m.for_codigo, month.key, e.target.value)}
-                                                    placeholder="0"
-                                                />
+                                                <div className="input-with-prefix">
+                                                    <span className="currency-prefix">R$</span>
+                                                    <input
+                                                        type="text"
+                                                        value={displayValue(m[month.key])}
+                                                        onChange={(e) => {
+                                                            const masked = maskCurrency(e.target.value);
+                                                            handleInputChange(m.for_codigo, month.key, masked);
+                                                        }}
+                                                        placeholder="0,00"
+                                                    />
+                                                </div>
                                             </td>
                                         ))}
                                         <td className="total-col">

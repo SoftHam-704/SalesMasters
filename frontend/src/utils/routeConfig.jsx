@@ -14,7 +14,7 @@ export const routeConfig = {
     '/clientes': { label: 'Clientes', icon: <Users size={16} /> },
     '/vendedores': { label: 'Vendedores', icon: <UserCircle size={16} /> },
     '/produtos': { label: 'Produtos', icon: <Package size={16} /> },
-    '/cadastros/categorias': { label: 'Categorias', icon: <Tag size={16} /> },
+
     '/cadastros/grupos-produtos': { label: 'Grupos de Produtos', icon: <Layers size={16} /> },
     '/cadastros/grupos-descontos': { label: 'Grupos de Descontos', icon: <Layers size={16} /> },
     '/cadastros/regioes': { label: 'Regiões', icon: <Building2 size={16} /> },
@@ -28,7 +28,7 @@ export const routeConfig = {
     '/utilitarios/importacao-precos': { label: 'Importação de Preços', icon: <Upload size={16} /> },
     '/utilitarios/configuracoes': { label: 'Configurações', icon: <Settings size={16} /> },
     '/utilitarios/parametros': { label: 'Parâmetros', icon: <Settings size={16} /> },
-    '/assistente': { label: 'Assistente IA', icon: <Sparkles size={16} /> },
+    '/utilitarios/dashboard-legado': { label: 'Dashboard Legado', icon: <Home size={16} /> },
     '/sincronizacao': { label: 'Sincronização', icon: <RefreshCw size={16} /> },
     '/utilitarios/ferramentas': { label: 'Ferramentas', icon: <Wrench size={16} /> },
     '/utilitarios/jogo-dados': { label: 'Jogo de Dados', icon: <Gamepad size={16} /> },
@@ -52,9 +52,16 @@ export const routeConfig = {
     // RepCRM Specialist
     '/repcrm/dashboard': { label: 'Dashboard CRM', icon: <Sparkles size={16} /> },
     '/repcrm/cliente/:id': { label: 'Ficha 360º', icon: <User size={16} /> },
-    '/repcrm/comissoes': { label: 'Comissões CRM', icon: <DollarSign size={16} /> },
-    '/repcrm/visitas': { label: 'Visitas CRM', icon: <MapPin size={16} /> },
-    '/repcrm/config': { label: 'Configurações CRM', icon: <Settings size={16} /> }
+    '/repcrm/atendimentos': { label: 'Meus Atendimentos', icon: <Users size={16} /> },
+    '/repcrm/followups': { label: 'Follow-ups', icon: <FileText size={16} /> },
+    '/repcrm/pipeline': { label: 'Pipeline', icon: <BarChart2 size={16} /> },
+    '/repcrm/config': { label: 'Configurações CRM', icon: <Settings size={16} /> },
+
+    // CRM / Telemarketing
+    '/crm': { label: 'Atendimentos/Telemkt', icon: <Users size={16} /> },
+
+    // Novo Grid Fiel
+    '/utilitarios/frmGridPedidos': { label: 'Pedidos', icon: <ShoppingCart size={16} /> }
 };
 
 export const getRouteInfo = (path) => {

@@ -299,7 +299,7 @@ async def get_value_qty_matrix(
         # Filtro de indústria
         filtro_industria = ""
         if industryId and industryId != 'Todos':
-            filtro_industria = f"AND p.ped_industria = '{industryId}'"
+            filtro_industria = f"AND p.ped_industria = {industryId}"
 
         # Definição de agrupamento
         agrupamento_id = "c.cli_redeloja" if redeDeLojas else "p.ped_cliente"

@@ -43,7 +43,7 @@ const FrmGrupoDesc = () => {
     };
 
     const handleDelete = async (group) => {
-        if (!window.confirm(`Deseja realmente excluir o grupo "${group.gid}"?`)) {
+        if (!window.confirm(`Deseja realmente excluir o grupo "${group.gde_id}"?`)) {
             return;
         }
 
@@ -104,12 +104,24 @@ const FrmGrupoDesc = () => {
     // Definição das colunas seguindo o modelo Delphi (Grid de descontos)
     const columns = [
         {
-            key: 'gid',
-            label: 'ID',
-            width: '60px',
+            key: 'gde_id',
+            label: '#',
+            width: '50px',
             align: 'center',
             isId: true,
-            render: (row) => row.gid?.toString().padStart(3, '0')
+            render: (row) => row.gde_id?.toString().padStart(3, '0')
+        },
+        {
+            key: 'gid',
+            label: 'Identificador',
+            width: '120px',
+            align: 'left'
+        },
+        {
+            key: 'gde_nome',
+            label: 'Descrição',
+            width: '180px',
+            align: 'left'
         },
         // Mapeando colunas de 1 a 9
         ...Array.from({ length: 9 }, (_, i) => ({
@@ -124,7 +136,7 @@ const FrmGrupoDesc = () => {
     // Filtrar dados localmente
     const filteredGroups = searchTerm
         ? groups.filter(g =>
-            g.gid?.toString().includes(searchTerm) ||
+            g.gde_id?.toString().includes(searchTerm) ||
             // Se o usuário buscar por porcentagem "10.00"
             Object.values(g).some(val => val?.toString().includes(searchTerm))
         )

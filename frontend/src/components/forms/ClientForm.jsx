@@ -11,7 +11,7 @@ import {
     Check, ChevronsUpDown, ArrowLeft, Printer, Save,
     ShieldCheck, Target, TrendingUp, Phone, Mail, Globe,
     Building2, LayoutDashboard, Database, Info, History,
-    RefreshCw, User
+    RefreshCw, User, CreditCard
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -427,6 +427,49 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
             toast.error(error.message);
         }
     };
+    const handleConsultarCEPCobranca = async () => {
+        const cep = formData.cli_cepcob?.replace(/\D/g, '');
+        if (!cep || cep.length !== 8) {
+            toast.error("Informe um CEP válido (8 dígitos) para consultar.");
+            return;
+        }
+
+        const toastId = toast.loading("Buscando endereço de cobrança...");
+
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            if (!response.ok) throw new Error("Erro ao consultar CEP.");
+            const apiData = await response.json();
+            if (apiData.erro) throw new Error("CEP não encontrado.");
+
+            setFormData(prev => ({
+                ...prev,
+                cli_cepcob: apiData.cep,
+                cli_endcob: apiData.logradouro,
+                cli_baicob: apiData.bairro,
+                cli_cidcob: apiData.localidade,
+                cli_ufcob: apiData.uf
+            }));
+
+            toast.dismiss(toastId);
+            toast.success("Endereço de cobrança encontrado!");
+        } catch (error) {
+            toast.dismiss(toastId);
+            toast.error(error.message);
+        }
+    };
+
+    const handleCopyAddress = () => {
+        setFormData(prev => ({
+            ...prev,
+            cli_cepcob: prev.cli_cep,
+            cli_endcob: prev.cli_endereco,
+            cli_baicob: prev.cli_bairro,
+            cli_cidcob: prev.cli_cidade,
+            cli_ufcob: prev.cli_uf
+        }));
+        toast.info("Endereço copiado para cobrança!");
+    };
 
     const renderRelatedContent = (tabKey) => {
         const currentTab = tabKey || activeRelatedTab;
@@ -821,11 +864,20 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                                                     <PopoverContent className="w-[300px] p-0 z-[10000] rounded-2xl shadow-2xl border-emerald-100">
                                                                         <Command shouldFilter={false}>
                                                                             <CommandInput placeholder="Buscar cidade..." value={citySearch} onValueChange={setCitySearch} />
-                                                                            <CommandList>
+                                                                            <CommandList className="max-h-[300px] overflow-y-auto">
                                                                                 <CommandEmpty>Não encontrado.</CommandEmpty>
                                                                                 <CommandGroup>
                                                                                     {cityOptions.map((city) => (
-                                                                                        <CommandItem key={city.cid_codigo} onSelect={() => handleCitySelect(city)}>
+                                                                                        <CommandItem
+                                                                                            key={city.cid_codigo}
+                                                                                            onSelect={() => handleCitySelect(city)}
+                                                                                            onMouseDown={(e) => {
+                                                                                                e.preventDefault();
+                                                                                                e.stopPropagation();
+                                                                                                handleCitySelect(city);
+                                                                                            }}
+                                                                                            className="cursor-pointer pointer-events-auto"
+                                                                                        >
                                                                                             <Check className={cn("mr-2 h-4 w-4", formData.cli_idcidade === city.cid_codigo ? "opacity-100" : "opacity-0")} />
                                                                                             {city.cid_nome} - {city.cid_uf}
                                                                                         </CommandItem>
@@ -899,17 +951,136 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                                                 />
                                                             </div>
                                                         </div>
+
+                                                        {/* Linha 4: Email NFE, Email Financeiro, Suframa */}
+                                                        <div className="grid grid-cols-12 gap-5">
+                                                            <div className="col-span-4 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Email para NFe</Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        value={formData.cli_emailnfe || ''}
+                                                                        onChange={(e) => handleChange('cli_emailnfe', e.target.value)}
+                                                                        className="h-11 bg-white border-slate-200 pl-11 rounded-xl"
+                                                                        placeholder="nfe@exemplo.com"
+                                                                    />
+                                                                    <Mail className="absolute left-4 top-3.5 text-slate-400" size={16} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-4 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Email para Financeiro</Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        value={formData.cli_emailfinanc || ''}
+                                                                        onChange={(e) => handleChange('cli_emailfinanc', e.target.value)}
+                                                                        className="h-11 bg-white border-slate-200 pl-11 rounded-xl"
+                                                                        placeholder="financeiro@exemplo.com"
+                                                                    />
+                                                                    <Mail className="absolute left-4 top-3.5 text-slate-400" size={16} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-4 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Suframa</Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        value={formData.cli_suframa || ''}
+                                                                        onChange={(e) => handleChange('cli_suframa', e.target.value)}
+                                                                        className="h-11 bg-white border-slate-200 pl-11 rounded-xl"
+                                                                        placeholder="Inscrição Suframa"
+                                                                    />
+                                                                    <ShieldCheck className="absolute left-4 top-3.5 text-slate-400" size={16} />
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                {/* Painel III - Complemento e Auditoria */}
+                                                {/* Painel III - Dados para Cobrança */}
+                                                <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
+                                                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                                                <CreditCard size={18} />
+                                                            </div>
+                                                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider">III - Dados para Cobrança</h3>
+                                                        </div>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={handleCopyAddress}
+                                                            className="h-8 text-[10px] font-bold uppercase tracking-widest bg-white border-blue-100 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                        >
+                                                            Copiar Endereço Principal
+                                                        </Button>
+                                                    </div>
+                                                    <div className="p-8 space-y-6">
+                                                        <div className="grid grid-cols-12 gap-5">
+                                                            <div className="col-span-3 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">CEP Cobrança</Label>
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        value={formData.cli_cepcob || ''}
+                                                                        onChange={(e) => handleChange('cli_cepcob', e.target.value)}
+                                                                        onBlur={handleConsultarCEPCobranca}
+                                                                        className="h-11 bg-white border-slate-200 font-mono pr-10 rounded-xl"
+                                                                        placeholder="00000-000"
+                                                                    />
+                                                                    <Button
+                                                                        size="icon" variant="ghost"
+                                                                        className="absolute right-0 top-0 h-11 w-11 text-blue-600 hover:bg-blue-100 rounded-xl"
+                                                                        onClick={handleConsultarCEPCobranca}
+                                                                    >
+                                                                        <Search size={16} />
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-9 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Endereço de Cobrança</Label>
+                                                                <Input
+                                                                    value={formData.cli_endcob || ''}
+                                                                    onChange={(e) => handleChange('cli_endcob', e.target.value)}
+                                                                    className="h-11 bg-white border-slate-200 rounded-xl"
+                                                                    placeholder="Rua, Avenida, etc."
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-12 gap-5">
+                                                            <div className="col-span-5 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Cidade Cobrança</Label>
+                                                                <Input
+                                                                    value={formData.cli_cidcob || ''}
+                                                                    onChange={(e) => handleChange('cli_cidcob', e.target.value)}
+                                                                    className="h-11 bg-white border-slate-200 rounded-xl"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-5 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Bairro Cobrança</Label>
+                                                                <Input
+                                                                    value={formData.cli_baicob || ''}
+                                                                    onChange={(e) => handleChange('cli_baicob', e.target.value)}
+                                                                    className="h-11 bg-white border-slate-200 rounded-xl"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-2 flex flex-col gap-2">
+                                                                <Label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">UF Cob.</Label>
+                                                                <Input
+                                                                    value={formData.cli_ufcob || ''}
+                                                                    onChange={(e) => handleChange('cli_ufcob', e.target.value)}
+                                                                    className="h-11 bg-white border-slate-200 rounded-xl text-center font-bold"
+                                                                    maxLength={2}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Painel IV - Distribuição e Localização */}
                                                 <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
                                                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                                                         <div className="flex items-center gap-2">
                                                             <div className="p-1.5 bg-slate-50 text-slate-600 rounded-lg">
                                                                 <Database size={18} />
                                                             </div>
-                                                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider">III - Distribuição e Localização</h3>
+                                                            <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wider">IV - Distribuição e Localização</h3>
                                                         </div>
                                                     </div>
                                                     <div className="p-8">
@@ -950,6 +1121,7 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                                                         </Select>
                                                                     </div>
                                                                 </div>
+
                                                                 <div className="flex flex-col gap-2">
                                                                     <Label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Observação no Pedido</Label>
                                                                     <Input
@@ -959,9 +1131,21 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                                                         onChange={(e) => handleChange('cli_obspedido', e.target.value)}
                                                                     />
                                                                 </div>
-                                                            </div>
 
-                                                            <div className="space-y-4">
+                                                                {/* WhatsApp Destacado */}
+                                                                <div className="flex flex-col gap-2 p-4 bg-emerald-50/30 border border-emerald-200 rounded-2xl shadow-sm transition-all hover:border-emerald-300 group">
+                                                                    <Label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2">
+                                                                        WhatsApp Business <Phone size={12} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+                                                                    </Label>
+                                                                    <Input
+                                                                        className="h-11 bg-white border-emerald-200 placeholder:text-emerald-300 font-bold text-emerald-900 rounded-xl focus:ring-emerald-500/20"
+                                                                        placeholder="(00) 00000-0000"
+                                                                        value={formData.cli_fone3 || ''}
+                                                                        onChange={(e) => handleChange('cli_fone3', e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                </div>
+                                                                <div className="space-y-4">
                                                                 <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-200/60 shadow-inner">
                                                                     <div className="flex items-center justify-between mb-4">
                                                                         <div className="flex items-center gap-2">
@@ -993,10 +1177,10 @@ const ClientForm = ({ data, onClose, onSave, open, onOpenChange }) => {
                                                                         </div>
                                                                     </div>
                                                                 </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </div>
                                             </TabsContent>
 
                                             <TabsContent value="contatos" className="m-0 outline-none">

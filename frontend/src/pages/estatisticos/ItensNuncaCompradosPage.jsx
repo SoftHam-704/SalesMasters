@@ -10,7 +10,7 @@ import ClosePageButton from '../../components/common/ClosePageButton';
 import * as XLSX from 'xlsx'
 import { toast } from "sonner"
 
-export default function ItensNuncaCompradosPage() {
+export default function ItensNuncaCompradosPage({ isSubComponent = false }) {
     const [selectedIndustria, setSelectedIndustria] = useState("")
     const [selectedCliente, setSelectedCliente] = useState("")
 
@@ -97,43 +97,39 @@ export default function ItensNuncaCompradosPage() {
     )
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-            {/* Header / Filters - STANDARD STYLE */}
-            <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 shadow-sm z-20">
+        <div className="h-full flex flex-col bg-stone-50 overflow-hidden font-sans">
+            {/* Header / Filters */}
+            <div className="bg-white border-b border-stone-200 p-4 shadow-sm z-20 shrink-0">
                 <div className="flex flex-col gap-4">
-                    {/* Top Row: Title + Main Actions */}
+                    {/* Top Row */}
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                            <div className="bg-blue-50 p-2 rounded-lg">
-                                <XCircle className="text-blue-600 w-6 h-6" /> {/* Icon match request: 'X' for never bought? using XCircle */}
-                            </div>
+                            {!isSubComponent && (
+                                <>
+                                    <h1 className="text-xl font-bold tracking-tight text-stone-900">Itens Nunca Comprados</h1>
+                                </>
+                            )}
                             <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold text-gray-800">Itens Nunca Comprados</h1>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-500 uppercase tracking-wider font-semibold">| Relatórios Estatísticos</span>
-                                <ClosePageButton />
+                                {!isSubComponent && <ClosePageButton />}
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2 border-slate-200 text-slate-600 hover:text-slate-800 hover:border-slate-300">
-                                <Download className="w-4 h-4" /> Exportar Excel
-                            </Button>
+                            <button onClick={handleExportExcel} className="h-[38px] px-4 bg-emerald-600 hover:bg-emerald-700 !text-white rounded-lg font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors shadow-sm">
+                                <Download className="w-4 h-4 !text-white" /> <span className="!text-white">Exportar Excel</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* Filters Row - MODERN CARD */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-
-                        {/* Cliente - FIRST ARGUMENT */}
-                        <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5 relative z-20">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente <span className="text-red-500">*</span></Label>
+                    {/* Filters Row */}
+                    <div className="flex flex-wrap items-end gap-3">
+                        {/* Cliente */}
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px] relative z-20">
+                            <Label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Cliente <span className="text-red-500">*</span></Label>
                             <Select value={selectedCliente} onValueChange={setSelectedCliente}>
-                                <SelectTrigger className={`h-10 bg-white shadow-sm ${!selectedCliente ? 'border-blue-300 ring-2 ring-blue-100' : ''}`}>
+                                <SelectTrigger className={`h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm ${!selectedCliente ? 'border-red-300 ring-1 ring-red-100' : ''}`}>
                                     <SelectValue placeholder="Selecione um cliente..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
-                                    {/* No 'ALL' option as semantic suggests checking specfic client history */}
                                     {clientes.map(c => (
                                         <SelectItem key={c.cli_codigo} value={c.cli_codigo.toString()}>
                                             {renderSelectItem(<User className="w-4 h-4" />, c.cli_nomred, `Cód: ${c.cli_codigo}`)}
@@ -143,11 +139,11 @@ export default function ItensNuncaCompradosPage() {
                             </Select>
                         </div>
 
-                        {/* Indústria - SECOND ARGUMENT */}
-                        <div className="col-span-12 md:col-span-6 flex flex-col gap-1.5 relative z-30">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Indústria <span className="text-red-500">*</span></Label>
+                        {/* Indústria */}
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px] relative z-30">
+                            <Label className="text-xs font-bold text-stone-500 uppercase tracking-wider">Indústria <span className="text-red-500">*</span></Label>
                             <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
-                                <SelectTrigger className={`h-10 bg-white shadow-sm ${!selectedIndustria ? 'border-blue-300 ring-2 ring-blue-100' : ''}`}>
+                                <SelectTrigger className={`h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm ${!selectedIndustria ? 'border-red-300 ring-1 ring-red-100' : ''}`}>
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[300px]">
@@ -159,27 +155,26 @@ export default function ItensNuncaCompradosPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-
                     </div>
                 </div>
             </div>
 
-            {/* Table Area (Compact) */}
-            <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
-                <Card className="h-full flex flex-col border-slate-200 shadow-lg relative overflow-hidden">
+            {/* Table Area */}
+            <div className="flex-1 overflow-auto p-4 bg-stone-50">
+                <Card className="h-full flex flex-col border-stone-200 shadow-sm relative overflow-hidden">
                     <CardContent className="p-0 overflow-auto flex-1">
                         {loading ? (
                             <div className="flex flex-col justify-center items-center h-full gap-3">
-                                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm font-medium text-slate-500 animate-pulse">Carregando dados...</span>
+                                <div className="w-10 h-10 border-4 border-stone-400 border-t-stone-900 rounded-full animate-spin"></div>
+                                <span className="text-sm font-medium text-stone-500 animate-pulse">Carregando dados...</span>
                             </div>
                         ) : !selectedCliente || !selectedIndustria ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                            <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                                 <span className="text-4xl">🔍</span>
                                 <span className="text-sm">Selecione Cliente e Indústria para ver os itens</span>
                             </div>
                         ) : data.length === 0 ? (
-                            <div className="flex flex-col justify-center items-center h-full gap-2 text-slate-400">
+                            <div className="flex flex-col justify-center items-center h-full gap-2 text-stone-400">
                                 <span className="text-4xl">✅</span>
                                 <span className="text-sm">Este cliente já comprou todos os itens desta indústria, ou não há itens ativos.</span>
                             </div>
@@ -187,18 +182,18 @@ export default function ItensNuncaCompradosPage() {
                             <div className="overflow-auto h-full w-full">
                                 <Table>
                                     <TableHeader className="sticky top-0 z-10">
-                                        <TableRow className="bg-slate-700 hover:bg-slate-700">
-                                            <TableHead className="text-white font-bold text-xs py-1 px-2 border-r border-slate-600 w-[100px]">CÓDIGO</TableHead>
-                                            <TableHead className="text-white font-bold text-xs py-1 px-2 border-r border-slate-600">DESCRIÇÃO</TableHead>
-                                            <TableHead className="text-white font-bold text-xs py-1 px-2 border-r border-slate-600">APLICAÇÃO</TableHead>
+                                        <TableRow className="bg-stone-100 hover:bg-stone-100 border-b border-stone-200">
+                                            <TableHead className="text-stone-700 font-bold text-xs py-1.5 px-3 border-r border-stone-200 w-[100px] uppercase tracking-wider">CÓDIGO</TableHead>
+                                            <TableHead className="text-stone-700 font-bold text-xs py-1.5 px-3 border-r border-stone-200 uppercase tracking-wider">DESCRIÇÃO</TableHead>
+                                            <TableHead className="text-stone-700 font-bold text-xs py-1.5 px-3 border-r border-stone-200 uppercase tracking-wider">APLICAÇÃO</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {data.map((row, rowIdx) => (
-                                            <TableRow key={rowIdx} className="hover:bg-blue-50/50 border-b border-slate-200 h-7 text-xs">
-                                                <TableCell className="py-1 px-2 border-r border-slate-200 font-mono font-semibold text-blue-700">{row.codigo}</TableCell>
-                                                <TableCell className="py-1 px-2 border-r border-slate-200 text-slate-700">{row.descricao}</TableCell>
-                                                <TableCell className="py-1 px-2 border-r border-slate-200 text-slate-500">{row.aplicacao}</TableCell>
+                                            <TableRow key={rowIdx} className="hover:bg-stone-50 border-b border-stone-100 h-7 text-xs">
+                                                <TableCell className="py-1.5 px-3 border-r border-stone-100 font-mono font-semibold text-stone-700">{row.codigo}</TableCell>
+                                                <TableCell className="py-1.5 px-3 border-r border-stone-100 text-stone-700">{row.descricao}</TableCell>
+                                                <TableCell className="py-1.5 px-3 border-r border-stone-100 text-stone-500">{row.aplicacao}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

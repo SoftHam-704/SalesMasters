@@ -440,7 +440,7 @@ def get_top_clients_variation(ano: int, mes: str = None, industry_id: int = None
             # Filtering by industry if applicable
             v_industry_filter = ""
             if industry_id and industry_id != 'Todos':
-                v_industry_filter = f" AND industry_id = '{industry_id}'"
+                v_industry_filter = f" AND industry_id = {industry_id}"
 
             query = f"""
                 WITH CurrentYear AS (

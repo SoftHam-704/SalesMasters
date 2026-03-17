@@ -112,7 +112,7 @@ const ClientesTab = ({ filters, refreshTrigger }) => {
                     ano: filters.ano,
                     mes: monthsMap[filters.mes] || 'Todos',
                     industryId: filters.industria !== 'Todos' ? filters.industria : null,
-                    metrica: filters.metrica.toLowerCase(),
+                    metrica: (filters.metrica || 'valor').toLowerCase(),
                     uf: selectedUf !== 'Todos' ? selectedUf : null,
                     startDate: filters.startDate,
                     endDate: filters.endDate
@@ -142,7 +142,7 @@ const ClientesTab = ({ filters, refreshTrigger }) => {
                 const params = {
                     ano: filters.ano,
                     industryId: filters.industria !== 'Todos' ? filters.industria : null,
-                    metrica: filters.metrica.toLowerCase(),
+                    metrica: (filters.metrica || 'valor').toLowerCase(),
                     vendedorId: selectedVendedor !== 'Todos' ? selectedVendedor : null
                 };
 

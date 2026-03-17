@@ -10,7 +10,7 @@ const fmtPct = (v) => {
     return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
 };
 
-export const MetasIndustriasTable = ({ selectedYear, selectedMonth, selectedIndustry }) => {
+export const MetasIndustriasTable = ({ selectedYear, selectedMonth, selectedIndustry, limit }) => {
     const [data, setData] = useState({ status: [], por_mes: [], mes_ate: 1 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -56,7 +56,7 @@ export const MetasIndustriasTable = ({ selectedYear, selectedMonth, selectedIndu
         return map;
     }, [data.por_mes]);
 
-    const industrias = Object.keys(byIndustry);
+    const industrias = limit ? Object.keys(byIndustry).slice(0, limit) : Object.keys(byIndustry);
 
     if (loading) {
         return (
@@ -78,34 +78,7 @@ export const MetasIndustriasTable = ({ selectedYear, selectedMonth, selectedIndu
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', overflow: 'hidden' }}>
-            {/* Header / Sub-toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
-                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-hover, #f1f5f9)', padding: '2px', borderRadius: '8px' }}>
-                    <button
-                        onClick={() => setView('tabela')}
-                        style={{
-                            fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                            background: view === 'tabela' ? '#fff' : 'transparent', color: 'var(--text-primary)', boxShadow: view === 'tabela' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                        }}
-                    >
-                        Tabela Mensal
-                    </button>
-                    <button
-                        onClick={() => setView('status')}
-                        style={{
-                            fontSize: '11px', fontWeight: '700', padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                            background: view === 'status' ? '#fff' : 'transparent', color: 'var(--text-primary)', boxShadow: view === 'status' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                        }}
-                    >
-                        Resumo Status
-                    </button>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ background: '#f8fafc', color: '#64748b', fontSize: '10px', fontWeight: '700', padding: '2px 10px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-                        Entre ano atual e ano anterior
-                    </span>
-                </div>
-            </div>
+            {/* Tabela de Metas (Identidade BI) */}
 
             {/* VIEW: Tabela Mensal (Identidade BI) */}
             {view === 'tabela' && (
@@ -162,7 +135,7 @@ export const MetasIndustriasTable = ({ selectedYear, selectedMonth, selectedIndu
                             </tr>
                         </thead>
                         <tbody>
-                            {data.status.map((row, i) => {
+                            {(limit ? data.status.slice(0, limit) : data.status).map((row, i) => {
                                 const pct = parseFloat(row.percentual_meta) || 0;
                                 const saldo = parseFloat(row.saldo) || 0;
                                 return (

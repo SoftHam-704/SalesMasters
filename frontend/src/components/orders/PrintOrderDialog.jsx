@@ -13,7 +13,7 @@ import { Printer, Mail, FileSpreadsheet, X, MessageCircle, Info } from 'lucide-r
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const PrintOrderDialog = ({ isOpen, onClose, orderNumber, onPrint, onExportExcel, onSendEmail, defaultModel = 1, defaultSorting = 'digitacao', orderToPrintIndustryName, orderTotal }) => {
+const PrintOrderDialog = ({ isOpen, onClose, orderNumber, onPrint, onExportExcel, onSendEmail, onWhatsApp, defaultModel = 1, defaultSorting = 'digitacao', orderToPrintIndustryName, orderTotal }) => {
     const [sorting, setSorting] = useState(defaultSorting);
     const [selectedModel, setSelectedModel] = useState(defaultModel);
 
@@ -39,8 +39,13 @@ const PrintOrderDialog = ({ isOpen, onClose, orderNumber, onPrint, onExportExcel
             `Status: *Pendente*`;
 
         const encoded = encodeURIComponent(message);
-        window.open(`https://wa.me/?text=${encoded}`, '_blank');
-        toast.info("WhatsApp aberto. Lembre-se de anexar o PDF baixado.");
+        
+        if (onWhatsApp) {
+            onWhatsApp(selectedModel, sorting, encoded);
+        } else {
+            window.open(`https://wa.me/?text=${encoded}`, '_blank');
+            toast.info("WhatsApp aberto. Lembre-se de anexar o PDF baixado.");
+        }
     };
 
     const handleExportExcel = () => {

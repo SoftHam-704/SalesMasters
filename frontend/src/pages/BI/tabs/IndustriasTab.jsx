@@ -63,7 +63,7 @@ const IndustriasTab = ({ filters, refreshTrigger }) => {
                     const detailsRes = await axios.get(detailsUrl, {
                         params: {
                             ano: filters.ano,
-                            mes: filters.mes,
+                            mes: monthsMap[filters.mes] || 'Todos',
                             industryId: targetId,
                             metrica: filters.metrica || 'valor',
                             startDate: filters.startDate,

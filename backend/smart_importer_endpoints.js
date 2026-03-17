@@ -182,14 +182,138 @@ module.exports = function (pool) {
     });
 
     /**
+     * GET /api/smart-importer/drafts/:vendedor_id
+     * Busca todos os rascunhos salvos para um vendedor
+     */
+    router.get('/drafts/:vendedor_id', async (req, res) => {
+        try {
+            const { vendedor_id } = req.params;
+            const query = `
+                SELECT 
+                    d.id, d.cli_codigo, d.industria_id, d.industria_nome, d.total, d.items,
+                    c.cli_nome, c.cli_fantasia, c.cli_nomred, c.cli_cnpj
+                FROM public.smart_importer_drafts d
+                JOIN clientes c ON d.cli_codigo = c.cli_codigo
+                WHERE d.vendedor_id = $1
+                ORDER BY d.updated_at DESC
+            `;
+            const result = await pool.query(query, [vendedor_id]);
+
+            // Formatar para o padrão de 'buckets' que o front espera
+            const buckets = result.rows.map(row => {
+                let items = row.items;
+                if (typeof items === 'string') {
+                    try {
+                        items = JSON.parse(items);
+                    } catch (e) {
+                        console.error('❌ [SMART_IMPORTER] Erro ao parsear itens do rascunho:', e.message);
+                        items = [];
+                    }
+                }
+
+                return {
+                    id: row.id,
+                    industria_id: row.industria_id,
+                    industria_nome: row.industria_nome,
+                    total: parseFloat(row.total),
+                    items: Array.isArray(items) ? items : [],
+                    client: {
+                        cli_codigo: row.cli_codigo,
+                        cli_nome: row.cli_nome,
+                        cli_fantasia: row.cli_fantasia,
+                        cli_nomred: row.cli_nomred,
+                        cli_cnpj: row.cli_cnpj
+                    }
+                };
+            });
+
+            res.json({ success: true, data: buckets });
+        } catch (error) {
+            console.error('❌ [SMART_IMPORTER] Erro ao buscar rascunhos:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    /**
+     * POST /api/smart-importer/drafts
+     * Salva ou atualiza um rascunho de carrinho
+     */
+    router.post('/drafts', async (req, res) => {
+        try {
+            const { vendedor_id, cli_codigo, industria_id, industria_nome, items, total } = req.body;
+
+            // Busca se já existe um rascunho para esse trio (vendedor, cliente, industria)
+            const checkQuery = `
+                SELECT id FROM public.smart_importer_drafts 
+                WHERE vendedor_id = $1 AND cli_codigo = $2 AND industria_id = $3
+            `;
+            const checkRes = await pool.query(checkQuery, [vendedor_id, cli_codigo, industria_id]);
+
+            if (checkRes.rows.length > 0) {
+                // UPDATE
+                const updateQuery = `
+                    UPDATE public.smart_importer_drafts 
+                    SET items = $1, total = $2, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $3
+                `;
+                await pool.query(updateQuery, [JSON.stringify(items), total, checkRes.rows[0].id]);
+                res.json({ success: true, message: 'Rascunho atualizado.', id: checkRes.rows[0].id });
+            } else {
+                // INSERT
+                const insertQuery = `
+                    INSERT INTO public.smart_importer_drafts 
+                    (vendedor_id, cli_codigo, industria_id, industria_nome, items, total)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING id
+                `;
+                const insertRes = await pool.query(insertQuery, [
+                    vendedor_id, cli_codigo, industria_id, industria_nome, JSON.stringify(items), total
+                ]);
+                res.json({ success: true, message: 'Rascunho criado.', id: insertRes.rows[0].id });
+            }
+        } catch (error) {
+            console.error('❌ [SMART_IMPORTER] Erro ao salvar rascunho:', error);
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    /**
+     * DELETE /api/smart-importer/drafts/:id
+     * Remove um rascunho específico
+     */
+    router.delete('/drafts/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            await pool.query('DELETE FROM public.smart_importer_drafts WHERE id = $1', [id]);
+            res.json({ success: true, message: 'Rascunho removido.' });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    /**
+     * DELETE /api/smart-importer/drafts/all/:vendedor_id
+     * Remove todos os rascunhos de um vendedor
+     */
+    router.delete('/drafts/all/:vendedor_id', async (req, res) => {
+        try {
+            const { vendedor_id } = req.params;
+            await pool.query('DELETE FROM public.smart_importer_drafts WHERE vendedor_id = $1', [vendedor_id]);
+            res.json({ success: true, message: 'Todos os rascunhos removidos.' });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
+    /**
      * POST /api/smart-importer/checkout
-     * Transforma as sacolas em pedidos reais no banco
+     * Transforma os carrinhos em pedidos reais no banco
      */
     router.post('/checkout', async (req, res) => {
         const { buckets, vendedor_id, user_initials } = req.body;
 
         if (!buckets || !Array.isArray(buckets) || buckets.length === 0) {
-            return res.status(400).json({ success: false, message: 'Sacolas vazias ou inválidas.' });
+            return res.status(400).json({ success: false, message: 'Carrinhos vazios ou inválidos.' });
         }
 
         const client = await pool.connect();
@@ -198,7 +322,22 @@ module.exports = function (pool) {
         try {
             await client.query('BEGIN');
 
-            for (const bucket of buckets) {
+            for (let bucket of buckets) {
+                // Defensive parsing: Se o bucket vier de um rascunho antigo ou stringificado
+                if (typeof bucket.items === 'string') {
+                    try {
+                        bucket.items = JSON.parse(bucket.items);
+                    } catch (e) {
+                        console.error('❌ [SMART_IMPORTER] Erro crítico ao parsear itens no checkout:', e.message);
+                        continue; // Pula esse bucket corrompido
+                    }
+                }
+
+                if (!Array.isArray(bucket.items) || bucket.items.length === 0) {
+                    console.warn('⚠️ [SMART_IMPORTER] Pulando bucket sem itens.');
+                    continue;
+                }
+
                 // 1. Gerar número de pedido
                 let seqResult;
                 try {
@@ -218,6 +357,24 @@ module.exports = function (pool) {
                 const cli_codigo = bucket.client?.cli_codigo || (bucket.items[0] ? bucket.items[0].cli_codigo : 0);
                 const tabela = bucket.items[0]?.tabela || '';
 
+                // Buscar Transportadora e Condição de Pagamento do Vínculo (cli_ind)
+                let transportadora = 0;
+                let condPag = '';
+                let tipoFrete = 'C'; // CIF por padrão
+                try {
+                    const vinculoRes = await client.query(
+                        'SELECT cli_transportadora, cli_prazopg, cli_frete FROM cli_ind WHERE cli_codigo = $1 AND cli_forcodigo = $2 LIMIT 1',
+                        [cli_codigo, bucket.industria_id]
+                    );
+                    if (vinculoRes.rows.length > 0) {
+                        transportadora = vinculoRes.rows[0].cli_transportadora || 0;
+                        condPag = vinculoRes.rows[0].cli_prazopg || '';
+                        tipoFrete = vinculoRes.rows[0].cli_frete === 'FOB' ? 'F' : 'C';
+                    }
+                } catch (eVinculo) {
+                    console.warn('⚠️ [SMART_IMPORTER] Falha ao buscar vínculo cli_ind:', eVinculo.message);
+                }
+
                 // Calcular Totais da Sacola
                 const totBrutoSacola = bucket.items.reduce((acc, item) => acc + (parseFloat(item.preco_bruto || 0) * parseFloat(item.quantidade || 0)), 0);
                 const totLiqSacola = bucket.total; // Já calculado como unitário_liq * qtd na análise
@@ -226,10 +383,10 @@ module.exports = function (pool) {
                 const orderQuery = `
                     INSERT INTO pedidos (
                         ped_data, ped_situacao, ped_numero, ped_pedido, ped_cliente, 
-                        ped_industria, ped_vendedor, ped_tabela, ped_totbruto, ped_totliq,
-                        ped_obs
+                        ped_industria, ped_vendedor, ped_transp, ped_tabela, ped_totbruto, ped_totliq,
+                        ped_condpag, ped_tipofrete, ped_obs
                     ) VALUES (
-                        CURRENT_DATE, 'P', $1, $2, $3, $4, $5, $6, $7, $8, $9
+                        CURRENT_DATE, 'P', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
                     ) RETURNING *
                 `;
 
@@ -239,10 +396,13 @@ module.exports = function (pool) {
                     cli_codigo,
                     bucket.industria_id,
                     vendedor_id || 0,
+                    transportadora || 0,
                     tabela,
                     totBrutoSacola,
                     totLiqSacola,
-                    'Pedido gerado via Importador Inteligente'
+                    condPag,
+                    tipoFrete,
+                    'Pedido gerado via Carrinho Inteligente'
                 ];
 
                 await client.query(orderQuery, orderValues);
@@ -291,6 +451,15 @@ module.exports = function (pool) {
             }
 
             await client.query('COMMIT');
+
+            // Limpar rascunhos do banco após sucesso no checkout
+            try {
+                const user_id = vendedor_id || 0;
+                await pool.query('DELETE FROM public.smart_importer_drafts WHERE vendedor_id = $1', [user_id]);
+            } catch (e) {
+                console.warn('⚠️ [SMART_IMPORTER] Falha ao limpar rascunhos após checkout:', e.message);
+            }
+
             res.json({
                 success: true,
                 message: `${createdOrders.length} pedidos gerados com sucesso!`,

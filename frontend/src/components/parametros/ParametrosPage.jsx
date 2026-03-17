@@ -614,7 +614,7 @@ export default function ParametrosPage() {
                                                 <SelectValue placeholder="Escolha o formato oficial" />
                                             </SelectTrigger>
                                             <SelectContent className="max-h-[300px]">
-                                                {Array.from({ length: 28 }, (_, i) => i + 1).map(num => (
+                                                {Array.from({ length: 14 }, (_, i) => i + 1).map(num => (
                                                     <SelectItem key={num} value={String(num)} className="font-bold py-2">
                                                         LAYOUT MODELO {num}
                                                     </SelectItem>

@@ -22,7 +22,8 @@ const MasterPanel = () => {
     const [formData, setFormData] = useState({
         cnpj: '', razao_social: '', nome_fantasia: '', email_contato: '', telefone: '',
         status: 'ATIVO', data_vencimento: '', valor_mensalidade: '',
-        limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S', ios_enabled: 'N',
+        limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'N', ios_enabled: 'N',
+        modulo_bi_ativo: false, modulo_whatsapp_ativo: false, modulo_crmrep_ativo: false,
         db_host: '', db_nome: '', db_usuario: '', db_senha: '', db_porta: 5432
     });
     const [result, setResult] = useState(null);
@@ -366,7 +367,8 @@ const MasterPanel = () => {
         setFormData({
             cnpj: '', razao_social: '', nome_fantasia: '', email_contato: '', telefone: '',
             status: 'ATIVO', data_vencimento: '', valor_mensalidade: '',
-            limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'S', ios_enabled: 'N',
+            limite_usuarios: 1, limite_sessoes: 3, bloqueio_ativo: 'N', ios_enabled: 'N',
+            modulo_bi_ativo: false, modulo_whatsapp_ativo: false, modulo_crmrep_ativo: false,
             db_host: '', db_nome: '', db_usuario: '', db_senha: '', db_porta: 5432
         });
     };
@@ -384,8 +386,11 @@ const MasterPanel = () => {
             valor_mensalidade: empresa.valor_mensalidade || '',
             limite_usuarios: empresa.limite_usuarios || 1,
             limite_sessoes: empresa.limite_sessoes || 3,
-            bloqueio_ativo: empresa.bloqueio_ativo || 'S',
+            bloqueio_ativo: empresa.bloqueio_ativo || 'N',
             ios_enabled: empresa.ios_enabled || 'N',
+            modulo_bi_ativo: empresa.modulo_bi_ativo || false,
+            modulo_whatsapp_ativo: empresa.modulo_whatsapp_ativo || false,
+            modulo_crmrep_ativo: empresa.modulo_crmrep_ativo || false,
             db_host: empresa.db_host || '',
             db_nome: empresa.db_nome || '',
             db_usuario: empresa.db_usuario || '',
@@ -619,12 +624,34 @@ const MasterPanel = () => {
                             <div className="space-y-2">
                                 <Label className="font-bold">Módulo BI Intelligence</Label>
                                 <select
-                                    value={formData.bloqueio_ativo}
-                                    onChange={e => setFormData({ ...formData, bloqueio_ativo: e.target.value })}
+                                    value={formData.modulo_bi_ativo ? "true" : "false"}
+                                    onChange={e => setFormData({ ...formData, modulo_bi_ativo: e.target.value === "true" })}
                                     className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
                                 >
-                                    <option value="S">✅ HABILITADO</option>
-                                    <option value="N">❌ DESABILITADO</option>
+                                    <option value="true">✅ HABILITADO</option>
+                                    <option value="false">❌ DESABILITADO</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Módulo WhatsApp IA</Label>
+                                <select
+                                    value={formData.modulo_whatsapp_ativo ? "true" : "false"}
+                                    onChange={e => setFormData({ ...formData, modulo_whatsapp_ativo: e.target.value === "true" })}
+                                    className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="true">✅ HABILITADO</option>
+                                    <option value="false">❌ DESABILITADO</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Módulo CRM-Rep</Label>
+                                <select
+                                    value={formData.modulo_crmrep_ativo ? "true" : "false"}
+                                    onChange={e => setFormData({ ...formData, modulo_crmrep_ativo: e.target.value === "true" })}
+                                    className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="true">✅ HABILITADO</option>
+                                    <option value="false">❌ DESABILITADO</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
@@ -636,6 +663,17 @@ const MasterPanel = () => {
                                 >
                                     <option value="S">✅ PERMITIR</option>
                                     <option value="N">🚫 BLOQUEADO</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="font-bold">Bloqueio Financeiro (S/N)</Label>
+                                <select
+                                    value={formData.bloqueio_ativo}
+                                    onChange={e => setFormData({ ...formData, bloqueio_ativo: e.target.value })}
+                                    className="w-full h-10 px-3 border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-slate-500"
+                                >
+                                    <option value="S">⚠️ BLOQUEADO</option>
+                                    <option value="N">✅ NORMAL</option>
                                 </select>
                             </div>
                         </div>
