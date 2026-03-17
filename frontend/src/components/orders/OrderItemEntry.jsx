@@ -36,7 +36,6 @@ const OrderItemEntry = ({
     const [selectedProductIndex, setSelectedProductIndex] = useState(0);
     const [packagingWarning, setPackagingWarning] = useState(false);
     const [duplicateWarning, setDuplicateWarning] = useState(null); // { existingItem, newQuant }
-    const [rightPanelTab, setRightPanelTab] = useState('tabela'); // 'tabela' ou 'historico'
     const [productHistory, setProductHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [priceChoice, setPriceChoice] = useState(null); // { product, tipo: 'promo'|'especial', precoAlternativo, precoBruto }
@@ -83,32 +82,83 @@ const OrderItemEntry = ({
         if (importedItems && importedItems.length > 0 && products.length > 0) {
             isImporting.current = true;
             let addedCount = 0;
+            // Pré-indexar tabela para busca O(1) — evita congelamento em tabelas grandes
+            const exactIndex = new Map();
             const newItems = [];
+            for (const p of products) {
+                const cod = normalize(p.pro_codprod);
+                const norm = normalize(p.pro_codigonormalizado);
+                const conv = normalize(p.pro_conversao);
+                if (cod && !exactIndex.has(cod)) exactIndex.set(cod, p);
+                if (norm && !exactIndex.has(norm)) exactIndex.set(norm, p);
+                if (conv && !exactIndex.has(conv)) exactIndex.set(conv, p);
+            }
 
             importedItems.forEach(importItem => {
-                // Find product by Fuzzy Code Match
-                const product = products.find(p => {
-                    const dbCode = normalize(p.pro_codprod);
-                    const dbNormRec = normalize(p.pro_codigonormalizado);
+                const rawCode = String(importItem.codigo || importItem.ite_produto || '').toUpperCase();
 
-                    // Suporta os dois formatos: o da IA (.codigo) e o do OrderForm manual (.ite_produto)
-                    const importCode = normalize(importItem.codigo || importItem.ite_produto);
+                // ESTRATÉGIA MULTI-CÓDIGO:
+                // A IA pode retornar "XYZ-4827 / 30-179 / PKL-9384" (vários códigos em uma célula)
+                // Separamos e testamos CADA fragmento contra a tabela de preços.
+                // O PRIMEIRO que bater é o produto correto.
+                const fragments = rawCode.split(/[/|;,]+/).map(f => f.trim()).filter(f => f.length >= 2);
 
-                    if (dbCode === importCode || dbNormRec === importCode) return true;
+                let product = null;
+                let matchedFragment = rawCode;
 
-                    // Comparação numérica (se ambos forem números válidos)
-                    const dbNum = parseInt(dbCode, 10);
-                    const importNum = parseInt(importCode, 10);
-                    if (!isNaN(dbNum) && !isNaN(importNum) && dbNum === importNum) return true;
+                // Pass 1: Busca exata O(1) por fragmento
+                for (const frag of fragments) {
+                    const normFrag = normalize(frag);
+                    if (exactIndex.has(normFrag)) {
+                        product = exactIndex.get(normFrag);
+                        matchedFragment = frag;
+                        break;
+                    }
+                }
 
-                    return false;
-                });
+                // Pass 2: Se o exato falhou, tenta numérico estrito por fragmento
+                if (!product) {
+                    for (const frag of fragments) {
+                        const normFrag = normalize(frag);
+                        const fragIsNumeric = /^\d+$/.test(normFrag);
+                        if (!fragIsNumeric) continue;
+
+                        const fragNum = parseInt(normFrag, 10);
+                        const found = products.find(p => {
+                            const dbNorm = normalize(p.pro_codprod);
+                            return /^\d+$/.test(dbNorm) && parseInt(dbNorm, 10) === fragNum;
+                        });
+                        if (found) {
+                            product = found;
+                            matchedFragment = frag;
+                            break;
+                        }
+                    }
+                }
+
+                console.log(`[MagicLoad] "${rawCode}" → fragments: [${fragments.join(', ')}] → ${product ? `MATCHED "${matchedFragment}" → DB: ${product.pro_codprod}` : 'NOT FOUND'}`);
 
                 if (product) {
                     // Prioridade: Preço da IA (.preco) ou Preço do OrderForm (.ite_puni)
                     const precoManual = parseFloat(importItem.preco || importItem.ite_puni || 0);
+                    const precoPromo = parseFloat(product.itab_precopromo || 0);
+                    const precoEspecial = parseFloat(product.itab_precoespecial || 0);
                     const precoBruto = parseFloat(product.itab_precobruto || 0);
-                    const precoFinal = precoManual > 0 ? precoManual : precoBruto;
+
+                    let precoFinal = precoManual > 0 ? precoManual : precoBruto;
+                    let isPromo = importItem.ite_promocao === 'S';
+
+                    // Se não houver preço manual vindo do import, aplica a hierarquia P2 > P3 > P1
+                    if (precoManual <= 0) {
+                        if (precoPromo > 0) {
+                            precoFinal = precoPromo;
+                            isPromo = true;
+                        } else if (precoEspecial > 0) {
+                            precoFinal = precoEspecial;
+                        } else {
+                            precoFinal = precoBruto;
+                        }
+                    }
 
                     const quant = parseFloat(importItem.quantidade || importItem.ite_quant) || 1;
 
@@ -124,17 +174,17 @@ const OrderItemEntry = ({
                         ite_st: typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0),
                         ite_quant: quant,
                         ite_mult: parseFloat(product.pro_mult) || 0,
-                        ite_promocao: importItem.ite_promocao || 'N',
-                        // Se o preço foi manual, zera descontos de tabela pra não aplicar por cima
-                        ite_des1: precoManual > 0 ? 0 : (headerDiscounts?.ped_pri || 0),
-                        ite_des2: precoManual > 0 ? 0 : (headerDiscounts?.ped_seg || 0),
-                        ite_des3: precoManual > 0 ? 0 : (headerDiscounts?.ped_ter || 0),
-                        ite_des4: precoManual > 0 ? 0 : (headerDiscounts?.ped_qua || 0),
-                        ite_des5: precoManual > 0 ? 0 : (headerDiscounts?.ped_qui || 0),
-                        ite_des6: precoManual > 0 ? 0 : (headerDiscounts?.ped_sex || 0),
-                        ite_des7: precoManual > 0 ? 0 : (headerDiscounts?.ped_set || 0),
-                        ite_des8: precoManual > 0 ? 0 : (headerDiscounts?.ped_oit || 0),
-                        ite_des9: precoManual > 0 ? 0 : (headerDiscounts?.ped_nov || 0),
+                        ite_promocao: isPromo ? 'S' : 'N',
+                        // Se o preço foi manual ou promocional, zera descontos
+                        ite_des1: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_pri || 0),
+                        ite_des2: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_seg || 0),
+                        ite_des3: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_ter || 0),
+                        ite_des4: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_qua || 0),
+                        ite_des5: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_qui || 0),
+                        ite_des6: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_sex || 0),
+                        ite_des7: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_set || 0),
+                        ite_des8: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_oit || 0),
+                        ite_des9: (precoManual > 0 || isPromo) ? 0 : (headerDiscounts?.ped_nov || 0),
                         ite_des10: 0,
                         ite_valcomipi: 0,
                         ite_valcomst: 0,
@@ -337,14 +387,14 @@ const OrderItemEntry = ({
         }
     };
 
-    // Handler para trocar de aba no painel direito
-    const handleRightPanelTabChange = (tab) => {
-        setRightPanelTab(tab);
-        // Só busca histórico quando clica na aba e há um produto selecionado
-        if (tab === 'historico' && currentItem.ite_produto) {
+    // Efeito para buscar histórico automaticamente quando o produto muda
+    useEffect(() => {
+        if (currentItem.ite_produto && pedCliente && selectedIndustry) {
             loadProductHistory(currentItem.ite_produto);
+        } else {
+            setProductHistory([]);
         }
-    };
+    }, [currentItem.ite_produto, pedCliente, selectedIndustry]);
 
     const calculateItem = (item) => {
         const quant = parseFloat(item.ite_quant) || 0;
@@ -487,7 +537,10 @@ const OrderItemEntry = ({
         });
 
         resetCurrentItem();
-        if (codeInputRef.current) codeInputRef.current.focus();
+        // 🔄 UX: Pequeno delay garante que o foco aconteça após o reset do estado/DOM
+        setTimeout(() => {
+            if (codeInputRef.current) codeInputRef.current.focus();
+        }, 50);
     };
 
     // Função para somar quantidade ao item duplicado existente
@@ -517,7 +570,9 @@ const OrderItemEntry = ({
         toast.success(`Quantidade ajustada de ${existingQuant} para ${totalQuant}`);
         setDuplicateWarning(null);
         resetCurrentItem();
-        if (codeInputRef.current) codeInputRef.current.focus();
+        setTimeout(() => {
+            if (codeInputRef.current) codeInputRef.current.focus();
+        }, 50);
     };
 
     const handleDeleteItem = (itemToDelete) => {
@@ -535,7 +590,8 @@ const OrderItemEntry = ({
 
     const handleFinalizeItems = async () => {
         if (orderItems.length === 0) {
-            toast.warning('Adicione pelo menos um item ao pedido');
+            // Se não tem itens, apenas fecha a tela como solicitado pelo usuário
+            if (onFinalize) onFinalize();
             return;
         }
 
@@ -716,30 +772,25 @@ const OrderItemEntry = ({
             return;
         }
 
-        // PRIORIDADE 2: Se tem preço promocional, pergunta ao usuário
+        // NOVA REGRA DE PRIORIDADE: Preço 2 (Promo) > Preço 3 (Especial) > Preço 1 (Bruto)
+
+        // PRIORIDADE 2: Preço 2 (Promocional) - Sempre Líquido
         if (precoPromo > 0) {
-            setPriceChoice({
-                product,
-                tipo: 'promo',
-                precoAlternativo: precoPromo,
-                precoBruto
-            });
+            console.log(`🔥 [PREÇO P2] Usando Preço Promocional (Net): R$ ${precoPromo}`);
+            applyProductWithPrice(product, precoPromo, true, true);
             return;
         }
 
-        // PRIORIDADE 3: Se tem preço especial (e diferente do bruto), pergunta ao usuário
-        if (precoEspecial > 0 && precoEspecial !== precoBruto) {
-            setPriceChoice({
-                product,
-                tipo: 'especial',
-                precoAlternativo: precoEspecial,
-                precoBruto
-            });
+        // PRIORIDADE 3: Preço 3 (Especial)
+        if (precoEspecial > 0) {
+            console.log(`⭐ [PREÇO P3] Usando Preço Especial: R$ ${precoEspecial}`);
+            applyProductWithPrice(product, precoEspecial, false, false);
             return;
         }
 
-        // PRIORIDADE 4: Sem preço alternativo, usa bruto normalmente
-        applyProductWithPrice(product, precoBruto, false);
+        // PRIORIDADE 4: Preço 1 (Bruto)
+        console.log(`📌 [PREÇO P1] Usando Preço Bruto: R$ ${precoBruto}`);
+        applyProductWithPrice(product, precoBruto, false, false);
     };
 
     // Handlers para o diálogo de escolha de preço
@@ -787,7 +838,9 @@ const OrderItemEntry = ({
 
         toast.success('Item adicionado automaticamente');
         resetCurrentItem();
-        if (codeInputRef.current) codeInputRef.current.focus();
+        setTimeout(() => {
+            if (codeInputRef.current) codeInputRef.current.focus();
+        }, 50);
     };
 
     // Função para obter produtos filtrados (com limite de performance)
@@ -1036,7 +1089,7 @@ const OrderItemEntry = ({
                                 </Button>
                                 <Button
                                     onClick={handleFinalizeItems}
-                                    disabled={syncing || orderItems.length === 0}
+                                    disabled={syncing}
                                     className="bg-slate-50 hover:bg-slate-100 text-slate-800 h-12 font-black shadow-sm rounded-sm uppercase tracking-wider border-2 border-slate-300 active:bg-slate-200 transition-all flex items-center justify-center gap-2"
                                 >
                                     {syncing ? <RefreshCw className="h-5 w-5 animate-spin text-slate-400" /> : <Check className="h-5 w-5 stroke-[3]" />}
@@ -1106,20 +1159,19 @@ const OrderItemEntry = ({
                     </div>
                 </div>
 
-                {/* Column 2: Catalog & History (Breathing Room - Wider) */}
-                <div className="flex-[6.5] flex flex-col bg-white border border-slate-200 rounded-sm overflow-hidden shadow-sm">
-                    {/* Header with Search feedback */}
-                    <div className="bg-slate-800 px-4 py-2 flex items-center justify-between text-white">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest">
-                            {rightPanelTab === 'tabela' ? 'Catálogo da Indústria' : 'Histórico de Compras'}
-                        </h3>
-                        {rightPanelTab === 'tabela' && (
+                {/* Column 2: Catalog & History (Stacked Vertically) */}
+                <div className="flex-[6.5] flex flex-col gap-4 overflow-hidden">
+                    
+                    {/* Top Panel: Industry Catalog */}
+                    <div className="flex-[3.5] flex flex-col bg-white border border-slate-200 rounded-sm overflow-hidden shadow-sm">
+                        <div className="bg-slate-800 px-4 py-2 flex items-center justify-between text-white">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <Package className="h-3 w-3" /> Catálogo da Indústria
+                            </h3>
                             <span className="text-[9px] font-bold text-slate-400">Filtro: {currentItem.ite_produto || 'S/ Filtro'}</span>
-                        )}
-                    </div>
+                        </div>
 
-                    <div className="flex-1 overflow-auto bg-slate-50/30">
-                        {rightPanelTab === 'tabela' ? (
+                        <div className="flex-1 overflow-auto bg-slate-50/30">
                             <table className="w-full text-[12px] border-separate border-spacing-0">
                                 <thead className="bg-[#f8fafc] text-slate-500 sticky top-0 uppercase font-black text-[9px] border-b-2 border-slate-200 shadow-sm z-10">
                                     <tr>
@@ -1157,61 +1209,56 @@ const OrderItemEntry = ({
                                     )}
                                 </tbody>
                             </table>
-                        ) : (
-                            /* History Tab */
-                            <div className="flex flex-col h-full">
-                                {loadingHistory ? (
-                                    <div className="m-auto text-emerald-500 animate-pulse font-black uppercase text-xs">Aguarde...</div>
-                                ) : productHistory.length > 0 ? (
-                                    <table className="w-full text-[11px]">
-                                        <thead className="bg-amber-50 text-amber-800 sticky top-0 uppercase font-black text-[9px] border-b border-amber-200">
-                                            <tr className="h-8">
-                                                <th className="px-3 text-left">Data</th>
-                                                <th className="px-3 text-center">Pedido</th>
-                                                <th className="px-3 text-right">Liq.</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-amber-100">
-                                            {productHistory.map((h, i) => (
-                                                <tr key={i} className="h-9 hover:bg-amber-50/50">
-                                                    <td className="px-3 font-bold text-slate-600">{new Date(h.ped_data).toLocaleDateString()}</td>
-                                                    <td className="px-3 text-center font-mono text-amber-700 font-black">{h.ped_pedido}</td>
-                                                    <td className="px-3 text-right font-black text-emerald-700">R$ {h.ite_puniliq.toFixed(2)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                ) : (
-                                    <div className="m-auto text-slate-300 italic flex flex-col items-center">
-                                        <AlertTriangle className="h-8 w-8 mb-2 opacity-20" />
-                                        <span>Sem histórico disponível</span>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        </div>
                     </div>
 
-                    {/* Bottom Nav Tabs */}
-                    <div className="flex bg-slate-50 border-t border-slate-200 p-1 gap-1">
-                        <button
-                            onClick={() => handleRightPanelTabChange('tabela')}
-                            className={cn(
-                                "flex-1 py-1.5 rounded-sm text-[10px] font-black uppercase transition-all",
-                                rightPanelTab === 'tabela' ? "bg-slate-700 text-white shadow-sm" : "bg-white text-slate-400 hover:bg-slate-100 border border-slate-200"
+                    {/* Bottom Panel: Purchase History */}
+                    <div className="flex-[2.5] flex flex-col bg-white border border-slate-200 rounded-sm overflow-hidden shadow-sm">
+                        <div className="bg-amber-500 px-4 py-2 flex items-center justify-between text-white">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                <Star className="h-3 w-3 fill-white" /> Histórico de Compras do Cliente
+                            </h3>
+                            {currentItem.ite_produto && (
+                                <span className="text-[9px] font-bold text-amber-100 italic">{currentItem.ite_nomeprod}</span>
                             )}
-                        >
-                            CATÁLOGO
-                        </button>
-                        <button
-                            onClick={() => handleRightPanelTabChange('historico')}
-                            className={cn(
-                                "flex-1 py-1.5 rounded-sm text-[10px] font-black uppercase transition-all",
-                                rightPanelTab === 'historico' ? "bg-amber-500 text-white shadow-sm" : "bg-white text-slate-400 hover:bg-slate-100 border border-slate-200"
+                        </div>
+
+                        <div className="flex-1 overflow-auto bg-amber-50/5">
+                            {loadingHistory ? (
+                                <div className="h-full flex flex-col items-center justify-center text-amber-500 animate-pulse font-black uppercase text-[10px] py-8">
+                                    <RefreshCw className="h-6 w-6 animate-spin mb-2" />
+                                    <span>Buscando Histórico...</span>
+                                </div>
+                            ) : productHistory.length > 0 ? (
+                                <table className="w-full text-[11px]">
+                                    <thead className="bg-amber-50 text-amber-800 sticky top-0 uppercase font-black text-[9px] border-b border-amber-200 z-10">
+                                        <tr className="h-8">
+                                            <th className="px-3 text-left">Data</th>
+                                            <th className="px-3 text-center">Pedido</th>
+                                            <th className="px-3 text-right">Unitário Líq.</th>
+                                            <th className="px-3 text-right">Quantidade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-amber-100">
+                                        {productHistory.map((h, i) => (
+                                            <tr key={i} className="h-9 hover:bg-amber-50/50 transition-colors">
+                                                <td className="px-3 font-bold text-slate-600">{new Date(h.ped_data).toLocaleDateString()}</td>
+                                                <td className="px-3 text-center font-mono text-amber-700 font-black">{h.ped_pedido}</td>
+                                                <td className="px-3 text-right font-black text-emerald-700">R$ {parseFloat(h.ite_puniliq || 0).toFixed(2)}</td>
+                                                <td className="px-3 text-right font-black text-slate-900">{parseFloat(h.ite_quant || 0).toFixed(0)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-300 italic py-12">
+                                    <AlertTriangle className="h-10 w-10 mb-2 opacity-20" />
+                                    <span className="text-[10px] uppercase font-black tracking-widest">Nenhum histórico encontrado</span>
+                                </div>
                             )}
-                        >
-                            HISTÓRICO
-                        </button>
+                        </div>
                     </div>
+
                 </div>
 
             </div>

@@ -9,7 +9,8 @@ import DbComboBox from '@/components/DbComboBox';
 import { auxDataService } from '@/services/orders/auxDataService';
 
 const PortalsDialog = ({ open, onOpenChange, orderId }) => {
-    const [activeIndustries, setActiveIndustries] = useState([]);
+    const [activeIndustries, setActiveIndustries] = useState([]); // Array de strings formatadas para os botões
+    const [allIndustries, setAllIndustries] = useState([]); // Objetos originais da API
     const [isLoading, setIsLoading] = useState(true);
 
     // Patral Import State
@@ -30,7 +31,8 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 const response = await fetch(getApiUrl(NODE_API_URL, '/api/aux/industrias'));
                 const json = await response.json();
                 if (json.success) {
-                    const names = json.data.map(i => `${i.for_nomered || ''} ${i.for_nome || ''}`.toUpperCase());
+                    setAllIndustries(json.data);
+                    const names = json.data.map(i => `${i.for_nomered || i.label || ''} ${i.for_nome || ''}`.trim().toUpperCase());
                     setActiveIndustries(names);
                 }
             } catch (error) {
@@ -62,6 +64,10 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
 
     const handlePortalClick = async (portal) => {
         if (portal === 'STAHL') {
+            if (!orderId) {
+                toast.error('Este portal requer um pedido salvo para exportação.');
+                return;
+            }
             try {
                 const toastId = toast.loading('Gerando arquivo STAHL...');
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/stahl`), {
@@ -91,6 +97,10 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 toast.error('Erro ao conectar com servidor.');
             }
         } else if (portal === 'IGUAÇU') {
+            if (!orderId) {
+                toast.error('Este portal requer um pedido salvo para exportação.');
+                return;
+            }
             try {
                 const toastId = toast.loading('Gerando arquivo XML IGUAÇU...');
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/iguacu`), {
@@ -119,6 +129,10 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 toast.error('Erro ao conectar com servidor.');
             }
         } else if (portal === 'VIEMAR') {
+            if (!orderId) {
+                toast.error('Este portal requer um pedido salvo para exportação.');
+                return;
+            }
             try {
                 const toastId = toast.loading('Gerando planilha VIEMAR...');
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/viemar`), {
@@ -147,6 +161,10 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 toast.error('Erro ao conectar com servidor.');
             }
         } else if (portal === 'SAMPEL') {
+            if (!orderId) {
+                toast.error('Este portal requer um pedido salvo para exportação.');
+                return;
+            }
             try {
                 const toastId = toast.loading('Gerando planilha SAMPEL...');
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/sampel`), {
@@ -175,6 +193,10 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 toast.error('Erro ao conectar com servidor.');
             }
         } else if (portal === 'POLO') {
+            if (!orderId) {
+                toast.error('Este portal requer um pedido salvo para exportação.');
+                return;
+            }
             try {
                 const toastId = toast.loading('Gerando arquivo POLO...');
                 const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${orderId}/export/polo`), {
@@ -211,16 +233,19 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
             setImportClientName('');
             setImportPriceTable('');
 
-            // Tentar descobrir o ID da Patral se clicar nela
+            // Tentar descobrir o ID da Patral nos dados já carregados
             if (portal.toUpperCase().includes('PATRAL')) {
-                try {
-                    const res = await auxDataService.getIndustries('PATRAL');
-                    const patral = res.data?.find(i => i.for_nomered?.toUpperCase().includes('PATRAL') || i.for_nome?.toUpperCase().includes('PATRAL'));
-                    if (patral) {
-                        setPatralIndustryId(patral.for_codigo);
-                    }
-                } catch (e) {
-                    console.error('Erro ao buscar ID da Patral:', e);
+                const normalize = (s) => (s || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                const patral = allIndustries.find(i => {
+                    const fullName = `${i.for_nomered || i.label || ''} ${i.for_nome || ''}`.trim();
+                    return normalize(fullName).includes('PATRAL');
+                });
+                
+                if (patral) {
+                    console.log('✅ [Portals] ID Patral encontrado:', patral.for_codigo || patral.value);
+                    setPatralIndustryId(patral.for_codigo || patral.value);
+                } else {
+                    console.warn('⚠️ [Portals] Indústria PATRAL não encontrada nos dados ativos');
                 }
             }
         }
@@ -247,17 +272,34 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                 blocks.forEach((block, index) => {
                     if (index === 0) return;
                     try {
-                        const codigoMatch = block.match(/^\s*(\S+)/);
-                        const qtyMatch = block.match(/QUANTIDADE:\s*(\d+(?:[.,]\d+)?)/i);
+                        // Melhoria: Pega o código até encontrar DESCRICÃO ou um salto de linha longo
+                        const codigoMatch = block.match(/^\s*([\w\s./-]+?)(?=\s{2,}|DESCRICÃO|$)/i);
+                        
+                        // Melhoria: Se houver dois números em QUANTIDADE (ex: "2    1"), o segundo costuma ser a quantidade real
+                        const qtyMatch = block.match(/QUANTIDADE:\s*(\d+(?:\s+\d+)?(?:[.,]\d+)?)/i);
+                        
                         const priceMatch = block.match(/PREÇO UNITÁRIO:\s*R\$\s*([\d.,]+)/i);
                         const descMatch = block.match(/DESCRICÃO:\s*(.*?)(?:\n|$)/i);
 
                         if (codigoMatch && qtyMatch) {
+                            let codigo = codigoMatch[1].trim().toUpperCase();
+                            
+                            // Extração de Quantidade: No layout da Patral, se houver espaço (ex: "2 1"), 
+                            // o primeiro número é a quantidade solicitada/faturada e o segundo é saldo/controle.
+                            let qtyRaw = qtyMatch[1].replace(',', '.');
+                            if (qtyRaw.includes(' ')) {
+                                const parts = qtyRaw.split(/\s+/);
+                                qtyRaw = parts[0]; // Pega o primeiro (quantidade real em Patral)
+                            }
+                            const ite_quant = parseFloat(qtyRaw) || 0;
+
                             items.push({
-                                codigo: codigoMatch[1].trim(),
+                                codigo: codigo,
+                                ite_produto: codigo,
                                 descricao: descMatch ? descMatch[1].trim() : 'Produto Importado',
-                                quantidade: parseFloat(qtyMatch[1].replace(',', '.')),
-                                precoUnitario: priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) : 0,
+                                quantidade: ite_quant,
+                                ite_quant: ite_quant,
+                                preco_unitario: priceMatch ? parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) : 0,
                                 markup: 0
                             });
                         }
@@ -272,17 +314,19 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                     if (!line.trim()) return;
                     const tabularMatch = line.match(/^(\S+)\s+(.*?)\s+(\d+(?:[.,]\d+)?)(?:\s+R\$\s*[\d.,]+)?/);
                     if (tabularMatch) {
-                        const codigo = tabularMatch[1];
+                        const codigo = tabularMatch[1].trim().toUpperCase();
                         const qtde = parseFloat(tabularMatch[3].replace(',', '.'));
                         const noise = ['ITEM', 'COD', 'CÓD', 'PRODUTO', 'DESC', 'QTD', 'QUANT'];
-                        if (noise.some(n => codigo.toUpperCase().includes(n))) return;
+                        if (noise.some(n => codigo.includes(n))) return;
 
                         if (codigo && !isNaN(qtde) && qtde > 0) {
                             items.push({
-                                codigo: codigo.trim(),
+                                codigo: codigo,
+                                ite_produto: codigo,
                                 descricao: tabularMatch[2].trim(),
                                 quantidade: qtde,
-                                precoUnitario: 0,
+                                ite_quant: qtde,
+                                preco_unitario: 0,
                                 markup: 0
                             });
                         }
@@ -484,7 +528,7 @@ const PortalsDialog = ({ open, onOpenChange, orderId }) => {
                                                                             <td className="py-2 text-emerald-700 truncate max-w-[150px]">{item.descricao}</td>
                                                                             <td className="py-2 font-bold text-emerald-900 text-right">{item.quantidade}</td>
                                                                             <td className="py-2 font-bold text-emerald-900 text-right">
-                                                                                {item.precoUnitario > 0 ? `R$ ${item.precoUnitario.toFixed(2)}` : '--'}
+                                                                                {item.preco_unitario > 0 ? `R$ ${item.preco_unitario.toFixed(2)}` : '--'}
                                                                             </td>
                                                                         </tr>
                                                                     ))}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 // @cortex-lock: Do not change visual styles or layout unless explicitly requested. Logic is priority.
 // @cortex-lock: Do not change visual styles or layout unless explicitly requested. Logic is priority.
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import {
     FileText, User, MapPin, MoreHorizontal, FileUp, Copy,
     RefreshCw, Tag, DollarSign, Eraser, Star, StarOff, Percent, HelpCircle, CheckSquare,
     FileJson, FileCode, LayoutDashboard, Loader2, Package, ChevronsUpDown, Edit2, ClipboardCheck, FileCheck, MessageSquare, Eye,
-    Users, History, XCircle, Sparkles
+    Users, History, XCircle, Sparkles, Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SmartOrderDialog } from './SmartOrderDialog';
@@ -49,6 +50,7 @@ import { usePriceTable, useAuxData, useCliIndData, useCliAnivData, useSmartDisco
 import { formatCurrency } from '@/utils/orders';
 import { BuyerRegistrationDialog } from './BuyerRegistrationDialog';
 import ConditionRegistrationDialog from './ConditionRegistrationDialog';
+import { exportToExcel } from '@/utils/excelUtils';
 
 
 
@@ -106,7 +108,7 @@ const DiscountInput = ({ value, onChange, label }) => {
     )
 }
 
-const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly }) => {
+const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly, onPortals }) => {
     // Display state
     const [displayNumber, setDisplayNumber] = useState('(Novo)');
     const [activeTab, setActiveTab] = useState('F1'); // Default to F1 (Capa) to show the form fields
@@ -273,6 +275,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
     const [txtImporting, setTxtImporting] = useState(false);
     const [txtErrors, setTxtErrors] = useState([]);
 
+    // XML Import state (01 tab)
+    const [xmlImporting, setXmlImporting] = useState(false);
+    const [xmlErrors, setXmlErrors] = useState([]);
+
     // Context Menu State
     const [contextMenu, setContextMenu] = useState(null); // { x, y, item, index }
 
@@ -435,6 +441,14 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
                     // Se a IA já nos deu o nome do cliente, usamos direto (evita reload e piscada)
                     console.log('👤 [OrderForm] Setting client name:', initialPortalData.clienteNome || 'Searching...');
+                    
+                    if (initialPortalData.cliente && initialPortalData.industriaId) {
+                        cliIndData.fetchConditions(initialPortalData.cliente, initialPortalData.industriaId)
+                            .then(conditions => {
+                                if (conditions) applyCliIndConditions(conditions);
+                            }).catch(e => console.error('Erro ao buscar condições na importação:', e));
+                    }
+
                     if (initialPortalData.clienteNome) {
                         setSelectedClientName(initialPortalData.clienteNome);
                     } else if (initialPortalData.cliente) {
@@ -458,7 +472,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                             }));
                             setImportedItems(itemsWithSeq);
                             setJustImported(true);
-                            setActiveTab('F5'); 
+                            setActiveTab('F1'); // Manda para a Capa (Principal) como solicitado pelo usuário
                             toast.success(`${initialPortalData.items.length} itens prontos para conferência!`);
                             
                             // LIMPAR STORAGE APENAS AQUI!
@@ -617,13 +631,20 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
 
     useEffect(() => {
-        if (!existingOrder && selectedIndustry) {
-            setFormData(prev => ({
-                ...prev,
-                ped_tabela: '',
-                ped_pedindu: '',
-                // Reset other industry-specific fields if needed
-            }));
+        // Only clear if it's a clean new order (NOT an import and NOT an existing order)
+        const isImportingPortal = sessionStorage.getItem('PORTAL_IMPORT_DATA');
+        
+        if (!existingOrder && selectedIndustry && !isImportingPortal) {
+            setFormData(prev => {
+                // Se já tem tabela (vinda de importação), não resetar
+                if (prev.ped_tabela) return prev;
+                
+                return {
+                    ...prev,
+                    ped_tabela: '',
+                    ped_pedindu: '',
+                };
+            });
         }
     }, [selectedIndustry, existingOrder]);
 
@@ -908,63 +929,176 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 ? Math.max(...existingItems.map(i => i.ite_seq || 0)) + 1
                 : 1;
 
+            // Otimização O(1): Se houver muitos itens, .find() com regex causará congelamento da aba (Main Thread Lock).
+            // Em vez de varrer a tabela iterativamente, vamos usar um cache local rápido.
+            const exactSearchMap = new Map();
+            const normSearchMap = new Map();
+
+            // Pré-processamento Rápido em O(N)
+            for (const p of products) {
+                const cod = String(p.pro_codprod || '').toUpperCase();
+                const norm = String(p.pro_codigonormalizado || '').toUpperCase();
+                const conv = String(p.pro_conversao || '').toUpperCase();
+                const orig = String(p.pro_codigooriginal || '').toUpperCase();
+
+                if (cod) exactSearchMap.set(cod, p);
+                if (norm && !exactSearchMap.has(norm)) exactSearchMap.set(norm, p);
+                if (conv && !exactSearchMap.has(conv)) exactSearchMap.set(conv, p);
+                if (orig && !exactSearchMap.has(orig)) exactSearchMap.set(orig, p);
+
+                // NOVO: Adiciona busca por Código de Barras (EAN)
+                const ean = String(p.pro_codbarras || '').trim().toUpperCase();
+                if (ean && ean !== '0' && ean !== 'SEM GTIN' && !exactSearchMap.has(ean)) {
+                    exactSearchMap.set(ean, p);
+                }
+            }
+
             for (const item of items) {
-                // Discovery Logic: Splits strings like "CB09187/AH S088/81-065/AOI003"
-                const rawImportCode = String(item.codigo || item.codigo_produto || '').toUpperCase();
-                const fragments = rawImportCode.split(/[/|;,\s]+/).filter(f => f.length >= 3); // Splita e ignora fragmentos muito curtos
+                const rawImportCode = String(item.ite_produto || item.codigo || item.codigo_produto || '').toUpperCase();
+                console.log(`[Import] Iniciando busca para: "${rawImportCode}"`, item);
 
-                const normalize = (str) => String(str || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                const importNum = parseInt(normalize(rawImportCode), 10);
+                const normalize = (str) => String(str || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-                const product = products.find(p => {
-                    const dbCode = normalize(p.pro_codprod);
-                    const dbCodeNorm = normalize(p.pro_codigonormalizado);
-                    const dbNum = parseInt(dbCode, 10);
+                // ESTRATÉGIA MULTI-CÓDIGO:
+                // A IA pode retornar "XYZ-4827 / 30-179 / PKL-9384" (vários códigos em uma célula)
+                // Separamos por / | ; , e testamos CADA fragmento contra a tabela de preços.
+                const fragments = rawImportCode.split(/[/|;,]+/).map(f => f.trim()).filter(f => f.length >= 2);
 
-                    // 1. Tenta match com qualquer um dos fragmentos (Inteligência de Similares)
-                    for (const frag of fragments) {
-                        const normFrag = normalize(frag);
-                        if (dbCode === normFrag || dbCodeNorm === normFrag) return true;
+                let strategy = 'Not Found';
+                let product = null;
+                let matchedFragment = rawImportCode;
 
-                        // Comparação numérica do fragmento
-                        const fragNum = parseInt(normFrag, 10);
-                        if (!isNaN(dbNum) && !isNaN(fragNum) && dbNum === fragNum && normFrag.length >= 3) return true;
+                // Testa CADA fragmento com o pipeline completo de matching
+                for (const frag of fragments) {
+                    const fragUpper = frag.toUpperCase();
+                    const fragNorm = normalize(frag);
+                    const fragHasLetters = /[A-Z]/.test(fragNorm);
+                    const fragAlpha = fragNorm.replace(/[^A-Z]/g, '');
+
+                    // NOVO: Prioridade para EAN do item (se vier do XML)
+                    if (item.ean) {
+                        const itemEan = String(item.ean).trim().toUpperCase();
+                        if (exactSearchMap.has(itemEan)) {
+                            product = exactSearchMap.get(itemEan);
+                            strategy = '0: EAN Match (XML Priority)';
+                            matchedFragment = itemEan;
+                            break;
+                        }
                     }
 
-                    // 2. Fallback: Match na string cheia (caso não tenha separadores)
-                    const importCodeFull = normalize(rawImportCode);
-                    if (dbCode === importCodeFull || dbCodeNorm === importCodeFull) return true;
+                    // PASS 1: Busca Exata Absoluta (O(1))
+                    if (exactSearchMap.has(fragUpper)) {
+                        product = exactSearchMap.get(fragUpper);
+                        strategy = '1: Exact Match (High Priority)';
+                        matchedFragment = frag;
+                        break;
+                    } else if (exactSearchMap.has(fragNorm)) {
+                        product = exactSearchMap.get(fragNorm);
+                        strategy = '1: Exact Match (Normalized Input)';
+                        matchedFragment = frag;
+                        break;
+                    }
 
-                    return false;
-                });
+                    // PASS 2: Busca Normalizada O(N) para este fragmento
+                    const pass2found = products.find(p => {
+                        const dbNorm = normalize(p.pro_codprod);
+                        const dbNormRec = normalize(p.pro_codigonormalizado);
+                        const dbNormConv = normalize(p.pro_conversao);
+                        return dbNorm === fragNorm || dbNormRec === fragNorm || dbNormConv === fragNorm;
+                    });
 
-                if (!product) {
-                    notFoundInTable.push(item.codigo || item.codigo_produto || '?');
+                    if (pass2found) {
+                        product = pass2found;
+                        strategy = `2: Normalized Match ("${frag}")`;
+                        matchedFragment = frag;
+                        break;
+                    }
+
+                    // PASS 3: Match Numérico Estrito (Fallback final)
+                    const pass3found = products.find(p => {
+                        const dbNorm = normalize(p.pro_codprod);
+                        const dbIsNumeric = /^\d+$/.test(dbNorm);
+                        const fragIsNumeric = /^\d+$/.test(fragNorm);
+                        if (fragIsNumeric && dbIsNumeric && fragNorm.length >= 4) {
+                            return parseInt(dbNorm, 10) === parseInt(fragNorm, 10);
+                        }
+                        return false;
+                    });
+
+                    if (pass3found) {
+                        product = pass3found;
+                        strategy = `3: Numeric Strict Match ("${frag}")`;
+                        matchedFragment = frag;
+                        break;
+                    }
+                }
+
+                // Verbose Logging to help the user debug
+                if (product) {
+                    console.log(`[Import-Match] FOUND: "${rawImportCode}" → fragment "${matchedFragment}" → DB: "${product.pro_codprod}" (Ref: ${product.pro_codigonormalizado}) via ${strategy}`);
+                } else {
+                    console.warn(`[Import-Match] ❌ NOT FOUND: "${rawImportCode}" (fragments tested: [${fragments.join(', ')}])`);
+                    notFoundInTable.push(rawImportCode);
                     continue;
                 }
 
                 const promoPrice = parseFloat(product.itab_precopromo || 0);
+                const specialPrice = parseFloat(product.itab_precoespecial || 0);
                 const grossPrice = parseFloat(product.itab_precobruto || 0);
-                let finalPrice = item.preco ? parseFloat(item.preco) : grossPrice;
+
+                let finalPrice = (item.preco_unitario || item.preco) ? parseFloat(item.preco_unitario || item.preco) : grossPrice;
                 let isPromo = false;
 
-                // Priority Logic: If import has specific price, use it. Otherwise, check Promo > Gross.
-                if (!item.preco && promoPrice > 0) {
-                    finalPrice = promoPrice;
-                    isPromo = true;
+                // Prioridade automática: P2 (Promo) > P3 (Especial) > P1 (Bruto)
+                // Se não veio preço travado no arquivo de importação:
+                if (!(item.preco_unitario || item.preco)) {
+                    if (promoPrice > 0) {
+                        finalPrice = promoPrice;
+                        isPromo = true;
+                    } else if (specialPrice > 0) {
+                        finalPrice = specialPrice;
+                    } else {
+                        finalPrice = grossPrice;
+                    }
+                }
+
+                // NUCLEAR FIX: Se o código importado tem letras (ex: HT) e o produto bateu, usamos o código do import
+                // para garantir que apareça 1499HT na tabela e não apenas 1499 genérico.
+                let displayCode = product.pro_codprod;
+                if (/[A-Z]/.test(rawImportCode) && !/[A-Z]/.test(displayCode)) {
+                    // Se o import tem letras e o DB code é puramente numérico, 
+                    // verificamos se o DB tem o código com letras em outro campo
+                    const hasLettersRef = [product.pro_codprod, product.pro_codigonormalizado, product.pro_codigo, product.pro_conversao, product.pro_codigooriginal]
+                                          .some(f => String(f || '').toUpperCase() === rawImportCode);
+                    if (hasLettersRef) {
+                        displayCode = rawImportCode;
+                    }
                 }
 
                 const newItem = {
                     ite_seq: nextSeq++,
                     ite_industria: selectedIndustry?.for_codigo,
-                    ite_produto: product.pro_codprod,
+                    ite_produto: displayCode || '',
                     ite_idproduto: product.pro_id,
                     ite_embuch: '',
-                    ite_nomeprod: product.pro_nome,
-                    ite_quant: parseFloat(item.quantidade || item.quant || item.ite_quant) || 1,
+                    ite_nomeprod: product.pro_nome || product.pro_descricao || '',
+                    ite_comple: product.pro_comple || '',
+                    ite_quant: (() => {
+                        let q = parseFloat(item.quantidade || item.quant || item.ite_quant) || 1;
+                        // LOGICA DE CONVERSÃO DE UNIDADE (XML)
+                        // Se no XML vem 'CX' e o produto tem embalagem > 1, multiplicamos
+                        const xmlUnit = String(item.unidade_xml || '').toUpperCase();
+                        const packFactor = parseFloat(product.pro_embalagem || product.pro_mult || 1);
+                        
+                        if (xmlUnit.startsWith('CX') && packFactor > 1) {
+                            console.log(`[Import-UnitConv] Convertendo CX -> UN: ${q} * ${packFactor} = ${q * packFactor}`);
+                            q = q * packFactor;
+                        }
+                        return q;
+                    })(),
                     ite_puni: finalPrice,
-                    ite_ipi: typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0),
-                    ite_st: typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0),
+                    ite_ipi: (item.ite_ipi !== null && item.ite_ipi !== undefined) ? item.ite_ipi : (typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0)),
+                    ite_st: (item.ite_st !== null && item.ite_st !== undefined) ? item.ite_st : (typeof product.itab_st === 'string' ? parseFloat(product.itab_st.replace(',', '.') || 0) : (product.itab_st || 0)),
                     ite_des1: isPromo ? 0 : (formData.ped_pri || 0),
                     ite_des2: isPromo ? 0 : (formData.ped_seg || 0),
                     ite_des3: isPromo ? 0 : (formData.ped_ter || 0),
@@ -984,11 +1118,15 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
             if (notFoundInTable.length > 0) {
                 console.warn("❌ Items not in PriceTable:", notFoundInTable);
-                toast.warning(`${notFoundInTable.length} itens não encontrados na tabela de preços (Verifique os códigos).`);
+                const uniqueMissed = [...new Set(notFoundInTable)];
+                const missedSnippet = uniqueMissed.slice(0, 3).join(', ') + (uniqueMissed.length > 3 ? '...' : '');
+                toast.warning(`${notFoundInTable.length} itens não encontrados (ex: ${missedSnippet}). Verifique os códigos do fabricante na tabela.`);
             }
 
             if (finalImportItems.length === 0) {
-                toast.error("Nenhum item pôde ser importado. Os códigos do arquivo não batem com a tabela de preços.");
+                const uniqueMissed = [...new Set(notFoundInTable)];
+                const missedSnippet = uniqueMissed.slice(0, 5).join(', ') + (uniqueMissed.length > 5 ? '...' : '');
+                toast.error(`Falha total: Nenhum item bateu com a tabela. Exemplos não encontrados: ${missedSnippet}`);
                 return false;
             }
 
@@ -997,7 +1135,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
             // ATENÇÃO: setJustImported(true) evita que a troca de aba limpe a MemTable
             setJustImported(true);
-            setImportedItems(items);
+            setImportedItems(finalImportItems);
             setSummaryItems(allMemItems);
 
             // Limpa a flag de 'recém importado' após alguns segundos ou no próximo save
@@ -1145,63 +1283,71 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 // Fragmentos para casos compostos ou sujos (ex "REF: 123", "401.1119-95", "COD1 / COD2")
                 const fragments = String(codigo).split(/[/|;,\s-]+/).filter(f => f.length >= 3);
 
-                const product = products.find(p => {
-                    // Strategy 1: Exact Match
-                    if (p.pro_codprod === codigo ||
-                        p.pro_codigonormalizado === codigo ||
-                        p.pro_conversao === codigo ||
-                        p.pro_codigooriginal === codigo) return true;
+                let product = null;
 
-                    // Strategy 2: Normalized Match
-                    const dbNorm = normalize(p.pro_codprod);
-                    const dbNormRec = normalize(p.pro_codigonormalizado);
-                    const dbNormConv = normalize(p.pro_conversao);
-                    const dbNormOrig = normalize(p.pro_codigooriginal);
+                // Pass 1: Exact Match (High Priority)
+                product = products.find(p => 
+                    p.pro_codprod === codigo ||
+                    p.pro_codigonormalizado === codigo ||
+                    p.pro_conversao === codigo ||
+                    p.pro_codigooriginal === codigo
+                );
 
-                    if (dbNorm === codigoNorm ||
-                        (dbNormRec && dbNormRec === codigoNorm) ||
-                        (dbNormConv && dbNormConv === codigoNorm) ||
-                        (dbNormOrig && dbNormOrig === codigoNorm)) return true;
+                // Pass 2: Normalized Match
+                if (!product) {
+                    product = products.find(p => {
+                        const dbNorm = normalize(p.pro_codprod);
+                        const dbNormRec = normalize(p.pro_codigonormalizado);
+                        const dbNormConv = normalize(p.pro_conversao);
+                        const dbNormOrig = normalize(p.pro_codigooriginal);
+                        return dbNorm === codigoNorm || dbNormRec === codigoNorm || dbNormConv === codigoNorm || dbNormOrig === codigoNorm;
+                    });
+                }
 
-                    // Strategy 3: Fuzzy Match (Correção de OCR: 1/l/I e 0/O)
-                    const dbFuzzy = fuzzyNormalize(p.pro_codprod);
-                    const dbFuzzyRec = fuzzyNormalize(p.pro_codigonormalizado);
-                    const dbFuzzyConv = fuzzyNormalize(p.pro_conversao);
-                    const dbFuzzyOrig = fuzzyNormalize(p.pro_codigooriginal);
+                // Pass 3: Fuzzy Match (OCR)
+                if (!product) {
+                    product = products.find(p => {
+                        const dbFuzzy = fuzzyNormalize(p.pro_codprod);
+                        const dbFuzzyRec = fuzzyNormalize(p.pro_codigonormalizado);
+                        const dbFuzzyConv = fuzzyNormalize(p.pro_conversao);
+                        const dbFuzzyOrig = fuzzyNormalize(p.pro_codigooriginal);
+                        return dbFuzzy === codigoFuzzy || dbFuzzyRec === codigoFuzzy || dbFuzzyConv === codigoFuzzy || dbFuzzyOrig === codigoFuzzy;
+                    });
+                }
 
-                    if (dbFuzzy === codigoFuzzy ||
-                        (dbFuzzyRec && dbFuzzyRec === codigoFuzzy) ||
-                        (dbFuzzyConv && dbFuzzyConv === codigoFuzzy) ||
-                        (dbFuzzyOrig && dbFuzzyOrig === codigoFuzzy)) return true;
-
-                    // Strategy 4: Numeric Match (Ignore leading zeros)
-                    const dbNum = parseInt(dbNorm, 10);
-                    if (!isNaN(codigoNum) && !isNaN(dbNum) && codigoNum === dbNum) return true;
-
-                    // Strategy 5: Partial Match (REMOVIDO: Causava erro em códigos curtos como AL-63 vs AL-631)
-                    // if (codigoNorm.length >= 4) {
-                    //    if (dbNorm.includes(codigoNorm) ||
-                    //        (dbNormRec && dbNormRec.includes(codigoNorm)) ||
-                    //        (dbNormConv && dbNormConv.includes(codigoNorm)) ||
-                    //        (dbNormOrig && dbNormOrig.includes(codigoNorm))) return true;
-                    // }
-
-                    // Strategy 6: Fragments Match (Inteligência para códigos compostos "A / B")
-                    if (fragments.length > 0) {
-                        for (const frag of fragments) {
-                            const fragNorm = normalize(frag);
-                            const fragFuzzy = fuzzyNormalize(frag);
-                            if (fragNorm.length < 3) continue;
-
-                            if (dbNorm === fragNorm || dbFuzzy === fragFuzzy ||
-                                (dbNormRec && dbNormRec === fragNorm) || (dbFuzzyRec && dbFuzzyRec === fragFuzzy) ||
-                                (dbNormConv && dbNormConv === fragNorm) || (dbFuzzyConv && dbFuzzyConv === fragFuzzy) ||
-                                (dbNormOrig && dbNormOrig === fragNorm) || (dbFuzzyOrig && dbFuzzyOrig === fragFuzzy)) return true;
+                // Pass 4: Numeric Match - STRICT (Last Resort)
+                if (!product) {
+                    product = products.find(p => {
+                        const dbNorm = normalize(p.pro_codprod);
+                        const dbIsNumeric = /^\d+$/.test(dbNorm);
+                        const inputIsNumeric = /^\d+$/.test(codigoNorm);
+                        if (dbIsNumeric && inputIsNumeric && codigoNorm.length >= 4) {
+                            return parseInt(dbNorm, 10) === codigoNum;
                         }
-                    }
+                        return false;
+                    });
+                }
 
-                    return false;
-                });
+                // Pass 5: Fragments Match
+                if (!product && fragments.length > 0) {
+                    for (const frag of fragments) {
+                        const fragNorm = normalize(frag);
+                        const fragFuzzy = fuzzyNormalize(frag);
+                        if (fragNorm.length < 3) continue;
+
+                        product = products.find(p => {
+                            const dbNorm = normalize(p.pro_codprod);
+                            const dbNormRec = normalize(p.pro_codigonormalizado);
+                            const dbNormConv = normalize(p.pro_conversao);
+                            const dbNormOrig = normalize(p.pro_codigooriginal);
+                            const dbFuzzy = fuzzyNormalize(p.pro_codprod);
+                            const dbFuzzyRec = fuzzyNormalize(p.pro_codigonormalizado);
+                            return dbNorm === fragNorm || dbFuzzy === fragFuzzy ||
+                                   (dbNormRec && dbNormRec === fragNorm) || (dbFuzzyRec && dbFuzzyRec === fragFuzzy);
+                        });
+                        if (product) break;
+                    }
+                }
 
                 if (!product) {
                     notFoundCodes.push(codigo);
@@ -1211,19 +1357,26 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 // Parse quantity (handle comma as decimal separator)
                 const quant = parseFloat(quantStr.replace(',', '.')) || 1;
 
-                // Use negotiated price if provided, otherwise use table price
-                let precoUnitario = parseFloat(product.itab_precobruto || 0);
+                // Use negotiated price if provided, otherwise use table hierarchy
+                const promoPrice = parseFloat(product.itab_precopromo || 0);
+                const specialPrice = parseFloat(product.itab_precoespecial || 0);
+                const grossPrice = parseFloat(product.itab_precobruto || 0);
+                
+                let precoUnitario = grossPrice;
                 let isPromo = false;
 
-                // Promo Logic Priority (Override Gross if Promo exists and no specific price given)
-                if (!precoStr) {
-                    const promoPrice = parseFloat(product.itab_precopromo || 0);
+                // Hierarquia P2 > P3 > P1 (Precedência Automática no Import Excel)
+                if (precoStr) {
+                    precoUnitario = parseFloat(precoStr.replace(',', '.')) || grossPrice;
+                } else {
                     if (promoPrice > 0) {
                         precoUnitario = promoPrice;
                         isPromo = true;
+                    } else if (specialPrice > 0) {
+                        precoUnitario = specialPrice;
+                    } else {
+                        precoUnitario = grossPrice > 0 ? grossPrice : (parseFloat(product.pro_preco1) || 0);
                     }
-                } else {
-                    precoUnitario = parseFloat(precoStr.replace(',', '.')) || precoUnitario;
                 }
 
                 // Create item with header discounts
@@ -1235,10 +1388,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     descricao: product.pro_nome,
 
                     ite_industria: selectedIndustry?.for_codigo,
-                    ite_produto: product.pro_codprod,
+                    ite_produto: product.pro_codprod || product.pro_codigo || '',
                     ite_idproduto: product.pro_id,
                     ite_embuch: '',
-                    ite_nomeprod: product.pro_nome,
+                    ite_nomeprod: product.pro_nome || product.pro_descricao || '',
+                    ite_comple: product.pro_comple || '',
                     ite_quant: quant,
                     ite_puni: precoUnitario,
                     ite_ipi: typeof product.itab_ipi === 'string' ? parseFloat(product.itab_ipi.replace(',', '.') || 0) : (product.itab_ipi || 0),
@@ -1400,29 +1554,39 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
     };
 
     // Função para aplicar atualização de impostos (Botão 5)
+    // Busca automática do IPI/ST da tabela de preços por produto
     const handleApplyTaxUpdate = () => {
-        // Converte valores (aceitando vírgula) e mantém null se vazio
-        const parseTax = (val) => {
-            if (!val || val.trim() === '') return null;
-            return parseFloat(val.replace(',', '.')) || 0;
-        };
+        const memtable = priceTable.memtable || [];
 
-        const newIpi = parseTax(taxValues.ipi);
-        const newSt = parseTax(taxValues.st);
+        if (memtable.length === 0) {
+            toast.warning('Tabela de preços não carregada. Selecione uma tabela antes de atualizar impostos.');
+            return;
+        }
 
+        let updated = 0;
         const updatedItems = summaryItems.map(item => {
-            let newItem = { ...item };
-            // Atualiza apenas se o usuário digitou algo
-            if (newIpi !== null) newItem.ite_ipi = newIpi;
-            if (newSt !== null) newItem.ite_st = newSt;
+            const product = memtable.find(p =>
+                p.pro_codprod === item.ite_produto ||
+                p.pro_codigonormalizado === item.ite_produto
+            );
 
-            return calculateGridItemTotals(newItem);
+            if (product) {
+                const newIpi = parseFloat(product.itab_ipi) || 0;
+                const newSt = parseFloat(product.itab_st) || 0;
+                const changed = newIpi !== (parseFloat(item.ite_ipi) || 0) || newSt !== (parseFloat(item.ite_st) || 0);
+                if (changed) updated++;
+                return calculateGridItemTotals({ ...item, ite_ipi: newIpi, ite_st: newSt });
+            }
+
+            return item; // Mantém o item sem alteração se não encontrado na tabela
         });
 
         setSummaryItems(updatedItems);
-        toast.success('Impostos (IPI/ST) atualizados em todos os itens!');
-        setShowTaxDialog(false);
-        setTaxValues({ ipi: '', st: '' }); // Limpa campos
+        if (updated > 0) {
+            toast.success(`IPI/ST atualizados automaticamente da tabela de preços (${updated} itens atualizados)!`);
+        } else {
+            toast.info('IPI/ST já estavam corretos conforme a tabela de preços.');
+        }
     };
 
     // Função para aplicar atualização de descontos (Botão 9)
@@ -1477,6 +1641,188 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
         }
     };
 
+    // Handler para importar itens do XML (NFe)
+    const handleXmlImport = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!formData.ped_tabela) {
+            toast.error('Selecione uma tabela de preço antes de importar!');
+            return;
+        }
+
+        setXmlImporting(true);
+        setIsImporting(true);
+        setXmlErrors([]);
+
+        try {
+            const content = await file.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(content, "text/xml");
+
+            // Verifica erro de parsing
+            const parseError = xmlDoc.getElementsByTagName("parsererror");
+            if (parseError.length > 0) {
+                throw new Error("Erro ao ler o arquivo XML. Verifique se é um arquivo NFe válido.");
+            }
+
+            const itemsToProcess = [];
+            const detNodes = xmlDoc.getElementsByTagName("det");
+
+            if (detNodes.length === 0) {
+                throw new Error("Nenhum item encontrado no XML (faltando tag <det>).");
+            }
+
+            for (let i = 0; i < detNodes.length; i++) {
+                const det = detNodes[i];
+                const prod = det.getElementsByTagName("prod")[0];
+                if (!prod) continue;
+
+                let codigo = prod.getElementsByTagName("cProd")[0]?.textContent?.trim();
+                const ean = prod.getElementsByTagName("cEAN")[0]?.textContent?.trim();
+                const quant = parseFloat(prod.getElementsByTagName("qCom")[0]?.textContent || 0);
+                const valor = parseFloat(prod.getElementsByTagName("vUnCom")[0]?.textContent || 0);
+                const ncm = prod.getElementsByTagName("NCM")[0]?.textContent || '';
+                const unidadeXml = prod.getElementsByTagName("uCom")[0]?.textContent?.trim()?.toUpperCase();
+
+                // Extração de Impostos (IPI/ST)
+                const imposto = det.getElementsByTagName("imposto")[0];
+                let ipiXml = null;
+                let stXml = null;
+
+                if (imposto) {
+                    const pIPI = imposto.getElementsByTagName("pIPI")[0];
+                    if (pIPI) ipiXml = parseFloat(pIPI.textContent || 0);
+
+                    const pST = imposto.getElementsByTagName("pICMSST")[0] || imposto.getElementsByTagName("pMVAST")[0];
+                    if (pST) stXml = parseFloat(pST.textContent || 0);
+                }
+
+                // Regra Negócio NDS: Se schema/empresa for NDS, considera apenas os 5 primeiros caracteres
+                const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
+                const userRaw = sessionStorage.getItem('user');
+                let isNDS = false;
+                let debugLabel = "";
+
+                if (tenantConfigRaw) {
+                    try {
+                        const tc = JSON.parse(tenantConfigRaw);
+                        const dbName = (tc.database || tc.dbConfig?.database || tc.host || "").toUpperCase();
+                        if (dbName.includes('NDS')) {
+                            isNDS = true;
+                            debugLabel = `DB:${dbName}`;
+                        }
+                    } catch (e) { console.error('Error parsing tenantConfig', e); }
+                }
+
+                if (!isNDS && userRaw) {
+                    try {
+                        const u = JSON.parse(userRaw);
+                        const emp = (u.empresa || "").toUpperCase();
+                        if (emp.includes('NDS')) {
+                            isNDS = true;
+                            debugLabel = `EMP:${emp}`;
+                        }
+                    } catch (e) { console.error('Error parsing user', e); }
+                }
+
+                if (isNDS) {
+                    const oldCodigo = codigo;
+                    codigo = codigo?.substring(0, 5);
+                    console.log(`[NDS RULE] Truncating ${oldCodigo} -> ${codigo} (${debugLabel})`);
+                }
+
+                if (codigo) {
+                    itemsToProcess.push({
+                        codigo_produto: codigo,
+                        ite_quant: quant,
+                        preco: valor, // Preço da nota
+                        ncm: ncm,
+                        ean: ean,
+                        unidade_xml: unidadeXml,
+                        ite_ipi: ipiXml,
+                        ite_st: stXml
+                    });
+                }
+            }
+
+            if (itemsToProcess.length === 0) {
+                toast.error('Nenhum produto válido encontrado no XML.');
+                setXmlImporting(false);
+                return;
+            }
+
+            toast.info(`Processando ${itemsToProcess.length} itens do XML...`);
+            const success = await handleSmartImportItems(itemsToProcess);
+
+            if (success) {
+                setActiveTab('F5');
+            }
+        } catch (error) {
+            console.error('Erro na importação XML:', error);
+            toast.error('Erro ao processar XML: ' + error.message);
+        } finally {
+            setXmlImporting(false);
+            setIsImporting(false);
+        }
+    };
+
+    // Função para importar itens do XLSX (Portal ARCA)
+    const handleXlsxFileImport = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!formData.ped_tabela) {
+            toast.error('Selecione uma tabela de preço antes de importar!');
+            return;
+        }
+
+        setTxtImporting(true);
+        try {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data);
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+            const itemsToProcess = [];
+
+            jsonData.forEach(row => {
+                // Mapeamento baseado no arquivo rel_pedidos.xlsx da ARCA
+                // Colunas esperadas: "CÓDIGO", "QUANTIDADE", "PREÇO UNITÁRIO" (ou variações)
+                const codigo = row["CÓDIGO"] || row["Codigo"] || row["codigo"] || row["ITEM"] || row["PRODUTO"];
+                const quant = parseFloat(row["QUANTIDADE"] || row["Quantidade"] || row["quantidade"] || row["QTD"] || 0);
+                const preco = parseFloat(row["PREÇO UNITÁRIO"] || row["Preço Unitário"] || row["PRECO"] || row["VALOR"] || 0);
+
+                if (codigo && quant > 0) {
+                    itemsToProcess.push({
+                        codigo_produto: String(codigo).trim(),
+                        ite_quant: quant,
+                        preco: preco > 0 ? preco : null
+                    });
+                }
+            });
+
+            if (itemsToProcess.length === 0) {
+                toast.error('Nenhum item válido encontrado na planilha Excel.');
+                return;
+            }
+
+            toast.info(`Processando ${itemsToProcess.length} itens da planilha ARCA...`);
+            const success = await handleSmartImportItems(itemsToProcess);
+
+            if (success) {
+                setActiveTab('F5');
+            }
+        } catch (error) {
+            console.error('Erro na importação XLSX:', error);
+            toast.error('Erro ao processar arquivo Excel: ' + error.message);
+        } finally {
+            setTxtImporting(false);
+            // Reset input
+            event.target.value = '';
+        }
+    };
+
     // Função para importar itens do TXT (Layout específico)
     const handleTxtImport = async () => {
         if (!txtContent.trim()) return;
@@ -1491,23 +1837,15 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
             const lines = txtContent.split('\n');
             const itemsToProcess = [];
 
+            // 1. Tentar Layout PP2 (Linha por linha)
             for (const line of lines) {
                 if (line.trim().startsWith('PP2')) {
-                    // Código: Posição 4 (índice 3)
                     const codigo = line.substring(3, 31).trim();
-
-                    // Quantidade: Posição 33 (índice 32)
                     const quantRaw = line.substring(32, 42).trim();
                     const ite_quant = parseFloat(quantRaw) || 0;
-
-                    // Valor: Posição 68 (índice 67)
                     const precoRaw = line.substring(67, 79).trim();
                     let ite_puni = parseFloat(precoRaw) || 0;
-
-                    // Regra: Dividir por 100.000
-                    if (precoRaw) {
-                        ite_puni = ite_puni / 100000;
-                    }
+                    if (precoRaw) ite_puni = ite_puni / 100000;
 
                     if (codigo) {
                         itemsToProcess.push({
@@ -1519,8 +1857,29 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 }
             }
 
+            // 2. Tentar Layout Arca/KV (Blocos de texto)
             if (itemsToProcess.length === 0) {
-                toast.error('Nenhum registro de item (PP2) encontrado no texto.');
+                // Regex melhorada para capturar CÓDIGO, QUANTIDADE e PREÇO UNITÁRIO (opcional)
+                const arcaRegex = /CÓDIGO:\s*([^\r\n]+)[\s\S]*?QUANTIDADE:\s*([\d,.]+)[^\r\n]*?(?:PREÇO UNITÁRIO:\s*R\$\s*([\d,.]+))?/gi;
+                let match;
+                while ((match = arcaRegex.exec(txtContent)) !== null) {
+                    const codigo = match[1].trim();
+                    const quant = parseFloat(match[2].replace(',', '.')) || 0;
+                    const precoRaw = match[3] ? match[3].replace('.', '').replace(',', '.') : null;
+                    const preco = precoRaw ? parseFloat(precoRaw) : null;
+                    
+                    if (codigo && quant > 0) {
+                        itemsToProcess.push({
+                            codigo_produto: codigo,
+                            ite_quant: quant,
+                            preco: preco // Se encontrar o preço no texto, usa ele para travar no sistema
+                        });
+                    }
+                }
+            }
+
+            if (itemsToProcess.length === 0) {
+                toast.error('Nenhum item válido identificado no texto informado.');
                 setTxtImporting(false);
                 return;
             }
@@ -1786,8 +2145,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
                 if (product) {
                     // Atualiza o Preço Unitário (Bruto) com o valor da nova tabela
-                    // Lógica de Prioridade no Update de Tabela: Promoção > Bruto
+                    // Lógica de Prioridade no Update de Tabela: Promoção (P2) > Especial (P3) > Bruto (P1)
                     const promoPrice = parseFloat(product.itab_precopromo || 0);
+                    const specialPrice = parseFloat(product.itab_precoespecial || 0);
                     const grossPrice = parseFloat(product.itab_precobruto || 0);
 
                     if (promoPrice > 0) {
@@ -1798,15 +2158,38 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                         newItem.ite_des10 = 0;
                         newItem.ite_esp = 0;
                     } else {
-                        // Usa preço bruto (priorizando itab_precobruto > pro_preco1)
-                        newItem.ite_puni = grossPrice > 0 ? grossPrice : (product.pro_preco1 || 0);
-
-                        // Reseta flag de promo se necessário
-                        if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
-
-                        // "Nesse caso o preço especial é ignorado"
+                        // Preço 3 ou Preço Bruto -> Aceitam descontos
+                        const isEspecial = specialPrice > 0;
+                        newItem.ite_puni = isEspecial ? specialPrice : (grossPrice > 0 ? grossPrice : (parseFloat(product.pro_preco1) || 0));
+                        
+                        // Se era promoção e agora não é, ou se descontos estão zerados, aplica padrão do cabeçalho
+                        const wereDiscountsZero = !Object.keys(newItem).some(k => k.startsWith('ite_des') && k !== 'ite_des10' && parseFloat(newItem[k]) > 0);
+                        
+                        if (newItem.ite_promocao === 'S' || wereDiscountsZero) {
+                            newItem.ite_des1 = formData.ped_pri || 0;
+                            newItem.ite_des2 = formData.ped_seg || 0;
+                            newItem.ite_des3 = formData.ped_ter || 0;
+                            newItem.ite_des4 = formData.ped_qua || 0;
+                            newItem.ite_des5 = formData.ped_qui || 0;
+                            newItem.ite_des6 = formData.ped_sex || 0;
+                            newItem.ite_des7 = formData.ped_set || 0;
+                            newItem.ite_des8 = formData.ped_oit || 0;
+                            newItem.ite_des9 = formData.ped_nov || 0;
+                        }
+                        
+                        newItem.ite_promocao = 'N';
                         newItem.ite_esp = 0;
                     }
+
+                    // Recalcula string de descontos para o grid
+                    let descontosStr = [];
+                    for (let i = 1; i <= 9; i++) {
+                        const d = parseFloat(newItem[`ite_des${i}`] || 0);
+                        if (d > 0) descontosStr.push(`${d.toFixed(2)}%`);
+                    }
+                    if (newItem.ite_esp > 0) descontosStr.push(`${parseFloat(newItem.ite_esp).toFixed(2)}%`);
+                    if (newItem.ite_des10 > 0) descontosStr.push(`${parseFloat(newItem.ite_des10).toFixed(2)}%`);
+                    newItem.ite_descontos = descontosStr.join('+');
 
                     // Nota: Se o item tinha promoção ('S'), mantemos a flag?
                     // O usuário disse "preço promocional... preço especial ignorado".
@@ -1817,11 +2200,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
             });
 
             setSummaryItems(updatedItems);
-            toast.success('Preços brutos atualizados conforme a Tabela Selecionada!');
-            setSummaryItems(updatedItems);
-            toast.success('Preços brutos atualizados conforme a Tabela Selecionada!');
-        } else if (key === '5') { // Atz IPI/ST
-            setShowTaxDialog(true);
+            toast.success('Preços atualizados conforme a Tabela Selecionada!');
+        } else if (key === '5') { // Atz IPI/ST - busca automático da tabela de preços
+            handleApplyTaxUpdate();
         } else if (key === '6') { // Volta Padrão (Preço Bruto)
             const updatedItems = summaryItems.map(item => {
                 let newItem = { ...item };
@@ -1829,9 +2210,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
 
                 if (product) {
                     // "substituir todos os preços brutos pelo campo itab_precobruto mesmo que estiver em branco"
-                    // Prioriza itab_precobruto
-                    // Lógica de Prioridade: Promoção > Bruto
+                    // Lógica de Prioridade: Promoção (P2) > Especial (P3) > Bruto (P1)
                     const promoPrice = parseFloat(product.itab_precopromo || 0);
+                    const specialPrice = parseFloat(product.itab_precoespecial || 0);
                     const grossPrice = parseFloat(product.itab_precobruto || 0);
 
                     if (promoPrice > 0) {
@@ -1842,21 +2223,45 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                         newItem.ite_des10 = 0;
                         newItem.ite_esp = 0;
                     } else {
-                        // Prioriza itab_precobruto
-                        newItem.ite_puni = grossPrice > 0 ? grossPrice : (product.pro_preco1 || 0);
-
-                        // Reseta flag promo
-                        if (newItem.ite_promocao === 'S') newItem.ite_promocao = 'N';
+                        // Preço 3 ou Preço Bruto -> Aceitam descontos
+                        const isEspecial = specialPrice > 0;
+                        newItem.ite_puni = isEspecial ? specialPrice : (grossPrice > 0 ? grossPrice : (parseFloat(product.pro_preco1) || 0));
+                        
+                        // Se era promoção e agora não é, ou se descontos estão zerados, aplica padrão do cabeçalho
+                        const wereDiscountsZero = !Object.keys(newItem).some(k => k.startsWith('ite_des') && k !== 'ite_des10' && parseFloat(newItem[k]) > 0);
+                        
+                        if (newItem.ite_promocao === 'S' || wereDiscountsZero) {
+                            newItem.ite_des1 = formData.ped_pri || 0;
+                            newItem.ite_des2 = formData.ped_seg || 0;
+                            newItem.ite_des3 = formData.ped_ter || 0;
+                            newItem.ite_des4 = formData.ped_qua || 0;
+                            newItem.ite_des5 = formData.ped_qui || 0;
+                            newItem.ite_des6 = formData.ped_sex || 0;
+                            newItem.ite_des7 = formData.ped_set || 0;
+                            newItem.ite_des8 = formData.ped_oit || 0;
+                            newItem.ite_des9 = formData.ped_nov || 0;
+                        }
+                        
+                        newItem.ite_promocao = 'N';
+                        newItem.ite_esp = 0;
                     }
+
+                    // Recalcula string de descontos
+                    let descontosStr = [];
+                    for (let i = 1; i <= 9; i++) {
+                        const d = parseFloat(newItem[`ite_des${i}`] || 0);
+                        if (d > 0) descontosStr.push(`${d.toFixed(2)}%`);
+                    }
+                    if (newItem.ite_esp > 0) descontosStr.push(`${parseFloat(newItem.ite_esp).toFixed(2)}%`);
+                    if (newItem.ite_des10 > 0) descontosStr.push(`${parseFloat(newItem.ite_des10).toFixed(2)}%`);
+                    newItem.ite_descontos = descontosStr.join('+');
                 }
 
                 return calculateGridItemTotals(newItem);
             });
 
             setSummaryItems(updatedItems);
-            toast.success('Todos os preços foram revertidos para o valor da Tabela!');
-            setSummaryItems(updatedItems);
-            toast.success('Todos os preços foram revertidos para o valor da Tabela!');
+            toast.success('Preços revertidos para o valor da Tabela (Promo > Especial > Bruto)!');
         } else if (key === '9') { // Desc Add / Esp
             setShowDiscountDialog(true);
         } else if (key === '7') { // Último Preço Negociado
@@ -1926,8 +2331,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
             });
 
             setSummaryItems(updatedItems);
-            setSummaryItems(updatedItems);
-            toast.success('Descontos padrão aplicados a TODOS os itens (Forçado)!');
+            toast.success('Descontos padrão aplicados a TODOS os itens!');
         } else if (key === 'C') { // Cód Original -> ite_embuch (Botão C)
             try {
                 const payload = {
@@ -2012,8 +2416,104 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                 toast.error('Erro de comunicação (Botão A).');
             }
 
-        } else if (key === 'B') {
-            toast.info('Botão B (% por qtd) será implementado futuramente.');
+        } else if (key === 'B') { // Preço 3 (Especial)
+            const updatedItems = summaryItems.map(item => {
+                let newItem = { ...item };
+                const product = priceTable.memtable?.find(p => p.pro_codprod === newItem.ite_produto);
+
+                if (product) {
+                    const specialPrice = parseFloat(product.itab_precoespecial || 0);
+                    if (specialPrice > 0) {
+                        newItem.ite_puni = specialPrice;
+                        
+                        // Se era promoção e agora não é P3, ou se descontos estão zerados, aplica padrão do cabeçalho
+                        const wereDiscountsZero = !Object.keys(newItem).some(k => k.startsWith('ite_des') && k !== 'ite_des10' && parseFloat(newItem[k]) > 0);
+                        
+                        if (newItem.ite_promocao === 'S' || wereDiscountsZero) {
+                            newItem.ite_des1 = formData.ped_pri || 0;
+                            newItem.ite_des2 = formData.ped_seg || 0;
+                            newItem.ite_des3 = formData.ped_ter || 0;
+                            newItem.ite_des4 = formData.ped_qua || 0;
+                            newItem.ite_des5 = formData.ped_qui || 0;
+                            newItem.ite_des6 = formData.ped_sex || 0;
+                            newItem.ite_des7 = formData.ped_set || 0;
+                            newItem.ite_des8 = formData.ped_oit || 0;
+                            newItem.ite_des9 = formData.ped_nov || 0;
+                        }
+
+                        newItem.ite_promocao = 'N';
+                        newItem.ite_esp = 0;
+                        
+                        // Recalcula o formato da string de descontos
+                        let descontosStr = [];
+                        for (let i = 1; i <= 9; i++) {
+                            const d = parseFloat(newItem[`ite_des${i}`] || 0);
+                            if (d > 0) descontosStr.push(`${d.toFixed(2)}%`);
+                        }
+                        if (newItem.ite_esp > 0) descontosStr.push(`${parseFloat(newItem.ite_esp).toFixed(2)}%`);
+                        if (newItem.ite_des10 > 0) descontosStr.push(`${parseFloat(newItem.ite_des10).toFixed(2)}%`);
+                        newItem.ite_descontos = descontosStr.join('+');
+                    }
+                }
+
+                return calculateGridItemTotals(newItem);
+            });
+
+            setSummaryItems(updatedItems);
+            toast.success('Preço Especial (Preço 3) aplicado aos itens que possuem esta condição!');
+        } else if (key === 'P') { // Exportar itens fora da embalagem para Excel
+            try {
+                const payload = {
+                    industryId: selectedIndustry?.for_codigo,
+                    productCodes: summaryItems.map(i => i.ite_produto)
+                };
+
+                const response = await fetch('/api/orders/batch-original-codes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    const dataMap = result.data;
+
+                    // Filtra apenas os items cuja quantidade NÃO É múltiplo da embalagem
+                    const fora = summaryItems.filter(item => {
+                        const info = dataMap[item.ite_produto];
+                        if (!info || !info.packaging) return false;
+                        const pack = parseFloat(info.packaging);
+                        const qty = parseFloat(item.ite_quant || 0);
+                        return pack > 1 && qty > 0 && qty % pack !== 0;
+                    }).map((item, idx) => {
+                        const pack = parseFloat(dataMap[item.ite_produto]?.packaging || 1);
+                        const qty = parseFloat(item.ite_quant);
+                        return {
+                            'Seq': idx + 1,
+                            'Código': item.ite_produto,
+                            'Descrição': item.descricao || item.ite_produto,
+                            'Quantidade': qty,
+                            'Embalagem': pack,
+                            'Diferença': qty % pack,
+                            'Correção': '' // Coluna amarela para preenchimento manual
+                        };
+                    });
+
+                    if (fora.length === 0) {
+                        toast.success('Todos os itens estão dentro da embalagem. Nenhuma planilha gerada!');
+                        return;
+                    }
+
+                    const fileName = `Itens_Fora_Embalagem_${formData.ped_pedido || 'NOVO'}.xlsx`;
+                    await exportToExcel(fora, fileName, 'Itens Fora Embalagem');
+                    toast.success('Planilha de itens fora da embalagem gerada com sucesso!');
+                } else {
+                    toast.error('Erro ao buscar dados de embalagem.');
+                }
+            } catch (err) {
+                console.error(err);
+                toast.error('Erro de comunicação (Botão P).');
+            }
 
         } else {
             toast.info(`Funcionalidade do botão ${key} em desenvolvimento`);
@@ -2044,6 +2544,74 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
         }
 
         setSummaryItems(newItems);
+    };
+
+    // Função para navegação via teclado no grid F5
+    const handleGridKeyDown = (e, idx, field) => {
+        const editableFields = [
+            'ite_embuch',
+            'ite_quant',
+            'ite_puni',
+            'ite_des1', 'ite_des2', 'ite_des3', 'ite_des4', 'ite_des5', 'ite_des6', 'ite_des7', 'ite_des8', 'ite_des9',
+            'ite_esp',
+            'ite_des10'
+        ];
+
+        const fieldIndex = editableFields.indexOf(field);
+
+        const focusInput = (rowIdx, colField) => {
+            const target = document.querySelector(`input[data-row="${rowIdx}"][data-field="${colField}"]`);
+            if (target) {
+                target.focus();
+                setTimeout(() => {
+                    try { target.select(); } catch (e) { }
+                }, 10);
+                return true;
+            }
+            return false;
+        };
+
+        if (e.key === 'ArrowDown') {
+            if (idx < summaryItems.length - 1) {
+                e.preventDefault();
+                focusInput(idx + 1, field);
+            }
+        } else if (e.key === 'ArrowUp') {
+            if (idx > 0) {
+                e.preventDefault();
+                focusInput(idx - 1, field);
+            }
+        } else if (e.key === 'ArrowRight') {
+            const isAtEnd = !e.target.value || e.target.selectionEnd === e.target.value.length;
+            if (isAtEnd) {
+                if (fieldIndex < editableFields.length - 1) {
+                    e.preventDefault();
+                    focusInput(idx, editableFields[fieldIndex + 1]);
+                } else if (idx < summaryItems.length - 1) {
+                    e.preventDefault();
+                    focusInput(idx + 1, editableFields[0]);
+                }
+            }
+        } else if (e.key === 'ArrowLeft') {
+            const isAtStart = !e.target.value || e.target.selectionStart === 0;
+            if (isAtStart) {
+                if (fieldIndex > 0) {
+                    e.preventDefault();
+                    focusInput(idx, editableFields[fieldIndex - 1]);
+                } else if (idx > 0) {
+                    e.preventDefault();
+                    focusInput(idx - 1, editableFields[editableFields.length - 1]);
+                }
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (idx < summaryItems.length - 1) {
+                focusInput(idx + 1, field);
+            } else {
+                // Se for a última linha, tenta ir para o próximo campo à direita ou salvar?
+                // Por enquanto apenas desce se houver próxima linha.
+            }
+        }
     };
 
     // Situação options
@@ -2847,6 +3415,76 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                         </div>
                     </div>
 
+                    {/* 01: Importação XML (NFe) */}
+                    <div className={cn("absolute inset-0 flex flex-col p-4 gap-4 overflow-hidden", activeTab !== '01' && "hidden")}>
+                        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm flex flex-col h-full relative overflow-hidden items-center justify-center text-center">
+                            {/* Decorative Background Icon */}
+                            <FileCode className="absolute -bottom-10 -right-10 w-96 h-96 text-slate-50 opacity-50 pointer-events-none" />
+
+                            <div className="max-w-md w-full space-y-8 z-10">
+                                <div className="space-y-4">
+                                    <div className="mx-auto w-20 h-20 bg-blue-100 rounded-3xl flex items-center justify-center shadow-inner">
+                                        <FileCode className="h-10 w-10 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Importação NFe (XML)</h3>
+                                        <p className="text-sm text-slate-500 font-medium">Selecione o arquivo XML da Nota Fiscal para extrair os itens automaticamente.</p>
+                                    </div>
+                                </div>
+
+                                <div className="relative group">
+                                    <input
+                                        type="file"
+                                        accept=".xml"
+                                        onChange={handleXmlImport}
+                                        disabled={xmlImporting || readOnly}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed"
+                                        id="xml-upload-input"
+                                    />
+                                    <div className={cn(
+                                        "border-4 border-dashed rounded-3xl p-12 transition-all duration-300 flex flex-col items-center justify-center gap-4",
+                                        "bg-slate-50/50 group-hover:bg-blue-50 group-hover:border-blue-400 group-hover:scale-[1.02]",
+                                        xmlImporting ? "border-blue-500 bg-blue-50 animate-pulse" : "border-slate-200"
+                                    )}>
+                                        {xmlImporting ? (
+                                            <>
+                                                <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
+                                                <span className="text-lg font-black text-blue-700 uppercase tracking-widest">Processando XML...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <FileUp className="h-8 w-8 text-blue-600" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <span className="block text-lg font-bold text-slate-700">Clique para selecionar</span>
+                                                    <span className="block text-sm text-slate-400">ou arraste o arquivo aqui</span>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-left">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Tag className="h-4 w-4 text-amber-600" />
+                                            <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Identificação</span>
+                                        </div>
+                                        <p className="text-[11px] text-amber-700 leading-tight">Os produtos são localizados pelo <b>Código do Fabricante</b> (tag &lt;cProd&gt;) no XML.</p>
+                                    </div>
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-left">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Calculator className="h-4 w-4 text-emerald-600" />
+                                            <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Valores</span>
+                                        </div>
+                                        <p className="text-[11px] text-emerald-700 leading-tight">Quantidades e preços unitários são extraídos fielmente da Nota Fiscal.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* F5: Conferência */}
                     <div className={cn("absolute inset-0 flex flex-col overflow-hidden", activeTab !== 'F5' && "hidden")}>
                         {/* Grid Container */}
@@ -2898,8 +3536,11 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                         type="text"
                                                         value={item.ite_embuch || ''}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_embuch', e.target.value)}
+                                                        onKeyDown={(e) => handleGridKeyDown(e, idx, 'ite_embuch')}
+                                                        data-row={idx}
+                                                        data-field="ite_embuch"
                                                         disabled={readOnly}
-                                                        className="w-full text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium" // Fundo transparente
+                                                        className="w-full text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-1 border-r border-slate-300/50 font-medium text-slate-800 whitespace-nowrap truncate max-w-[280px]" title={item.ite_nomeprod}>
@@ -2910,6 +3551,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                         type="text"
                                                         value={typeof item.ite_quant === 'number' ? item.ite_quant.toFixed(2) : (item.ite_quant ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_quant', e.target.value)}
+                                                        onKeyDown={(e) => handleGridKeyDown(e, idx, 'ite_quant')}
+                                                        data-row={idx}
+                                                        data-field="ite_quant"
                                                         disabled={readOnly}
                                                         className={cn(
                                                             "w-full text-center text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-black",
@@ -2928,6 +3572,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                         value={typeof item.ite_puni === 'number' ? item.ite_puni.toFixed(2) : (item.ite_puni ?? '')}
                                                         onChange={(e) => handleGridEdit(idx, 'ite_puni', e.target.value)}
                                                         onBlur={(e) => handleGridEdit(idx, 'ite_puni', parseFloat(e.target.value || 0).toFixed(2))}
+                                                        onKeyDown={(e) => handleGridKeyDown(e, idx, 'ite_puni')}
+                                                        data-row={idx}
+                                                        data-field="ite_puni"
                                                         disabled={readOnly}
                                                         className="w-full text-right text-[13px] px-1 h-8 bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded font-medium"
                                                     />
@@ -2953,6 +3600,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                                 value={typeof item[`ite_des${n}`] === 'number' ? item[`ite_des${n}`].toFixed(2) : (item[`ite_des${n}`] ?? '')}
                                                                 onChange={(e) => handleGridEdit(idx, `ite_des${n}`, e.target.value)}
                                                                 onBlur={(e) => handleGridEdit(idx, `ite_des${n}`, parseFloat(e.target.value || 0).toFixed(2))}
+                                                                onKeyDown={(e) => handleGridKeyDown(e, idx, `ite_des${n}`)}
+                                                                data-row={idx}
+                                                                data-field={`ite_des${n}`}
                                                                 disabled={readOnly}
                                                                 className="w-full text-right text-[13px] h-8 bg-transparent text-blue-700 font-bold focus:bg-white focus:ring-1 focus:ring-blue-500 border-none p-0 pr-0.5"
                                                             />
@@ -2969,6 +3619,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                             value={typeof item.ite_esp === 'number' ? item.ite_esp.toFixed(2) : (item.ite_esp ?? '')}
                                                             onChange={(e) => handleGridEdit(idx, 'ite_esp', e.target.value)}
                                                             onBlur={(e) => handleGridEdit(idx, 'ite_esp', parseFloat(e.target.value || 0).toFixed(2))}
+                                                            onKeyDown={(e) => handleGridKeyDown(e, idx, 'ite_esp')}
+                                                            data-row={idx}
+                                                            data-field="ite_esp"
                                                             disabled={readOnly}
                                                             className="w-full text-right text-[13px] h-8 bg-transparent text-indigo-700 font-bold focus:bg-white focus:ring-1 focus:ring-indigo-500 border-none p-0 pr-0.5"
                                                         />
@@ -2984,6 +3637,9 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                                             value={typeof item.ite_des10 === 'number' ? item.ite_des10.toFixed(2) : (item.ite_des10 ?? '')}
                                                             onChange={(e) => handleGridEdit(idx, 'ite_des10', e.target.value)}
                                                             onBlur={(e) => handleGridEdit(idx, 'ite_des10', parseFloat(e.target.value || 0).toFixed(2))}
+                                                            onKeyDown={(e) => handleGridKeyDown(e, idx, 'ite_des10')}
+                                                            data-row={idx}
+                                                            data-field="ite_des10"
                                                             disabled={readOnly}
                                                             className="w-full text-right text-[13px] h-8 bg-transparent text-amber-700 font-bold focus:bg-white focus:ring-1 focus:ring-amber-500 border-none p-0 pr-0.5"
                                                         />
@@ -3023,8 +3679,10 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                     { k: '7', l: 'Último Preço Pago', desc: 'Busca último preço praticado no histórico' },
                                     { k: '8', l: 'Forçar Descontos', desc: 'Aplica desc. cabeçalho em TUDO (ignora promoção)' },
                                     { k: '9', l: 'Inserir % Adicional', desc: 'Define % ADD e % ESP em lote' },
+                                    { k: 'B', l: 'Preço 3 (especial)', desc: 'Aplica o preço especial (Preço 3) da tabela' },
                                     { k: 'A', l: 'Checar Múltiplos', desc: 'Ajusta qtd para múltiplo da embalagem' },
-                                    { k: 'C', l: 'Código Original', desc: 'Preenche campo Embuch com Cód. Original' }
+                                    { k: 'C', l: 'Código Original', desc: 'Preenche campo Embuch com Cód. Original' },
+                                    { k: 'P', l: 'Excel Fora Embal.', desc: 'Gera planilha Excel dos itens cuja quantidade não é múltiplo da embalagem' }
                                 ].map((btn) => (
                                     <button
                                         key={btn.k}
@@ -3089,40 +3747,64 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                             </div>
                         </div>
                     </div>
-                    {/* 02: Importação Arquivo Texto */}
+                    {/* 02: Importação Portal ARCA (Excel) e TXT */}
                     <div className={cn("absolute inset-0 flex flex-col p-4 gap-4 overflow-hidden", activeTab !== '02' && "hidden")}>
                         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col h-full relative overflow-hidden">
-                            <div className="flex items-center gap-3 mb-4 z-10">
-                                <div className="p-2 bg-blue-100 rounded-xl">
-                                    <FileText className="h-6 w-6 text-blue-600" />
+                            <div className="flex items-center justify-between mb-4 z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-xl">
+                                        <FileText className="h-6 w-6 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800 uppercase tracking-tight">Importação de Pedidos (Portal ARCA / TXT)</h3>
+                                        <p className="text-xs text-slate-500">Selecione o arquivo Excel da ARCA ou cole o conteúdo PP2 abaixo.</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-slate-800">Importação de Arquivo Texto</h3>
-                                    <p className="text-xs text-slate-500">Cole o conteúdo do arquivo (linhas PP2...) para processar os itens.</p>
+
+                                <div className="flex gap-2">
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        onChange={handleXlsxFileImport}
+                                        style={{ display: 'none' }}
+                                        id="arca-excel-upload"
+                                    />
+                                    <Button
+                                        asChild
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 px-6 text-xs font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                                    >
+                                        <label htmlFor="arca-excel-upload" className="cursor-pointer flex items-center gap-2">
+                                            <FileUp className="h-4 w-4" />
+                                            LOCALIZAR EXCEL ARCA
+                                        </label>
+                                    </Button>
                                 </div>
                             </div>
 
-                            <div className="flex-1 z-10 bg-slate-50 rounded-xl border border-slate-200 p-2 flex flex-col focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                            <div className="flex-1 z-10 bg-slate-50 rounded-xl border border-dashed border-slate-300 p-2 flex flex-col focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                                 <textarea
                                     value={txtContent}
                                     onChange={(e) => setTxtContent(e.target.value)}
                                     className="flex-1 bg-transparent border-none focus:ring-0 text-xs font-mono resize-none p-2 text-slate-700 placeholder:text-slate-400"
-                                    placeholder="Cole aqui as linhas do arquivo..."
+                                    placeholder="Alternativamente, cole aqui as linhas do arquivo texto (PP2 ou Arca)..."
                                     spellCheck={false}
                                 />
                                 <div className="border-t border-slate-200 pt-3 flex justify-between items-center px-1">
-                                    <span className="text-[10px] text-slate-400 font-mono">
-                                        {txtContent.split('\n').filter(l => l.trim()).length} linhas identificadas
-                                    </span>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                            {txtContent.split('\n').filter(l => l.trim()).length} linhas identificadas no texto
+                                        </span>
+                                        <span className="text-[9px] text-blue-500 font-bold uppercase mt-0.5">Suporte: PP2 / ARCA Texto / KV</span>
+                                    </div>
                                     <Button
                                         onClick={handleTxtImport}
                                         disabled={txtImporting || !txtContent.trim()}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white h-9 px-6 text-xs font-bold shadow-md shadow-blue-500/20"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white h-9 px-6 text-xs font-black shadow-md shadow-blue-500/20 uppercase tracking-widest"
                                     >
                                         {txtImporting ? (
                                             <><Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> PROCESSANDO...</>
                                         ) : (
-                                            <><FileUp className="h-3.5 w-3.5 mr-2" /> PROCESSAR ARQUIVO</>
+                                            <><FileUp className="h-3.5 w-3.5 mr-2" /> PROCESSAR TEXTO</>
                                         )}
                                     </Button>
                                 </div>
@@ -3175,6 +3857,7 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                                 { k: '6', l: 'Atz. vlr normal', i: RefreshCw, c: 'text-teal-500', bg: 'bg-teal-50' },
                                 { k: '7', l: 'Atz. tabela líquida', i: History, c: 'text-purple-500', bg: 'bg-purple-50' },
                                 { k: '9', l: 'Desc Add', i: Plus, c: 'text-orange-500', bg: 'bg-orange-50' },
+                                { k: 'B', l: 'Preço 3', i: Star, c: 'text-amber-500', bg: 'bg-amber-50' },
                                 { k: 'A', l: 'Chk múltiplos', i: CheckSquare, c: 'text-emerald-600', bg: 'bg-emerald-50' },
                                 { k: 'C', l: 'Cód. original', i: Tag, c: 'text-slate-500', bg: 'bg-slate-100' },
                             ].map((m) => (
@@ -3220,6 +3903,16 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly 
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {activeTab === 'F1' && onPortals && (
+                            <Button
+                                variant="outline"
+                                onClick={() => onPortals(formData.ped_pedido === '(Novo)' ? null : formData.ped_pedido)}
+                                className="h-12 w-12 rounded-2xl border-orange-200 text-orange-600 hover:bg-orange-50 p-0 shadow-sm flex items-center justify-center transition-all hover:scale-105"
+                                title="Portais"
+                            >
+                                <Globe className="h-5 w-5" />
+                            </Button>
+                        )}
                         {activeTab === 'F1' ? (
                             <>
                                 <Button
