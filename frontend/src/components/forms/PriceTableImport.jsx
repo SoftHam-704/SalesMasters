@@ -273,8 +273,9 @@ const PriceTableImport = () => {
             const linesCodigo = splitted.codigo;
 
             const parseValue = (val) => {
-                if (!val) return 0;
+                if (val === undefined || val === null || val === '') return null;
                 const cleaned = val.toString().replace(/[^\d,.-]/g, '');
+                if (cleaned === '') return 0;
                 if (cleaned.includes(',') && cleaned.includes('.')) {
                     return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0;
                 }
@@ -288,28 +289,30 @@ const PriceTableImport = () => {
 
                 const getLinha = (field) => (splitted[field] && splitted[field][i]) || '';
 
+                const hasField = (field) => textareas[field].trim() !== '';
+
                 produtos.push({
                     codigo: code,
                     complemento: getLinha('complemento'),
                     descricao: getLinha('nome'),
-                    precobruto: parseValue(getLinha('precobruto')),
-                    precopromo: parseValue(getLinha('precopromo')),
-                    precoespecial: parseValue(getLinha('precoespecial')),
+                    precobruto: hasField('precobruto') ? parseValue(getLinha('precobruto')) : null,
+                    precopromo: hasField('precopromo') ? parseValue(getLinha('precopromo')) : null,
+                    precoespecial: hasField('precoespecial') ? parseValue(getLinha('precoespecial')) : null,
                     grupo: getLinha('grupo'),
                     aplicacao: getLinha('aplicacao'),
-                    embalagem: parseInt(getLinha('embalagem').toString().replace(/\D/g, '')) || 1,
-                    peso: parseValue(getLinha('peso')),
-                    prepeso: parseValue(getLinha('prepeso')),
-                    ipi: parseValue(getLinha('ipi')),
-                    st: parseValue(getLinha('st')),
+                    embalagem: hasField('embalagem') ? (parseInt(getLinha('embalagem').toString().replace(/\D/g, '')) || 1) : null,
+                    peso: hasField('peso') ? parseValue(getLinha('peso')) : null,
+                    prepeso: hasField('prepeso') ? parseValue(getLinha('prepeso')) : null,
+                    ipi: hasField('ipi') ? parseValue(getLinha('ipi')) : null,
+                    st: hasField('st') ? parseValue(getLinha('st')) : null,
                     codigooriginal: getLinha('codigooriginal'),
                     codbarras: getLinha('codbarras'),
-                    descontoadd: parseValue(getLinha('descontoadd')),
+                    descontoadd: hasField('descontoadd') ? parseValue(getLinha('descontoadd')) : null,
                     ncm: getLinha('ncm'),
                     curva: getLinha('curva'),
                     categoria: getLinha('categoria'),
                     conversao: getLinha('conversao'),
-                    grupodesconto: getLinha('itab_grupodesconto')
+                    grupodesconto: hasField('itab_grupodesconto') ? getLinha('itab_grupodesconto') : null
                 });
             }
 

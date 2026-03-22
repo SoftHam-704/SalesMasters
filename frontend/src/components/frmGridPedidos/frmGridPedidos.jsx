@@ -84,12 +84,19 @@ const FrmGridPedidos = () => {
   }, []);
 
   const loadOrders = useCallback(async () => {
+    // Standard: Don't auto-load "All" if no industry is selected
+    if (selectedIndustry === null) {
+      setOrdersList([]);
+      setLoadingOrders(false);
+      return;
+    }
+
     setLoadingOrders(true);
     try {
       const params = new URLSearchParams({
         limit: 700,
         situacao: filters.situacao,
-        ...(selectedIndustry && { industria: selectedIndustry }),
+        industria: selectedIndustry,
         ...(searchQuery && { pesquisa: searchQuery }),
         ...(filters.dataInicio && { dataInicio: filters.dataInicio }),
         ...(filters.dataFim && { dataFim: filters.dataFim }),
@@ -141,7 +148,7 @@ const FrmGridPedidos = () => {
 
   const industryName =
     selectedIndustry === null
-      ? "Toda a Indústria"
+      ? "TODAS AS INDÚSTRIAS"
       : industriesList.find((i) => i.code === selectedIndustry)?.name ?? "";
 
   const filteredOrders = ordersList.filter((o) => {
@@ -196,7 +203,7 @@ const FrmGridPedidos = () => {
                 </span>
               </h1>
               <span className="text-[9px] font-semibold text-muted-foreground/40 uppercase tracking-[0.2em] mt-1.5 block leading-none">
-                {industryName || "Toda a Indústria"}
+                {industryName || "TODAS AS INDÚSTRIAS"}
               </span>
             </div>
 

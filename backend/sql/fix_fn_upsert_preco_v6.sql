@@ -75,15 +75,15 @@ BEGIN
     ON CONFLICT (itab_idprod, itab_tabela)
     DO UPDATE SET
         itab_precobruto = COALESCE(NULLIF(EXCLUDED.itab_precobruto, 0), cad_tabelaspre.itab_precobruto),
-        itab_precopromo = COALESCE(NULLIF(EXCLUDED.itab_precopromo, 0), cad_tabelaspre.itab_precopromo),
-        itab_precoespecial = COALESCE(NULLIF(EXCLUDED.itab_precoespecial, 0), cad_tabelaspre.itab_precoespecial),
-        itab_ipi = COALESCE(NULLIF(EXCLUDED.itab_ipi, 0), cad_tabelaspre.itab_ipi),
-        itab_st = COALESCE(NULLIF(EXCLUDED.itab_st, 0), cad_tabelaspre.itab_st),
+        itab_precopromo = COALESCE(EXCLUDED.itab_precopromo, cad_tabelaspre.itab_precopromo),
+        itab_precoespecial = COALESCE(EXCLUDED.itab_precoespecial, cad_tabelaspre.itab_precoespecial),
+        itab_ipi = COALESCE(EXCLUDED.itab_ipi, cad_tabelaspre.itab_ipi),
+        itab_st = COALESCE(EXCLUDED.itab_st, cad_tabelaspre.itab_st),
         itab_grupodesconto = COALESCE(EXCLUDED.itab_grupodesconto, cad_tabelaspre.itab_grupodesconto),
-        itab_descontoadd = COALESCE(NULLIF(EXCLUDED.itab_descontoadd, 0), cad_tabelaspre.itab_descontoadd),
+        itab_descontoadd = COALESCE(EXCLUDED.itab_descontoadd, cad_tabelaspre.itab_descontoadd),
         itab_datatabela = COALESCE(EXCLUDED.itab_datatabela, cad_tabelaspre.itab_datatabela),
         itab_datavencimento = COALESCE(EXCLUDED.itab_datavencimento, cad_tabelaspre.itab_datavencimento),
-        itab_prepeso = COALESCE(NULLIF(EXCLUDED.itab_prepeso, 0), cad_tabelaspre.itab_prepeso),
+        itab_prepeso = COALESCE(EXCLUDED.itab_prepeso, cad_tabelaspre.itab_prepeso),
         itab_status = EXCLUDED.itab_status;
 END;
 $function$;

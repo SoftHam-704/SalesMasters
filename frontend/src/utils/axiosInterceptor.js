@@ -9,8 +9,9 @@ axios.interceptors.request.use(
     (config) => {
         const url = config.url || '';
 
-        // Apenas intercepta requisições para o nosso backend (Node, Python BI)
-        if (url.includes('salesmasters.softham.com.br') || url.includes('localhost') || url.startsWith('/api')) {
+        const isApiRequest = url.startsWith('/api') || url.startsWith('http') || url.startsWith('//');
+        
+        if (isApiRequest) {
             // Tenta pegar o tenant do sessionStorage
             const tenantConfigRaw = sessionStorage.getItem('tenantConfig');
             const sessionToken = localStorage.getItem('session_token');

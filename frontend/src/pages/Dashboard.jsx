@@ -338,6 +338,52 @@ const Dashboard = () => {
                 />
             </motion.div>
 
+            {/* 🚀 RepOne Teaser Banner */}
+            <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.6rem 1.1rem',
+                    borderRadius: '999px',
+                    background: 'linear-gradient(90deg, #0f172a 0%, #134e4a 50%, #0f172a 100%)',
+                    border: '1px solid #2dd4bf33',
+                    marginBottom: '0.5rem',
+                    width: 'fit-content',
+                    cursor: 'default',
+                    userSelect: 'none',
+                    boxShadow: '0 0 18px #0d948822'
+                }}
+            >
+                {/* Ícone orbital inline */}
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                    style={{ flexShrink: 0 }}
+                >
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="11" cy="11" r="9" stroke="#2dd4bf" strokeWidth="1.5" strokeDasharray="4 2" />
+                        <text x="7" y="15.5" fontFamily="'Inter',sans-serif" fontWeight="800" fontSize="10" fill="#2dd4bf">R</text>
+                    </svg>
+                </motion.div>
+
+                {/* Dot pulsante */}
+                <motion.span
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    style={{ width: 7, height: 7, borderRadius: '50%', background: '#2dd4bf', flexShrink: 0, display: 'block' }}
+                />
+
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e2e8f0', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
+                    Em breve o <span style={{ color: '#2dd4bf', fontWeight: 900 }}>SalesMasters</span> irá se chamar{' '}
+                    <span style={{ color: '#ffffff', fontWeight: 900, letterSpacing: '0.05em' }}>RepOne</span>
+                    <span style={{ marginLeft: '0.4rem', fontSize: '0.85rem' }}>🚀</span>
+                </span>
+            </motion.div>
+
             {/* Year/Month Filters */}
             <YearMonthFilter
                 selectedYear={selectedYear}

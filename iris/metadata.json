@@ -1,0 +1,5 @@
+{
+  "name": "Bia Live - Gestora de Estoque por Voz",
+  "description": "Assistente de voz em tempo real para gestão de estoque e suporte empresarial, utilizando Gemini 2.5 Flash Live API.",
+  "requestFramePermissions": ["microphone"]
+}

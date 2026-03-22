@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Package, RefreshCcw } from 'lucide-react';
+import { Search, Package, RefreshCcw, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { getApiUrl, NODE_API_URL } from '@/utils/apiConfig';
 import { toast } from 'sonner';
 
@@ -110,6 +111,52 @@ export default function SalesByProductPage() {
         }
     };
 
+    const handleExportExcel = () => {
+        if (!data.length) {
+            toast.warning("Sem dados para exportar");
+            return;
+        }
+
+        const headers = [
+            'CLIENTE',
+            'DATA DA COMPRA',
+            'DIAS SEM COMPRA',
+            'PEDIDO',
+            'QUANTIDADE',
+            'VALOR UNIT.'
+        ];
+
+        const rows = data.map(item => [
+            item.cli_nomred,
+            item.data_compra ? new Date(item.data_compra).toLocaleDateString('pt-BR') : '-',
+            item.dias_sem_compra,
+            item.ped_numero,
+            item.ite_quantidade,
+            item.ite_valorunit
+        ]);
+
+        const sheetData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Ajustar largura das colunas
+        ws['!cols'] = [
+            { wch: 40 }, // CLIENTE
+            { wch: 15 }, // DATA DA COMPRA
+            { wch: 15 }, // DIAS SEM COMPRA
+            { wch: 12 }, // PEDIDO
+            { wch: 12 }, // QUANTIDADE
+            { wch: 15 }  // VALOR UNIT.
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Vendas");
+        
+        const fileName = `vendas_produto_${selectedProduct?.referencia || 'geral'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        toast.success("Relatório exportado com sucesso!");
+    };
+
+
 
     return (
         <div className="p-6 bg-slate-50 min-h-screen">
@@ -122,6 +169,15 @@ export default function SalesByProductPage() {
                         </h1>
                         <p className="text-slate-500 text-sm mt-1">Veja para quais clientes um produto específico foi vendido e há quanto tempo.</p>
                     </div>
+                    {data.length > 0 && (
+                        <Button
+                            onClick={handleExportExcel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center gap-2 shadow-sm transition-all active:scale-95"
+                        >
+                            <Download className="w-4 h-4" />
+                            EXPORTAR EXCEL
+                        </Button>
+                    )}
                 </div>
 
                 <Card className="border-slate-200 shadow-sm bg-white overflow-visible">

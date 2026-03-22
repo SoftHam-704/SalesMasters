@@ -79,6 +79,7 @@ Modular knowledge domains that agents can load on-demand. based on task context.
 | `nestjs-expert` | NestJS modules, DI, decorators |
 | `nodejs-best-practices` | Node.js async, modules |
 | `python-patterns` | Python standards, FastAPI |
+| `gemini-api-dev` | Gemini 3 Pro/Flash API, SDKs |
 
 ### Database
 

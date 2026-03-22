@@ -599,11 +599,25 @@ export function SupplierDialog({ open, onOpenChange, supplier, onSave }) {
                                 </div>
                                 <div className="flex flex-col gap-1.5">
                                     <Label className="text-emerald-600">Comissão de Venda (%)</Label>
-                                    <Input
-                                        className="h-10 text-sm font-black text-center text-emerald-700 bg-emerald-50 border-emerald-100"
-                                        value={formData.for_percom || ''}
-                                        onChange={(e) => handleChange('for_percom', e.target.value)}
-                                    />
+                                    <div className="relative group">
+                                        <Input
+                                            type="text"
+                                            inputMode="numeric"
+                                            className="h-10 text-sm font-black text-center text-emerald-700 bg-emerald-50 border-emerald-100 pr-8"
+                                            value={(() => {
+                                                const v = formData.for_percom;
+                                                if (v === undefined || v === null || v === '') return '';
+                                                return parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                            })()}
+                                            onChange={(e) => {
+                                                const digits = e.target.value.replace(/\D/g, '');
+                                                const numValue = digits ? parseFloat(digits) / 100 : '';
+                                                handleChange('for_percom', numValue);
+                                            }}
+                                            placeholder="0,00"
+                                        />
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 font-black text-sm pointer-events-none">%</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

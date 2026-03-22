@@ -19,7 +19,6 @@ async function inspectPedidosTable() {
             FROM information_schema.columns 
             WHERE table_name = 'pedidos'
             AND table_schema = 'public'
-            AND is_nullable = 'NO'
             ORDER BY ordinal_position
         `);
         console.log('Columns found:', res.rows);

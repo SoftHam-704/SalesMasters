@@ -6,7 +6,8 @@ const formatCurrency = (value) =>
 
 const formatDate = (dateString) => {
   if (!dateString) return "";
-  const date = new Date(dateString);
+  // Ensure we don't have UTC shift by adding time or parsing manually
+  const date = new Date(dateString.includes('T') ? dateString : dateString + 'T00:00:00');
   return date.toLocaleDateString("pt-BR", { day: '2-digit', month: 'short' }).toUpperCase();
 };
 

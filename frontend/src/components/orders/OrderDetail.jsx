@@ -192,7 +192,7 @@ const OrderDetail = ({ order, onAction }) => {
 
           {/* Info cards row */}
           <BentoCard>
-            <InlineStat icon={Calendar} label="Data do Pedido" value={new Date(order.ped_data).toLocaleDateString('pt-BR')} />
+            <InlineStat icon={Calendar} label="Data do Pedido" value={new Date(order.ped_data.includes('T') ? order.ped_data : order.ped_data + 'T00:00:00').toLocaleDateString('pt-BR')} />
           </BentoCard>
 
           <BentoCard>
@@ -240,7 +240,7 @@ const OrderDetail = ({ order, onAction }) => {
                </div>
                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                   <Clock className="w-3 h-3" />
-                  <span>Atualizado em {new Date(order.ped_datdigit).toLocaleDateString('pt-BR')}</span>
+                  <span>Atualizado em {new Date(order.ped_datdigit.includes('T') ? order.ped_datdigit : order.ped_datdigit + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
                </div>
             </div>
           </BentoCard>

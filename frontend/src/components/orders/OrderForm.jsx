@@ -3492,8 +3492,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly,
                             <table className="w-full text-[13px] relative border-collapse">
                                 <thead className="bg-slate-100 sticky top-0 z-10 font-bold text-slate-800 h-10 shadow-sm">
                                     <tr>
-                                        <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[45px]">Seq</th>
-                                        <th className="px-3 py-2 text-left border-b border-r border-slate-300 whitespace-nowrap">Código</th>
+                                        <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[45px] sticky left-0 z-20 bg-slate-100 shadow-[1px_0_0_0_#cbd5e1]">Seq</th>
+                                        <th className="px-3 py-2 text-left border-b border-r border-slate-300 whitespace-nowrap sticky left-[45px] z-20 bg-slate-100 shadow-[2px_0_0_0_#cbd5e1]">Código</th>
                                         <th className="px-3 py-2 text-left border-b border-r border-slate-300 w-[130px]">Complemento</th>
                                         <th className="px-3 py-2 text-left border-b border-r border-slate-300 min-w-[200px]">Descrição</th>
                                         <th className="px-3 py-2 text-center border-b border-r border-slate-300 w-[70px]">Quant</th>
@@ -3529,8 +3529,8 @@ const OrderForm = ({ selectedIndustry, onClose, onSave, existingOrder, readOnly,
                                                     isPackagingError && "bg-red-50 hover:bg-red-100 ring-1 ring-inset ring-red-200"
                                                 )}
                                             >
-                                                <td className="px-3 py-1 text-slate-500 border-r border-slate-300/50">{item.ite_seq || idx + 1}</td>
-                                                <td className="px-3 py-1 font-bold border-r border-slate-300/50 whitespace-nowrap text-blue-700">{item.ite_produto}</td>
+                                                <td className="px-3 py-1 text-slate-500 border-r border-slate-300/50 sticky left-0 z-10 bg-white shadow-[1px_0_0_0_#cbd5e1] group-hover:bg-slate-50 transition-colors">{item.ite_seq || idx + 1}</td>
+                                                <td className="px-3 py-1 font-bold border-r border-slate-300/50 whitespace-nowrap text-blue-700 sticky left-[45px] z-10 bg-white shadow-[1px_0_0_0_#cbd5e1] group-hover:bg-slate-50 transition-colors">{item.ite_produto}</td>
                                                 <td className="px-1 py-0 border-r border-slate-300/50">
                                                     <input
                                                         type="text"

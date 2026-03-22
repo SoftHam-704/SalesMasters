@@ -358,5 +358,36 @@ module.exports = (pool) => {
         }
     });
 
+    // 10. Generate Iris Token
+    router.post('/admin/generate-token', async (req, res) => {
+        const { cli_codigo, industrias } = req.body;
+        const tenantCnpj = req.headers['x-tenant-cnpj'];
+
+        if (!cli_codigo || !tenantCnpj) {
+            return res.status(400).json({ success: false, message: 'Dados insuficientes para gerar token.' });
+        }
+
+        try {
+            const payload = {
+                cli_codigo,
+                empresa_id: tenantCnpj,
+                industrias: industrias || []
+            };
+
+            const token = Buffer.from(JSON.stringify(payload)).toString('base64');
+            // Nota: O domínio final será configurado no PWA/WEB
+            const link = `/iris/?t=${token}`;
+
+            res.json({
+                success: true,
+                token,
+                link,
+                expires_in: 'Expiração Indefinida (Alpha)'
+            });
+        } catch (error) {
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
     return router;
 };

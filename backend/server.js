@@ -125,6 +125,9 @@ app.use('/api/auth', authMasterRoutes);
 const masterPanelRoutes = require('./master_panel_endpoints');
 app.use('/api/master', masterPanelRoutes);
 
+// Módulo de Faturamento de Pedidos
+require('./billing_endpoints')(app, pool);
+
 // --- ENDPOINT DE DEBUG DE DEPLOY (Prioridade Máxima) ---
 app.get('/api/deploy-test', (req, res) => {
     const parentDir = path.resolve(__dirname, '..');
@@ -205,6 +208,9 @@ app.use('/api/tutorials', require('./tutorials_endpoints')(pool));
 app.use('/api/marketing', require('./marketing_email_endpoints')(pool));
 app.use('/api/wpp-service', require('./whatsapp_ia_endpoints')(pool));
 app.use('/api/smart-importer', require('./smart_importer_endpoints')(pool));
+
+// Iris PWA Endpoints
+require('./iris_endpoints')(app, pool);
 
 // Mobile-specific endpoints (isolado para evitar conflitos com web)
 app.use('/api/mobile', require('./mobile_endpoints')(pool));
@@ -5022,6 +5028,7 @@ app.get('/api/suppliers/:id/customers', async (req, res) => {
             SELECT 
                 c.cli_codigo,
                 c.cli_nomred,
+                c.cli_cnpj,
                 MAX(p.ped_data) as ultima_compra,
                 SUM(p.ped_totliq) as total_compras,
                 COUNT(p.ped_pedido) as qtd_pedidos
@@ -5029,7 +5036,7 @@ app.get('/api/suppliers/:id/customers', async (req, res) => {
             INNER JOIN pedidos p ON p.ped_cliente = c.cli_codigo
             WHERE p.ped_industria = $1
               AND p.ped_situacao IN ('P', 'F')
-            GROUP BY c.cli_codigo, c.cli_nomred
+            GROUP BY c.cli_codigo, c.cli_nomred, c.cli_cnpj
             ORDER BY total_compras DESC
         `;
 

@@ -8,8 +8,10 @@ const originalFetch = window.fetch;
 window.fetch = async (...args) => {
     let [url, config] = args;
 
-    // Apenas intercepta requisições para o nosso backend (Node: 3005, Python BI: 8000)
-    if (typeof url === 'string' && (url.includes('salesmasters.softham.com.br') || url.includes('localhost') || url.startsWith('/api'))) {
+    // Intercepta todas as requisições para a API local (/api) ou URLs que contenham o host definido
+    const isApiRequest = typeof url === 'string' && (url.startsWith('/api') || url.startsWith('http') || url.startsWith('//'));
+    
+    if (isApiRequest) {
         config = config || {};
         config.headers = config.headers || {};
 

@@ -62,11 +62,11 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry, narra
                     </div>
                 ) : (
                     <div className="p-2 space-y-1">
-                        {/* Opção Toda a Indústria */}
+                        {/* Opção TODAS AS INDÚSTRIAS */}
                         <motion.button
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            onClick={() => onSelectIndustry({ for_codigo: 'all', for_nomered: 'TODA INDÚSTRIA' })}
+                            onClick={() => onSelectIndustry({ for_codigo: 'all', for_nomered: 'TODAS AS INDÚSTRIAS' })}
                             className={cn(
                                 "w-full text-left px-3 py-2 rounded-xl transition-all duration-300 group mb-2 border border-dashed border-emerald-300",
                                 selectedIndustry?.for_codigo === 'all'
@@ -89,7 +89,7 @@ export default function IndustryList({ selectedIndustry, onSelectIndustry, narra
                                         "font-black text-xs uppercase tracking-widest",
                                         selectedIndustry?.for_codigo === 'all' ? "text-white" : "text-slate-700"
                                     )}>
-                                        Toda a Indústria
+                                        TODAS AS INDÚSTRIAS
                                     </span>
                                 </div>
                                 <ChevronRight className={cn(

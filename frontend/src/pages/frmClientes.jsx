@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { NODE_API_URL, getApiUrl } from '../utils/apiConfig';
 import ClientHelpModal from "@/components/crm/ClientHelpModal";
+import IrisActivationModal from "@/components/crm/IrisActivationModal";
+import { Sparkles as IrisIcon } from "lucide-react";
 
 const FrmClientes = () => {
     const [clients, setClients] = useState([]);
@@ -20,14 +22,19 @@ const FrmClientes = () => {
 
     const [selectedClient, setSelectedClient] = useState(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [irisModalOpen, setIrisModalOpen] = useState(false);
+    const [clientForIris, setClientForIris] = useState(null);
 
     const formatCNPJ = (value) => {
         if (!value) return "";
         const raw = String(value).replace(/\D/g, '');
-        if (raw.length === 14) {
-            return raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-        } else if (raw.length === 11) {
-            return raw.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+        // CNPJ
+        if (raw.length > 11 && raw.length <= 14) {
+            return raw.padStart(14, '0').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+        } 
+        // CPF
+        else if (raw.length > 0 && raw.length <= 11) {
+            return raw.padStart(11, '0').replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
         }
         return value;
     };
@@ -253,6 +260,27 @@ const FrmClientes = () => {
                     {row.situacao}
                 </Badge>
             )
+        },
+        {
+            key: 'iris',
+            label: 'Iris AI',
+            width: '80px',
+            align: 'center',
+            render: (row) => (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setClientForIris(row);
+                        setIrisModalOpen(true);
+                    }}
+                    className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 bg-emerald-50/10 border border-emerald-500/10 rounded-full h-8 w-8 shadow-sm transition-all"
+                    title="Ativar Iris para este cliente"
+                >
+                    <IrisIcon size={16} className="animate-pulse" />
+                </Button>
+            )
         }
     ];
 
@@ -271,6 +299,12 @@ const FrmClientes = () => {
             <ClientHelpModal
                 open={helpOpen}
                 onClose={() => setHelpOpen(false)}
+            />
+
+            <IrisActivationModal 
+                open={irisModalOpen}
+                onOpenChange={setIrisModalOpen}
+                client={clientForIris}
             />
 
             <GridCadPadrao

@@ -27,7 +27,7 @@ const maskCnpjCpf = (value) => {
 const initialFormState = {
     ped_pedido: '',
     ped_data: new Date().toISOString().split('T')[0],
-    ped_situacao: 'P',
+    ped_situacao: '',
     ped_cliente: '',
     ped_transp: '',
     ped_vendedor: '',
@@ -71,7 +71,7 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
     const [selectedSellerName, setSelectedSellerName] = useState('');
 
     // Existing hooks
-    const industryCode = formData.ped_industria || selectedIndustry?.for_codigo;
+    const industryCode = formData.ped_industria || selectedIndustry?.for_codigo || selectedIndustry?.code;
     const auxData = useAuxData(industryCode);
     const priceTable = usePriceTable(industryCode, formData.ped_tabela);
     const cliIndData = useCliIndData();
@@ -118,12 +118,20 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
 
     // Initialize form (existing order or new)
     useEffect(() => {
-        if (initDone.current) return;
-
         const initializeForm = async () => {
             if (existingOrder) {
+                // Determine correct status prioritizing ped_status for quotes
+                let status = existingOrder.ped_situacao;
+                if (!status || status === 'P') {
+                    const s = String(existingOrder.ped_status || '').toUpperCase();
+                    if (s.includes('COTA')) status = 'C';
+                    else if (s === 'PEDIDO') status = 'P';
+                }
+                if (!status) status = 'P';
+
                 const formattedOrder = {
                     ...existingOrder,
+                    ped_situacao: status,
                     ped_data: existingOrder.ped_data
                         ? new Date(existingOrder.ped_data).toISOString().split('T')[0]
                         : new Date().toISOString().split('T')[0],
@@ -139,25 +147,43 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
                 setAllowDuplicates(existingOrder.ped_permiterepe || false);
                 setIsPersisted(true);
 
-                // Set initial display names
-                const initClientName = existingOrder.cli_nomred || existingOrder.cli_nome || '';
-                const initClientCnpj = existingOrder.cli_cnpj ? ` - ${maskCnpjCpf(existingOrder.cli_cnpj)}` : '';
-                setSelectedClientName(initClientName + initClientCnpj);
+                // Initial display names from base order
+                setSelectedClientName(existingOrder.cli_nomred || existingOrder.cli_nome || '');
                 setSelectedTranspName(existingOrder.tra_nome || '');
                 setSelectedSellerName(existingOrder.ven_nome || '');
+
+                // Enrich client data if missing (CNPJ, City, group) - Using precise ID lookup
+                if (existingOrder.ped_cliente) {
+                    try {
+                        const res = await auxDataService.getClientById(existingOrder.ped_cliente);
+                        if (res.success && res.data) {
+                            const fullClient = res.data;
+                            setFormData(prev => ({
+                                ...prev,
+                                cli_cnpj: fullClient.cli_cnpj,
+                                cli_cidade: fullClient.cli_cidade || fullClient.cid_nome || '',
+                                cli_uf: fullClient.cli_uf,
+                                cli_grupo: fullClient.cli_grupo,
+                            }));
+                            const initClientName = fullClient.cli_nomred || fullClient.cli_nome || '';
+                            const initClientCnpj = fullClient.cli_cnpj ? ` - ${maskCnpjCpf(fullClient.cli_cnpj)}` : '';
+                            setSelectedClientName(initClientName + initClientCnpj);
+                        }
+                    } catch (e) {
+                        console.error('Error enriching client data:', e);
+                    }
+                }
 
                 // Load items
                 if (existingOrder.ped_pedido) {
                     loadSummaryItems(existingOrder.ped_pedido);
                 }
-
-                initDone.current = true;
             } else if (internalUserParams !== null || !userParams) {
                 // New order
                 const params = internalUserParams || {};
                 const newOrderState = {
                     ...initialFormState,
-                    ped_industria: selectedIndustry?.for_codigo || '',
+                    ped_industria: selectedIndustry?.for_codigo || selectedIndustry?.code || '',
                     ped_pri: selectedIndustry?.for_des1 || 0,
                     ped_seg: selectedIndustry?.for_des2 || 0,
                     ped_ter: selectedIndustry?.for_des3 || 0,
@@ -182,13 +208,11 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
                 setDisplayNumber('(Novo)');
                 setIsPersisted(false);
                 loadNextNumber();
-
-                initDone.current = true;
             }
         };
 
         initializeForm();
-    }, [existingOrder, selectedIndustry, internalUserParams]);
+    }, [existingOrder, selectedIndustry, internalUserParams, mode]);
 
     // Recalculate totals when items change
     useEffect(() => {
@@ -332,7 +356,7 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
 
         // Validate required fields
         const missingFields = [];
-        const industryId = formData.ped_industria || selectedIndustry?.for_codigo;
+        const industryId = formData.ped_industria || selectedIndustry?.for_codigo || selectedIndustry?.code;
 
         if (!industryId) missingFields.push('Indústria');
         if (!formData.ped_cliente) missingFields.push('Cliente');
@@ -438,7 +462,7 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
     }, []);
 
     const fetchPriceTables = useCallback(async (search) => {
-        const indCode = selectedIndustry?.for_codigo || formData.ped_industria;
+        const indCode = selectedIndustry?.for_codigo || selectedIndustry?.code || formData.ped_industria;
         if (!indCode) return [];
         const res = await auxDataService.getPriceTables(indCode, search);
         return (res.data || []).map(t => ({
@@ -472,7 +496,7 @@ export function useOrderForm({ selectedIndustry, existingOrder, userParams, mode
         setSelectedClientName(clientOption.label);
 
         // Auto-fetch CLI_IND conditions
-        const indCode = formData.ped_industria || selectedIndustry?.for_codigo;
+        const indCode = formData.ped_industria || selectedIndustry?.for_codigo || selectedIndustry?.code;
         if (clientOption.value && indCode) {
             try {
                 const conditions = await cliIndData.fetchConditions(clientOption.value, indCode);

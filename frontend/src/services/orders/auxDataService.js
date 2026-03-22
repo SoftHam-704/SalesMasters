@@ -17,6 +17,17 @@ export const auxDataService = {
     },
 
     /**
+     * Busca um cliente específico pelo código
+     */
+    async getClientById(id) {
+        const response = await fetch(`${API_BASE_URL}/aux/clientes/${id}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch client details');
+        }
+        return response.json();
+    },
+
+    /**
      * Lista todas as transportadoras
      */
     async getCarriers(pesquisa = '') {

@@ -387,7 +387,7 @@ const OrderDetail = ({ order, onAction }) => {
 
             {/* Info cards row */}
             <BentoCard className="shadow-sm hover:shadow-md transition-shadow">
-              <InlineStat icon={Calendar} label="Data" value={new Date(order.ped_data).toLocaleDateString("pt-BR")} />
+              <InlineStat icon={Calendar} label="Data" value={new Date(order.ped_data.includes('T') ? order.ped_data : order.ped_data + 'T00:00:00').toLocaleDateString("pt-BR")} />
             </BentoCard>
 
             <BentoCard className="shadow-sm hover:shadow-md transition-shadow">

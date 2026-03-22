@@ -173,15 +173,16 @@ export function formatNumber(value, decimals = 2) {
  */
 export function formatCNPJ(cnpj) {
     if (!cnpj) return '';
-
-    const cleaned = cnpj.replace(/\D/g, '');
-
-    if (cleaned.length !== 14) return cnpj;
-
-    return cleaned.replace(
-        /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
-        '$1.$2.$3/$4-$5'
-    );
+    const cleaned = String(cnpj).replace(/\D/g, '');
+    
+    // Se tiver até 14 dígitos e for maior que 11, trata como CNPJ e completa com zeros
+    if (cleaned.length > 11 && cleaned.length <= 14) {
+        return cleaned.padStart(14, '0').replace(
+            /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+            '$1.$2.$3/$4-$5'
+        );
+    }
+    return cnpj;
 }
 
 /**
@@ -191,15 +192,16 @@ export function formatCNPJ(cnpj) {
  */
 export function formatCPF(cpf) {
     if (!cpf) return '';
+    const cleaned = String(cpf).replace(/\D/g, '');
 
-    const cleaned = cpf.replace(/\D/g, '');
-
-    if (cleaned.length !== 11) return cpf;
-
-    return cleaned.replace(
-        /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
-        '$1.$2.$3-$4'
-    );
+    // Se tiver até 11 dígitos e for maior que 0, trata como CPF e completa com zeros
+    if (cleaned.length > 0 && cleaned.length <= 11) {
+        return cleaned.padStart(11, '0').replace(
+            /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
+            '$1.$2.$3-$4'
+        );
+    }
+    return cpf;
 }
 
 /**

@@ -20,6 +20,7 @@ import PortalsDialog from './PortalsDialog';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { toast } from 'sonner';
 import PrintOrderDialog from './PrintOrderDialog';
+import BillingDialog from './BillingDialog';
 import { exportOrderToExcel } from '../../utils/exportOrderToExcel';
 import SendEmailDialog from './SendEmailDialog';
 import { NODE_API_URL, getApiUrl } from '../../utils/apiConfig';
@@ -31,6 +32,13 @@ const formatCurrency = (value) => {
 
 const formatDate = (dateString) => {
     if (!dateString) return '—';
+    // Fix: Handles ISO dates (YYYY-MM-DD) which can shift to previous day in local time due to UTC interpretation
+    const isoDate = dateString.substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+        const [y, m, d] = isoDate.split('-').map(Number);
+        // Using new Date(y, m-1, d) creates a date in the local timezone at 00:00:00
+        return new Date(y, m - 1, d).toLocaleDateString('pt-BR');
+    }
     const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR');
 };
@@ -46,7 +54,9 @@ const OrderCard = memo(function OrderCard({
     onEmail,
     onView,
     onPortals,
-    onDelete
+    onDelete,
+    onBilling,
+    onClone
 }) {
     return (
         <ContextMenu>
@@ -163,6 +173,13 @@ const OrderCard = memo(function OrderCard({
                                     <Globe className="w-4 h-4" />
                                 </button>
                                 <button
+                                    onClick={(e) => { e.stopPropagation(); onBilling && onBilling(order); }}
+                                    className="p-2 rounded-lg bg-slate-100 hover:bg-teal-50 border border-slate-200 text-slate-400 hover:text-teal-600 transition-colors shadow-sm"
+                                    title="Faturamento"
+                                >
+                                    <Receipt className="w-4 h-4" />
+                                </button>
+                                <button
                                     onClick={(e) => { e.stopPropagation(); onPrint(order.ped_pedido, order.ped_industria, order.for_nomered || order.for_nome, formatCurrency(order.ped_totliq)); }}
                                     className="p-2 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
                                     title="Imprimir"
@@ -232,6 +249,10 @@ const OrderCard = memo(function OrderCard({
                     <span>Imprimir Relatório</span>
                 </ContextMenuItem>
                 <ContextMenuSeparator className="bg-emerald-500/10" />
+                <ContextMenuItem onClick={() => onClone(order)} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-emerald-400" />
+                    <span>Clonar Pedido</span>
+                </ContextMenuItem>
                 <ContextMenuItem onClick={() => onEmail(order.ped_pedido, order.ped_industria)} className="hover:bg-emerald-500/10 focus:bg-emerald-500/10 flex items-center gap-2">
                     <Mail className="h-4 w-4 text-emerald-400" />
                     <span>Enviar p/ Cliente</span>
@@ -254,6 +275,8 @@ export default function OrdersPage({ forceProjetos }) {
     const [selectedPortalOrder, setSelectedPortalOrder] = useState(null);
     const [narrative, setNarrative] = useState('');
     const [loadingNarrative, setLoadingNarrative] = useState(false);
+    const [billingDialogOpen, setBillingDialogOpen] = useState(false);
+    const [orderToBill, setOrderToBill] = useState(null);
 
     // Default date range: 2025 until today
     const today = new Date();
@@ -432,6 +455,28 @@ export default function OrdersPage({ forceProjetos }) {
 
     const countPedidos = orders.filter(o => o.ped_situacao === 'P').length;
     const countCotacoes = orders.filter(o => o.ped_situacao === 'C').length;
+
+    const handleCloneOrder = async (order) => {
+        if (!window.confirm(`Deseja clonar o pedido ${order.ped_pedido}?\n\nSerá criada uma cópia fiel com novo número sequencial, data de hoje e situação PEDIDO.`)) return;
+
+        try {
+            const response = await fetch(getApiUrl(NODE_API_URL, `/api/orders/${order.ped_pedido}/clone`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ initials: order.ped_pedido?.replace(/[0-9]/g, '').substring(0, 2) || 'HS' })
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(`Pedido clonado! Novo: ${data.newPedPedido} (${data.itemsCloned} itens)`);
+                loadOrders();
+            } else {
+                toast.error('Erro ao clonar: ' + (data.message || 'Erro desconhecido'));
+            }
+        } catch (error) {
+            console.error('Erro ao clonar pedido:', error);
+            toast.error('Erro de rede ao clonar pedido');
+        }
+    };
 
     const handleDeleteOrder = async (order) => {
         if (!window.confirm(`Deseja realmente excluir o pedido ${order.ped_pedido}?`)) return;
@@ -653,7 +698,7 @@ export default function OrdersPage({ forceProjetos }) {
                 </motion.div>
 
                 <ScrollArea className="flex-1 p-6 custom-scrollbar">
-                    {loading ? (
+                    {loading && orders.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-32 space-y-4">
                             <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
                             <p className="text-[10px] font-black text-emerald-500/40 uppercase tracking-[0.3em]">ANALISANDO DATABASE...</p>
@@ -669,7 +714,20 @@ export default function OrdersPage({ forceProjetos }) {
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-3 pb-24">
+                        <div className="space-y-3 pb-24 relative">
+                            {/* Seamless Update Indicator */}
+                            {loading && (
+                                <div className="sticky top-0 right-0 flex justify-end p-2 z-50 pointer-events-none mb-2">
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg border border-emerald-100 flex items-center gap-2"
+                                    >
+                                        <div className="w-3 h-3 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Atualizando Dados...</span>
+                                    </motion.div>
+                                </div>
+                            )}
                             <AnimatePresence>
                                 {orders.map((order, index) => (
                                     <OrderCard
@@ -692,7 +750,12 @@ export default function OrdersPage({ forceProjetos }) {
                                             setSelectedPortalOrder(orderId);
                                             setPortalsDialogOpen(true);
                                         }}
+                                        onBilling={(ord) => {
+                                            setOrderToBill(ord);
+                                            setBillingDialogOpen(true);
+                                        }}
                                         onDelete={handleDeleteOrder}
+                                        onClone={handleCloneOrder}
                                     />
                                 ))}
                             </AnimatePresence>
@@ -884,6 +947,13 @@ export default function OrdersPage({ forceProjetos }) {
                 onOpenChange={setPortalsDialogOpen}
                 orderId={selectedPortalOrder}
             />
+
+            {billingDialogOpen && orderToBill && (
+                <BillingDialog
+                    order={orderToBill}
+                    onClose={() => { setBillingDialogOpen(false); setOrderToBill(null); loadOrders(); }}
+                />
+            )}
         </div>
     );
 }

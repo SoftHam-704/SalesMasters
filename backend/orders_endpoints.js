@@ -200,6 +200,129 @@ module.exports = function (app, pool) {
             res.status(500).json({ success: false, message: `Erro ao atualizar pedido: ${error.message}` });
         }
     });
+    // POST - Clonar pedido (cabeçalho + itens)
+    app.post('/api/orders/:pedPedido/clone', async (req, res) => {
+        const client = await pool.connect();
+        try {
+            const { pedPedido } = req.params;
+            const { initials } = req.body;
+            const userInitials = initials || 'HS';
+
+            await client.query('BEGIN');
+
+            // 1. Buscar pedido original
+            const origResult = await client.query(
+                `SELECT * FROM pedidos WHERE TRIM(ped_pedido) = TRIM($1)`, [pedPedido]
+            );
+            if (origResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ success: false, message: 'Pedido original não encontrado' });
+            }
+            const orig = origResult.rows[0];
+
+            // 2. Gerar novo número sequencial
+            let seqResult;
+            try {
+                seqResult = await client.query("SELECT nextval('gen_pedidos_id') as next_num");
+            } catch (e) {
+                try {
+                    seqResult = await client.query("SELECT nextval('pedidos_ped_numero_seq') as next_num");
+                } catch (e2) {
+                    throw new Error('Sequência de pedidos não encontrada');
+                }
+            }
+            const newPedNumero = seqResult.rows[0].next_num;
+            const newPedPedido = (userInitials + newPedNumero.toString().padStart(6, '0')).replace(/\s+/g, '');
+
+            // 3. Inserir clone do cabeçalho (data = hoje, situação = P, limpa faturamento)
+            const cloneQuery = `
+                INSERT INTO pedidos (
+                    ped_numero, ped_pedido, ped_data, ped_situacao,
+                    ped_cliente, ped_industria, ped_vendedor, ped_transp,
+                    ped_tabela, ped_totbruto, ped_totliq, ped_totalipi, ped_obs,
+                    ped_pri, ped_seg, ped_ter, ped_qua, ped_qui, ped_sex, ped_set, ped_oit, ped_nov,
+                    ped_pedindustria, ped_cliind, ped_condpag, ped_tipofrete, ped_comprador,
+                    ped_ramoatv, ped_obra_nome, ped_obra_endereco, ped_obra_contato,
+                    ped_fase_projeto, ped_area_m2, ped_pe_direito, ped_tipo_piso, ped_obs_tecnicas
+                ) VALUES (
+                    $1, $2, CURRENT_DATE, 'P',
+                    $3, $4, $5, $6,
+                    $7, $8, $9, $10, $11,
+                    $12, $13, $14, $15, $16, $17, $18, $19, $20,
+                    $21, $22, $23, $24, $25,
+                    $26, $27, $28, $29,
+                    $30, $31, $32, $33, $34
+                ) RETURNING *
+            `;
+            const cloneValues = [
+                newPedNumero, newPedPedido,
+                orig.ped_cliente, orig.ped_industria, orig.ped_vendedor, orig.ped_transp,
+                orig.ped_tabela, orig.ped_totbruto, orig.ped_totliq, orig.ped_totalipi, orig.ped_obs || '',
+                orig.ped_pri || 0, orig.ped_seg || 0, orig.ped_ter || 0, orig.ped_qua || 0, orig.ped_qui || 0,
+                orig.ped_sex || 0, orig.ped_set || 0, orig.ped_oit || 0, orig.ped_nov || 0,
+                orig.ped_pedindustria || '', orig.ped_cliind || '', orig.ped_condpag || '',
+                orig.ped_tipofrete || 'C', orig.ped_comprador || '',
+                orig.ped_ramoatv || '', orig.ped_obra_nome || '', orig.ped_obra_endereco || '', orig.ped_obra_contato || '',
+                orig.ped_fase_projeto || '', orig.ped_area_m2 || 0, orig.ped_pe_direito || 0,
+                orig.ped_tipo_piso || '', orig.ped_obs_tecnicas || ''
+            ];
+            const clonedOrder = await client.query(cloneQuery, cloneValues);
+
+            // 4. Copiar todos os itens do pedido original
+            const itemsResult = await client.query(
+                `SELECT * FROM itens_ped WHERE TRIM(ite_pedido) = TRIM($1) ORDER BY ite_seq`, [pedPedido]
+            );
+
+            let itemsCloned = 0;
+            for (const item of itemsResult.rows) {
+                await client.query(`
+                    INSERT INTO itens_ped (
+                        ite_pedido, ite_seq, ite_industria, ite_idproduto, ite_produto, ite_embuch, ite_nomeprod,
+                        ite_quant, ite_puni, ite_totbruto, ite_puniliq, ite_totliquido, ite_ipi,
+                        ite_des1, ite_des2, ite_des3, ite_des4, ite_des5,
+                        ite_des6, ite_des7, ite_des8, ite_des9, ite_des10, ite_des11, ite_valcomipi,
+                        ite_st, ite_valcomst, ite_promocao, ite_descontos,
+                        ite_dimensoes, ite_acabamento, ite_carga_kg, ite_ambiente, ite_faturado, ite_qtdfat
+                    ) VALUES (
+                        $1, $2, $3, $4, $5, $6, $7,
+                        $8, $9, $10, $11, $12, $13,
+                        $14, $15, $16, $17, $18,
+                        $19, $20, $21, $22, $23, $24, $25,
+                        $26, $27, $28, $29,
+                        $30, $31, $32, $33, 'N', 0
+                    )
+                `, [
+                    newPedPedido, item.ite_seq, item.ite_industria, item.ite_idproduto, item.ite_produto,
+                    item.ite_embuch, item.ite_nomeprod,
+                    item.ite_quant, item.ite_puni, item.ite_totbruto, item.ite_puniliq, item.ite_totliquido, item.ite_ipi,
+                    item.ite_des1 || 0, item.ite_des2 || 0, item.ite_des3 || 0, item.ite_des4 || 0, item.ite_des5 || 0,
+                    item.ite_des6 || 0, item.ite_des7 || 0, item.ite_des8 || 0, item.ite_des9 || 0,
+                    item.ite_des10 || 0, item.ite_des11 || 0, item.ite_valcomipi || 0,
+                    item.ite_st || 0, item.ite_valcomst || 0, item.ite_promocao || false, item.ite_descontos || '',
+                    item.ite_dimensoes || '', item.ite_acabamento || '', item.ite_carga_kg || 0, item.ite_ambiente || ''
+                ]);
+                itemsCloned++;
+            }
+
+            await client.query('COMMIT');
+
+            console.log(`✅ [ORDERS] Pedido ${pedPedido} clonado → ${newPedPedido} (${itemsCloned} itens)`);
+
+            res.json({
+                success: true,
+                data: clonedOrder.rows[0],
+                message: `Pedido clonado com sucesso! Novo número: ${newPedPedido}`,
+                newPedPedido,
+                itemsCloned
+            });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error('❌ [ORDERS] Error cloning order:', error);
+            res.status(500).json({ success: false, message: `Erro ao clonar pedido: ${error.message}` });
+        } finally {
+            client.release();
+        }
+    });
 
     // Narratives are now handled by narratives_endpoints.js
 };

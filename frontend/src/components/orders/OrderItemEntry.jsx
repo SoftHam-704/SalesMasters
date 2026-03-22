@@ -823,6 +823,24 @@ const OrderItemEntry = ({
             return;
         }
 
+        // Duplicates check for auto-save
+        if (!allowDuplicates) {
+            const existingItem = orderItems.find(existing =>
+                existing.ite_produto === item.ite_produto &&
+                existing.ite_embuch === item.ite_embuch &&
+                existing.ite_seq !== item.ite_seq && // Non-editing duplicate
+                existing.tempId !== item.tempId
+            );
+            if (existingItem) {
+                // Mostrar diálogo perguntando se quer somar a quantidade
+                setDuplicateWarning({
+                    existingItem,
+                    newQuant: parseFloat(item.ite_quant) || 0
+                });
+                return;
+            }
+        }
+
         setOrderItems(prev => {
             const items = [...prev];
             const newItem = {

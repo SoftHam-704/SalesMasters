@@ -24,9 +24,14 @@ const FrmIndustria = () => {
 
     const formatCNPJ = (value) => {
         if (!value) return "";
-        const raw = value.replace(/\D/g, '');
-        if (raw.length === 14) {
-            return raw.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+        const raw = String(value).replace(/\D/g, '');
+        // CNPJ
+        if (raw.length > 11 && raw.length <= 14) {
+            return raw.padStart(14, '0').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+        } 
+        // CPF
+        else if (raw.length > 0 && raw.length <= 11) {
+            return raw.padStart(11, '0').replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
         }
         return value;
     };

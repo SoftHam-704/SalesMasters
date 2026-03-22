@@ -567,22 +567,28 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
-            if (!industria || industria === 'ALL') {
-                return res.status(400).json({ success: false, message: 'Indústria é obrigatória para este relatório' });
-            }
+            const isAllIndustries = !industria || industria === 'ALL';
+            let params = [start, end];
 
-            let params = [start, end, industria];
-            let paramCounter = 4;
+            // Add industria only if it's not 'ALL'
+            if (!isAllIndustries) {
+                params.push(industria);
+            }
 
             // Permission logic
             const sellerId = await getLinkedSellerId(pool, userId);
             const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
 
+            let paramCounter = params.length + 1;
+
             let conditions = [
                 `p.ped_data BETWEEN $1 AND $2`,
-                `p.ped_situacao IN ('P', 'F')`,
-                `p.ped_industria = $3`
+                `p.ped_situacao IN ('P', 'F')`
             ];
+
+            if (!isAllIndustries) {
+                conditions.push(`p.ped_industria = $3`);
+            }
 
             // Filtro Cliente (Opcional)
             if (cliente && cliente !== 'ALL') {
@@ -632,14 +638,13 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
+            const isAllIndustries = !industria || industria === 'ALL';
+            let params = [start, end];
+
             // Permission logic
             const sellerId = await getLinkedSellerId(pool, userId);
             const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
-
-            const isAllIndustries = !industria || industria === 'ALL';
-
-            let params = [start, end];
-            let paramCounter = 3;
+            let paramCounter = params.length + 1;
             let conditions = [
                 `p.ped_data BETWEEN $1 AND $2`,
                 `p.ped_situacao IN ('P', 'F')`
@@ -751,21 +756,28 @@ module.exports = (pool) => {
                 return res.status(400).json({ success: false, message: 'Período é obrigatório' });
             }
 
-            // Permission logic
-            const sellerId = await getLinkedSellerId(pool, userId);
-            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+            const isAllIndustries = !industria || industria === 'ALL';
+            let params = [start, end];
 
-            if (!industria || industria === 'ALL') {
-                return res.status(400).json({ success: false, message: 'Indústria é obrigatória para este relatório' });
+            // Add industria only if it's not 'ALL'
+            if (!isAllIndustries) {
+                params.push(industria);
             }
 
-            let params = [start, end, industria];
-            let paramCounter = 4;
+            // Permission logic
+            const sellerId = await getLinkedSellerId(pool, userId);
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
+
+            let paramCounter = params.length + 1;
+
             let conditions = [
                 `p.ped_data BETWEEN $1 AND $2`,
-                `p.ped_situacao IN ('P', 'F')`,
-                `p.ped_industria = $3`
+                `p.ped_situacao IN ('P', 'F')`
             ];
+
+            if (!isAllIndustries) {
+                conditions.push(`p.ped_industria = $3`);
+            }
 
             // Filtro Cliente (Opcional)
             if (cliente && cliente !== 'ALL') {
@@ -857,9 +869,14 @@ module.exports = (pool) => {
                 });
             }
 
+            const isAllIndustries = !industria || industria === 'ALL';
+            let params = [];
+
             // Permission logic
             const sellerId = await getLinkedSellerId(pool, userId);
-            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria');
+            const { filterClause } = buildIndustryFilterClause(sellerId, 'p.ped_industria', params);
+            
+            let paramCounter = params.length + 1;
 
             const baseYear = parseInt(anoBase);
             const year1 = baseYear;
@@ -867,13 +884,16 @@ module.exports = (pool) => {
             const year3 = baseYear - 2;
 
             // Montar query base
-            let params = [industria];
-            let paramCounter = 2;
             let conditions = [
                 `p.ped_situacao IN ('P', 'F')`,
-                `p.ped_industria = $1`,
                 `EXTRACT(YEAR FROM p.ped_data) IN (${year1}, ${year2}, ${year3})`
             ];
+
+            if (!isAllIndustries) {
+                conditions.push(`p.ped_industria = $${paramCounter}`);
+                params.push(industria);
+                paramCounter++;
+            }
 
             // Filtro Cliente (opcional)
             if (cliente && cliente !== 'ALL') {

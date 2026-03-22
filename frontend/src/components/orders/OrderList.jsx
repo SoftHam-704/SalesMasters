@@ -53,7 +53,7 @@ const OrderList = ({ orders, filter, selectedId, onSelect }) => {
                   </span>
                   <span className="w-1 h-1 rounded-full bg-border" />
                   <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {new Date(order.ped_data).toLocaleDateString('pt-BR')}
+                    {new Date(order.ped_data.includes('T') ? order.ped_data : order.ped_data + 'T00:00:00').toLocaleDateString('pt-BR')}
                   </span>
                 </div>
               </div>

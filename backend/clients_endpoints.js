@@ -150,6 +150,14 @@ module.exports = (pool) => {
             console.log('POST /clients - Body:', req.body);
             const data = req.body;
 
+            if (data.cli_cnpj) {
+                const checkQuery = `SELECT cli_codigo FROM clientes WHERE cli_cnpj = $1`;
+                const checkRes = await pool.query(checkQuery, [data.cli_cnpj]);
+                if (checkRes.rows.length > 0) {
+                    return res.status(400).json({ success: false, message: 'Já existe um cliente cadastrado com este CNPJ/CPF.' });
+                }
+            }
+
             const query = `
                 INSERT INTO clientes (
                     cli_nome, cli_fantasia, cli_nomred, cli_cnpj, cli_inscricao,
@@ -232,6 +240,14 @@ module.exports = (pool) => {
                 lat: data.cli_latitude,
                 lng: data.cli_longitude
             });
+
+            if (data.cli_cnpj) {
+                const checkQuery = `SELECT cli_codigo FROM clientes WHERE cli_cnpj = $1 AND cli_codigo != $2`;
+                const checkRes = await pool.query(checkQuery, [data.cli_cnpj, id]);
+                if (checkRes.rows.length > 0) {
+                    return res.status(400).json({ success: false, message: 'Já existe outro cliente cadastrado com este CNPJ/CPF.' });
+                }
+            }
 
             // DEBUG: Check DB Connetion Context
             const debugDb = await pool.query("SELECT current_database(), current_schema(), current_user, version()");

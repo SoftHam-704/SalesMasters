@@ -214,10 +214,25 @@ const FrmProdutos = () => {
     };
 
     const handleExcluirProduto = async (product) => {
-        if (!window.confirm(`Deseja realmente excluir o produto "${product.pro_codprod}" desta tabela?`)) {
+        if (!window.confirm(`Deseja realmente excluir o produto "${product.pro_codprod}" desta tabela de preço?\n\nProduto: ${product.pro_nome || product.pro_codprod}\n\n⚠️ Esta ação é irreversível!`)) {
             return;
         }
-        toast.info(`Excluir produto ${product.pro_codprod} - Em desenvolvimento`);
+
+        try {
+            const url = getApiUrl(NODE_API_URL, `/api/price-tables/products/${selectedIndustry}/${encodeURIComponent(selectedTable)}/${product.itab_idprod}`);
+            const response = await fetch(url, { method: 'DELETE' });
+            const result = await response.json();
+
+            if (result.success) {
+                toast.success(`Produto "${product.pro_codprod}" excluído da tabela com sucesso!`);
+                fetchProducts(selectedIndustry, selectedTable);
+            } else {
+                toast.error(result.message || 'Erro ao excluir produto');
+            }
+        } catch (error) {
+            console.error('Erro ao excluir produto:', error);
+            toast.error('Erro ao excluir produto da tabela');
+        }
     };
 
     const handleZerarDescontoAdd = async (product) => {

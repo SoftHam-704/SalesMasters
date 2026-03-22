@@ -191,18 +191,18 @@ export default function UltimasComprasPage() {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <ClosePageButton />
-                        <h1 className="text-xl font-bold tracking-tight text-stone-900">Dashboard de \u00daltimas Compras</h1>
+                        <h1 className="text-xl font-bold tracking-tight text-stone-900">Dashboard de Últimas Compras</h1>
                         <span className="text-xs text-stone-400 font-mono flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            Mapa de Calor por Ind\u00fastria
+                            Mapa de Calor por Indústria
                         </span>
                     </div>
 
                     <div className="flex items-center gap-3">
                         <div className="flex bg-stone-100 p-0.5 rounded-md border border-stone-200">
                             {[
-                                { id: "acumulado", label: "Hist\u00f3rico" },
-                                { id: "ultima", label: "\u00daltima Compra" }
+                                { id: "acumulado", label: "Histórico" },
+                                { id: "ultima", label: "Última Compra" }
                             ].map((option) => (
                                 <button
                                     key={option.id}
@@ -230,7 +230,7 @@ export default function UltimasComprasPage() {
                 <div className="flex flex-wrap items-end gap-3">
                     {/* Periodo Filter */}
                     <div className="flex flex-col gap-1.5 min-w-[240px]">
-                        <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Per\u00edodo de An\u00e1lise</label>
+                        <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Período de Análise</label>
                         <div className="flex items-center gap-2 bg-stone-50 p-1 rounded-lg border border-stone-200 shadow-sm h-[38px]">
                             <input
                                 type="date"
@@ -251,7 +251,7 @@ export default function UltimasComprasPage() {
                     {/* Ind\u00fastria Select */}
                     <div className="flex flex-col gap-1.5 flex-1 min-w-[150px]">
                         <label className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                            Ind\u00fastria
+                            Indústria
                         </label>
                         <Select value={selectedIndustria} onValueChange={setSelectedIndustria}>
                             <SelectTrigger className="h-[38px] bg-stone-50 border-stone-200 text-stone-700 shadow-sm">
@@ -259,7 +259,7 @@ export default function UltimasComprasPage() {
                             </SelectTrigger>
                             <SelectContent className="max-h-[300px]">
                                 <SelectItem value="ALL">
-                                    {renderSelectItem(<Factory className="w-4 h-4" />, "Todas as ind\u00fastrias", "Vis\u00e3o Comparativa")}
+                                    {renderSelectItem(<Factory className="w-4 h-4" />, "Todas as indústrias", "Visão Comparativa")}
                                 </SelectItem>
                                 {industrias.filter(ind => ind.for_codigo).map(ind => (
                                     <SelectItem key={ind.for_codigo} value={String(ind.for_codigo)}>
@@ -281,7 +281,7 @@ export default function UltimasComprasPage() {
                                 <SelectItem value="ALL">Todos os clientes ativos</SelectItem>
                                 {clientes.filter(c => c.cli_codigo).map(c => (
                                     <SelectItem key={c.cli_codigo} value={String(c.cli_codigo)}>
-                                        {renderSelectItem(<User className="w-4 h-4" />, c.cli_nomred || c.cli_nome, `C\u00f3digo: ${c.cli_codigo}`)}
+                                        {renderSelectItem(<User className="w-4 h-4" />, c.cli_nomred || c.cli_nome, `Código: ${c.cli_codigo}`)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

@@ -853,5 +853,43 @@ module.exports = (pool) => {
         }
     });
 
+    // ============================================================================
+    // DELETE /api/price-tables/products/:industria/:tabela/:productId
+    // Excluir um produto específico de uma tabela de preço
+    // ============================================================================
+    router.delete('/products/:industria/:tabela/:productId', async (req, res) => {
+        try {
+            const { industria, tabela, productId } = req.params;
+
+            const result = await pool.query(
+                `DELETE FROM cad_tabelaspre 
+                 WHERE itab_idprod = $1 
+                   AND itab_idindustria = $2 
+                   AND itab_tabela = $3 
+                 RETURNING *`,
+                [productId, industria, tabela]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Produto não encontrado nesta tabela de preço'
+                });
+            }
+
+            res.json({
+                success: true,
+                message: 'Produto excluído da tabela com sucesso!',
+                data: result.rows[0]
+            });
+        } catch (error) {
+            console.error('Erro ao excluir produto da tabela:', error);
+            res.status(500).json({
+                success: false,
+                message: `Erro ao excluir produto: ${error.message}`
+            });
+        }
+    });
+
     return router;
 };

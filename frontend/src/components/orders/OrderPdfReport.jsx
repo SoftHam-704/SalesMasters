@@ -5,11 +5,17 @@ import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/render
 const formatCpfCnpj = (value) => {
     if (!value) return '';
     const cleanValue = String(value).replace(/\D/g, '');
-    if (cleanValue.length === 11) {
-        return cleanValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-    } else if (cleanValue.length === 14) {
-        return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    
+    // CNPJ: Se tiver entre 12 e 14 dígitos (ou for maior que 11), trata como CNPJ e completa com zeros
+    if (cleanValue.length > 11 && cleanValue.length <= 14) {
+        return cleanValue.padStart(14, '0').replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
     }
+    
+    // CPF: Se tiver até 11 dígitos e for maior que 0, trata como CPF e completa com zeros
+    if (cleanValue.length > 0 && cleanValue.length <= 11) {
+        return cleanValue.padStart(11, '0').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+    
     return value;
 };
 
@@ -17,12 +23,38 @@ const formatCpfCnpj = (value) => {
 const getDiscountString = (o) => {
     if (!o) return '';
     const discs = [];
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 12; i++) {
         const val = parseFloat(o[`ped_desc${i}`]);
-        if (val > 0) discs.push(`${val.toFixed(2)}%`);
+        if (num(val) > 0) discs.push(`${val.toFixed(2)}%`);
+    }
+    // Suporte para ped_descadic
+    if (parseFloat(o.ped_descadic) > 0) {
+        discs.push(`adic ${parseFloat(o.ped_descadic).toFixed(2)}%`);
     }
     return discs.join('+');
 };
+
+// Helper for item-level discounts
+const getItemDiscountString = (it) => {
+    if (!it) return '';
+    // if ite_descontos exists and is not just a placeholder, use it
+    if (it.ite_descontos && it.ite_descontos.length > 0 && it.ite_descontos !== 'Sem desconto') {
+        return it.ite_descontos;
+    }
+    
+    // Fallback: build from ite_des1...12
+    const discs = [];
+    for (let i = 1; i <= 15; i++) {
+        const val = parseFloat(it[`ite_des${i}`]);
+        if (num(val) > 0) discs.push(`${val.toFixed(2)}%`);
+    }
+    if (parseFloat(it.ite_descadic) > 0) {
+        discs.push(`${parseFloat(it.ite_descadic).toFixed(2)}%`);
+    }
+    return discs.join(' + ');
+};
+
+const num = (v) => parseFloat(v) || 0;
 
 // Model 14: Quick Quote Table - Sq, Prod, Conv, Desc, Quant, Bruto, Liq, Total, IPI
 const ItemsModel14 = ({ groupedItems, order }) => {
@@ -53,17 +85,25 @@ const ItemsModel14 = ({ groupedItems, order }) => {
             {allItems.map((item, idx) => {
                 globalSeq++;
                 const conv = item.ite_embuch || '';
+                
                 return (
-                    <View key={idx} style={styles.tableRowDashed} wrap={false}>
-                        <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
-                        <Text style={{ width: '7%', textAlign: 'center' }}>{item.ite_produto}</Text>
-                        <Text style={{ width: '12%', textAlign: 'center', fontSize: 6 }}>{conv}</Text>
-                        <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
-                        <Text style={{ width: '5%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
-                        <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
-                        <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
+                    <View key={idx} wrap={false}>
+                        <View style={styles.tableRowDashed}>
+                            <Text style={{ width: '3%', textAlign: 'center' }}>{globalSeq}</Text>
+                            <Text style={{ width: '7%', textAlign: 'center' }}>{item.ite_produto}</Text>
+                            <Text style={{ width: '12%', textAlign: 'center', fontSize: 6 }}>{conv}</Text>
+                            <Text style={{ flex: 1, paddingLeft: 2 }}>{item.ite_nomeprod}</Text>
+                            <Text style={{ width: '5%', textAlign: 'center', fontWeight: 'bold' }}>{item.ite_quant}</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puni)}</Text>
+                            <Text style={{ width: '8%', textAlign: 'right' }}>{fv(item.ite_puniliq)}</Text>
+                            <Text style={{ width: '10%', textAlign: 'right', fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
+                            <Text style={{ width: '4%', textAlign: 'right', fontSize: 6 }}>{fv(item.ite_ipi)}</Text>
+                        </View>
+                        {item.pro_aplicacao && (
+                            <View style={{ paddingLeft: '22%', paddingBottom: 2 }}>
+                                <Text style={{ fontSize: 6, color: '#4b5563' }}>{item.pro_aplicacao}</Text>
+                            </View>
+                        )}
                     </View>
                 );
             })}
@@ -587,6 +627,12 @@ const fv = (val) => {
 // Format date
 const formatDate = (dateStr) => {
     if (!dateStr) return '';
+    // Fix: Handles ISO dates (YYYY-MM-DD) which can shift to previous day
+    const isoDate = String(dateStr).substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+        const [y, m, d] = isoDate.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString('pt-BR');
+    }
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR');
 };
@@ -601,7 +647,7 @@ const fv3 = (val) => {
 const groupItemsByDiscount = (items) => {
     const groups = {};
     (items || []).forEach(item => {
-        const key = item.ite_descontos || 'Sem desconto';
+        const key = getItemDiscountString(item) || 'Sem desconto';
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
     });
@@ -616,12 +662,18 @@ const groupItemsByDiscount = (items) => {
 // Header with specific layout: Logos Top, Order Info Bar Below
 const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
     const isCotacao = modelNum === 2;
-    const titulo = isCotacao ? 'Cotação' : 'Pedido';
+    // Prio 1: ped_situacao from database
+    // Prio 2: Model 2 fallback
+    // Prio 3: Default 'Pedido'
+    const titulo = (order.ped_situacao && order.ped_situacao.trim().length > 0) 
+        ? order.ped_situacao 
+        : (isCotacao ? 'Cotação' : 'Pedido');
+        
     const repEnderecoCompleto = `${repInfo?.rep_endereco || ''} ${repInfo?.rep_bairro || ''}`;
     const repCidadeInfo = `${repInfo?.rep_cidade || ''} ${repInfo?.rep_uf ? `UF: ${repInfo.rep_uf}` : ''} ${repInfo?.rep_cep ? `CEP: ${repInfo.rep_cep}` : ''}`;
 
     // Visual helper: Cotação title in red to distinguish from Order
-    const titleStyle = isCotacao ? { color: '#dc2626' } : { color: '#000000' };
+    const titleStyle = (titulo.toUpperCase().includes('COTA') || isCotacao) ? { color: '#dc2626' } : { color: '#000000' };
 
     return (
         <View style={{ marginBottom: 2 }}>
@@ -669,7 +721,7 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Cond. Pagamento: </Text><Text style={{ ...styles.value, color: '#dc2626' }}>{order.order_payment_type || order.ped_condpag || ''}</Text></View>
                         </View>
                         <View style={{ flex: 0.8, borderRightWidth: 0.5, borderRightColor: '#ccc', borderRightStyle: 'solid', paddingLeft: 5 }}>
-                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Lista: </Text><Text style={{ ...styles.value, fontWeight: 'bold' }}>LISTA ATUAL</Text></View>
+                            <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Lista: </Text><Text style={{ ...styles.value, fontWeight: 'bold' }}>{order.ped_tabela || 'PADRÃO'}</Text></View>
                             <View style={{ flexDirection: 'row' }}><Text style={styles.label}>Frete: </Text><Text style={{ ...styles.value, color: '#dc2626', fontWeight: 'bold', textDecoration: 'underline' }}>{order.ped_tipofrete === 'C' ? 'FRETE CIF' : 'FRETE FOB'}</Text></View>
                         </View>
                         {modelNum !== 14 && (
@@ -684,13 +736,18 @@ const ReportHeader = ({ order, repInfo, logo, industryLogo, modelNum = 1 }) => {
                 {/* Info Bar (Only for models that don't use expansions) */}
                 {![4, 11, 12, 13, 14].includes(modelNum) && (
                     <View style={{ flexDirection: 'row', borderWidth: 0.5, borderColor: '#000000', borderStyle: 'solid', padding: 3, backgroundColor: '#ffffff', alignItems: 'center' }}>
-                        <View style={{ width: '30%' }}>
+                        <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: 9, fontWeight: 'bold', ...titleStyle }}>{titulo} nº: {order.ped_pedido}</Text>
                         </View>
-                        <View style={{ width: '40%', alignItems: 'center' }}>
+                        <View style={{ flex: 1.5, alignItems: 'center' }}>
                             <Text style={{ fontSize: 9 }}>Pedido cliente nº: <Text style={{ fontWeight: 'bold' }}>{order.ped_pedcli || order.ped_cliind || ''}</Text></Text>
                         </View>
-                        <View style={{ width: '30%', alignItems: 'flex-end' }}>
+                        {modelNum === 3 && (
+                            <View style={{ flex: 1.2, alignItems: 'center' }}>
+                                <Text style={{ fontSize: 9 }}>Tabela: <Text style={{ fontWeight: 'bold', color: '#dc2626' }}>{order.ped_tabela || 'PADRÃO'}</Text></Text>
+                            </View>
+                        )}
+                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
                             <Text style={{ fontSize: 9, fontWeight: 'bold' }}>Data: {formatDate(order.ped_data)}</Text>
                         </View>
                     </View>
@@ -1059,15 +1116,22 @@ const ItemsModel4 = ({ groupedItems, order }) => {
                 const ipiValor = (liq * ipiPerc / 100);
 
                 return (
-                    <View key={idx} style={styles.tableRow} wrap={false}>
-                        <Text style={styles.colQuant3}>{item.ite_quant}</Text>
-                        <Text style={styles.colProd3}>{item.ite_produto}</Text>
-                        <Text style={styles.colComp3}>{item.ite_embuch || ''}</Text>
-                        <Text style={styles.colConv3}>{item.pro_codigooriginal || ''}</Text>
-                        <Text style={styles.colDesc3}>{item.ite_nomeprod}</Text>
-                        <Text style={styles.colLiq3}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ ...styles.colTotLiq3, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
-                        <Text style={styles.colIpi3}>{fv(ipiValor)}</Text>
+                    <View key={idx} style={{ ...styles.tableRow, flexDirection: 'column' }} wrap={false}>
+                        <View style={{ flexDirection: 'row' }}>
+                            <Text style={styles.colQuant3}>{item.ite_quant}</Text>
+                            <Text style={styles.colProd3}>{item.ite_produto}</Text>
+                            <Text style={styles.colComp3}>{item.ite_embuch || ''}</Text>
+                            <Text style={styles.colConv3}>{item.pro_codigooriginal || ''}</Text>
+                            <Text style={styles.colDesc3}>{item.ite_nomeprod}</Text>
+                            <Text style={styles.colLiq3}>{fv(item.ite_puniliq)}</Text>
+                            <Text style={{ ...styles.colTotLiq3, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
+                            <Text style={styles.colIpi3}>{fv(ipiValor)}</Text>
+                        </View>
+                        {item.pro_aplicacao && (
+                            <View style={{ flexDirection: 'row', paddingLeft: '13%', paddingBottom: 2, paddingTop: 1 }}>
+                                <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>
+                            </View>
+                        )}
                     </View>
                 );
             })}
@@ -1130,7 +1194,7 @@ const ItemsModel5 = ({ groupedItems, order }) => {
         <View style={{ marginBottom: 3 }}>
             <View style={{ backgroundColor: '#ffffff', padding: 2, borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', borderBottomWidth: 0 }}>
                 <Text style={{ fontWeight: 'bold', fontSize: 7, ...styles.redLabel }}>
-                    Descontos praticados nos itens abaixo: <Text style={{ color: '#000000' }}>{order.ped_desc1 ? `${order.ped_desc1}%` : ''}</Text>
+                    Descontos: <Text style={{ color: '#000000' }}>{getDiscountString(order)}</Text>
                 </Text>
             </View>
 
@@ -1149,18 +1213,27 @@ const ItemsModel5 = ({ groupedItems, order }) => {
                 const liq = parseFloat(item.ite_totliquido) || 0;
                 const ipiPerc = parseFloat(item.ite_ipi) || 0;
                 const ipiValor = (liq * ipiPerc / 100);
+                const discounts = getItemDiscountString(item);
                 globalSeq++;
 
                 return (
-                    <View key={idx} style={styles.tableRow} wrap={false}>
-                        <Text style={styles.colSq}>{globalSeq}</Text>
-                        <Text style={styles.colQtd}>{item.ite_quant}</Text>
-                        <Text style={styles.colProd}>{item.ite_produto}</Text>
-                        <Text style={styles.colConv}>{item.pro_codigooriginal || ''}</Text>
-                        <Text style={styles.colDesc}>{item.ite_nomeprod}</Text>
-                        <Text style={styles.colVal}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ ...styles.colTot, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
-                        <Text style={styles.colTax}>{fv(ipiValor)}</Text>
+                    <View key={idx} style={{ ...styles.tableRow, flexDirection: 'column' }} wrap={false}>
+                        <View style={{ flexDirection: 'row' }}>
+                            <Text style={styles.colSq}>{globalSeq}</Text>
+                            <Text style={styles.colQtd}>{item.ite_quant}</Text>
+                            <Text style={styles.colProd}>{item.ite_produto}</Text>
+                            <Text style={styles.colConv}>{item.pro_codigooriginal || ''}</Text>
+                            <Text style={styles.colDesc}>{item.ite_nomeprod}</Text>
+                            <Text style={styles.colVal}>{fv(item.ite_puniliq)}</Text>
+                            <Text style={{ ...styles.colTot, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
+                            <Text style={styles.colTax}>{fv(ipiValor)}</Text>
+                        </View>
+                        {(discounts || item.pro_aplicacao) && (
+                            <View style={{ flexDirection: 'row', paddingLeft: '22%', paddingBottom: 2, backgroundColor: '#fdf2f2' }}>
+                                {discounts && <Text style={{ fontSize: 7, color: '#dc2626', fontWeight: 'bold', marginRight: 10 }}>DESC: {discounts}</Text>}
+                                {item.pro_aplicacao && <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>}
+                            </View>
+                        )}
                     </View>
                 );
             })}
@@ -1240,6 +1313,7 @@ const ItemsModel7 = ({ groupedItems }) => {
                 const liq = parseFloat(item.ite_totliquido) || 0;
                 const ipiPerc = parseFloat(item.ite_ipi) || 0;
                 const ipiValor = (liq * ipiPerc / 100);
+                const discounts = getItemDiscountString(item);
                 globalSeq++;
 
                 return (
@@ -1254,9 +1328,10 @@ const ItemsModel7 = ({ groupedItems }) => {
                             <Text style={{ ...styles.colTot, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
                             <Text style={styles.colTax}>{fv(ipiValor)}</Text>
                         </View>
-                        {item.pro_aplicacao && (
-                            <View style={{ paddingLeft: '18.5%', paddingBottom: 2 }}>
-                                <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>
+                        {(discounts || item.pro_aplicacao) && (
+                            <View style={{ flexDirection: 'row', paddingLeft: '22%', paddingBottom: 2, backgroundColor: '#fdf2f2' }}>
+                                {discounts && <Text style={{ fontSize: 7, color: '#dc2626', fontWeight: 'bold', marginRight: 10 }}>DESC: {discounts}</Text>}
+                                {item.pro_aplicacao && <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>}
                             </View>
                         )}
                     </View>
@@ -1304,6 +1379,7 @@ const ItemsModel8 = ({ groupedItems, order }) => {
                 const pLiq = parseFloat(item.ite_puniliq) || 0;
                 const pComIpi = pLiq * (1 + ipiPerc / 100);
                 const tComIpi = liq * (1 + ipiPerc / 100);
+                const discounts = getItemDiscountString(item);
 
                 return (
                     <View key={idx} style={{ ...styles.tableRow, flexDirection: 'column' }} wrap={false}>
@@ -1317,9 +1393,10 @@ const ItemsModel8 = ({ groupedItems, order }) => {
                             <Text style={{ width: '10%', textAlign: 'right', borderRightWidth: 0.5, borderRightColor: '#94a3b8', borderRightStyle: 'solid', paddingRight: 2, fontWeight: 'bold' }}>{fv(tComIpi)}</Text>
                             <Text style={{ width: '5%', textAlign: 'right', paddingRight: 2 }}>{fv(ipiPerc)}</Text>
                         </View>
-                        {item.pro_aplicacao && (
-                            <View style={{ paddingLeft: '13%', paddingBottom: 2 }}>
-                                <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>
+                        {(discounts || item.pro_aplicacao) && (
+                            <View style={{ flexDirection: 'row', paddingLeft: '13%', paddingBottom: 2, backgroundColor: '#fdf2f2' }}>
+                                {discounts && <Text style={{ fontSize: 7, color: '#dc2626', fontWeight: 'bold', marginRight: 10 }}>DESC: {discounts}</Text>}
+                                {item.pro_aplicacao && <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>}
                             </View>
                         )}
                     </View>
@@ -1443,79 +1520,84 @@ const ItemsModel9 = ({ groupedItems, order }) => {
             </View>
         </View>
     );
-};
-
-// Model 3: Specialized - Quant, Prod, Complemento, Conversão, Descrição, Un.Liq, Total, IPI
-const ItemsModel3 = ({ groupedItems, order }) => {
+};const ItemsModel3 = ({ groupedItems, order }) => {
     let globalSeq = 0;
-    const allItems = Object.values(groupedItems).flat();
-
-    // Cálculos precisos de totais
-    const subTotalLiq = allItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
-    const subTotalIpi = allItems.reduce((acc, it) => {
-        const liq = parseFloat(it.ite_totliquido) || 0;
-        const ipiPerc = parseFloat(it.ite_ipi) || 0;
-        return acc + (liq * ipiPerc / 100);
-    }, 0);
-    const subTotalComIpi = subTotalLiq + subTotalIpi;
-
-
-
-
 
     return (
         <View style={{ marginBottom: 3 }}>
-            {/* Discount Header - Fixed format for Model 3 */}
-            <View style={{ backgroundColor: '#ffffff', padding: 2, borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid', borderBottomWidth: 0 }}>
-                <Text style={{ fontWeight: 'bold', fontSize: 7, ...styles.redLabel }}>
-                    Descontos: <Text style={{ color: '#000000' }}>{getDiscountString(order)}</Text>
-                </Text>
-            </View>
-
-            {/* Table Header - Model 3 */}
-            <View style={styles.tableHeader}>
-                <Text style={styles.colQuant3}>Quant:</Text>
-                <Text style={styles.colProd3}>Produto:</Text>
-                <Text style={styles.colComp3}>Complemento:</Text>
-                <Text style={styles.colConv3}>Conversão:</Text>
-                <Text style={styles.colDesc3}>Descrição do produto:</Text>
-                <Text style={styles.colLiq3}>Un.líquido:</Text>
-                <Text style={styles.colTotLiq3}>Total liqdo:</Text>
-                <Text style={styles.colIpi3}>IPI:</Text>
-            </View>
-
-            {/* Items */}
-            {allItems.map((item, idx) => {
-                const liq = parseFloat(item.ite_totliquido) || 0;
-                const ipiPerc = parseFloat(item.ite_ipi) || 0;
-                const ipiValor = (liq * ipiPerc / 100);
+            {Object.entries(groupedItems).map(([discountKey, groupItems], groupIndex) => {
+                const groupTotalLiq = groupItems.reduce((acc, it) => acc + (parseFloat(it.ite_totliquido) || 0), 0);
+                const groupTotalIpi = groupItems.reduce((acc, it) => {
+                    const liq = parseFloat(it.ite_totliquido) || 0;
+                    const ipiPerc = parseFloat(it.ite_ipi) || 0;
+                    return acc + (liq * ipiPerc / 100);
+                }, 0);
+                const groupTotalComIpi = groupTotalLiq + groupTotalIpi;
 
                 return (
-                    <View key={idx} style={styles.tableRow} wrap={false}>
-                        <Text style={styles.colQuant3}>{item.ite_quant}</Text>
-                        <Text style={styles.colProd3}>{item.ite_produto}</Text>
-                        <Text style={styles.colComp3}>{item.ite_complemento || ''}</Text>
-                        <Text style={styles.colConv3}>{item.ite_conversao || ''}</Text>
-                        <Text style={styles.colDesc3}>{item.ite_nomeprod}</Text>
-                        <Text style={styles.colLiq3}>{fv(item.ite_puniliq)}</Text>
-                        <Text style={{ ...styles.colTotLiq3, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
-                        <Text style={styles.colIpi3}>{fv(ipiValor)}</Text>
+                    <View key={groupIndex} style={{ marginBottom: 8 }}>
+                        {/* Discount Group Header */}
+                        <View style={{ backgroundColor: '#ffffff', padding: 2, borderWidth: 0.5, borderColor: '#94a3b8', borderStyle: 'solid' }}>
+                            <Text style={{ fontWeight: 'bold', fontSize: 7, ...styles.redLabel }}>
+                                Descontos: <Text style={{ color: '#000000' }}>{discountKey}</Text>
+                            </Text>
+                        </View>
+
+                        {/* Table Header per group */}
+                        <View style={styles.tableHeader}>
+                            <Text style={styles.colQuant3}>Quant:</Text>
+                            <Text style={styles.colProd3}>Produto:</Text>
+                            <Text style={styles.colComp3}>Complemento:</Text>
+                            <Text style={styles.colConv3}>Conversão:</Text>
+                            <Text style={styles.colDesc3}>Descrição do produto:</Text>
+                            <Text style={styles.colLiq3}>Un.líquido:</Text>
+                            <Text style={styles.colTotLiq3}>Total liqdo:</Text>
+                            <Text style={styles.colIpi3}>IPI:</Text>
+                        </View>
+
+                        {/* Items */}
+                        {groupItems.map((item, idx) => {
+                            const liq = parseFloat(item.ite_totliquido) || 0;
+                            const ipiPerc = parseFloat(item.ite_ipi) || 0;
+                            const ipiValor = (liq * ipiPerc / 100);
+                            globalSeq++;
+
+                            return (
+                                <View key={idx} style={{ ...styles.tableRow, flexDirection: 'column' }} wrap={false}>
+                                    <View style={{ flexDirection: 'row' }}>
+                                        <Text style={styles.colQuant3}>{item.ite_quant}</Text>
+                                        <Text style={styles.colProd3}>{item.ite_produto}</Text>
+                                        <Text style={styles.colComp3}>{item.ite_complemento || ''}</Text>
+                                        <Text style={styles.colConv3}>{item.ite_conversao || ''}</Text>
+                                        <Text style={styles.colDesc3}>{item.ite_nomeprod}</Text>
+                                        <Text style={styles.colLiq3}>{fv(item.ite_puniliq)}</Text>
+                                        <Text style={{ ...styles.colTotLiq3, fontWeight: 'bold' }}>{fv(item.ite_totliquido)}</Text>
+                                        <Text style={styles.colIpi3}>{fv(ipiValor)}</Text>
+                                    </View>
+                                    
+                                    {item.pro_aplicacao && (
+                                        <View style={{ flexDirection: 'row', paddingLeft: '13%', paddingBottom: 2, paddingTop: 1 }}>
+                                            <Text style={{ fontSize: 7, color: '#4b5563' }}>{item.pro_aplicacao}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })}
+
+                        {/* Group Sub-total */}
+                        <View style={styles.subTotalRow}>
+                            <Text style={{ ...styles.colQuant3, borderRightWidth: 0, borderLeftWidth: 0 }}>Sub-total:</Text>
+                            <Text style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#94a3b8', borderRightStyle: 'solid' }}></Text>
+                            <Text style={styles.colLiq3}>{fv(groupTotalLiq)}</Text>
+                            <Text style={styles.colTotLiq3}>{fv(groupTotalComIpi)}</Text>
+                            <Text style={styles.colIpi3}></Text>
+                        </View>
                     </View>
                 );
             })}
-
-            {/* Sub-total Row */}
-            <View style={styles.subTotalRow}>
-                <Text style={{ ...styles.colQuant3, borderRightWidth: 0, borderLeftWidth: 0 }}>Sub-total:</Text>
-                <Text style={{ flex: 1, borderRightWidth: 0.5, borderRightColor: '#94a3b8', borderRightStyle: 'solid' }}></Text>
-                <Text style={styles.colLiq3}>{fv(subTotalLiq)}</Text>
-                <Text style={styles.colTotLiq3}>{fv(subTotalComIpi)}</Text>
-                <Text style={styles.colIpi3}></Text>
-            </View>
         </View>
     );
 };
-
 // Model 1: Standard - Sq, Qtd, Prod, Desc, Un.Bruto, Un.Liq, Total
 const ItemsModel1 = ({ groupedItems }) => {
     let globalSeq = 0;

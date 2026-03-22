@@ -57,13 +57,15 @@ const SellerForm = ({ data, onClose, onSave }) => {
         }
     };
 
-    // Load suppliers for the industry dropdown
+    // Load suppliers for the industry dropdown (apenas indústrias ativas)
     const loadSuppliers = async () => {
         try {
             const res = await fetch(getApiUrl(NODE_API_URL, '/api/suppliers'));
             if (res.ok) {
                 const json = await res.json();
-                setSuppliers(json.data || []);
+                const all = json.data || [];
+                // Filtra apenas indústrias ativas (for_tipo2 = 'A')
+                setSuppliers(all.filter(s => s.for_tipo2 === 'A'));
             }
         } catch (error) {
             console.error("Erro ao carregar fornecedores", error);
