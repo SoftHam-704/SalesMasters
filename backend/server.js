@@ -438,10 +438,16 @@ const isProduction = process.env.NODE_ENV === 'production';
 console.log(`🌐 [DEPLOY] Web System Configuration: Production=${isProduction} | PathExists=${frontendExists} | Path=${frontendPath}`);
 
 if (isProduction || frontendExists) {
+    // Servir o PWA da Iris
+    app.use('/iris', express.static(path.join(__dirname, '../iris/dist')));
+    app.get(/^\/iris(\/.*)?$/, (req, res) => {
+        res.sendFile(path.join(__dirname, '../iris/dist/index.html'));
+    });
+
     app.use(express.static(frontendPath));
 
     // Fallback Universal para SPA (React)
-    app.get(/^\/(?!api|app|images|bi-api|instance|assets|favicon|logo|manifest|static).*$/, (req, res, next) => {
+    app.get(/^\/(?!api|app|iris|images|bi-api|instance|assets|favicon|logo|manifest|static).*$/, (req, res, next) => {
         // Ignorar rotas de API, App Mobile, Assets e arquivos com extensão
         if (
             req.path.startsWith('/api') ||
