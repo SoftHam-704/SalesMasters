@@ -4,16 +4,26 @@ const router = express.Router();
 module.exports = function(app, pool) {
     // Middleware de Autenticação Iris (MVP)
     const irisAuthMiddleware = (req, res, next) => {
-        const token = req.headers['x-iris-token'] || req.query.token;
-        
-        if (!token) {
-            return res.status(401).json({ success: false, message: 'Token Iris não fornecido.' });
-        }
+    // Busca o token em vários lugares para máxima compatibilidade
+    const authHeader = req.headers.authorization;
+    const irisHeader = req.headers['x-iris-token'];
+    const token = irisHeader || (authHeader ? authHeader.split(' ')[1] : req.query.token);
+
+    if (!token) {
+        console.warn('⚠️ Tentativa de acesso Iris sem token');
+        return res.status(401).json({ success: false, message: 'Acesso negado: Token ausente.' });
+    }
 
         try {
-            // No MVP, o token é um Base64 simples contendo os dados do lojista
-            const decoded = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+            // Reforço: Aceitar Base64 seguro para URL e normalizar espaços
+            const normalizedToken = token.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+            const decoded = JSON.parse(Buffer.from(normalizedToken, 'base64').toString('utf8'));
             
+            // Validação de expiração (ms)
+            if (decoded.exp && decoded.exp < Date.now()) {
+                return res.status(401).json({ success: false, message: 'Acesso expirado.' });
+            }
+
             if (!decoded.cli_codigo || !decoded.empresa_id) {
                 throw new Error('Token inválido');
             }

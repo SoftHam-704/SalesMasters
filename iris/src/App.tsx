@@ -34,10 +34,15 @@ const AuthInitializer = ({ children }: { children: React.ReactNode }) => {
                 if (tokenFromUrl) setToken(tokenFromUrl);
                 
                 try {
-                    const res = await catalogApi.validateToken(currentToken);
+                    // Reforço: Limpar caracteres inválidos e normalizar Base64 antes de validar
+                    // O browser converte '+' em ' ' na URL, precisamos reverter
+                    const cleanToken = currentToken.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
+                    const res = await catalogApi.validateToken(cleanToken);
+                    
                     if (res.data.success) {
                         setAuth(res.data.lojista, res.data.industrias);
                     } else {
+                        console.error('Token inválido pelo servidor');
                         clearAuth();
                     }
                 } catch (e) {

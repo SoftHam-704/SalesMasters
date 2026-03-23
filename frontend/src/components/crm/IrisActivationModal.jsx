@@ -92,10 +92,11 @@ const IrisActivationModal = ({ open, onOpenChange, client }) => {
                         <div className="p-4 bg-slate-950 rounded-xl border border-white/5 space-y-2">
                             <label className="text-[10px] uppercase font-bold text-emerald-400">Link Iris Gerado</label>
                             <div className="flex gap-2">
-                                <Input 
-                                    readOnly 
-                                    value={tokenData.fullLink} 
-                                    className="bg-transparent border-white/10 text-xs font-mono h-10 ring-0 focus-visible:ring-0"
+                                <input
+                                    type="text"
+                                    readOnly
+                                    value={tokenData.fullLink}
+                                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 pr-12 text-sm text-emerald-400 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
                                 />
                                 <Button onClick={copyToClipboard} size="icon" variant="ghost" className="hover:bg-white/5">
                                     {copied ? <Check className="text-emerald-400 w-4 h-4" /> : <Copy className="w-4 h-4" />}
