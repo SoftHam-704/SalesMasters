@@ -4,7 +4,7 @@ const router = express.Router();
 module.exports = (pool) => {
     const getPool = (req) => req.pool || pool;
 
-    // 1. List All Suppliers (THE MISSING ONE)
+    // 1. List All Suppliers
     router.get('/', async (req, res) => {
         try {
             const { status, all } = req.query;
@@ -23,11 +23,9 @@ module.exports = (pool) => {
                 filters.push(`f.for_tipo2 = $${params.length + 1}`);
                 params.push(status);
             } else if (all !== 'true') {
-                // Default to active only unless all=true is specified
                 filters.push(`f.for_tipo2 = 'A'`);
             }
 
-            // Filtro de Indústrias por Usuário/Vendedor (Se não for Master)
             if (userId && userId !== 'undefined') {
                 try {
                     const userRes = await currentPool.query(
@@ -36,7 +34,6 @@ module.exports = (pool) => {
                     );
 
                     if (userRes.rows.length > 0 && !userRes.rows[0].master) {
-                        // Busca o vendedor vinculado por ID (ven_codusu = user_nomes.codigo)
                         const sellerRes = await currentPool.query(
                             'SELECT ven_codigo FROM vendedores WHERE ven_codusu = $1',
                             [parseInt(userId)]
@@ -44,17 +41,14 @@ module.exports = (pool) => {
 
                         if (sellerRes.rows.length > 0) {
                             const sellerId = sellerRes.rows[0].ven_codigo;
-                            // Filtra apenas as indústrias que o vendedor atende
                             filters.push(`f.for_codigo IN (SELECT vin_industria FROM vendedor_ind WHERE vin_codigo = $${params.length + 1})`);
                             params.push(sellerId);
                         } else {
-                            // Não-master sem vendedor vinculado → bloqueia tudo
-                            console.log(`🔐 [SUPPLIERS] User ${userId}: não-master sem vendedor vinculado, bloqueando acesso.`);
                             filters.push('1=0');
                         }
                     }
                 } catch (err) {
-                    console.error('⚠️ [SUPPLIERS] Erro ao aplicar filtro de usuário:', err.message);
+                    console.error('⚠️ [SUPPLIERS] Filter error:', err.message);
                 }
             }
 
@@ -93,7 +87,7 @@ module.exports = (pool) => {
         }
     });
 
-    // 4. Get individual supplier goals (Horizontal ind_metas)
+    // 4. Get goals
     router.get('/:supplierId/goals/:year', async (req, res) => {
         try {
             const { supplierId, year } = req.params;
@@ -105,21 +99,17 @@ module.exports = (pool) => {
                 WHERE met_industria = $1 AND met_ano = $2
             `;
             const result = await getPool(req).query(query, [supplierId, parseInt(year)]);
-
-            // Return empty object if no row found, otherwise the first row
             res.json({ success: true, data: result.rows[0] || {} });
         } catch (error) {
-            console.error('❌ [SUPPLIERS] GET goals error:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });
 
-    // 5. Update/Upsert individual supplier goals
+    // 5. Update goals
     router.put('/:supplierId/goals/:year', async (req, res) => {
         try {
             const { supplierId, year } = req.params;
-            const goals = req.body; // Expects { met_jan: X, met_fev: Y, ... }
-
+            const goals = req.body;
             const query = `
                 INSERT INTO ind_metas (
                     met_industria, met_ano,
@@ -141,249 +131,149 @@ module.exports = (pool) => {
                     met_dez = EXCLUDED.met_dez
                 RETURNING *
             `;
-
             const params = [
                 supplierId, parseInt(year),
                 goals.met_jan || 0, goals.met_fev || 0, goals.met_mar || 0, goals.met_abr || 0,
                 goals.met_mai || 0, goals.met_jun || 0, goals.met_jul || 0, goals.met_ago || 0,
                 goals.met_set || 0, goals.met_out || 0, goals.met_nov || 0, goals.met_dez || 0
             ];
-
             const result = await getPool(req).query(query, params);
-            res.json({ success: true, message: 'Metas salvas com sucesso!', data: result.rows[0] });
+            res.json({ success: true, data: result.rows[0] });
         } catch (error) {
-            console.error('❌ [SUPPLIERS] PUT goals error:', error);
             res.status(500).json({ success: false, message: error.message });
         }
     });
 
-    // 6. CREATE INDUSTRY (POST)
+    // 6. Create supplier
     router.post('/', async (req, res) => {
         const d = req.body;
-
         try {
-            // 1. SINCRONIZAR SEQUENCE (REORDER) - Garante que o ID será único
-            await getPool(req).query(`
-                SELECT setval('gen_fornecedores_id', COALESCE((SELECT MAX(for_codigo) FROM fornecedores), 0) + 1, false)
-            `);
-
-            // 2. Obter próximo ID
+            await getPool(req).query(`SELECT setval('gen_fornecedores_id', COALESCE((SELECT MAX(for_codigo) FROM fornecedores), 0) + 1, false)`);
             const seqRes = await getPool(req).query("SELECT nextval('gen_fornecedores_id') as next_num");
             const nextId = seqRes.rows[0].next_num;
-
-            // 3. TRUNCAR CAMPOS (LIMITES RÍGIDOS DO BANCO LEGADO)
-            // for_nomered: 15 chars, for_nome: 75 chars, for_cidade/bairro: 25 chars, for_endereco: 45 chars
-            const cleanedNomered = (d.for_nomered || '').substring(0, 15);
-            const cleanedNome = (d.for_nome || '').substring(0, 75);
-            const cleanedEndereco = (d.for_endereco || '').substring(0, 45);
-            const cleanedBairro = (d.for_bairro || '').substring(0, 25);
-            const cleanedCidade = (d.for_cidade || '').substring(0, 25);
 
             const query = `
                 INSERT INTO fornecedores (
                     for_codigo, for_nome, for_nomered, for_cgc, for_endereco, for_bairro,
-                    for_cidade, for_uf, for_cep, for_fone, for_tipo2,
-                    for_email, for_logotipo, for_des1, for_des2, for_des3,
-                    for_des4, for_des5, for_des6, for_des7, for_des8,
-                    for_des9, for_des10, for_percom, for_codrep, for_tipofrete,
-                    observacoes, for_obs2
+                    for_cidade, for_uf, for_cep, for_fone, for_tipo2, for_email, for_tipofrete,
+                    for_des1, for_des2, for_des3, for_des4, for_des5, for_des6, for_des7, for_des8, for_des9, for_des10,
+                    for_percom, for_codrep, for_logotipo, observacoes, for_obs2
                 ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                    $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-                    $21, $22, $23, $24, $25, $26, $27, $28
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+                    $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
+                    $24, $25, $26, $27, $28
                 ) RETURNING *
             `;
-
-            // Prepare codrep with NaN protection
-            let codrepRef = null;
-            if (d.for_codrep && d.for_codrep !== '') {
-                const parsed = parseInt(d.for_codrep);
-                if (!isNaN(parsed)) codrepRef = parsed;
-            }
-
-            const values = [
-                nextId,
-                cleanedNome, cleanedNomered, d.for_cgc || '',
-                cleanedEndereco, cleanedBairro, cleanedCidade,
-                d.for_uf || '', d.for_cep || '', d.for_fone || '', d.for_tipo2 || 'A',
-                d.for_email || '', d.for_logotipo || null,
-                parseFloat(d.for_des1 || 0) || 0, parseFloat(d.for_des2 || 0) || 0, parseFloat(d.for_des3 || 0) || 0,
-                parseFloat(d.for_des4 || 0) || 0, parseFloat(d.for_des5 || 0) || 0, parseFloat(d.for_des6 || 0) || 0,
-                parseFloat(d.for_des7 || 0) || 0, parseFloat(d.for_des8 || 0) || 0, parseFloat(d.for_des9 || 0) || 0,
-                parseFloat(d.for_des10 || 0) || 0, parseFloat(d.for_percom || 0) || 0,
-                codrepRef,
-                d.for_tipofrete || 'F', d.observacoes || '', d.for_obs2 || ''
+            const params = [
+                nextId, d.for_nome || '', (d.for_nomered || '').substring(0, 15), d.for_cgc || '',
+                d.for_endereco || '', d.for_bairro || '', d.for_cidade || '', d.for_uf || '', d.for_cep || '',
+                d.for_fone || '', d.for_tipo2 || 'A', d.for_email || '', d.for_tipofrete || 'F',
+                parseFloat(d.for_des1) || 0, parseFloat(d.for_des2) || 0, parseFloat(d.for_des3) || 0,
+                parseFloat(d.for_des4) || 0, parseFloat(d.for_des5) || 0, parseFloat(d.for_des6) || 0,
+                parseFloat(d.for_des7) || 0, parseFloat(d.for_des8) || 0, parseFloat(d.for_des9) || 0,
+                parseFloat(d.for_des10) || 0, parseFloat(d.for_percom) || 0, 
+                parseInt(d.for_codrep) || null, d.for_logotipo || null, d.observacoes || '', d.for_obs2 || ''
             ];
-
-            const result = await getPool(req).query(query, values);
-            res.json({ success: true, data: result.rows[0], message: 'Indústria cadastrada com sucesso!' });
-
+            const result = await getPool(req).query(query, params);
+            res.json({ success: true, data: result.rows[0] });
         } catch (error) {
-            console.error('❌ [SUPPLIERS] POST Error Detail:', {
-                message: error.message,
-                detail: error.detail,
-                code: error.code
-            });
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao salvar. Verifique se os dados estão corretos.',
-                error: error.message
-            });
+            res.status(500).json({ success: false, message: error.message });
         }
     });
 
-    // 7. UPDATE INDUSTRY (PUT)
+    // 7. Update supplier
     router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const d = req.body;
         try {
-            // Truncar campos para evitar erros de overflow (Legacy DB constraints)
-            const cleanedNomered = (d.for_nomered || '').substring(0, 15);
-
             const query = `
                 UPDATE fornecedores SET
                     for_nome = $1, for_nomered = $2, for_cgc = $3,
                     for_endereco = $4, for_bairro = $5, for_cidade = $6,
                     for_uf = $7, for_cep = $8, for_fone = $9, for_tipo2 = $10,
-                    for_email = $11, for_logotipo = $12,
+                    for_email = $11, for_tipofrete = $12,
                     for_des1 = $13, for_des2 = $14, for_des3 = $15, for_des4 = $16, for_des5 = $17,
                     for_des6 = $18, for_des7 = $19, for_des8 = $20, for_des9 = $21, for_des10 = $22,
-                    for_percom = $23, for_codrep = $24, for_tipofrete = $25, 
+                    for_percom = $23, for_codrep = $24, for_logotipo = $25, 
                     observacoes = $26, for_obs2 = $27
                 WHERE for_codigo = $28
                 RETURNING *
             `;
-            // Prepare codrep with NaN protection
-            let codrepRef = null;
-            if (d.for_codrep && d.for_codrep !== '') {
-                const parsed = parseInt(d.for_codrep);
-                if (!isNaN(parsed)) codrepRef = parsed;
-            }
-
-            const values = [
-                d.for_nome || '', cleanedNomered, d.for_cgc || '',
+            const params = [
+                d.for_nome || '', (d.for_nomered || '').substring(0, 15), d.for_cgc || '',
                 d.for_endereco || '', d.for_bairro || '', d.for_cidade || '',
                 d.for_uf || '', d.for_cep || '', d.for_fone || '', d.for_tipo2 || 'A',
-                d.for_email || '', d.for_logotipo || null,
-                parseFloat(d.for_des1 || 0) || 0, parseFloat(d.for_des2 || 0) || 0, parseFloat(d.for_des3 || 0) || 0,
-                parseFloat(d.for_des4 || 0) || 0, parseFloat(d.for_des5 || 0) || 0, parseFloat(d.for_des6 || 0) || 0,
-                parseFloat(d.for_des7 || 0) || 0, parseFloat(d.for_des8 || 0) || 0, parseFloat(d.for_des9 || 0) || 0,
-                parseFloat(d.for_des10 || 0) || 0, parseFloat(d.for_percom || 0) || 0,
-                codrepRef,
-                d.for_tipofrete || 'F', d.observacoes || '', d.for_obs2 || '',
+                d.for_email || '', d.for_tipofrete || 'F',
+                parseFloat(d.for_des1) || 0, parseFloat(d.for_des2) || 0, parseFloat(d.for_des3) || 0,
+                parseFloat(d.for_des4) || 0, parseFloat(d.for_des5) || 0, parseFloat(d.for_des6) || 0,
+                parseFloat(d.for_des7) || 0, parseFloat(d.for_des8) || 0, parseFloat(d.for_des9) || 0,
+                parseFloat(d.for_des10) || 0, parseFloat(d.for_percom) || 0, 
+                parseInt(d.for_codrep) || null, d.for_logotipo || null, d.observacoes || '', d.for_obs2 || '',
                 id
             ];
-            const result = await getPool(req).query(query, values);
-            res.json({ success: true, data: result.rows[0], message: 'Indústria atualizada com sucesso!' });
+            const result = await getPool(req).query(query, params);
+            res.json({ success: true, data: result.rows[0] });
         } catch (error) {
-            console.error('❌ [SUPPLIERS] PUT Error Detail:', {
-                message: error.message,
-                detail: error.detail,
-                hint: error.hint
-            });
-            res.status(500).json({
-                success: false,
-                message: 'Erro ao atualizar indústria.',
-                error: error.message
-            });
-        }
-    });
-
-    // 8. GET IA Knowledge
-    router.get('/:supplierId/ia-knowledge', async (req, res) => {
-        try {
-            const { supplierId } = req.params;
-            const query = `
-                SELECT * FROM ia_conhecimento 
-                WHERE for_codigo = $1
-            `;
-            const result = await getPool(req).query(query, [supplierId]);
-            res.json({ success: true, data: result.rows[0] || {} });
-        } catch (error) {
-            // Se tabela não existir ainda, retorna vazio sem erro
-            if (error.code === '42P01') {
-                return res.json({ success: true, data: {} });
-            }
-            console.error('❌ [IA_KNOWLEDGE] GET error:', error.message);
             res.status(500).json({ success: false, message: error.message });
         }
     });
 
-    // 9. SAVE IA Knowledge (Upsert)
+    // 8. IA Knowledge
+    router.get('/:supplierId/ia-knowledge', async (req, res) => {
+        try {
+            const { supplierId } = req.params;
+            const result = await getPool(req).query('SELECT * FROM ia_conhecimento WHERE for_codigo = $1', [supplierId]);
+            res.json({ success: true, data: result.rows[0] || {} });
+        } catch (error) {
+            if (error.code === '42P01') return res.json({ success: true, data: {} });
+            res.status(500).json({ success: false, message: error.message });
+        }
+    });
+
     router.post('/:supplierId/ia-knowledge', async (req, res) => {
         try {
             const { supplierId } = req.params;
             const { nome_marca, resumo_negocio, persona_ia, palavras_chave } = req.body;
-
-            // Converter supplierId para inteiro
             const fid = parseInt(supplierId);
-            if (isNaN(fid)) throw new Error("ID do fornecedor inválido");
 
-            // Verifica se já existe registro para esse fornecedor
-            const checkQuery = `SELECT id FROM ia_conhecimento WHERE for_codigo = $1`;
-            const checkRes = await getPool(req).query(checkQuery, [fid]);
+            const check = await getPool(req).query('SELECT id FROM ia_conhecimento WHERE for_codigo = $1', [fid]);
+            let query, params;
 
-            let query;
-            let params;
-
-            if (checkRes.rows.length > 0) {
-                // UPDATE
-                query = `
-                    UPDATE ia_conhecimento 
-                    SET nome_marca = $1, 
-                        resumo_negocio = $2, 
-                        persona_ia = $3, 
-                        palavras_chave = $4,
-                        updated_at = NOW()
-                    WHERE for_codigo = $5
-                    RETURNING *
-                `;
-                params = [nome_marca, resumo_negocio, persona_ia, palavras_chave, fid];
+            if (check.rows.length > 0) {
+                query = `UPDATE ia_conhecimento SET nome_marca=$1, resumo_negocio=$2, persona_ia=$3, palavras_chave=$4, updated_at=NOW() WHERE for_codigo=$5 RETURNING *`;
             } else {
-                query = `
-                    INSERT INTO ia_conhecimento (
-                        nome_marca, resumo_negocio, persona_ia, palavras_chave, for_codigo
-                    ) VALUES ($1, $2, $3, $4, $5)
-                    RETURNING *
-                `;
-                params = [nome_marca, resumo_negocio, persona_ia, palavras_chave, fid];
+                query = `INSERT INTO ia_conhecimento (nome_marca, resumo_negocio, persona_ia, palavras_chave, for_codigo) VALUES ($1, $2, $3, $4, $5) RETURNING *`;
             }
-
+            params = [nome_marca, resumo_negocio, persona_ia, palavras_chave, fid];
             const result = await getPool(req).query(query, params);
-            res.json({ success: true, message: 'Dados de IA salvos com sucesso!', data: result.rows[0] });
-
+            res.json({ success: true, data: result.rows[0] });
         } catch (error) {
-            console.error('❌ [IA_KNOWLEDGE] SAVE error:', error.message);
             res.status(500).json({ success: false, message: error.message });
         }
     });
 
-    // 10. Generate Iris Token
+    // 9. Generate Iris Token (URL Safe)
     router.post('/admin/generate-token', async (req, res) => {
-        const { cli_codigo, industrias } = req.body;
-        const tenantCnpj = req.headers['x-tenant-cnpj'];
-
-        if (!cli_codigo || !tenantCnpj) {
-            return res.status(400).json({ success: false, message: 'Dados insuficientes para gerar token.' });
-        }
-
         try {
+            const { cli_codigo: clientCode, industrias: industries } = req.body;
+            const empresaId = req.headers['x-tenant-cnpj'];
+
+            if (!clientCode || !empresaId) return res.status(400).json({ success: false, message: 'Dados incompletos' });
+
             const payload = {
-                cli_codigo,
-                empresa_id: tenantCnpj,
-                industrias: industrias || []
+                cli_codigo: clientCode,
+                empresa_id: empresaId,
+                industrias: industries || [],
+                exp: Date.now() + (30 * 24 * 60 * 60 * 1000)
             };
 
-            const token = Buffer.from(JSON.stringify(payload)).toString('base64');
-            // Nota: O domínio final será configurado no PWA/WEB
-            const link = `/iris/?t=${token}`;
-
-            res.json({
-                success: true,
-                token,
-                link,
-                expires_in: 'Expiração Indefinida (Alpha)'
-            });
+            const token = Buffer.from(JSON.stringify(payload))
+                .toString('base64')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+            
+            res.json({ success: true, token, link: `/iris/?t=${token}`, expires_in: '30 dias' });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
         }
